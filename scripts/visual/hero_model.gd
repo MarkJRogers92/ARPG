@@ -13,6 +13,8 @@ var _weapon_pivot: Node3D
 var _weapon: MeshInstance3D
 var _light: OmniLight3D
 var _speed := 0.0
+## Ground velocity in the model's own frame: x = forward, y = to its right.
+var _local := Vector2.ZERO
 var _walk := 0.0
 var _cast := 0.0
 
@@ -60,9 +62,15 @@ func set_weapon(base_name: String, accent: Color) -> void:
 			_weapon.rotation_degrees = Vector3(-35, 0, 0)
 
 
-## `speed` is the hero's current ground speed in units per second.
-func set_motion(speed: float, delta: float) -> void:
-	_speed = lerpf(_speed, speed, 1.0 - exp(-10.0 * delta))
+## `velocity` is the hero's ground velocity as Vector2(x, z), in units per
+## second. The model leans the way it moves, even when it faces elsewhere.
+func set_motion(velocity: Vector2, delta: float) -> void:
+	var t := 1.0 - exp(-10.0 * delta)
+	_speed = lerpf(_speed, velocity.length(), t)
+	var yaw := rotation.y
+	var forward := Vector2(-sin(yaw), -cos(yaw))
+	var right := Vector2(cos(yaw), -sin(yaw))
+	_local = _local.lerp(Vector2(velocity.dot(forward), velocity.dot(right)), t)
 
 
 func cast() -> void:
@@ -75,8 +83,8 @@ func _process(delta: float) -> void:
 	_walk += delta * (2.0 + _speed * 1.6)
 	var idle := sin(Time.get_ticks_msec() * 0.002) * 0.03
 	_rig.position.y = absf(sin(_walk)) * 0.12 * moving + idle * (1.0 - minf(moving, 1.0))
-	_rig.rotation.x = -0.14 * minf(moving, 1.0)
-	_rig.rotation.z = sin(_walk) * 0.05 * moving
+	_rig.rotation.x = -0.14 * clampf(_local.x / 6.0, -1.0, 1.0)
+	_rig.rotation.z = -0.1 * clampf(_local.y / 6.0, -1.0, 1.0) + sin(_walk) * 0.05 * moving
 	# The weapon thrusts forward when a volley fires.
 	_weapon_pivot.rotation.x = -0.7 * _cast + sin(_walk) * 0.1 * moving
 	_light.light_energy = 2.4 + _cast * 1.6

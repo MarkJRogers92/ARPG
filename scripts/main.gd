@@ -55,6 +55,8 @@ func _ready() -> void:
 	_skill_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_player.skill_points_gained.connect(func(n: int) -> void:
 		_hud.toast("+%d skill point%s  [K]" % [n, "" if n == 1 else "s"], Color(1.0, 0.85, 0.3)))
+	_player.mouse_aim_toggled.connect(func(on: bool) -> void:
+		_hud.toast("Aim: mouse" if on else "Aim: automatic (nearest enemy)", Color(1.0, 0.85, 0.5)))
 	_hud.restart_pressed.connect(func() -> void: get_tree().reload_current_scene())
 
 
