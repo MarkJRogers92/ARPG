@@ -1,0 +1,81 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/enemy_swarm.gd" id="4_swarm"]
+[ext_resource type="Script" path="res://scripts/projectile_swarm.gd" id="5_proj"]
+[ext_resource type="Script" path="res://scripts/gem_swarm.gd" id="6_gems"]
+[ext_resource type="Script" path="res://scripts/wave_director.gd" id="7_director"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="8_hud"]
+[ext_resource type="Shader" path="res://shaders/ground_grid.gdshader" id="9_shader"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.05, 0.055, 0.075, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.65, 0.8, 1)
+ambient_light_energy = 0.7
+tonemap_mode = 2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ground"]
+shader = ExtResource("9_shader")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(240, 240)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 10, 0)
+light_energy = 1.1
+shadow_enabled = true
+directional_shadow_max_distance = 45.0
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+material_override = SubResource("ShaderMaterial_ground")
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("3_camera")
+target = NodePath("../Player")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.5736, 0.8192, 0, -0.8192, 0.5736, 0, 24.57, 17.21)
+current = true
+fov = 32.0
+far = 200.0
+
+[node name="Grunts" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+capacity = 4000
+
+[node name="Brutes" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 120.0
+move_speed = 2.2
+contact_dps = 14.0
+radius = 0.8
+xp_value = 6
+body_height = 2.4
+color = Color(0.55, 0.15, 0.6, 1)
+capacity = 500
+
+[node name="Projectiles" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("5_proj")
+
+[node name="Gems" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("6_gems")
+
+[node name="WaveDirector" type="Node" parent="."]
+script = ExtResource("7_director")
+
+[node name="Hud" type="CanvasLayer" parent="."]
+script = ExtResource("8_hud")
