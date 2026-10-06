@@ -25,6 +25,8 @@ var _game_over := false
 @onready var _inventory_screen: InventoryScreen = $InventoryScreen
 @onready var _skill_screen: SkillTreeScreen = $SkillTreeScreen
 @onready var _ground: Node3D = $Ground
+@onready var _decor: WorldDecor = $Decor
+@onready var _fx: FxSwarm = $Fx
 
 
 func _ready() -> void:
@@ -34,6 +36,14 @@ func _ready() -> void:
 	_director.setup(_swarms)
 	for swarm in _swarms:
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
+	_projectiles.hit.connect(func(at: Vector2, crit: bool) -> void:
+		if crit:
+			_fx.burst(at, 1.0, _projectiles.crit_color, 5, 5.0, 0.4, 0.3, 2.0)
+		else:
+			_fx.burst(at, 1.0, _projectiles.color, 2, 3.0, 0.3, 0.25, 1.5))
+	_player.leveled_up.connect(func() -> void:
+		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
+		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.9, 0.6), 24, 3.0, 0.4, 1.0, 8.0))
 	_loot.item_picked.connect(_on_item_picked)
 	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full", Color(1.0, 0.45, 0.4)))
 	_player.leveled_up.connect(_try_level_up)
@@ -68,6 +78,7 @@ func _process(delta: float) -> void:
 		contact_dps += swarm.contact_load(origin, Player.RADIUS)
 	if contact_dps > 0.0:
 		_player.take_damage(contact_dps * delta)
+	_hud.set_hurt(contact_dps > 0.0, delta)
 
 	var xp := _gems.step(delta, origin, _player.stats.pickup_radius)
 	if xp > 0:
@@ -76,6 +87,8 @@ func _process(delta: float) -> void:
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 
 	_director.tick(delta, origin)
+	_fx.step(delta)
+	_decor.follow(origin)
 
 	# The ground plane trails the player in whole grid cells; the grid itself
 	# is drawn in world space, so it looks static.
@@ -111,6 +124,9 @@ func _enemy_count() -> int:
 
 func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	kills += 1
+	var big := swarm.body_height > 2.0
+	_fx.burst(at, swarm.body_height * 0.5, swarm.color.lightened(0.25), 12 if big else 5,
+			5.0 if big else 3.5, 0.55 if big else 0.4, 0.55, 3.0)
 	var overflow := _gems.drop(at, xp)
 	if overflow > 0:
 		_player.add_xp(overflow)
@@ -119,6 +135,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 
 
 func _on_item_picked(item: Item, result: String) -> void:
+	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
 	_hud.toast("%s: %s" % [verb, item.name], item.color())
 
