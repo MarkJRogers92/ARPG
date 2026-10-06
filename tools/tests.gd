@@ -20,6 +20,9 @@ func _initialize() -> void:
 	_test_inventory()
 	_test_loot()
 	_test_director()
+	_test_skill_data()
+	_test_skill_tree()
+	_test_skill_points()
 
 	print("")
 	if _failures == 0:
@@ -451,3 +454,161 @@ func _test_director() -> void:
 	grunt.free()
 	brute.free()
 	d.free()
+
+
+# --- skill tree --------------------------------------------------------------
+
+func _test_skill_data() -> void:
+	print("skill tree data")
+	var names := {}
+	var positions := {}
+	for id: String in SkillData.ids():
+		var def: Dictionary = SkillData.NODES[id]
+		for link: String in def["links"]:
+			_check(SkillData.NODES.has(link), "%s links to a node that exists (%s)" % [id, link])
+		_check(not names.has(def["name"]), "%s: unique name '%s'" % [id, def["name"]])
+		names[def["name"]] = true
+		_check(not positions.has(def["pos"]), "%s: unique grid position %s" % [id, def["pos"]])
+		positions[def["pos"]] = true
+		_check(SkillData.BRANCHES.has(def["branch"]), "%s: known branch" % id)
+		_check(SkillData.cost(id) == SkillData.COSTS[def["tier"]], "%s: cost follows tier" % id)
+
+		var has_downside := false
+		var has_upside := false
+		for mod: Dictionary in def["mods"]:
+			_check(PlayerStats.BASE.has(mod["stat"]), "%s: stat '%s' exists" % [id, mod["stat"]])
+			_check(ItemData.STAT_INFO.has(mod["stat"]), "%s: stat '%s' has display info" % [id, mod["stat"]])
+			if mod["value"] < 0.0:
+				has_downside = true
+			else:
+				has_upside = true
+		if id != SkillData.ROOT:
+			_check(not SkillData.description_lines(id).is_empty(), "%s: has tooltip text" % id)
+		if def["tier"] == SkillData.Tier.KEYSTONE:
+			_check(has_upside and has_downside, "%s: a keystone has both an upside and a downside" % id)
+	_check(SkillData.NODES[SkillData.ROOT]["mods"].is_empty(), "the origin grants nothing")
+
+	# Every node is reachable from the origin, and links are symmetric.
+	var seen := {SkillData.ROOT: true}
+	var frontier: Array = [SkillData.ROOT]
+	while not frontier.is_empty():
+		var current: String = frontier.pop_back()
+		for n: String in SkillData.neighbors(current):
+			_check(SkillData.neighbors(n).has(current), "link %s <-> %s is symmetric" % [current, n])
+			if not seen.has(n):
+				seen[n] = true
+				frontier.append(n)
+	_check(seen.size() == SkillData.NODES.size(), "all %d nodes connect to the origin (%d reachable)" % [SkillData.NODES.size(), seen.size()])
+
+
+func _test_skill_tree() -> void:
+	print("skill tree rules")
+	var base := PlayerStats.new().values.duplicate()
+	var stats := PlayerStats.new()
+	var tree := SkillTree.new(stats)
+
+	_check(tree.is_allocated(SkillData.ROOT) and tree.points == 0 and tree.spent() == 0, "starts with only the origin and no points")
+	_check(not tree.can_allocate("o1"), "can't allocate without points")
+	tree.add_points(10)
+	_check(tree.can_allocate("o1"), "can allocate an adjacent node with points")
+	_check(not tree.can_allocate("o2"), "can't skip ahead to a node that isn't linked to anything owned")
+	_check(tree.allocate("o1") and tree.points == 9, "allocating spends the cost")
+	_near(stats.bolt_cooldown, 1.0 / (PlayerStats.BASE["bolt_rate"] * 1.05), "o1 raises bolt speed 5%")
+	_check(not tree.allocate("o1"), "can't allocate a node twice")
+
+	_check(tree.allocate("o2"), "o2 is now reachable")
+	_check(tree.allocate("o5") and tree.points == 5, "a keystone costs 3")
+	_check(stats.bolt_count == int(PlayerStats.BASE["bolt_count"]) + 2, "Arcane Barrage adds 2 bolts")
+	_near(stats.bolt_damage, 10.0 * 0.70 * 1.05, "...and reduces bolt damage by 30% (then +5% damage)")
+
+	var poor := SkillTree.new(PlayerStats.new())
+	poor.add_points(2)
+	poor.allocate("o1")
+	poor.allocate("o2")
+	_check(not poor.can_allocate("o5") and poor.is_reachable("o5"), "adjacent but unaffordable: reachable yet not allocatable")
+
+	# Refunding.
+	_check(not tree.can_refund(SkillData.ROOT), "the origin can't be refunded")
+	_check(not tree.can_refund("o1"), "o1 can't go while o2 hangs off it")
+	_check(tree.can_refund("o5"), "a leaf can be refunded")
+	_check(tree.refund("o5") and tree.points == 8, "refund returns the cost")
+	_check(stats.bolt_count == int(PlayerStats.BASE["bolt_count"]), "refunding removes the bonus")
+	tree.allocate("o3")
+	tree.allocate("o4")
+	_check(not tree.can_refund("o2"), "o2 can't go while o3 and o4 depend on it")
+	_check(tree.can_refund("o3") and tree.can_refund("o4"), "the two leaves can")
+
+	var before_reset := tree.spent()
+	var returned := tree.reset()
+	_check(returned == before_reset and tree.spent() == 0, "reset returns everything spent")
+	_check(tree.points == 10, "...so all 10 points are back (%d)" % tree.points)
+	for stat: String in base:
+		_near(stats.values[stat], base[stat], "stat '%s' is exactly back to base after reset" % stat)
+
+	# Property: with unlimited points every node can be allocated, and the tree
+	# can then be peeled back to nothing, in any order, restoring stats exactly.
+	var big := PlayerStats.new()
+	var all := SkillTree.new(big)
+	all.add_points(1000)
+	var progress := true
+	while progress:
+		progress = false
+		for id: String in SkillData.ids():
+			if all.allocate(id):
+				progress = true
+	_check(all.allocated.size() == SkillData.NODES.size(), "every node can be allocated (%d of %d)" % [all.allocated.size(), SkillData.NODES.size()])
+	var total := 0
+	for id: String in SkillData.ids():
+		if id != SkillData.ROOT:
+			total += SkillData.cost(id)
+	_check(all.spent() == total and all.points == 1000 - total, "the whole tree costs %d points" % total)
+
+	var steps := 0
+	while all.spent() > 0:
+		var options: Array[String] = []
+		for id: String in all.allocated:
+			if all.can_refund(id):
+				options.append(id)
+		_check(not options.is_empty(), "there is always a node that can be peeled off (%d owned)" % all.allocated.size())
+		if options.is_empty():
+			break
+		all.refund(options.pick_random())
+		steps += 1
+	_check(all.points == 1000 and steps == SkillData.NODES.size() - 1, "peeled back in %d steps and every point returned" % steps)
+	for stat: String in base:
+		_near(big.values[stat], base[stat], "stat '%s' exact after random peel-back" % stat)
+
+	# Serialization.
+	var s1 := PlayerStats.new()
+	var t1 := SkillTree.new(s1)
+	t1.add_points(12)
+	for id in ["d1", "d2", "d5", "u1", "u2", "u4"]:
+		t1.allocate(id)
+	var saved: Dictionary = str_to_var(var_to_str(t1.to_dict()))
+	var s2 := PlayerStats.new()
+	var t2 := SkillTree.new(s2)
+	t2.restore(saved)
+	_check(t2.points == t1.points and t2.allocated.size() == t1.allocated.size(), "restore brings back points and nodes")
+	for stat: String in base:
+		_near(s2.values[stat], s1.values[stat], "restored tree gives the same '%s'" % stat)
+
+
+func _test_skill_points() -> void:
+	print("earning skill points")
+	var p := Player.new()
+	p.stats.xp_to_next = p.xp_for_level(p.stats.level)
+	var signals: Array[int] = []
+	p.skill_points_gained.connect(func(n: int) -> void: signals.append(n))
+	p.add_xp(1)
+	_check(p.skills.points == 0 and signals.is_empty(), "no point before level 2 (level %d)" % p.stats.level)
+	p.add_xp(1_000_000)
+	_check(p.skills.points == floori(p.stats.level / 2.0), "one point per 2 levels (level %d -> %d points)" % [p.stats.level, p.skills.points])
+	_check(signals.size() == 1 and signals[0] == p.skills.points, "the gain is announced once with the total")
+
+	var q := Player.new()
+	q.skill_point_every_levels = 0
+	q.stats.xp_to_next = q.xp_for_level(1)
+	q.add_xp(1_000_000)
+	_check(q.skills.points == 0, "0 turns skill points off")
+	p.free()
+	q.free()

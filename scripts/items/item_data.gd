@@ -209,6 +209,8 @@ static func mod_text(mod: Dictionary) -> String:
 		_INC:
 			return "%+d%% %s" % [roundi(v * 100.0), label]
 		_MORE:
+			if v < 0.0:
+				return "%d%% less %s" % [roundi(-v * 100.0), label]
 			return "%d%% more %s" % [roundi(v * 100.0), label]
 		_:
 			if info.get("frac", false):

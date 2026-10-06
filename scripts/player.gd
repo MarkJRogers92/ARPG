@@ -4,6 +4,8 @@ extends CharacterBody3D
 ## through tick() and update_weapons() so the frame order stays explicit.
 
 signal leveled_up
+## Emitted once when a level-up (or several at once) earned skill points.
+signal skill_points_gained(amount: int)
 signal died
 
 ## Radius used for enemy contact damage.
@@ -15,9 +17,12 @@ const RADIUS := 0.5
 @export var xp_base := 6.0
 @export var xp_per_level := 5.0
 @export var xp_per_level_squared := 0.45
+## One skill point is earned every this many levels (0 turns skill points off).
+@export var skill_point_every_levels := 2
 
 var stats := PlayerStats.new()
 var inventory: Inventory
+var skills: SkillTree
 ## Level-ups earned but not yet spent in the upgrade menu.
 var pending_levels := 0
 var dead := false
@@ -41,6 +46,7 @@ var pos2: Vector2:
 
 func _init() -> void:
 	inventory = Inventory.new(stats)
+	skills = SkillTree.new(stats)
 
 
 func _ready() -> void:
@@ -92,12 +98,18 @@ func add_xp(amount: int) -> void:
 	_xp_carry = scaled - whole
 	stats.xp += whole
 	var gained := false
+	var points := 0
 	while stats.xp >= stats.xp_to_next:
 		stats.xp -= stats.xp_to_next
 		stats.level += 1
 		stats.xp_to_next = xp_for_level(stats.level)
 		pending_levels += 1
 		gained = true
+		if skill_point_every_levels > 0 and stats.level % skill_point_every_levels == 0:
+			points += 1
+	if points > 0:
+		skills.add_points(points)
+		skill_points_gained.emit(points)
 	if gained:
 		leveled_up.emit()
 
