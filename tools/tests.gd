@@ -125,8 +125,9 @@ func _test_upgrades() -> void:
 	_check(s.aura_level == 2, "second aura level")
 	_near(s.aura_radius, 3.5 * 1.15, "later aura levels grow radius")
 
+	var bolts_before := s.bolt_count
 	Upgrades.apply("bolt_count", s)
-	_check(s.bolt_count == 2, "multishot adds a bolt")
+	_check(s.bolt_count == bolts_before + 1, "multishot adds a bolt")
 
 	var v := PlayerStats.new()
 	v.hp = 50.0
@@ -411,10 +412,18 @@ func _test_director() -> void:
 	var d := WaveDirector.new()
 	d.base_rate = 2.0
 	d.rate_growth = 0.1
+	d.rate_acceleration = 0.0
 	d.hp_growth_seconds = 100.0
+	d.hp_squared_seconds = 0.0
 	d.elapsed = 50.0
 	_near(d.spawn_rate(), 7.0, "spawn rate grows with time")
 	_near(d.hp_multiplier(), 1.5, "enemy HP multiplier grows with time")
+	d.rate_acceleration = 0.001
+	d.hp_squared_seconds = 100.0
+	_near(d.spawn_rate(), 7.0 + 0.001 * 2500.0, "acceleration adds a squared term to the spawn rate")
+	_near(d.hp_multiplier(), 1.5 + 0.25, "squared HP term")
+	_check(ItemData.ilvl_for_player_level(1) == 1 and ItemData.ilvl_for_player_level(3) == 2
+			and ItemData.ilvl_for_player_level(41) == 21, "item level follows player level at half rate")
 
 	grunt.free()
 	brute.free()

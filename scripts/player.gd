@@ -9,6 +9,13 @@ signal died
 ## Radius used for enemy contact damage.
 const RADIUS := 0.5
 
+@export_group("Leveling")
+## XP needed to go from level L to L+1:
+##   xp_base + xp_per_level * L + xp_per_level_squared * L^2
+@export var xp_base := 6.0
+@export var xp_per_level := 5.0
+@export var xp_per_level_squared := 0.45
+
 var stats := PlayerStats.new()
 var inventory: Inventory
 ## Level-ups earned but not yet spent in the upgrade menu.
@@ -38,7 +45,11 @@ func _init() -> void:
 
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
-	stats.xp_to_next = stats.xp_for_level(stats.level)
+	stats.xp_to_next = xp_for_level(stats.level)
+
+
+func xp_for_level(level: int) -> int:
+	return int(xp_base + xp_per_level * level + xp_per_level_squared * level * level)
 
 
 func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
@@ -84,7 +95,7 @@ func add_xp(amount: int) -> void:
 	while stats.xp >= stats.xp_to_next:
 		stats.xp -= stats.xp_to_next
 		stats.level += 1
-		stats.xp_to_next = stats.xp_for_level(stats.level)
+		stats.xp_to_next = xp_for_level(stats.level)
 		pending_levels += 1
 		gained = true
 	if gained:

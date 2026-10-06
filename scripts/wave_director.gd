@@ -6,12 +6,17 @@ extends Node
 ## no changes here. Tune the exports to change the difficulty curve.
 
 ## Enemies per second at t=0.
-@export var base_rate := 1.5
+@export var base_rate := 1.2
 ## Extra enemies per second, gained every second.
-@export var rate_growth := 0.08
+@export var rate_growth := 0.04
+## Extra enemies per second, gained every second squared: the late-game ramp.
+@export var rate_acceleration := 0.0003
 @export var max_spawn_per_frame := 60
-## Enemy HP multiplier grows by 1.0 every this many seconds.
-@export var hp_growth_seconds := 120.0
+## Enemy HP multiplier grows by 1.0 every this many seconds...
+@export var hp_growth_seconds := 600.0
+## ...plus (time / this) squared, so late enemies keep outscaling a maxed build.
+## 0 turns the squared term off.
+@export var hp_squared_seconds := 330.0
 
 ## Game time in seconds, counted from the first tick.
 var elapsed := 0.0
@@ -49,11 +54,14 @@ func tick(delta: float, center: Vector2) -> void:
 
 ## Enemies per second right now.
 func spawn_rate() -> float:
-	return base_rate + rate_growth * elapsed
+	return base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed
 
 
 func hp_multiplier() -> float:
-	return 1.0 + elapsed / hp_growth_seconds
+	var mult := 1.0 + elapsed / hp_growth_seconds
+	if hp_squared_seconds > 0.0:
+		mult += pow(elapsed / hp_squared_seconds, 2.0)
+	return mult
 
 
 func _pick(roll: float) -> EnemySwarm:

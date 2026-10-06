@@ -102,7 +102,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	if overflow > 0:
 		_player.add_xp(overflow)
 	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality,
-			_player.stats.level, _player.stats.magic_find)
+			ItemData.ilvl_for_player_level(_player.stats.level), _player.stats.magic_find)
 
 
 func _on_item_picked(item: Item, result: String) -> void:

@@ -23,6 +23,9 @@ const SLOT_NAMES := {
 ## at PERCENT_GROWTH of it so they don't snowball. A stat can override this with
 ## its own "growth" multiplier in STAT_INFO (magic find uses 0: it never scales).
 const ILVL_GROWTH := 0.06
+## Player levels per item level for dropped gear. Item level is what makes loot
+## scale, so this is the main lever on how fast gear power grows during a run.
+const PLAYER_LEVELS_PER_ILVL := 2.0
 const PERCENT_GROWTH := 0.35
 
 ## weight:   base chance of this rarity before magic find
@@ -170,6 +173,11 @@ static func affix(id: String) -> Dictionary:
 		for a: Dictionary in AFFIXES:
 			_affix_index[a["id"]] = a
 	return _affix_index[id]
+
+
+## Item level of loot dropped when the hero is at `player_level`.
+static func ilvl_for_player_level(player_level: int) -> int:
+	return 1 + floori(maxi(player_level - 1, 0) / PLAYER_LEVELS_PER_ILVL)
 
 
 ## Multiplier for a modifier's rolled value at an item level.

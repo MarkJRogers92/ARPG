@@ -15,10 +15,11 @@ enum Op { ADD, INCREASED, MORE }
 
 ## Base value of every stat a modifier can target. Adding a stat here makes it
 ## targetable by upgrades and affixes; read it back from `values` or add a
-## typed field for it below.
-const BASE := {
+## typed field for it below. The game treats this as constant; it's a static
+## var only so tools/balance_bot.gd can try other starting values.
+static var BASE := {
 	"max_hp": 100.0,
-	"regen": 0.0, # HP per second
+	"regen": 1.5, # HP per second
 	"armor": 0.0, # reduces damage taken by armor / (armor + 100)
 	"move_speed": 6.0,
 	"pickup_radius": 3.0,
@@ -29,7 +30,7 @@ const BASE := {
 	"crit_mult": 1.5,
 	"bolt_damage": 10.0,
 	"bolt_rate": 2.0, # volleys per second
-	"bolt_count": 1.0,
+	"bolt_count": 2.0,
 	"bolt_pierce": 1.0,
 	"bolt_speed": 22.0,
 	"bolt_range": 16.0,
@@ -41,7 +42,7 @@ const BASE := {
 
 # Effective values, refreshed by recalculate(). Read these; don't write them.
 var max_hp := 100.0
-var regen := 0.0
+var regen := 1.5
 var armor := 0.0
 var move_speed := 6.0
 var pickup_radius := 3.0
@@ -52,7 +53,7 @@ var crit_mult := 1.5
 ## Weapon damage already includes the global `damage` multiplier.
 var bolt_damage := 10.0
 var bolt_cooldown := 0.5
-var bolt_count := 1
+var bolt_count := 2
 var bolt_pierce := 1
 var bolt_speed := 22.0
 var bolt_range := 16.0
@@ -79,10 +80,6 @@ var _mods: Array[Dictionary] = []
 func _init() -> void:
 	recalculate()
 	hp = max_hp
-
-
-func xp_for_level(lvl: int) -> int:
-	return int(4.0 + lvl * 3.5 + pow(lvl, 1.5))
 
 
 func add_mod(source: String, stat: String, op: Op, value: float) -> void:
