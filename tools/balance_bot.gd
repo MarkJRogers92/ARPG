@@ -20,6 +20,14 @@ const PRIORITY := {
 	"greedy": ["bolt_count", "bolt_damage", "bolt_rate", "aura", "bolt_pierce", "regen", "max_hp", "magnet", "move_speed"],
 	"tank": ["max_hp", "regen", "move_speed", "bolt_damage", "bolt_rate", "aura", "bolt_count", "bolt_pierce", "magnet"],
 }
+## Skill tree order per policy: the first node in the list that can be bought
+## is bought. (Nodes only become buyable once linked to something owned.)
+const SKILL_PRIORITY := {
+	"greedy": ["o1", "o2", "o3", "o4", "o7", "o6", "d1", "d2", "d4", "d3", "d7", "d6",
+			"u1", "u2", "u3", "u4", "u6", "a1", "a2", "a4", "a3", "a5", "o5", "d5", "u5", "a6", "u7"],
+	"tank": ["d1", "d2", "d3", "d4", "d6", "d7", "d5", "u1", "u2", "o1", "o2", "o4", "o3", "o7", "o6",
+			"u3", "u4", "u5", "u6", "a1", "a2", "a4", "a3", "a5", "o5", "a6", "u7"],
+}
 const SENSE_RADIUS := 7.0
 const KEEP_ITEMS := 10
 
@@ -82,6 +90,7 @@ func _process(_delta: float) -> bool:
 	if now >= _next_gear_check:
 		_next_gear_check = now + 1.0
 		_manage_gear()
+		_spend_skill_points()
 		_peak_enemies = maxi(_peak_enemies, _main._enemy_count())
 	if now >= _next_report:
 		_next_report += 60.0
@@ -213,6 +222,27 @@ func _pick_upgrade() -> void:
 	_hud._choose(choice)
 
 
+## Spends skill points by the policy's order (random picks any buyable node).
+func _spend_skill_points() -> void:
+	var tree: SkillTree = _player.skills
+	while true:
+		var choice := ""
+		if _policy == "random":
+			var options: Array[String] = []
+			for id: String in SkillData.ids():
+				if tree.can_allocate(id):
+					options.append(id)
+			if not options.is_empty():
+				choice = options.pick_random()
+		else:
+			for id: String in SKILL_PRIORITY[_policy]:
+				if tree.can_allocate(id):
+					choice = id
+					break
+		if choice == "" or not tree.allocate(choice):
+			return
+
+
 func _manage_gear() -> void:
 	var inv: Inventory = _player.inventory
 	inv.equip_upgrades()
@@ -232,8 +262,8 @@ func _report(tag: String) -> void:
 	var worn := 0.0
 	for slot in _player.inventory.equipped:
 		worn += _player.inventory.equipped[slot].score()
-	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d died=%s" % [
+	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d skills=%d died=%s" % [
 			_seed, _policy, _main.elapsed, _main._enemy_count(), _peak_enemies, s.level, s.hp, s.max_hp,
 			_main.kills, _items_found, _rarities[0], _rarities[1], _rarities[2], _rarities[3],
-			worn, s.bolt_damage, s.bolt_count, str(_main._game_over)]
+			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, str(_main._game_over)]
 	print("%s %s" % [tag, fields])

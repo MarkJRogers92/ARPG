@@ -5,7 +5,8 @@ gear layer, built in **Godot 4.6** and designed from the start for **thousands o
 enemies on screen**.
 
 Move, auto-attack, kill the horde, collect XP gems, pick an upgrade on every
-level-up, loot and equip gear, survive as long as you can.
+level-up, spend skill points in a tree, loot and equip gear, survive as long as
+you can.
 
 ## Run it
 
@@ -17,6 +18,7 @@ level-up, loot and equip gear, survive as long as you can.
 | WASD / arrow keys / left stick | Move |
 | 1 / 2 / 3, click, Enter | Pick a level-up upgrade |
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
+| K / gamepad Back | Open or close the skill tree (pauses the game) |
 
 Attacks are automatic: *Magic Bolt* fires at the nearest enemy, and *Frost Aura*
 (an upgrade) damages everything around you.
@@ -48,6 +50,28 @@ game depends on it.
   discard, and "equip all likely upgrades". The upgrade hint is a rough score
   from `ItemData.STAT_INFO`, not a promise.
 
+## Skill tree
+
+You earn a **skill point every 2 levels** (`Player.skill_point_every_levels`; 0 turns
+it off) and spend them in a node graph (press K). It sits alongside the level-up
+cards: cards are the quick run-by-run picks, the tree is where you steer a build.
+
+- **Four branches** grow from the central Awakening node: **Offense** (bolts,
+  crits), **Aura** (unlocked by the Frostbound node), **Defense** (HP, armor,
+  regen) and **Utility** (speed, pickup, XP, luck). 27 nodes plus the center.
+- **Three tiers:** small nodes cost 1 point, notables 2, keystones 3. Every
+  keystone has a real downside, such as Arcane Barrage (+2 bolts, 30% less bolt
+  damage) or Juggernaut (+50% max HP and +30 armor, 10% slower).
+- **Rules:** you can buy a node when you can pay for it and it's linked to one you
+  own. Right-click (or Backspace) refunds a node unless that would cut other nodes
+  off from the center, so you can always peel the tree back from its tips. Reset
+  refunds everything and is free.
+- Buying everything costs 41 points. The damage-first bot earns about 34 in ten
+  minutes (level ~69), so even a strong run has to leave some of the tree unbought,
+  and weaker runs get far fewer. The choices matter.
+- Nodes are data (`scripts/skills/skill_data.gd`) and add stat modifiers under the
+  source `skill:<id>`, so they need no stat code.
+
 ### How stats work
 
 `PlayerStats` holds base values plus modifiers tagged by source, and
@@ -57,9 +81,10 @@ game depends on it.
 effective = (base + sum(ADD)) * (1 + sum(INCREASED)) * product(1 + MORE)
 ```
 
-Gear adds ADD / INCREASED modifiers under `gear:<slot>`; level-up upgrades add MORE
-modifiers under `upgrade`. Removing a source is exact, so equipping, swapping and
-unequipping can't drift. The level-up pool is data too (`scripts/upgrades.gd`).
+Gear adds ADD / INCREASED modifiers under `gear:<slot>`, skill nodes add theirs under
+`skill:<id>`, and level-up upgrades add MORE modifiers under `upgrade`. Removing a
+source is exact, so equipping, swapping, unequipping and refunding can't drift. The level-up pool is data too
+(`scripts/upgrades.gd`).
 
 ## How it handles thousands of enemies
 
@@ -130,15 +155,22 @@ manages gear. `tools/balance.sh` runs many seeds in parallel and prints
 per-minute averages. The bot is a consistent yardstick for comparing settings,
 **not** a stand-in for a person.
 
-Current defaults, 4 seeds each, 10 minutes of game time:
+Current defaults, 4 seeds each, 10 minutes of game time. The bot spends skill
+points by policy (damage-first, or random picks):
 
 | Policy | Survived | Level at 10 min | Enemies alive at minutes 3 / 5 / 10 |
 |---|---|---|---|
-| greedy (damage-first build) | 4 of 4 reached 10:00 | ~63 | ~530 / ~1,130 / ~1,290 |
-| random upgrades | all died, 4.0 to 5.3 min | | ~750 / ~1,760 (at 5) |
+| greedy (damage-first build) | 4 of 4 reached 10:00 | ~69 | ~360 / ~890 / ~540 |
+| random upgrades and nodes | 2 of 4 reached 10:00 (the others died at 4.8 and 5.1 min) | | ~670 / ~1,750 (at 5) |
 
-In a separate 20-minute greedy run (before loot rationing) the horde was at
-roughly 4,700-5,000 enemies at the end, close to its peak.
+Before the skill tree the same bot had ~1,290 enemies alive at minute 10, and
+every random-pick run died at 4.0 to 5.3 minutes, so the tree adds real power:
+it thins a strong build's late game by about 40% and gives weak builds a safety
+net. Taking a point every 3 levels instead brings the random-pick runs back to
+dying at 4.4 to 5.2 minutes. A 14-minute damage-first run is back up to about 910
+enemies by the end and still rising. An earlier 20-minute run without the tree
+reached roughly 4,700 to 5,000 enemies, so if you want a bigger late-game horde,
+raise `rate_acceleration` on the WaveDirector.
 
 What shaped the curve, from the bot's own data:
 
@@ -166,6 +198,7 @@ tools/balance.sh -g /path/to/godot -s "1 2 3 4" -p "greedy random" -m 10 \
 ```sh
 godot --headless --path . -s tools/tests.gd                      # unit tests
 godot --headless --path . -s tools/ui_test.gd                    # drives the real inventory screen
+godot --headless --path . -s tools/skill_ui_test.gd              # drives the real skill tree screen
 godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd  # bot playthrough, exit 0 = ok
 godot --headless --path . -s tools/bench_swarm.gd                # simulation cost, 1k..16k enemies
 ```
@@ -173,10 +206,12 @@ godot --headless --path . -s tools/bench_swarm.gd                # simulation co
 - `tests.gd` covers the modifier math, upgrades, item generation across every
   slot / rarity / item level, the rarity distribution (with and without magic
   find), serialization, inventory and stat syncing, loot drops and the drop
-  budget, and the wave director's spawn schedule. Exit code 0 means everything
-  passed.
-- `ui_test.gd` opens the inventory with the real input action, checks the pause,
-  selects, equips, discards and closes it.
+  budget, the wave director's spawn schedule, and the skill tree (graph validity,
+  allocate and refund rules, exact stat restore, serialization, earning points).
+  Exit code 0 means everything passed.
+- `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
+  actions, check the pause, and click through equipping, discarding, allocating,
+  refunding (including the refusals), resetting and closing.
 - `smoke_test.gd` runs a dumb bot for a minute (or `-- 600` for ten); one minute
   of game time takes about a second.
 
@@ -212,9 +247,13 @@ scripts/
     inventory.gd       Worn gear + backpack, keeps stats in sync
     loot_manager.gd    Kill drops, the drop budget, pickup
     loot_drop.gd       An item on the ground
+  skills/
+    skill_data.gd      The tree: nodes, links, tiers, modifiers
+    skill_tree.gd      Owned nodes and points, allocate / refund rules
+    skill_tree_screen.gd  The K screen (built in code)
 shaders/ground_grid.gdshader   World-space grid so movement is visible
 tools/
-  tests.gd, ui_test.gd, smoke_test.gd, bench_swarm.gd
+  tests.gd, ui_test.gd, skill_ui_test.gd, smoke_test.gd, bench_swarm.gd
   balance_bot.gd, balance.sh
 ```
 
@@ -226,7 +265,8 @@ tools/
   nodes in `main.tscn` (HP, speed, contact damage, size, color, capacity, when
   they start spawning and how common they are, loot chance and quality).
 - **Crowd feel:** `separation_strength` and `crowd_limit` on each swarm.
-- **Leveling:** the XP curve is on the `Player` node.
+- **Leveling and skill points:** the XP curve and `skill_point_every_levels` are on the
+  `Player` node.
 - **Starting stats:** `PlayerStats.BASE`. **Upgrade strengths:** `Upgrades.DEFS`.
 - **Loot:** the tables in `items/item_data.gd`, and `drops_per_minute` on the
   `Loot` node.
@@ -234,6 +274,9 @@ tools/
 
 ## Extending it
 
+- **New skill node:** add an entry to `SkillData.NODES` (position, links, modifiers) and
+  link it from a neighbor. The screen and the stats pick it up; the tests check that
+  every node is connected, uses real stats, and can be bought and refunded.
 - **New upgrade:** add an entry to `Upgrades.DEFS`. It's data; no code needed unless
   it does something new.
 - **New affix or base item:** add a row to `ItemData.AFFIXES` / `BASES`.
@@ -252,8 +295,8 @@ tools/
 
 ## Not built yet
 
-Saving and loading (items already serialize with `Item.to_dict()` / `from_dict()`;
+Saving and loading (items and the skill tree already serialize with `to_dict()`;
 use `var_to_str` or `FileAccess.store_var` rather than JSON, which turns ints into
-floats), a skill tree, more weapons, ranged enemies, elites and bosses, health
+floats), more weapons, ranged enemies, elites and bosses, health
 pickups, biomes with obstacles (the player is already a `CharacterBody3D`), and
 sound.
