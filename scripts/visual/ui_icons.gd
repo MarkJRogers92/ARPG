@@ -66,6 +66,27 @@ func _draw() -> void:
 				var x := c.x + side * s * 0.6
 				draw_line(Vector2(x, c.y - s * 0.1), Vector2(x, c.y - s * 0.75), color, s * 0.38, true)
 				draw_line(Vector2(x, c.y - s * 0.6), Vector2(x, c.y - s * 0.9), Color(1, 1, 1, 0.85), s * 0.38, true)
+		"lightning":
+			draw_polyline([c + Vector2(-s * 0.9, -s * 0.7), c + Vector2(-s * 0.2, -s * 0.1), c + Vector2(-s * 0.45, s * 0.15),
+					c + Vector2(s * 0.3, s * 0.75)], color, 5.0, true)
+			for p: Vector2 in [Vector2(-0.9, -0.7), Vector2(-0.2, -0.1), Vector2(0.3, 0.75)]:
+				draw_circle(c + p * s, s * 0.17, color)
+			draw_line(c + Vector2(-s * 0.2, -s * 0.1), c + Vector2(s * 0.8, -s * 0.5), Color(color, 0.6), 3.0, true)
+			draw_circle(c + Vector2(s * 0.8, -s * 0.5), s * 0.13, Color(color, 0.8))
+		"orbit":
+			draw_arc(c, s * 0.75, 0.0, TAU, 32, Color(color, 0.35), 2.0, true)
+			draw_circle(c, s * 0.2, Color(1, 1, 1, 0.8))
+			for k in 3:
+				var dir := Vector2.from_angle(k * TAU / 3.0)
+				var tip := c + dir * s * 0.75
+				draw_colored_polygon([tip + dir.orthogonal() * s * 0.45, tip + dir * s * 0.15, tip - dir * s * 0.15], color)
+		"nova":
+			draw_circle(c, s * 0.25, color)
+			draw_arc(c, s * 0.55, 0.0, TAU, 32, color, 3.0, true)
+			draw_arc(c, s * 0.9, 0.0, TAU, 32, Color(color, 0.5), 2.0, true)
+			for k in 8:
+				var dir := Vector2.from_angle(k * TAU / 8.0)
+				draw_line(c + dir * s * 0.62, c + dir * s * 0.82, color, 2.5, true)
 		_:
 			draw_circle(c, s * 0.5, color)
 

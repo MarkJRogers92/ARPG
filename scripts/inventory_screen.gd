@@ -180,6 +180,13 @@ func _stats_bbcode() -> String:
 	]
 	if s.aura_level > 0:
 		rows.append("Frost Aura  Lv [b]%d[/b]  r[b]%.1f[/b]  dmg [b]%.1f[/b]" % [s.aura_level, s.aura_radius, s.aura_damage])
+	if s.lightning_level > 0:
+		rows.append("Lightning  Lv [b]%d[/b]  dmg [b]%.1f[/b]  jumps [b]%d[/b]" % [s.lightning_level, s.lightning_damage, s.lightning_chains])
+	if s.orbit_level > 0:
+		rows.append("Blades  Lv [b]%d[/b]  x[b]%d[/b]  dmg [b]%.1f[/b]" % [s.orbit_level, s.orbit_count, s.orbit_damage])
+	if s.nova_level > 0:
+		rows.append("Nova  Lv [b]%d[/b]  dmg [b]%.1f[/b]  every [b]%.1f[/b]s" % [s.nova_level, s.nova_damage, s.nova_cooldown])
+	rows.append("Dash  every [b]%.1f[/b]s" % s.dash_cooldown)
 	return "\n".join(rows)
 
 

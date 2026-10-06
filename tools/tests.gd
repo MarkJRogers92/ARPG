@@ -23,6 +23,16 @@ func _initialize() -> void:
 	_test_skill_data()
 	_test_skill_tree()
 	_test_skill_points()
+	_test_new_weapons()
+	_test_meta_progress()
+	_test_elite_rate()
+	# These need nodes in the running tree, which only exists after this returns.
+	_finish.call_deferred()
+
+
+func _finish() -> void:
+	_test_elites_and_knockback()
+	_test_enemy_shots()
 
 	print("")
 	if _failures == 0:
@@ -612,3 +622,119 @@ func _test_skill_points() -> void:
 	_check(q.skills.points == 0, "0 turns skill points off")
 	p.free()
 	q.free()
+
+
+# --- abilities, enemies, meta progression ----------------------------------------
+
+func _test_new_weapons() -> void:
+	print("new weapons")
+	var s := PlayerStats.new()
+	_check(s.lightning_level == 0 and s.orbit_level == 0 and s.nova_level == 0, "new weapons start locked")
+	Upgrades.apply("lightning", s)
+	_check(s.lightning_level == 1 and s.lightning_chains == 3, "first Chain Lightning rank unlocks it with 3 jumps")
+	_near(s.lightning_damage, 16.0, "first rank keeps base lightning damage")
+	Upgrades.apply("lightning", s)
+	_check(s.lightning_level == 2 and s.lightning_chains == 4, "second rank adds a jump")
+	_near(s.lightning_damage, 20.0, "second rank: +25% lightning damage")
+	Upgrades.apply("orbit", s)
+	_check(s.orbit_level == 1 and s.orbit_count == 2, "Spirit Blades unlock with two blades")
+	Upgrades.apply("orbit", s)
+	_check(s.orbit_count == 3, "next rank adds a blade")
+	Upgrades.apply("nova", s)
+	_check(s.nova_level == 1, "Arcane Nova unlocks")
+	_near(s.nova_cooldown, 4.0, "nova fires every 4 s at first")
+	s.add_mod("t", "damage", PlayerStats.Op.MORE, 1.0)
+	s.recalculate()
+	_near(s.nova_damage, 48.0, "global damage multiplies the new weapons too")
+	for id in ["lightning", "orbit", "nova"]:
+		_check(Upgrades.DEFS.has(id) and Hud.CARD_COLORS.has(id), "%s has a level-up card with a color" % id)
+
+
+func _test_meta_progress() -> void:
+	print("meta progression")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta.save"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 0 and MetaProgress.rank("vigor") == 0, "no save means a fresh start")
+	MetaProgress.add_shards(30)
+	_check(MetaProgress.cost("vigor") == 10, "first Vigor rank costs 10")
+	_check(MetaProgress.buy("vigor"), "can buy with enough shards")
+	_check(MetaProgress.shards == 20 and MetaProgress.rank("vigor") == 1, "buying spends shards and adds a rank")
+	_check(MetaProgress.cost("vigor") == 16, "ranks get pricier (10 * 1.6)")
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 20 and MetaProgress.rank("vigor") == 1, "progress survives a reload from disk")
+	var s := PlayerStats.new()
+	MetaProgress.apply(s)
+	_near(s.max_hp, 108.0, "a Vigor rank gives +8% max HP")
+	_near(s.hp, s.max_hp, "a run starts at full (boosted) HP")
+	MetaProgress.apply(s)
+	_near(s.max_hp, 108.0, "applying twice doesn't stack")
+	MetaProgress.shards = 1000
+	while MetaProgress.buy("insight"):
+		pass
+	_check(MetaProgress.rank("insight") == 3 and MetaProgress.cost("insight") == -1, "upgrades stop at their max rank")
+	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
+	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + 1 per 150 kills")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+
+
+func _test_elites_and_knockback() -> void:
+	print("elites and knockback")
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 16
+	root.add_child(swarm)
+	swarm.spawn(Vector2(1, 0), 1.0, true)
+	swarm.spawn(Vector2(0, 2), 1.0)
+	_check(swarm.is_elite(0) and not swarm.is_elite(1), "elite flag follows the spawn")
+	_near(swarm.hp[0], swarm.max_hp * swarm.elite_hp_mult, "elites have more HP")
+	swarm.step(0.0, Vector2.ZERO) # rebuilds the hash; zero time moves nothing
+	swarm.knockback(Vector2.ZERO, 4.0, 2.0)
+	_check(swarm.pos[1].y > 2.5, "knockback pushes enemies away from the center (y=%.2f)" % swarm.pos[1].y)
+	_check(swarm.pos[0].x > 1.0 and swarm.pos[0].x - 1.0 < swarm.pos[1].y - 2.0, "elites are shoved less (they're bigger) (%s, %s)" % [swarm.pos[0], swarm.pos[1]])
+	var got := []
+	swarm.enemy_died.connect(func(_at: Vector2, xp: int) -> void: got.append(xp))
+	swarm.elite_died.connect(func(_at: Vector2) -> void: got.append("elite"))
+	swarm.damage(0, 1.0e9)
+	_check(got == [swarm.xp_value * swarm.elite_xp_mult, "elite"], "an elite's death gives extra XP and says so (%s)" % [got])
+	swarm.knockback_taken = 0.0
+	var before := swarm.pos[1]
+	swarm.knockback(Vector2.ZERO, 10.0, 5.0)
+	_check(swarm.pos[1] == before, "knockback_taken = 0 means immovable (bosses)")
+	swarm.free()
+
+
+func _test_enemy_shots() -> void:
+	print("enemy shots and dash")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var shots := EnemyShots.new()
+	root.add_child(shots)
+	shots.spawn(Vector2(0.3, 0), Vector2.RIGHT, 1.0, 10.0)
+	shots.step(0.016, player)
+	_near(player.stats.hp, player.stats.max_hp - 10.0, "a shot that reaches the hero hurts")
+	_check(shots.count == 0, "and is used up")
+	player._dash_time = 0.1
+	var hp := player.stats.hp
+	shots.spawn(Vector2(0.3, 0), Vector2.RIGHT, 1.0, 10.0)
+	shots.step(0.016, player)
+	player.take_damage(50.0)
+	_near(player.stats.hp, hp, "nothing hurts while dashing")
+	_check(shots.count == 1, "a dodged shot keeps flying")
+	shots.free()
+	player.free()
+
+
+func _test_elite_rate() -> void:
+	print("elite rate")
+	var d := WaveDirector.new()
+	_near(d.elite_rate(), 0.0, "no elites at the start")
+	d.elapsed = d.elite_start_time + 60.0
+	_near(d.elite_rate(), d.elites_per_minute + d.elites_per_minute_growth, "elite rate grows each minute")
+	d.elapsed = 100000.0
+	_near(d.elite_rate(), d.elites_per_minute_max, "and caps")
+	d.free()

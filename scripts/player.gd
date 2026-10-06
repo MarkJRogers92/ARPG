@@ -18,6 +18,11 @@ signal cast
 signal aura_ticked
 ## Emitted when T switches mouse aiming on or off.
 signal mouse_aim_toggled(enabled: bool)
+signal dashed
+
+## Dash: a short burst of speed during which nothing can hurt the hero.
+const DASH_TIME := 0.2
+const DASH_SPEED := 3.4 # times move speed
 
 enum Aim { AUTO, MOUSE, STICK }
 
@@ -57,6 +62,12 @@ var _xp_carry := 0.0
 @onready var _aura_visual: MeshInstance3D = $AuraVisual
 var _aura_pulse := 0.0
 var _reticle: MeshInstance3D
+var _dash_time := 0.0
+var _dash_cooldown := 0.0
+var _dash_dir := Vector2.ZERO
+var _lightning: ChainLightning
+var _blades: SpiritBlades
+var _nova: ArcaneNova
 
 
 ## Ground-plane position as Vector2(x, z), the space the swarms live in.
@@ -116,12 +127,39 @@ func xp_for_level(level: int) -> int:
 func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
 	_swarms = swarms
 	_projectiles = projectiles
+	_lightning = ChainLightning.new()
+	_blades = SpiritBlades.new()
+	_nova = ArcaneNova.new()
+	for ability in [_lightning, _blades, _nova]:
+		add_child(ability)
+		ability.setup(self, swarms)
+
+
+func is_dashing() -> bool:
+	return _dash_time > 0.0
+
+
+## 0 = dash ready, 1 = just used.
+func dash_cooldown_fraction() -> float:
+	return clampf(_dash_cooldown / stats.dash_cooldown, 0.0, 1.0)
 
 
 ## Movement and regen. Call before the enemy swarms step.
 func tick(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed
+	_dash_cooldown = maxf(_dash_cooldown - delta, 0.0)
+	if Input.is_action_just_pressed("dash") and _dash_cooldown <= 0.0 and not dead:
+		# Dash where you're walking, or where you're looking when standing still.
+		_dash_dir = input.normalized() if input != Vector2.ZERO else _facing()
+		_dash_time = DASH_TIME
+		_dash_cooldown = stats.dash_cooldown
+		dashed.emit()
+	if _dash_time > 0.0:
+		_dash_time -= delta
+		velocity = Vector3(_dash_dir.x, 0.0, _dash_dir.y) * stats.move_speed * DASH_SPEED
+		Juice.burst(pos2, 1.2, Color(0.5, 0.8, 1.0), 2, 1.0, 0.5, 0.35, 0.5)
+	else:
+		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed
 	move_and_slide()
 	_update_aim()
 	# Face the aim when aiming by hand, otherwise the way you walk.
@@ -160,15 +198,25 @@ func _update_aim() -> void:
 		aim_dir = to.normalized()
 
 
+## The ground direction the model is facing.
+func _facing() -> Vector2:
+	var yaw := _visual.rotation.y if _visual else 0.0
+	return Vector2(-sin(yaw), -cos(yaw))
+
+
 ## Auto-attacks. Call after the swarms step so targets are current.
 func update_weapons(delta: float) -> void:
 	_update_bolt(delta)
 	_update_aura(delta)
+	if _lightning:
+		_lightning.update(delta)
+		_blades.update(delta)
+		_nova.update(delta)
 
 
 ## Damage before armor; armor is applied here.
 func take_damage(amount: float) -> void:
-	if dead:
+	if dead or is_dashing():
 		return
 	stats.hp -= amount * stats.damage_taken_factor()
 	if stats.hp <= 0.0:
