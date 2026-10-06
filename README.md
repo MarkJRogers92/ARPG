@@ -18,6 +18,7 @@ you can.
 | WASD / arrow keys / left stick | Move |
 | Mouse / right stick | Aim (the hero faces and shoots where you point) |
 | T / right stick click | Switch between mouse aim and auto-aim |
+| F11 / Alt+Enter / Ctrl+Cmd+F | Switch between fullscreen and a window |
 | 1 / 2 / 3, click, Enter | Pick a level-up upgrade |
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
@@ -29,6 +30,11 @@ style: once you move the mouse, the hero faces the cursor and shoots toward it
 back away while firing. The right stick aims the same way while held. Until you
 touch the mouse, after you release the stick, or after pressing T, bolts auto-aim
 at the nearest enemy.
+
+The game starts fullscreen. The UI is laid out for 1280×720 and scales with the
+screen (stretch mode `canvas_items`, aspect `expand`), so it stays the same size
+relative to the screen at any resolution, and wider or taller screens show more
+of the world. Project Settings → Display → Window has the starting mode.
 
 The project uses the **Compatibility** renderer (OpenGL), which runs on nearly any
 machine and is the one the game was tested with. If you'd like Forward+ (Vulkan),
