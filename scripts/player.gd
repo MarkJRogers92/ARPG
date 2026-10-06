@@ -18,6 +18,8 @@ var _swarms: Array[EnemySwarm] = []
 var _projectiles: ProjectileSwarm
 var _bolt_timer := 0.0
 var _aura_timer := 0.0
+## Fractional XP left over from the xp_gain multiplier.
+var _xp_carry := 0.0
 
 @onready var _visual: Node3D = $Visual
 @onready var _aura_visual: MeshInstance3D = $AuraVisual
@@ -57,10 +59,11 @@ func update_weapons(delta: float) -> void:
 	_update_aura(delta)
 
 
+## Damage before armor; armor is applied here.
 func take_damage(amount: float) -> void:
 	if dead:
 		return
-	stats.hp -= amount
+	stats.hp -= amount * stats.damage_taken_factor()
 	if stats.hp <= 0.0:
 		stats.hp = 0.0
 		dead = true
@@ -68,7 +71,10 @@ func take_damage(amount: float) -> void:
 
 
 func add_xp(amount: int) -> void:
-	stats.xp += amount
+	var scaled := amount * stats.xp_gain + _xp_carry
+	var whole := floori(scaled)
+	_xp_carry = scaled - whole
+	stats.xp += whole
 	var gained := false
 	while stats.xp >= stats.xp_to_next:
 		stats.xp -= stats.xp_to_next
@@ -106,8 +112,11 @@ func _update_bolt(delta: float) -> void:
 	var spread := deg_to_rad(9.0)
 	for k in stats.bolt_count:
 		var angle := (k - (stats.bolt_count - 1) * 0.5) * spread
+		var damage := stats.bolt_damage
+		if randf() < stats.crit_chance:
+			damage *= stats.crit_mult
 		_projectiles.spawn(origin, aim.rotated(angle), stats.bolt_speed,
-				stats.bolt_damage, stats.bolt_pierce, 1.5)
+				damage, stats.bolt_pierce, 1.5)
 
 
 func _update_aura(delta: float) -> void:
