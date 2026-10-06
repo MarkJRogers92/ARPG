@@ -2,13 +2,14 @@
 # Runs tools/balance_bot.gd for several seeds and policies in parallel and
 # summarizes how long each survived.
 #
-#   tools/balance.sh [-g /path/to/godot] [-s "1 2 3 4"] [-p "greedy tank random"] [-m 20] [-j 4] [overrides...]
+#   tools/balance.sh [-g /path/to/godot] [-s "1 2 3 4"] [-p "greedy tank random"] [-m 20] [-j 4] [-f 60] [overrides...]
 #
 #   -g  Godot binary (default: $GODOT, then `godot`)
 #   -s  seeds                (default: 1 2 3 4)
 #   -p  policies             (default: greedy tank random)
 #   -m  max minutes per run  (default: 20)
 #   -j  parallel runs        (default: number of CPUs)
+#   -f  simulation fps       (default: 60; 30 is about twice as fast but unverified against 60, so explore only)
 #   overrides: node.property=value, e.g. director.rate_growth=0.1
 
 set -euo pipefail
@@ -18,14 +19,16 @@ SEEDS="1 2 3 4"
 POLICIES="greedy tank random"
 MINUTES=20
 JOBS="$(nproc 2>/dev/null || echo 4)"
+FPS=60
 
-while getopts "g:s:p:m:j:" opt; do
+while getopts "g:s:p:m:j:f:" opt; do
   case "$opt" in
     g) GODOT_BIN="$OPTARG" ;;
     s) SEEDS="$OPTARG" ;;
     p) POLICIES="$OPTARG" ;;
     m) MINUTES="$OPTARG" ;;
     j) JOBS="$OPTARG" ;;
+    f) FPS="$OPTARG" ;;
     *) exit 2 ;;
   esac
 done
@@ -38,19 +41,19 @@ trap 'rm -rf "$OUT"' EXIT
 
 run_one() {
   local seed="$1" policy="$2"
-  "$GODOT_BIN" --headless --path . --fixed-fps 60 -s tools/balance_bot.gd -- \
+  "$GODOT_BIN" --headless --path . --fixed-fps "$FPS" -s tools/balance_bot.gd -- \
     "$seed" "$policy" "$MINUTES" "${OVERRIDES[@]}" 2>&1 \
     | grep -E '^(T|RESULT|OVERRIDE) ' > "$OUT/$policy-$seed.log" || true
 }
 export -f run_one
-export GODOT_BIN MINUTES OUT
+export GODOT_BIN MINUTES OUT FPS
 export OVERRIDES_STR="${OVERRIDES[*]:-}"
 
 for p in $POLICIES; do for s in $SEEDS; do echo "$s $p"; done; done \
   | xargs -P "$JOBS" -L 1 bash -c 'OVERRIDES=($OVERRIDES_STR); run_one "$0" "$1"'
 
 echo
-grep -h '^OVERRIDE' "$OUT"/*.log | sort -u
+grep -h '^OVERRIDE' "$OUT"/*.log | sort -u || true
 printf '\n%-8s %5s  %8s  %5s  %6s  %6s  %5s  %s\n' policy seed survived level kills peak items died
 for p in $POLICIES; do
   for s in $SEEDS; do

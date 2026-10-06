@@ -25,7 +25,7 @@ const KEEP_ITEMS := 10
 
 var _seed := 1
 var _policy := "greedy"
-var _max_frames := 20 * 60 * 60
+var _max_seconds := 20.0 * 60.0
 var _overrides: Array[String] = []
 
 var _main: Node
@@ -35,7 +35,9 @@ var _gems: GemSwarm
 var _swarms: Array = []
 var _frame := 0
 var _orbit := 1.0
-var _orbit_flip_at := 0
+var _orbit_flip_at := 0.0
+var _next_gear_check := 1.0
+var _next_report := 60.0
 var _peak_enemies := 0
 var _items_found := 0
 var _rarities := [0, 0, 0, 0]
@@ -50,7 +52,7 @@ func _initialize() -> void:
 	if args.size() > 1:
 		_policy = args[1]
 	if args.size() > 2:
-		_max_frames = int(float(args[2]) * 60.0 * 60.0)
+		_max_seconds = float(args[2]) * 60.0
 	for a in args.slice(3):
 		_overrides.append(a)
 	seed(_seed)
@@ -75,13 +77,17 @@ func _process(_delta: float) -> bool:
 
 	_steer()
 	_pick_upgrade()
-	if _frame % 60 == 0:
+	# Timers use game time, so the bot behaves the same at any --fixed-fps.
+	var now: float = _main.elapsed
+	if now >= _next_gear_check:
+		_next_gear_check = now + 1.0
 		_manage_gear()
 		_peak_enemies = maxi(_peak_enemies, _main._enemy_count())
-	if _frame % (60 * 60) == 0:
+	if now >= _next_report:
+		_next_report += 60.0
 		_report("T")
 
-	if _main._game_over or _frame >= _max_frames:
+	if _main._game_over or now >= _max_seconds:
 		_report("RESULT")
 		_done = true
 	return _done
@@ -159,9 +165,9 @@ func _steer() -> void:
 		heading = away.normalized()
 		# Orbit rather than run in a straight line, so the bot doesn't get
 		# pushed ahead of the horde forever.
-		if _frame >= _orbit_flip_at:
+		if _main.elapsed >= _orbit_flip_at:
 			_orbit = -_orbit
-			_orbit_flip_at = _frame + randi_range(120, 360)
+			_orbit_flip_at = _main.elapsed + randf_range(2.0, 6.0)
 		heading = (heading + heading.rotated(PI * 0.5 * _orbit) * 0.7).normalized()
 	else:
 		heading = _toward_nearest_gem(here)
