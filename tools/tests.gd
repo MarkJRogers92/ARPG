@@ -14,6 +14,10 @@ func _initialize() -> void:
 	_test_stat_math()
 	_test_remove_source()
 	_test_upgrades()
+	_test_generation()
+	_test_rarity_distribution()
+	_test_serialization()
+	_test_inventory()
 
 	print("")
 	if _failures == 0:
@@ -139,3 +143,187 @@ func _test_upgrades() -> void:
 		m.upgrade_levels[id] = Upgrades.DEFS[id]["max"]
 	var fallback := Upgrades.roll(m)
 	_check(fallback.size() == 1 and fallback[0]["id"] == "heal", "empty pool falls back to heal")
+
+
+# --- items -------------------------------------------------------------------
+
+func _test_generation() -> void:
+	print("item generation")
+	var checked := 0
+	for slot in ItemData.SLOTS:
+		for rarity in [ItemData.Rarity.NORMAL, ItemData.Rarity.MAGIC, ItemData.Rarity.RARE, ItemData.Rarity.LEGENDARY]:
+			for ilvl in [1, 10, 30]:
+				for n in 25:
+					var item := ItemGenerator.generate_with(ilvl, rarity, slot)
+					checked += 1
+					_validate_item(item, slot, rarity, ilvl)
+	_check(checked == 6 * 4 * 3 * 25, "generated every combination")
+
+	# Item level scaling: flat stats grow fully, percentage stats more slowly,
+	# and magic find not at all.
+	var flat := ItemData.ilvl_scale(21, "max_hp", PlayerStats.Op.ADD)
+	var pct := ItemData.ilvl_scale(21, "damage", PlayerStats.Op.INCREASED)
+	_near(flat, 1.0 + 0.06 * 20, "flat stats scale at the full rate")
+	_near(pct, 1.0 + 0.06 * 0.35 * 20, "percentage stats scale at a reduced rate")
+	_check(pct < flat, "percentage stats grow slower than flat ones")
+	_near(ItemData.ilvl_scale(60, "magic_find", PlayerStats.Op.ADD), 1.0, "magic find never scales")
+	_near(ItemData.ilvl_scale(60, "crit_chance", PlayerStats.Op.ADD), 1.0 + 0.06 * 0.35 * 59, "fractional ADD stats count as percentage")
+
+	# Names: Magic keeps the base name, Rare gets its own.
+	var magic := ItemGenerator.generate_with(5, ItemData.Rarity.MAGIC, "weapon")
+	_check(magic.name.contains(magic.base_name), "magic name includes the base type ('%s')" % magic.name)
+	var rare := ItemGenerator.generate_with(5, ItemData.Rarity.RARE, "weapon")
+	_check(not rare.name.contains(rare.base_name) and rare.name.contains(" "), "rare gets a unique name ('%s')" % rare.name)
+
+	# On average, better rarities are stronger.
+	var avg := {}
+	for rarity in [ItemData.Rarity.NORMAL, ItemData.Rarity.MAGIC, ItemData.Rarity.RARE, ItemData.Rarity.LEGENDARY]:
+		var total := 0.0
+		for n in 300:
+			total += ItemGenerator.generate_with(20, rarity, ItemData.SLOTS.pick_random()).score()
+		avg[rarity] = total / 300.0
+	_check(avg[0] < avg[1] and avg[1] < avg[2] and avg[2] < avg[3],
+			"average score rises with rarity %s" % [avg])
+
+
+func _validate_item(item: Item, slot: String, rarity: int, ilvl: int) -> void:
+	var tag := "%s %s ilvl %d" % [ItemData.rarity_name(rarity), slot, ilvl]
+	_check(item.slot == slot and item.rarity == rarity and item.ilvl == ilvl, "%s: basic fields" % tag)
+	_check(item.implicit.size() == 1, "%s: exactly one implicit" % tag)
+	_check(item.name != "" and item.base_name != "", "%s: has a name" % tag)
+
+	var rules: Dictionary = ItemData.RARITIES[rarity]
+	var pool_size := 0
+	for a: Dictionary in ItemData.AFFIXES:
+		if slot in a["slots"] and rarity >= a.get("min_rarity", ItemData.Rarity.MAGIC):
+			pool_size += 1
+	var lo: int = rules["affixes"][0]
+	var hi: int = mini(rules["affixes"][1], pool_size)
+	_check(item.affixes.size() >= mini(lo, hi) and item.affixes.size() <= hi,
+			"%s: affix count %d within [%d, %d]" % [tag, item.affixes.size(), lo, hi])
+
+	var seen_ids := {}
+	var seen_stats := {}
+	for mod in item.affixes:
+		var def := ItemData.affix(mod["id"])
+		_check(slot in def["slots"], "%s: affix %s is allowed on this slot" % [tag, mod["id"]])
+		_check(rarity >= def.get("min_rarity", ItemData.Rarity.MAGIC), "%s: affix %s meets its min rarity" % [tag, mod["id"]])
+		_check(not seen_ids.has(mod["id"]), "%s: no duplicate affix %s" % [tag, mod["id"]])
+		seen_ids[mod["id"]] = true
+		var key := "%s/%d" % [mod["stat"], mod["op"]]
+		_check(not seen_stats.has(key), "%s: no two affixes on %s" % [tag, key])
+		seen_stats[key] = true
+
+		var k: float = ItemData.ilvl_scale(ilvl, def["stat"], def["op"]) if def.get("scales", true) else 1.0
+		var floor_t: float = rules["luck"]
+		var min_v: float = lerpf(def["min"], def["max"], floor_t) * k - def["step"]
+		var max_v: float = def["max"] * k + def["step"]
+		_check(mod["value"] >= min_v and mod["value"] <= max_v,
+				"%s: %s value %s within [%s, %s]" % [tag, mod["id"], mod["value"], min_v, max_v])
+	for line in item.description_lines():
+		_check(line != "", "%s: modifier has text" % tag)
+
+
+func _test_rarity_distribution() -> void:
+	print("rarity distribution")
+	var n := 40000
+	var counts := [0, 0, 0, 0]
+	for i in n:
+		counts[ItemGenerator.roll_rarity(0.0)] += 1
+	var expected := [0.60, 0.30, 0.09, 0.01]
+	var tolerance := [0.02, 0.02, 0.012, 0.004]
+	for r in 4:
+		_near(float(counts[r]) / n, expected[r], "%s share at no magic find" % ItemData.rarity_name(r), tolerance[r])
+
+	var boosted_rare := 0
+	for i in n:
+		if ItemGenerator.roll_rarity(1.0) >= ItemData.Rarity.RARE:
+			boosted_rare += 1
+	var base_rare := float(counts[2] + counts[3]) / n
+	_check(float(boosted_rare) / n > base_rare * 1.7,
+			"magic find 100%% roughly doubles Rare+ (%.3f -> %.3f)" % [base_rare, float(boosted_rare) / n])
+
+
+func _test_serialization() -> void:
+	print("serialization")
+	for n in 60:
+		var item := ItemGenerator.generate(15, 0.5)
+		# var_to_str keeps ints as ints, which JSON would not.
+		var copy := Item.from_dict(str_to_var(var_to_str(item.to_dict())))
+		_check(copy.name == item.name and copy.slot == item.slot and copy.rarity == item.rarity
+				and copy.ilvl == item.ilvl and copy.base_name == item.base_name, "basic fields survive a round trip")
+		_check(_same_mods(copy.modifiers(), item.modifiers()), "modifiers survive a round trip")
+		_check(copy.uid != item.uid, "a copy is a new item")
+
+
+func _test_inventory() -> void:
+	print("inventory and stats")
+	var s := PlayerStats.new()
+	var base := s.values.duplicate()
+	var inv := Inventory.new(s)
+
+	var wand_a := _make_item("weapon", [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 5.0}])
+	var wand_b := _make_item("weapon", [{"stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 1.0}])
+	var cap := _make_item("helm", [{"stat": "max_hp", "op": PlayerStats.Op.ADD, "value": 30.0}])
+
+	_check(inv.pickup(wand_a) == "equipped", "first weapon is worn straight away")
+	_near(s.bolt_damage, 15.0, "equipped weapon changes stats")
+	_check(inv.pickup(wand_b) == "backpack", "second weapon goes to the backpack")
+	_near(s.bolt_damage, 15.0, "backpack items don't count")
+
+	inv.equip(wand_b)
+	_near(s.bolt_damage, 20.0, "swapping replaces the old weapon's bonus (not stacked)")
+	_check(inv.equipped["weapon"] == wand_b and inv.backpack.has(wand_a) and not inv.backpack.has(wand_b),
+			"swap moves the old weapon to the backpack")
+
+	s.hp = s.max_hp
+	inv.pickup(cap)
+	_near(s.max_hp, 130.0, "helm adds max HP")
+	_near(s.hp, 100.0, "equipping +max HP doesn't heal")
+	inv.unequip("helm")
+	_near(s.max_hp, 100.0, "unequipping removes the bonus")
+	_check(inv.backpack.has(cap), "unequipped item lands in the backpack")
+
+	inv.unequip("weapon")
+	for stat: String in base:
+		_near(s.values[stat], base[stat], "stat '%s' is back to base with nothing equipped" % stat)
+
+	# Backpack capacity.
+	var fill := Inventory.new(PlayerStats.new())
+	fill.pickup(_make_item("weapon", []))
+	for i in Inventory.BACKPACK_SIZE:
+		_check(fill.pickup(_make_item("weapon", [])) == "backpack", "backpack slot %d fills" % i)
+	_check(fill.pickup(_make_item("weapon", [])) == "full", "a full backpack refuses more")
+	_check(fill.backpack.size() == Inventory.BACKPACK_SIZE, "refused item isn't added")
+
+	# Upgrade detection.
+	var u := PlayerStats.new()
+	var uinv := Inventory.new(u)
+	var weak := _make_item("ring", [{"stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.05}])
+	var strong := _make_item("ring", [{"stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.30}])
+	uinv.pickup(weak)
+	uinv.pickup(strong)
+	_check(uinv.is_upgrade(strong), "stronger ring is flagged as an upgrade")
+	_check(uinv.equip_upgrades() == 1 and uinv.equipped["ring"] == strong, "equip_upgrades swaps in the better ring")
+	_check(uinv.equip_upgrades() == 0, "and then there is nothing left to upgrade")
+
+
+func _make_item(slot: String, mods: Array) -> Item:
+	var item := Item.new()
+	item.slot = slot
+	item.base_name = "Test"
+	item.name = "Test " + slot
+	item.implicit.assign(mods)
+	return item
+
+
+## Modifier lists equal, allowing for float noise from text serialization.
+func _same_mods(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i]["stat"] != b[i]["stat"] or a[i]["op"] != b[i]["op"]:
+			return false
+		if absf(a[i]["value"] - b[i]["value"]) > 1e-9:
+			return false
+	return true
