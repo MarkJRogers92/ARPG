@@ -23,6 +23,7 @@ var _game_over := false
 @onready var _director: WaveDirector = $WaveDirector
 @onready var _hud: Hud = $Hud
 @onready var _inventory_screen: InventoryScreen = $InventoryScreen
+@onready var _skill_screen: SkillTreeScreen = $SkillTreeScreen
 @onready var _ground: Node3D = $Ground
 
 
@@ -40,6 +41,10 @@ func _ready() -> void:
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
 	_inventory_screen.setup(_player)
 	_inventory_screen.closed.connect(func() -> void: get_tree().paused = false)
+	_skill_screen.setup(_player)
+	_skill_screen.closed.connect(func() -> void: get_tree().paused = false)
+	_player.skill_points_gained.connect(func(n: int) -> void:
+		_hud.toast("+%d skill point%s  [K]" % [n, "" if n == 1 else "s"], Color(1.0, 0.85, 0.3)))
 	_hud.restart_pressed.connect(func() -> void: get_tree().reload_current_scene())
 
 
@@ -78,15 +83,23 @@ func _process(delta: float) -> void:
 			snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
 
-	_hud.refresh(_player.stats, elapsed, kills, _enemy_count())
+	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# While the screen is open it handles its own close key (the tree is paused).
-	if event.is_action_pressed("inventory") and not _choosing_upgrade and not _game_over:
-		get_tree().paused = true
-		_inventory_screen.open()
-		get_viewport().set_input_as_handled()
+	# While a screen is open it handles its own close key (the tree is paused).
+	if _choosing_upgrade or _game_over:
+		return
+	if event.is_action_pressed("inventory"):
+		_open_screen(_inventory_screen)
+	elif event.is_action_pressed("skill_tree"):
+		_open_screen(_skill_screen)
+
+
+func _open_screen(screen: Node) -> void:
+	get_tree().paused = true
+	screen.open()
+	get_viewport().set_input_as_handled()
 
 
 func _enemy_count() -> int:

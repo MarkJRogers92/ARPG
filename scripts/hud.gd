@@ -9,6 +9,7 @@ signal restart_pressed
 var _hp_bar: ProgressBar
 var _xp_bar: ProgressBar
 var _level_label: Label
+var _skill_label: Label
 var _time_label: Label
 var _kills_label: Label
 var _debug_label: Label
@@ -28,12 +29,14 @@ func _ready() -> void:
 
 
 ## Refresh the always-on display. Cheap enough to call every frame.
-func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int) -> void:
+func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill_points := 0) -> void:
 	_hp_bar.max_value = stats.max_hp
 	_hp_bar.value = stats.hp
 	_xp_bar.max_value = stats.xp_to_next
 	_xp_bar.value = stats.xp
 	_level_label.text = "Lv %d" % stats.level
+	_skill_label.visible = skill_points > 0
+	_skill_label.text = "%d skill point%s  [K]" % [skill_points, "" if skill_points == 1 else "s"]
 	_time_label.text = _format_time(elapsed)
 	_kills_label.text = "Kills %d" % kills
 	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory" % [Engine.get_frames_per_second(), enemies]
@@ -127,6 +130,10 @@ func _build() -> void:
 	row.add_child(_hp_bar)
 	_level_label = _make_label(22)
 	row.add_child(_level_label)
+	_skill_label = _make_label(18)
+	_skill_label.modulate = Color(1.0, 0.85, 0.3)
+	_skill_label.visible = false
+	row.add_child(_skill_label)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
