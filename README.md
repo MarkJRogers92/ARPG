@@ -23,9 +23,10 @@ you can.
 Attacks are automatic: *Magic Bolt* fires at the nearest enemy, and *Frost Aura*
 (an upgrade) damages everything around you.
 
-The project uses the **Forward+** renderer. If your GPU is old, switch to
-*Compatibility* under Project Settings → Rendering → Renderer. Nothing in the
-game depends on it.
+The project uses the **Compatibility** renderer (OpenGL), which runs on nearly any
+machine and is the one the game was tested with. If you'd like Forward+ (Vulkan),
+switch it under Project Settings → Rendering → Renderer and restart the editor;
+nothing in the game depends on the choice, but Forward+ has not been tried.
 
 ## Gear and loot
 
