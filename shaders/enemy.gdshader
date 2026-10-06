@@ -1,7 +1,7 @@
 shader_type spatial;
 // Enemies: a MeshKit model (feet at y = 0, facing -Z) drawn by EnemySwarm.
 // Instance custom data: x = hit flash (1 on hit, fading to 0), y = animation
-// phase. The walk is done here: legs swing, the body bobs and rocks, so the
+// phase, z = elite glow (0 or 1). The instance color tints the model. The walk is done here: legs swing, the body bobs and rocks, so the
 // CPU only ever writes positions and facing.
 
 uniform float glow_strength = 3.0;
@@ -20,6 +20,7 @@ uniform float rim_strength = 0.35;
 
 varying float v_glow;
 varying float v_flash;
+varying float v_elite;
 
 void vertex() {
 	float t = TIME * stride_speed + INSTANCE_CUSTOM.y * 6.2831853;
@@ -47,14 +48,16 @@ void vertex() {
 	VERTEX.xz *= 1.0 + v_flash * 0.15;
 	VERTEX.y *= 1.0 - v_flash * 0.08;
 	v_glow = UV.x;
+	v_elite = INSTANCE_CUSTOM.z;
 }
 
 void fragment() {
 	vec3 base = COLOR.rgb;
-	ALBEDO = mix(base, vec3(1.0), v_flash * 0.7);
+	ALBEDO = mix(base, vec3(1.0), v_flash * 0.3);
 	ROUGHNESS = 0.8;
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
 	EMISSION = base * v_glow * glow_strength
 			+ rim_color * rim * rim_strength
-			+ vec3(1.0, 0.9, 0.85) * v_flash * 1.2;
+			+ vec3(1.0, 0.9, 0.85) * v_flash * 0.35
+			+ vec3(1.0, 0.72, 0.25) * (rim * 2.2 + 0.1 + 0.08 * sin(TIME * 5.0)) * v_elite;
 }

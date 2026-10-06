@@ -67,6 +67,19 @@ const STAT_INFO := {
 	"aura_damage": {"label": "Aura Damage", "w_add": 0.05, "w_inc": 0.25},
 	"aura_radius": {"label": "Aura Radius", "w_add": 0.05, "w_inc": 0.2},
 	"aura_interval": {"label": "Aura Interval", "w_add": 0.0, "w_inc": 0.0},
+	"lightning_level": {"label": "Chain Lightning Level", "w_add": 0.3, "w_inc": 0.3},
+	"lightning_damage": {"label": "Lightning Damage", "w_add": 0.04, "w_inc": 0.3},
+	"lightning_chains": {"label": "Lightning Chains", "w_add": 0.3, "w_inc": 0.3},
+	"lightning_rate": {"label": "Lightning Speed", "w_add": 0.5, "w_inc": 0.4},
+	"orbit_level": {"label": "Spirit Blades Level", "w_add": 0.3, "w_inc": 0.3},
+	"orbit_count": {"label": "Spirit Blades", "w_add": 0.4, "w_inc": 0.4},
+	"orbit_damage": {"label": "Blade Damage", "w_add": 0.05, "w_inc": 0.3},
+	"orbit_radius": {"label": "Blade Orbit", "w_add": 0.05, "w_inc": 0.1},
+	"nova_level": {"label": "Arcane Nova Level", "w_add": 0.3, "w_inc": 0.3},
+	"nova_damage": {"label": "Nova Damage", "w_add": 0.03, "w_inc": 0.3},
+	"nova_radius": {"label": "Nova Radius", "w_add": 0.05, "w_inc": 0.2},
+	"nova_rate": {"label": "Nova Speed", "w_add": 0.8, "w_inc": 0.4},
+	"dash_cooldown": {"label": "Dash Cooldown", "w_add": -0.1, "w_inc": -0.2},
 }
 
 ## Base item types. `implicit` always comes with the item, scaled by item level.

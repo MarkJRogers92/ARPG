@@ -18,8 +18,10 @@ you can.
 | WASD / arrow keys / left stick | Move |
 | Mouse / right stick | Aim (the hero faces and shoots where you point) |
 | T / right stick click | Switch between mouse aim and auto-aim |
+| Space / Shift / gamepad A or RB | Dash (invulnerable while dashing) |
 | F11 / Alt+Enter / Ctrl+Cmd+F | Switch between fullscreen and a window |
 | 1 / 2 / 3, click, Enter | Pick a level-up upgrade |
+| R / gamepad X | Reroll the level-up cards (if you have rerolls) |
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 
@@ -40,6 +42,52 @@ The project uses the **Compatibility** renderer (OpenGL), which runs on nearly a
 machine and is the one the game was tested with. If you'd like Forward+ (Vulkan),
 switch it under Project Settings → Rendering → Renderer and restart the editor;
 nothing in the game depends on the choice, but Forward+ has not been tried.
+
+## Abilities, enemies and progression
+
+**Weapons.** *Magic Bolt* is always on. The level-up cards can add:
+
+- **Frost Aura:** damages everything close to you.
+- **Chain Lightning:** strikes the nearest enemy and jumps to the next closest
+  ones (4 at first, +1 per rank), losing 15% damage per jump.
+- **Spirit Blades:** two blades (+1 per rank) circle you and cut what they pass
+  through; each blade hits a given enemy at most every 0.3 s.
+- **Arcane Nova:** every 4 s, a blast damages everything around you and throws
+  it back.
+
+**Dash** (Space) is a short burst of speed with a 3 s cooldown (the bar under
+your health). Nothing can hurt you mid-dash: contact damage, fireballs and boss
+slams all pass through.
+
+**Enemies.**
+
+- *Grunts* (ghouls), *Brutes* (horned ogres) and *Runners* (hellhounds), as before.
+- **Cultists** (from 2:00) stop at range and throw slow fireballs. At most 80 are
+  alive at once, so the late game can't turn into a bullet storm.
+- **Elites** are glowing gold versions of any type: 7x HP, 8x XP, a guaranteed
+  item and 2 Soul Shards. They come at a steady rate (1.5 a minute at first,
+  growing to 5) rather than as a share of spawns, so the huge late-game spawn
+  rate doesn't flood the field with them.
+- **The Ogre Warlord** arrives every 3 minutes, each one tougher, with a health bar
+  at the top of the screen. It can't be knocked back, and every few seconds it
+  marks the ground under you with a red circle that fills up and then slams.
+  Step out or dash through. It drops three good items, a big XP gem and 15+ Soul
+  Shards. The bosses and their slam are in `boss_director.gd`.
+
+**Soul Shards and the Altar.** Shards come from elites and bosses, plus a bonus
+at the end of each run (2 per minute survived, 1 per 150 kills). On the death
+screen, the **Altar of Souls** spends them on permanent upgrades: more HP,
+damage, speed, XP, magic find and regen, and **Insight** (level-up rerolls each
+run). They're saved in `user://meta.save` (`meta_progress.gd`; the costs are
+there too). To start over, delete that file: on macOS it's in
+`~/Library/Application Support/Godot/app_userdata/ARPG/`.
+
+**Feel.** Damage numbers (crits are big and gold; only one in five ordinary hits
+shows a number, to keep it readable), screen shake on big hits, real light from
+explosions, dash trails, drifting embers, and a sky that changes over the run:
+warm dusk, cold moonlight around 4:00, a blood moon from about 9:00, turning
+redder while a boss is alive (`visual/atmosphere.gd`). Shake can be turned off
+with `shake_enabled` on `CameraRig`.
 
 ## The look
 
@@ -216,13 +264,26 @@ manages gear. `tools/balance.sh` runs many seeds in parallel and prints
 per-minute averages. The bot is a consistent yardstick for comparing settings,
 **not** a stand-in for a person.
 
-Current defaults, 4 seeds each, 10 minutes of game time. The bot spends skill
-points by policy (damage-first, or random picks):
+Current defaults, 6 seeds each, 10 minutes of game time, with Cultists, elites
+and bosses. The bot spends skill points by policy (damage-first, or random
+picks). It never dashes or steps out of a boss slam, so a person has an easier
+time than these numbers suggest:
 
-| Policy | Survived | Level at 10 min | Enemies alive at minutes 3 / 5 / 10 |
+| Policy | Survived | Level at 10 min | Items found |
 |---|---|---|---|
-| greedy (damage-first build) | 4 of 4 reached 10:00 | ~69 | ~360 / ~890 / ~540 |
-| random upgrades and nodes | 2 of 4 reached 10:00 (the others died at 4.8 and 5.1 min) | | ~670 / ~1,750 (at 5) |
+| greedy (damage-first build; never takes the new weapons) | 6 of 6 reached 10:00 | ~71 | ~35 |
+| random upgrades and nodes | 3 of 6 reached 10:00 (the others died at 4.7 to 5.5 min) | ~65 | ~30 |
+
+The first version of this update let Cultists build up to about 300 alive (with
+a share of 0.12 of all spawns), and the damage-first bot died in 3 of 4 runs.
+Without Cultists it survived every run; without bosses or elites it still died.
+Capping them at 80 alive with weaker, slower shots brought survival back to
+where it was. Elites used to be a share of spawns and dropped up to 400 items
+in a run; at a steady rate it's back to 30-40.
+
+Before these enemies, with 4 seeds: greedy 4 of 4 survived (level ~69, enemies
+alive ~360 / ~890 / ~540 at minutes 3 / 5 / 10), random 2 of 4 (died at 4.8 and
+5.1 min).
 
 Before the skill tree the same bot had ~1,290 enemies alive at minute 10, and
 every random-pick run died at 4.0 to 5.3 minutes, so the tree adds real power:
@@ -276,6 +337,9 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
   budget, the wave director's spawn schedule, and the skill tree (graph validity,
   allocate and refund rules, exact stat restore, serialization, earning points).
   Exit code 0 means everything passed.
+- `tests.gd` also covers the new weapons' upgrades, Soul Shards and the Altar
+  (buying, costs, max ranks, saving and loading, applying at run start), elites,
+  knockback, enemy fireballs and dash invulnerability.
 - `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
   actions, check the pause, and click through equipping, discarding, allocating,
   refunding (including the refusals), resetting and closing.
@@ -303,7 +367,12 @@ scripts/
   fx_swarm.gd          Hit, death, pickup and level-up particles
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
-  player.gd            Movement, aiming, Magic Bolt, Frost Aura, XP, levels
+  player.gd            Movement, aiming, dash, Magic Bolt, Frost Aura, XP, levels
+  abilities/           Chain Lightning, Spirit Blades, Arcane Nova
+  enemy_shots.gd       Fireballs from ranged enemies
+  boss_director.gd     When bosses come, and their telegraphed slam
+  meta_progress.gd     Soul Shards and the Altar's permanent upgrades (saved)
+  juice.gd             One place to trigger particles, numbers, flashes, shake
   player_stats.gd      Base values + modifiers -> effective stats
   upgrades.gd          The level-up pool (data + apply())
   wave_director.gd     Spawn rate / HP curves and enemy mix over time
@@ -329,6 +398,9 @@ scripts/
     world_decor.gd     Scenery scattered in chunks around the hero
     item_icons.gd      Item icons and the turning preview, rendered from the models
     ui_icons.gd        Vector icons for the level-up cards
+    damage_numbers.gd  Pooled floating damage numbers
+    light_flashes.gd   Pooled light bursts for explosions
+    atmosphere.gd      Dusk -> moonlight -> blood moon over the run
 shaders/
   kit.gdshader         Vertex-colored models with glow and rim light
   enemy.gdshader       Enemies: walk cycle, hit flash, rim light
@@ -342,7 +414,12 @@ tools/
 ## Tuning
 
 - **Difficulty curve:** exports on the `WaveDirector` node (`base_rate`,
-  `rate_growth`, `rate_acceleration`, `hp_growth_seconds`, `hp_squared_seconds`).
+  `rate_growth`, `rate_acceleration`, `hp_growth_seconds`, `hp_squared_seconds`,
+  and the elite rate).
+- **Bosses:** exports on `BossDirector` (when they come, how much tougher each
+  one is, the slam's timing, size and damage) and on the `Bosses` swarm (HP,
+  speed, rewards). **Ranged enemies:** the "Ranged" exports on `Cultists`.
+- **Permanent upgrades:** `MetaProgress.UPGRADES`.
 - **Enemy stats, look and drops:** exports on the `Grunts` / `Brutes` / `Runners`
   nodes in `main.tscn` (HP, speed, contact damage, size, color, capacity, when
   they start spawning and how common they are, loot chance and quality).
@@ -380,9 +457,8 @@ tools/
 
 ## Not built yet
 
-Saving and loading (items and the skill tree already serialize with `to_dict()`;
-use `var_to_str` or `FileAccess.store_var` rather than JSON, which turns ints into
-floats), more weapons, ranged enemies, elites and bosses, health
-pickups, biomes with obstacles (the player is already a `CharacterBody3D`; the
+Saving a run in progress (items and the skill tree already serialize with
+`to_dict()`; Soul Shards and the Altar already save with `FileAccess.store_var`),
+a title screen, more boss types and boss attacks, health pickups, biomes with obstacles (the player is already a `CharacterBody3D`; the
 scenery is decoration only), level-of-detail meshes for far-away enemies, and
 sound.

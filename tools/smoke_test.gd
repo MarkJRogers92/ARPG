@@ -20,6 +20,7 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		_max_frames = int(float(args[0]) * 60.0)
+	MetaProgress.disabled = true # saved upgrades mustn't change results
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 

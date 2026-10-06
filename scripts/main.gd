@@ -15,6 +15,10 @@ var kills := 0
 var _swarms: Array[EnemySwarm] = []
 var _choosing_upgrade := false
 var _game_over := false
+## Soul Shards found this run (elites and bosses); the run bonus comes on top.
+var _run_shards := 0
+var _rerolls := 0
+var _mote_timer := 0.0
 
 @onready var _player: Player = $Player
 @onready var _projectiles: ProjectileSwarm = $Projectiles
@@ -27,20 +31,45 @@ var _game_over := false
 @onready var _ground: Node3D = $Ground
 @onready var _decor: WorldDecor = $Decor
 @onready var _fx: FxSwarm = $Fx
+@onready var _motes: FxSwarm = $Motes
+@onready var _shots: EnemyShots = $EnemyShots
+@onready var _bosses: BossDirector = $BossDirector
+@onready var _atmosphere: Atmosphere = $Atmosphere
 
 
 func _ready() -> void:
 	# Every EnemySwarm node in the scene is an enemy type: no registration needed.
+	Juice.fx = _fx
+	Juice.numbers = $DamageNumbers
+	Juice.flashes = $LightFlashes
+	Juice.camera = $CameraRig
+	MetaProgress.load_save()
+	MetaProgress.apply(_player.stats)
+	_rerolls = MetaProgress.rerolls()
+
 	_swarms.assign(get_tree().get_nodes_in_group(EnemySwarm.GROUP))
 	_player.setup(_swarms, _projectiles)
 	_director.setup(_swarms)
 	for swarm in _swarms:
+		swarm.shots = _shots
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
-	_projectiles.hit.connect(func(at: Vector2, crit: bool) -> void:
+		swarm.elite_died.connect(_on_elite_died.bind(swarm))
+		if swarm.boss:
+			_bosses.setup(swarm, _director, _player)
+	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
+		_hud.toast("%s approaches!" % boss_name, Color(1.0, 0.4, 0.3)))
+	_projectiles.hit.connect(func(at: Vector2, crit: bool, damage: float) -> void:
+		Juice.number(at, damage, crit)
 		if crit:
 			_fx.burst(at, 1.0, _projectiles.crit_color, 5, 5.0, 0.4, 0.3, 2.0)
 		else:
 			_fx.burst(at, 1.0, _projectiles.color, 2, 3.0, 0.3, 0.25, 1.5))
+	_shots.hit_player.connect(func(at: Vector2) -> void:
+		_fx.burst(at, 1.2, _shots.color, 8, 4.0, 0.4, 0.35, 2.0)
+		Juice.shake(0.15))
+	_player.dashed.connect(func() -> void:
+		_fx.burst(_player.pos2, 0.6, Color(0.5, 0.8, 1.0), 12, 4.0, 0.45, 0.4, 1.0))
+	_hud.reroll_requested.connect(_on_reroll)
 	_player.leveled_up.connect(func() -> void:
 		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
 		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.9, 0.6), 24, 3.0, 0.4, 1.0, 8.0))
@@ -60,6 +89,10 @@ func _ready() -> void:
 	_hud.restart_pressed.connect(func() -> void: get_tree().reload_current_scene())
 
 
+func _exit_tree() -> void:
+	Juice.reset()
+
+
 func _process(delta: float) -> void:
 	if _game_over:
 		return
@@ -74,6 +107,8 @@ func _process(delta: float) -> void:
 
 	_player.update_weapons(delta)
 	_projectiles.step(delta, _swarms)
+	_shots.step(delta, _player)
+	_bosses.tick(delta)
 
 	var contact_dps := 0.0
 	for swarm in _swarms:
@@ -90,7 +125,10 @@ func _process(delta: float) -> void:
 
 	_director.tick(delta, origin)
 	_fx.step(delta)
+	_spawn_motes(delta, origin)
+	_motes.step(delta)
 	_decor.follow(origin)
+	_atmosphere.tick(delta, elapsed, _bosses.boss_alive())
 
 	# The ground plane trails the player in whole grid cells; the grid itself
 	# is drawn in world space, so it looks static.
@@ -99,6 +137,8 @@ func _process(delta: float) -> void:
 			snappedf(_player.global_position.z, GROUND_SNAP))
 
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
+			_bosses.boss_name, _bosses.boss_health())
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -124,8 +164,28 @@ func _enemy_count() -> int:
 	return total
 
 
+## Embers drifting up around the hero, for atmosphere.
+func _spawn_motes(delta: float, origin: Vector2) -> void:
+	_mote_timer -= delta
+	while _mote_timer <= 0.0:
+		_mote_timer += 0.12
+		var at := origin + Vector2.from_angle(randf() * TAU) * randf_range(2.0, 20.0)
+		var color := Color(1.0, 0.55, 0.25) if randf() < 0.6 else Color(0.5, 0.8, 1.0)
+		_motes.burst(at, randf_range(0.2, 2.5), color, 1, 0.5, 0.13, 4.5, 0.4)
+
+
+func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
+	_run_shards += 2
+	_loot.drop(ItemGenerator.generate(ItemData.ilvl_for_player_level(_player.stats.level),
+			1.0 + swarm.loot_quality + _player.stats.magic_find), at)
+	_fx.burst(at, 1.0, Color(1.0, 0.8, 0.35), 20, 6.0, 0.55, 0.6, 5.0)
+	Juice.flash(at, Color(1.0, 0.75, 0.35), 4.0, 8.0, 0.3)
+
+
 func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	kills += 1
+	if swarm.boss:
+		_on_boss_died(at, swarm)
 	var big := swarm.body_height > 2.0
 	_fx.burst(at, swarm.body_height * 0.5, swarm.color.lightened(0.25), 12 if big else 5,
 			5.0 if big else 3.5, 0.55 if big else 0.4, 0.55, 3.0)
@@ -134,6 +194,19 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_player.add_xp(overflow)
 	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality,
 			ItemData.ilvl_for_player_level(_player.stats.level), _player.stats.magic_find)
+
+
+func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
+	var shards := 15 + 5 * (_bosses.spawned - 1)
+	_run_shards += shards
+	var ilvl := ItemData.ilvl_for_player_level(_player.stats.level)
+	for k in 3:
+		_loot.drop(ItemGenerator.generate(ilvl, 2.0 + _player.stats.magic_find), at)
+	_fx.ring(at, Color(1.0, 0.6, 0.3), 60, 14.0, 0.8, 0.8)
+	_fx.burst(at, 2.0, swarm.color.lightened(0.3), 60, 9.0, 0.7, 1.0, 8.0)
+	Juice.flash(at, Color(1.0, 0.6, 0.3), 8.0, 16.0, 0.8)
+	Juice.shake(0.8)
+	_hud.toast("%s slain!  +%d Soul Shards" % [_bosses.boss_name, shards], Color(1.0, 0.75, 0.35))
 
 
 func _on_item_picked(item: Item, result: String) -> void:
@@ -155,8 +228,15 @@ func _try_level_up() -> void:
 			continue
 		_choosing_upgrade = true
 		get_tree().paused = true
-		_hud.show_upgrades(choices)
+		_hud.show_upgrades(choices, _rerolls)
 		return
+
+
+func _on_reroll() -> void:
+	if not _choosing_upgrade or _rerolls <= 0:
+		return
+	_rerolls -= 1
+	_hud.show_upgrades(Upgrades.roll(_player.stats), _rerolls)
 
 
 func _on_upgrade_chosen(id: String) -> void:
@@ -168,4 +248,6 @@ func _on_upgrade_chosen(id: String) -> void:
 
 func _on_player_died() -> void:
 	_game_over = true
-	_hud.show_game_over(elapsed, kills, _player.stats.level)
+	var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
+	MetaProgress.add_shards(shards)
+	_hud.show_game_over(elapsed, kills, _player.stats.level, shards)

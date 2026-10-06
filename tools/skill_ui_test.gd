@@ -14,6 +14,7 @@ var _hud: Hud
 
 
 func _initialize() -> void:
+	MetaProgress.disabled = true # saved upgrades mustn't change results
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 

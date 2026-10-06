@@ -42,6 +42,39 @@ const DEFS := {
 			{"stat": "aura_damage", "op": _MORE, "value": 0.30},
 		],
 	},
+	"lightning": {
+		"name": "Chain Lightning", "desc": "Lightning strikes and jumps between 4 enemies",
+		"desc_next": "+1 jump, +25% damage, strikes 10% faster", "max": 6,
+		"first_mods": [{"stat": "lightning_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "lightning_level", "op": _ADD, "value": 1.0},
+			{"stat": "lightning_chains", "op": _ADD, "value": 1.0},
+			{"stat": "lightning_damage", "op": _MORE, "value": 0.25},
+			{"stat": "lightning_rate", "op": _MORE, "value": 0.10},
+		],
+	},
+	"orbit": {
+		"name": "Spirit Blades", "desc": "Two blades circle you and cut through enemies",
+		"desc_next": "+1 blade, +20% damage, wider orbit", "max": 5,
+		"first_mods": [{"stat": "orbit_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "orbit_level", "op": _ADD, "value": 1.0},
+			{"stat": "orbit_count", "op": _ADD, "value": 1.0},
+			{"stat": "orbit_damage", "op": _MORE, "value": 0.20},
+			{"stat": "orbit_radius", "op": _MORE, "value": 0.06},
+		],
+	},
+	"nova": {
+		"name": "Arcane Nova", "desc": "A blast every 4 s damages and throws back nearby enemies",
+		"desc_next": "+30% damage, +12% radius, 12% more often", "max": 5,
+		"first_mods": [{"stat": "nova_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "nova_level", "op": _ADD, "value": 1.0},
+			{"stat": "nova_damage", "op": _MORE, "value": 0.30},
+			{"stat": "nova_radius", "op": _MORE, "value": 0.12},
+			{"stat": "nova_rate", "op": _MORE, "value": 0.12},
+		],
+	},
 	"move_speed": {
 		"name": "Swift Boots", "desc": "+10% move speed", "max": 5,
 		"mods": [{"stat": "move_speed", "op": _MORE, "value": 0.10}],

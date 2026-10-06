@@ -5,12 +5,14 @@ extends CanvasLayer
 
 signal upgrade_chosen(id: String)
 signal restart_pressed
+signal reroll_requested
 
-## Card colors by upgrade, matching the skill tree's branches.
+## Card colors by upgrade: a skill tree branch name, or a color of its own.
 const CARD_COLORS := {
 	"bolt_damage": "offense", "bolt_rate": "offense", "bolt_count": "offense", "bolt_pierce": "offense",
 	"aura": "aura", "max_hp": "defense", "regen": "defense", "heal": "defense",
 	"move_speed": "utility", "magnet": "utility",
+	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9),
 }
 
 var _hp_bar: ProgressBar
@@ -30,6 +32,15 @@ var _game_over_root: Control
 var _game_over_label: Label
 var _hurt := 0.0
 var _low_hp := 0.0
+var _reroll_button: Button
+var _shards_label: Label
+var _dash_bar: ProgressBar
+var _dash_label: Label
+var _boss_box: Control
+var _boss_label: Label
+var _boss_bar: ProgressBar
+var _shards_earned_label: Label
+var _altar: GridContainer
 
 
 func _ready() -> void:
@@ -79,7 +90,23 @@ func toast(text: String, color := Color.WHITE) -> void:
 	tween.tween_callback(label.queue_free)
 
 
-func show_upgrades(choices: Array[Dictionary]) -> void:
+## The bits of the HUD beyond the basics: Soul Shards found this run, the dash
+## cooldown (0 = ready) and the boss health bar (`boss_health` < 0 hides it).
+func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_health: float) -> void:
+	_shards_label.text = str(shards)
+	_dash_bar.value = 1.0 - dash_cooldown
+	_dash_label.text = "DASH  [Space]" if dash_cooldown <= 0.0 else "DASH"
+	_dash_label.modulate = Color(1, 1, 1, 0.9 if dash_cooldown <= 0.0 else 0.45)
+	_boss_box.visible = boss_health >= 0.0
+	if _boss_box.visible:
+		_boss_label.text = boss_name
+		_boss_bar.value = boss_health
+
+
+## `rerolls` > 0 shows a button (and the R key) to roll new cards.
+func show_upgrades(choices: Array[Dictionary], rerolls := 0) -> void:
+	_reroll_button.visible = rerolls > 0
+	_reroll_button.text = "Reroll  [R]   ·   %d left" % rerolls
 	for child in _upgrade_row.get_children():
 		child.queue_free()
 	_upgrade_ids.clear()
@@ -100,9 +127,47 @@ func show_upgrades(choices: Array[Dictionary]) -> void:
 	_upgrade_root.show()
 
 
-func show_game_over(elapsed: float, kills: int, level: int) -> void:
+func show_game_over(elapsed: float, kills: int, level: int, shards := 0) -> void:
 	_game_over_label.text = "Survived %s     Level %d     Kills %d" % [_format_time(elapsed), level, kills]
+	_shards_earned_label.text = "+%d Soul Shards this run" % shards
+	_refresh_altar()
 	_game_over_root.show()
+
+
+## The Altar of Souls on the death screen: permanent upgrades bought with
+## Soul Shards (see MetaProgress).
+func _refresh_altar() -> void:
+	for child in _altar.get_children():
+		child.queue_free()
+	var header := UiStyle.label(18)
+	header.text = "ALTAR OF SOULS   ·   %d shards" % MetaProgress.shards
+	header.add_theme_color_override("font_color", Color(0.75, 0.65, 1.0))
+	_altar.add_child(header)
+	_altar.add_child(Control.new())
+	for id: String in MetaProgress.UPGRADES:
+		var def: Dictionary = MetaProgress.UPGRADES[id]
+		var r := MetaProgress.rank(id)
+		var cost := MetaProgress.cost(id)
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(350, 44)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var pips := "●".repeat(r) + "○".repeat(def["max"] - r)
+		button.text = "%s  %s   %s" % [def["name"], pips, def["desc"]]
+		button.add_theme_font_size_override("font_size", 15)
+		button.disabled = not MetaProgress.can_buy(id)
+		var price := UiStyle.label(14)
+		price.text = "max" if cost < 0 else "%d ◆" % cost
+		price.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+		price.offset_left = -64
+		price.offset_right = -10
+		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		price.add_theme_color_override("font_color", Color(0.75, 0.65, 1.0) if MetaProgress.can_buy(id) else UiStyle.MUTED)
+		button.add_child(price)
+		button.pressed.connect(func() -> void:
+			if MetaProgress.buy(id):
+				_refresh_altar.call_deferred())
+		_altar.add_child(button)
 
 
 func _input(event: InputEvent) -> void:
@@ -114,6 +179,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if not _upgrade_root.visible:
+		return
+	if event.is_action_pressed("reroll") and _reroll_button.visible:
+		reroll_requested.emit()
+		get_viewport().set_input_as_handled()
 		return
 	var key := event as InputEventKey
 	if key and key.pressed and not key.echo:
@@ -220,6 +289,56 @@ func _build() -> void:
 	kills_row.add_child(skull)
 	_kills_label = UiStyle.label(24)
 	kills_row.add_child(_kills_label)
+	var gem := _ShardIcon.new()
+	gem.custom_minimum_size = Vector2(22, 26)
+	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kills_row.add_child(gem)
+	_shards_label = UiStyle.label(24)
+	_shards_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
+	kills_row.move_child(gem, 0)
+	kills_row.add_child(_shards_label)
+	kills_row.move_child(_shards_label, 1)
+	var spacer := Control.new()
+	spacer.custom_minimum_size.x = 14
+	kills_row.add_child(spacer)
+	kills_row.move_child(spacer, 2)
+
+	# Under the health bar: the dash cooldown.
+	var dash_row := HBoxContainer.new()
+	dash_row.add_theme_constant_override("separation", 8)
+	dash_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_column.add_child(dash_row)
+	hp_column.move_child(dash_row, 1)
+	_dash_bar = UiStyle.bar(Color(0.45, 0.75, 1.0), 6)
+	_dash_bar.max_value = 1.0
+	_dash_bar.custom_minimum_size.x = 110
+	_dash_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_dash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dash_row.add_child(_dash_bar)
+	_dash_label = UiStyle.label(12)
+	dash_row.add_child(_dash_label)
+
+	# Top center, under the timer: the boss health bar.
+	var boss_column := VBoxContainer.new()
+	boss_column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	boss_column.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	boss_column.offset_top = 62
+	boss_column.offset_left = -260
+	boss_column.offset_right = 260
+	boss_column.add_theme_constant_override("separation", 2)
+	boss_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_column.visible = false
+	root.add_child(boss_column)
+	_boss_box = boss_column
+	_boss_label = UiStyle.label(18)
+	_boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_boss_label.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	boss_column.add_child(_boss_label)
+	_boss_bar = UiStyle.bar(Color(0.75, 0.12, 0.08), 16)
+	_boss_bar.max_value = 1.0
+	_boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_column.add_child(_boss_bar)
 
 	_debug_label = UiStyle.label(13)
 	_debug_label.modulate = Color(1, 1, 1, 0.5)
@@ -258,6 +377,15 @@ func _build() -> void:
 	_upgrade_row.add_theme_constant_override("separation", 18)
 	_upgrade_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	upgrade_box.add_child(_upgrade_row)
+	var gap2 := Control.new()
+	gap2.custom_minimum_size.y = 10
+	upgrade_box.add_child(gap2)
+	_reroll_button = Button.new()
+	_reroll_button.custom_minimum_size = Vector2(240, 40)
+	_reroll_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_reroll_button.focus_mode = Control.FOCUS_NONE
+	_reroll_button.pressed.connect(reroll_requested.emit)
+	upgrade_box.add_child(_reroll_button)
 	_upgrade_root = _make_overlay(root, upgrade_box, false)
 
 	# Game over.
@@ -272,6 +400,15 @@ func _build() -> void:
 	_game_over_label = UiStyle.label(22)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
+	_shards_earned_label = UiStyle.label(20)
+	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
+	over_box.add_child(_shards_earned_label)
+	_altar = GridContainer.new()
+	_altar.columns = 2
+	_altar.add_theme_constant_override("h_separation", 10)
+	_altar.add_theme_constant_override("v_separation", 8)
+	over_box.add_child(_altar)
 	var restart := Button.new()
 	restart.text = "Rise again"
 	restart.custom_minimum_size = Vector2(220, 56)
@@ -287,7 +424,8 @@ func _build() -> void:
 
 func _make_card(index: int, choice: Dictionary) -> Button:
 	var id: String = choice["id"]
-	var color: Color = SkillData.BRANCHES[CARD_COLORS.get(id, "core")]
+	var tint = CARD_COLORS.get(id, "core")
+	var color: Color = tint if tint is Color else SkillData.BRANCHES[tint]
 	var card := Button.new()
 	card.custom_minimum_size = Vector2(220, 310)
 	card.pivot_offset = card.custom_minimum_size * 0.5
@@ -413,6 +551,15 @@ func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
 func _format_time(seconds: float) -> String:
 	var total := floori(seconds)
 	return "%d:%02d" % [total / 60, total % 60]
+
+
+## The Soul Shard gem next to the shard count.
+class _ShardIcon extends Control:
+	func _draw() -> void:
+		var s := size
+		var c := Color(0.72, 0.6, 1.0)
+		draw_colored_polygon([Vector2(s.x * 0.5, 0), Vector2(s.x, s.y * 0.4), Vector2(s.x * 0.5, s.y), Vector2(0, s.y * 0.4)], c)
+		draw_colored_polygon([Vector2(s.x * 0.5, 0), Vector2(s.x, s.y * 0.4), Vector2(s.x * 0.5, s.y * 0.5)], c.lightened(0.4))
 
 
 ## The little skull next to the kill count.

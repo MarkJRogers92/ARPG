@@ -14,7 +14,7 @@ const HIT_MEMORY := 8
 @export var crit_color := Color(1.0, 0.55, 0.2)
 
 ## Emitted where a bolt hits something, for impact sparks.
-signal hit(at: Vector2, crit: bool)
+signal hit(at: Vector2, crit: bool, damage: float)
 
 var count := 0
 
@@ -108,7 +108,7 @@ func _hit_something(i: int, p: Vector2, swarms: Array[EnemySwarm]) -> bool:
 			if _already_hit(base, id):
 				continue
 			swarm.damage(j, _damage[i])
-			hit.emit(p, _crit[i] == 1)
+			hit.emit(p, _crit[i] == 1, _damage[i])
 			_hit_ids[base + _hit_cursor[i]] = id
 			_hit_cursor[i] = (_hit_cursor[i] + 1) % HIT_MEMORY
 			if _pierce[i] <= 0:

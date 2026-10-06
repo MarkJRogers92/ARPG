@@ -13,6 +13,8 @@ extends MultiMeshInstance3D
 ## Emitted the moment an enemy's HP hits zero. The row is removed at the start
 ## of the next step(), so don't hold indices across frames.
 signal enemy_died(position: Vector2, xp: int)
+## Emitted alongside enemy_died when the one that died was an elite.
+signal elite_died(position: Vector2)
 
 ## Every swarm joins this group, which is how main.gd finds them.
 const GROUP := "enemy_swarms"
@@ -27,6 +29,29 @@ static var _next_id := 1
 @export var contact_dps := 5.0
 @export var radius := 0.45
 @export var xp_value := 1
+## 1 = shoved around fully by knockback, 0 = immovable.
+@export_range(0.0, 1.0) var knockback_taken := 1.0
+## Bosses get a health bar, their own spawn schedule (BossDirector) and big
+## rewards instead of a spot in the wave director's mix.
+@export var boss := false
+
+@export_group("Ranged")
+## 0 = melee. Otherwise the enemy stops at this distance and shoots.
+@export var attack_range := 0.0
+## Seconds between shots, per enemy (with some randomness).
+@export var fire_interval := 3.0
+@export var shot_speed := 7.0
+@export var shot_damage := 10.0
+## Where shots go. main.gd sets it.
+var shots: EnemyShots
+
+@export_group("Elites")
+## Elites are rare, bigger, glowing versions with more HP, more XP and a
+## guaranteed item. The wave director decides how often they appear.
+@export var elite_hp_mult := 7.0
+@export var elite_xp_mult := 8
+@export var elite_scale := 1.45
+@export var elite_tint := Color(1.12, 1.04, 0.88)
 
 @export_group("Spawning")
 ## Game time (seconds) when the wave director starts spawning this type.
@@ -44,7 +69,7 @@ static var _next_id := 1
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss") var model := "grunt"
 @export var body_height := 1.4
 ## Main skin color of the model; also tints its death burst.
 @export var color := Color(0.5, 0.62, 0.42)
@@ -77,6 +102,9 @@ var _advance := PackedFloat32Array()
 var _dead := PackedInt32Array()
 ## Hit flash per enemy, 1 on a hit and fading to 0 (drawn by enemy.gdshader).
 var _flash := PackedFloat32Array()
+var _elite := PackedByteArray()
+var _scale := PackedFloat32Array()
+var _fire := PackedFloat32Array()
 var _buffer := PackedFloat32Array()
 var _shadow: MultiMeshInstance3D
 var _frame := 0
@@ -91,6 +119,9 @@ func _ready() -> void:
 	_push.resize(capacity)
 	_advance.resize(capacity)
 	_flash.resize(capacity)
+	_elite.resize(capacity)
+	_scale.resize(capacity)
+	_fire.resize(capacity)
 	grid = SpatialHash.new(radius * 2.0, 4096, capacity)
 
 	# Look: a model per type, animated in the shader (see enemy.gdshader), plus
@@ -102,11 +133,11 @@ func _ready() -> void:
 		"quadruped": quadruped,
 		"leg_height": 0.36 if quadruped else 0.3,
 		"stride": 0.12 if quadruped else 0.16,
-		"sway": 0.04 if model == "brute" else 0.08,
+		"sway": 0.04 if model in ["brute", "boss"] else 0.08,
 	}, name)
 	MultiMeshUtil.setup(self, Models.enemy(model, color, body_height), capacity, mat)
 	var blob := PlaneMesh.new()
-	blob.size = Vector2.ONE * radius * 2.8
+	blob.size = Vector2.ONE * radius * (2.8 if not boss else 2.2)
 	_shadow = MultiMeshUtil.add_layer(self, blob, Models.material("blob_shadow"))
 	_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
 	# Keep the horde out of the hero's light (it would cost a lighting pass).
@@ -131,12 +162,19 @@ func alive_count() -> int:
 	return count - _dead.size()
 
 
-## Adds an enemy. Returns false when the swarm is full.
-func spawn(at: Vector2, hp_mult := 1.0) -> bool:
+func is_elite(i: int) -> bool:
+	return _elite[i] == 1
+
+
+## Adds an enemy (an elite if `elite`). Returns false when the swarm is full.
+func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	if count >= capacity:
 		return false
 	pos[count] = at
-	hp[count] = max_hp * hp_mult
+	hp[count] = max_hp * hp_mult * (elite_hp_mult if elite else 1.0)
+	_elite[count] = 1 if elite else 0
+	_scale[count] = elite_scale if elite else 1.0
+	_fire[count] = randf_range(0.5, 1.0) * fire_interval
 	ids[count] = _next_id
 	_next_id += 1
 	_push[count] = Vector2.ZERO
@@ -145,6 +183,16 @@ func spawn(at: Vector2, hp_mult := 1.0) -> bool:
 	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
 	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM] = 0.0
 	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 1] = randf() # walk cycle phase
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 2] = 1.0 if elite else 0.0 # glow
+	var sc := _scale[count]
+	_buffer[o] = sc
+	_buffer[o + 2] = 0.0
+	_buffer[o + 5] = sc
+	_buffer[o + 8] = 0.0
+	_buffer[o + 10] = sc
+	var tint := elite_tint if elite else Color.WHITE
+	for c in 3:
+		_buffer[o + MultiMeshUtil.OFFSET_COLOR + c] = tint[c]
 	count += 1
 	return true
 
@@ -170,10 +218,13 @@ func step(delta: float, target: Vector2) -> void:
 	var step_len := move_speed * delta
 	var recycle_sq := recycle_distance * recycle_distance
 	# Stop just inside touching range so the horde rings the player instead of
-	# piling onto one point.
-	var stop_sq := (radius + 0.35) * (radius + 0.35)
+	# piling onto one point. Ranged enemies stop at their attack range.
+	var stop := maxf(radius + 0.35, attack_range)
+	var stop_sq := stop * stop
+	var ranged := attack_range > 0.0 and shots != null
+	var fire_sq := (attack_range + 2.0) * (attack_range + 2.0)
 	var buf := _buffer
-	var fade := delta * 7.0
+	var fade := delta * 9.0
 	for i in count:
 		var p := pos[i]
 		var to := target - p
@@ -192,11 +243,23 @@ func step(delta: float, target: Vector2) -> void:
 		buf[o + MultiMeshUtil.OFFSET_Z] = p.y
 		# Facing turns slowly, so each enemy refreshes it every 4th frame
 		# (inlined MultiMeshUtil.set_facing: this loop is the hot path).
-		if (i + _frame) & 3 == 0 and chase != Vector2.ZERO:
-			buf[o] = -chase.y
-			buf[o + 2] = -chase.x
-			buf[o + 8] = chase.x
-			buf[o + 10] = -chase.y
+		if (i + _frame) & 3 == 0:
+			var face := chase
+			if face == Vector2.ZERO and ranged and d2 > 0.0:
+				face = to / sqrt(d2) # ranged: keep facing the hero while shooting
+			if face != Vector2.ZERO:
+				var sc := _scale[i]
+				buf[o] = -face.y * sc
+				buf[o + 2] = -face.x * sc
+				buf[o + 8] = face.x * sc
+				buf[o + 10] = -face.y * sc
+		if ranged:
+			_fire[i] -= delta
+			if _fire[i] <= 0.0:
+				_fire[i] = fire_interval * randf_range(0.8, 1.2)
+				if d2 < fire_sq:
+					var dir := (target - p).normalized()
+					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage)
 		var f := _flash[i]
 		if f > 0.0:
 			f = maxf(f - fade, 0.0)
@@ -219,7 +282,28 @@ func damage(i: int, amount: float) -> void:
 	_flash[i] = 1.0
 	if hp[i] <= 0.0:
 		_dead.append(i)
-		enemy_died.emit(pos[i], xp_value)
+		var elite := _elite[i] == 1
+		enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
+		if elite:
+			elite_died.emit(pos[i])
+
+
+## Shoves every enemy within `r` of `center` straight away from it, up to
+## `strength` units (less toward the edge, scaled by knockback_taken).
+func knockback(center: Vector2, r: float, strength: float) -> void:
+	if knockback_taken <= 0.0:
+		return
+	var n := grid.query(center, r)
+	var res := grid.results
+	for k in n:
+		var i := res[k]
+		var away := pos[i] - center
+		var d := away.length()
+		if d < 0.001:
+			away = Vector2.from_angle(randf() * TAU)
+			d = 1.0
+		var falloff := 1.0 - 0.5 * clampf(d / r, 0.0, 1.0)
+		pos[i] += away / d * strength * falloff * knockback_taken / _scale[i]
 
 
 ## Damages every enemy within `r` of `center`.
@@ -272,6 +356,9 @@ func _flush_dead() -> void:
 			_push[i] = _push[last]
 			_advance[i] = _advance[last]
 			_flash[i] = _flash[last]
+			_elite[i] = _elite[last]
+			_scale[i] = _scale[last]
+			_fire[i] = _fire[last]
 			MultiMeshUtil.copy_instance(_buffer, i, last)
 		count = last
 	_dead.clear()

@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -14,6 +14,11 @@
 [ext_resource type="Shader" path="res://shaders/ground.gdshader" id="9_shader"]
 [ext_resource type="Script" path="res://scripts/visual/world_decor.gd" id="13_decor"]
 [ext_resource type="Script" path="res://scripts/fx_swarm.gd" id="14_fx"]
+[ext_resource type="Script" path="res://scripts/enemy_shots.gd" id="15_shots"]
+[ext_resource type="Script" path="res://scripts/boss_director.gd" id="16_boss"]
+[ext_resource type="Script" path="res://scripts/visual/damage_numbers.gd" id="17_numbers"]
+[ext_resource type="Script" path="res://scripts/visual/light_flashes.gd" id="18_flashes"]
+[ext_resource type="Script" path="res://scripts/visual/atmosphere.gd" id="19_atmo"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -114,14 +119,73 @@ spawn_start_time = 90.0
 spawn_ramp_seconds = 120.0
 spawn_share = 0.35
 
+[node name="Cultists" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 18.0
+move_speed = 2.6
+contact_dps = 4.0
+radius = 0.4
+xp_value = 3
+spawn_start_time = 120.0
+spawn_ramp_seconds = 240.0
+spawn_share = 0.06
+loot_chance = 0.03
+loot_quality = 0.3
+attack_range = 9.0
+fire_interval = 4.5
+shot_speed = 6.5
+shot_damage = 6.0
+model = "cultist"
+body_height = 1.5
+color = Color(0.32, 0.14, 0.4, 1)
+capacity = 80
+
+[node name="Bosses" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 2500.0
+move_speed = 2.4
+contact_dps = 30.0
+radius = 1.4
+xp_value = 150
+knockback_taken = 0.0
+boss = true
+spawn_share = 0.0
+model = "boss"
+body_height = 4.6
+color = Color(0.62, 0.2, 0.16, 1)
+capacity = 4
+recycle_distance = 50.0
+
 [node name="Projectiles" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("5_proj")
 
 [node name="Gems" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("6_gems")
 
+[node name="EnemyShots" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("15_shots")
+
 [node name="Fx" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("14_fx")
+
+[node name="Motes" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("14_fx")
+capacity = 300
+gravity = -0.25
+
+[node name="DamageNumbers" type="Node3D" parent="."]
+script = ExtResource("17_numbers")
+
+[node name="LightFlashes" type="Node3D" parent="."]
+script = ExtResource("18_flashes")
+
+[node name="BossDirector" type="Node3D" parent="."]
+script = ExtResource("16_boss")
+
+[node name="Atmosphere" type="Node" parent="." node_paths=PackedStringArray("environment_node", "sun")]
+script = ExtResource("19_atmo")
+environment_node = NodePath("../WorldEnvironment")
+sun = NodePath("../Sun")
 
 [node name="Loot" type="Node3D" parent="."]
 script = ExtResource("10_loot")

@@ -68,6 +68,7 @@ func _initialize() -> void:
 	for o in _overrides:
 		if o.begins_with("base."):
 			_apply_base_override(o)
+	MetaProgress.disabled = true # saved upgrades mustn't change results
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 

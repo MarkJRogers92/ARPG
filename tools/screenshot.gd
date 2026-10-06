@@ -7,7 +7,8 @@ extends SceneTree
 ##
 ## Saves <out_dir>/game_<t>.png every 10 s of game time, then the level-up
 ## menu, the inventory and the skill tree. A third argument "crowd" starts with
-## a horde of every enemy type around the hero, to see them en masse.
+## a horde of every enemy type around the hero (with elites and a boss) and
+## gives the hero every weapon, to see them all at once.
 
 var _main: Node
 var _frame := 0
@@ -15,6 +16,8 @@ var _max_frames := 60 * 40
 var _out := "user://shots"
 var _phase := 0
 var _wait := 0
+var _pending := ""
+var _menu_frame := -10
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -27,6 +30,7 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(_out)
 	var crowd := args.size() > 2 and args[2] == "crowd"
 	seed(7)
+	MetaProgress.disabled = true # saved upgrades mustn't change results
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 	# A few items on the ground near the start so the loot look shows up.
@@ -59,8 +63,13 @@ func _process(_delta: float) -> bool:
 				_wait = 30
 				return false
 			hud._choose(_frame % 3)
-		if _frame == 45:
-			_save("start")
+			_menu_frame = _frame
+		if _frame in [45, 100, 160]:
+			_pending = "start" if _frame == 45 else "action_%d" % _frame
+		# Wait a frame after a menu closes, so the shot shows the game.
+		if _pending != "" and not hud._upgrade_root.visible and _frame > _menu_frame + 1:
+			_save(_pending)
+			_pending = ""
 		if _frame % 600 == 0:
 			_save("game_%03d" % (_frame / 60))
 		if _frame >= _max_frames:
@@ -108,11 +117,16 @@ func _process(_delta: float) -> bool:
 
 
 func _spawn_crowd() -> void:
-	var counts := {"Grunts": 260, "Brutes": 30, "Runners": 120}
+	var counts := {"Grunts": 260, "Brutes": 30, "Runners": 120, "Cultists": 25}
 	for swarm_name: String in counts:
 		var swarm: EnemySwarm = _main.get_node(swarm_name)
 		for k in counts[swarm_name]:
-			swarm.spawn(EnemySwarm.random_ring_point(Vector2.ZERO, 7.0, 18.0))
+			swarm.spawn(EnemySwarm.random_ring_point(Vector2.ZERO, 7.0, 18.0), 1.0, k < 3)
+	var bosses: EnemySwarm = _main.get_node("Bosses")
+	bosses.spawn(Vector2(7.0, 5.0), 3.0)
+	var stats: PlayerStats = _main.get_node("Player").stats
+	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura"]:
+		Upgrades.apply(id, stats)
 
 
 func _save(name: String) -> void:

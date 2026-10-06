@@ -38,6 +38,19 @@ static var BASE := {
 	"aura_damage": 5.0,
 	"aura_radius": 3.5,
 	"aura_interval": 0.5,
+	"lightning_level": 0.0, # 0 = locked
+	"lightning_damage": 16.0,
+	"lightning_chains": 3.0, # extra enemies each strike jumps to
+	"lightning_rate": 0.6, # strikes per second
+	"orbit_level": 0.0, # 0 = locked
+	"orbit_count": 2.0,
+	"orbit_damage": 7.0, # per hit; each blade hits an enemy at most ~4x a second
+	"orbit_radius": 2.8,
+	"nova_level": 0.0, # 0 = locked
+	"nova_damage": 24.0,
+	"nova_radius": 5.5,
+	"nova_rate": 0.25, # novas per second
+	"dash_cooldown": 3.0, # seconds
 }
 
 # Effective values, refreshed by recalculate(). Read these; don't write them.
@@ -61,6 +74,19 @@ var aura_level := 0
 var aura_damage := 5.0
 var aura_radius := 3.5
 var aura_interval := 0.5
+var lightning_level := 0
+var lightning_damage := 16.0
+var lightning_chains := 3
+var lightning_cooldown := 1.6
+var orbit_level := 0
+var orbit_count := 2
+var orbit_damage := 7.0
+var orbit_radius := 2.8
+var nova_level := 0
+var nova_damage := 24.0
+var nova_radius := 5.5
+var nova_cooldown := 4.0
+var dash_cooldown := 3.0
 
 ## Every effective stat by id (after recalculate()), for UI and tooltips.
 var values := {}
@@ -138,6 +164,19 @@ func recalculate() -> void:
 	aura_damage = values["aura_damage"] * damage_mult
 	aura_radius = values["aura_radius"]
 	aura_interval = values["aura_interval"]
+	lightning_level = maxi(0, roundi(values["lightning_level"]))
+	lightning_damage = values["lightning_damage"] * damage_mult
+	lightning_chains = maxi(0, roundi(values["lightning_chains"]))
+	lightning_cooldown = 1.0 / maxf(0.05, values["lightning_rate"])
+	orbit_level = maxi(0, roundi(values["orbit_level"]))
+	orbit_count = clampi(roundi(values["orbit_count"]), 1, 12)
+	orbit_damage = values["orbit_damage"] * damage_mult
+	orbit_radius = values["orbit_radius"]
+	nova_level = maxi(0, roundi(values["nova_level"]))
+	nova_damage = values["nova_damage"] * damage_mult
+	nova_radius = values["nova_radius"]
+	nova_cooldown = 1.0 / maxf(0.05, values["nova_rate"])
+	dash_cooldown = maxf(0.3, values["dash_cooldown"])
 	hp = minf(hp, max_hp)
 
 
