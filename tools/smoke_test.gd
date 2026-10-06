@@ -42,8 +42,11 @@ func _process(_delta: float) -> bool:
 	var player: Player = _main.get_node("Player")
 	var finished: bool = _frame >= _max_frames or _main._game_over
 	if _frame % (60 * 30) == 0 or finished:
-		print("t=%6.1fs  enemies=%5d  kills=%5d  level=%2d  hp=%6.1f/%.0f  gear=%d worn, %d carried, %d on ground" % [
-				_main.elapsed, _main._enemy_count(), _main.kills,
+		var mix: Array[String] = []
+		for swarm in get_nodes_in_group(EnemySwarm.GROUP):
+			mix.append("%s %d" % [swarm.name, swarm.alive_count()])
+		print("t=%6.1fs  enemies=%5d (%s)  kills=%5d  level=%2d  hp=%6.1f/%.0f  gear=%d worn, %d carried, %d on ground" % [
+				_main.elapsed, _main._enemy_count(), ", ".join(mix), _main.kills,
 				player.stats.level, player.stats.hp, player.stats.max_hp,
 				player.inventory.equipped.size(), player.inventory.backpack.size(),
 				_main.get_node("Loot").drops.size()])

@@ -19,6 +19,7 @@ func _initialize() -> void:
 	_test_serialization()
 	_test_inventory()
 	_test_loot()
+	_test_director()
 
 	print("")
 	if _failures == 0:
@@ -391,3 +392,30 @@ func _test_loot() -> void:
 	loot.free()
 	small.free()
 	rolls.free()
+
+
+func _test_director() -> void:
+	print("wave director")
+	var grunt := EnemySwarm.new()
+	var brute := EnemySwarm.new()
+	brute.spawn_start_time = 45.0
+	brute.spawn_ramp_seconds = 300.0
+	brute.spawn_share = 0.14
+	_near(grunt.spawn_weight(0.0), 1.0, "a type with no schedule is always at full weight")
+	_near(brute.spawn_weight(0.0), 0.0, "scheduled type is absent before its start time")
+	_near(brute.spawn_weight(45.0), 0.0, "weight is 0 exactly at the start time")
+	_near(brute.spawn_weight(195.0), 0.07, "weight ramps linearly (half way)")
+	_near(brute.spawn_weight(345.0), 0.14, "weight reaches its share at the end of the ramp")
+	_near(brute.spawn_weight(5000.0), 0.14, "and stays there")
+
+	var d := WaveDirector.new()
+	d.base_rate = 2.0
+	d.rate_growth = 0.1
+	d.hp_growth_seconds = 100.0
+	d.elapsed = 50.0
+	_near(d.spawn_rate(), 7.0, "spawn rate grows with time")
+	_near(d.hp_multiplier(), 1.5, "enemy HP multiplier grows with time")
+
+	grunt.free()
+	brute.free()
+	d.free()

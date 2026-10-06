@@ -66,11 +66,27 @@ move_speed = 2.2
 contact_dps = 14.0
 radius = 0.8
 xp_value = 6
+spawn_start_time = 45.0
+spawn_ramp_seconds = 300.0
+spawn_share = 0.14
 loot_chance = 0.1
 loot_quality = 0.5
 body_height = 2.4
 color = Color(0.55, 0.15, 0.6, 1)
 capacity = 500
+
+[node name="Runners" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 6.0
+move_speed = 5.2
+contact_dps = 3.0
+radius = 0.32
+body_height = 1.0
+color = Color(1, 0.75, 0.15, 1)
+capacity = 3000
+spawn_start_time = 90.0
+spawn_ramp_seconds = 120.0
+spawn_share = 0.35
 
 [node name="Projectiles" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("5_proj")

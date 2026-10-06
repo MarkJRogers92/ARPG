@@ -1,8 +1,9 @@
 class_name WaveDirector
 extends Node
-## Decides what spawns and how fast. Spawn rate and enemy HP ramp up with
-## time; tougher enemy types phase in later. Tune the exports to change the
-## difficulty curve.
+## Decides how fast enemies spawn and which type. The overall rate and enemy HP
+## ramp up with time, and each enemy type declares when it appears and how
+## common it is (the "Spawning" exports on its EnemySwarm), so a new type needs
+## no changes here. Tune the exports to change the difficulty curve.
 
 ## Enemies per second at t=0.
 @export var base_rate := 1.5
@@ -11,29 +12,53 @@ extends Node
 @export var max_spawn_per_frame := 60
 ## Enemy HP multiplier grows by 1.0 every this many seconds.
 @export var hp_growth_seconds := 120.0
-@export var brute_start_time := 45.0
-## Fraction of spawns that are brutes once fully ramped.
-@export var brute_max_share := 0.12
 
-var _grunts: EnemySwarm
-var _brutes: EnemySwarm
-var _time := 0.0
+## Game time in seconds, counted from the first tick.
+var elapsed := 0.0
+
+var _swarms: Array[EnemySwarm] = []
+var _weights: Array[float] = []
 var _accum := 0.0
 
 
-func setup(grunts: EnemySwarm, brutes: EnemySwarm) -> void:
-	_grunts = grunts
-	_brutes = brutes
+func setup(swarms: Array[EnemySwarm]) -> void:
+	_swarms = swarms
+	_weights.resize(swarms.size())
 
 
 func tick(delta: float, center: Vector2) -> void:
-	_time += delta
-	_accum = minf(_accum + (base_rate + rate_growth * _time) * delta, max_spawn_per_frame + 1.0)
+	elapsed += delta
+	_accum = minf(_accum + spawn_rate() * delta, max_spawn_per_frame + 1.0)
 	var n := mini(int(_accum), max_spawn_per_frame)
 	_accum -= n
+	if n == 0:
+		return
 
-	var hp_mult := 1.0 + _time / hp_growth_seconds
-	var brute_share := clampf((_time - brute_start_time) / 300.0, 0.0, 1.0) * brute_max_share
+	var total := 0.0
+	for i in _swarms.size():
+		_weights[i] = _swarms[i].spawn_weight(elapsed)
+		total += _weights[i]
+	if total <= 0.0:
+		return
+
+	var hp_mult := hp_multiplier()
 	for k in n:
-		var swarm := _brutes if randf() < brute_share else _grunts
+		var swarm := _pick(randf() * total)
 		swarm.spawn(EnemySwarm.random_ring_point(center, swarm.ring_min, swarm.ring_max), hp_mult)
+
+
+## Enemies per second right now.
+func spawn_rate() -> float:
+	return base_rate + rate_growth * elapsed
+
+
+func hp_multiplier() -> float:
+	return 1.0 + elapsed / hp_growth_seconds
+
+
+func _pick(roll: float) -> EnemySwarm:
+	for i in _swarms.size():
+		roll -= _weights[i]
+		if roll < 0.0:
+			return _swarms[i]
+	return _swarms[-1]

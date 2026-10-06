@@ -14,6 +14,9 @@ extends MultiMeshInstance3D
 ## of the next step(), so don't hold indices across frames.
 signal enemy_died(position: Vector2, xp: int)
 
+## Every swarm joins this group, which is how main.gd finds them.
+const GROUP := "enemy_swarms"
+
 ## Unique across all swarms so projectiles can remember what they already hit.
 static var _next_id := 1
 
@@ -24,6 +27,14 @@ static var _next_id := 1
 @export var contact_dps := 5.0
 @export var radius := 0.45
 @export var xp_value := 1
+
+@export_group("Spawning")
+## Game time (seconds) when the wave director starts spawning this type.
+@export var spawn_start_time := 0.0
+## Seconds over which its spawn weight ramps from 0 to full after the start time.
+@export var spawn_ramp_seconds := 0.0
+## Relative weight against the other enemy types once fully ramped in.
+@export var spawn_share := 1.0
 
 @export_group("Loot")
 ## Chance that a kill drops an item.
@@ -66,6 +77,7 @@ var _frame := 0
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	set_process(false) # main.gd drives step() so update order is explicit
 	pos.resize(capacity)
 	hp.resize(capacity)
@@ -85,6 +97,15 @@ func _ready() -> void:
 
 static func random_ring_point(center: Vector2, ring_min: float, ring_max: float) -> Vector2:
 	return center + Vector2.from_angle(randf() * TAU) * randf_range(ring_min, ring_max)
+
+
+## The wave director's relative weight for this type at `game_time` seconds.
+func spawn_weight(game_time: float) -> float:
+	if game_time < spawn_start_time:
+		return 0.0
+	if spawn_ramp_seconds <= 0.0:
+		return spawn_share
+	return spawn_share * clampf((game_time - spawn_start_time) / spawn_ramp_seconds, 0.0, 1.0)
 
 
 func alive_count() -> int:

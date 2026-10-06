@@ -17,8 +17,6 @@ var _choosing_upgrade := false
 var _game_over := false
 
 @onready var _player: Player = $Player
-@onready var _grunts: EnemySwarm = $Grunts
-@onready var _brutes: EnemySwarm = $Brutes
 @onready var _projectiles: ProjectileSwarm = $Projectiles
 @onready var _gems: GemSwarm = $Gems
 @onready var _loot: LootManager = $Loot
@@ -29,9 +27,10 @@ var _game_over := false
 
 
 func _ready() -> void:
-	_swarms = [_grunts, _brutes]
+	# Every EnemySwarm node in the scene is an enemy type: no registration needed.
+	_swarms.assign(get_tree().get_nodes_in_group(EnemySwarm.GROUP))
 	_player.setup(_swarms, _projectiles)
-	_director.setup(_grunts, _brutes)
+	_director.setup(_swarms)
 	for swarm in _swarms:
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
 	_loot.item_picked.connect(_on_item_picked)
