@@ -90,6 +90,11 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 	return out
 
 
+## True when roll() had nothing left to offer but the heal fallback.
+static func is_exhausted(choices: Array[Dictionary]) -> bool:
+	return choices.size() == 1 and choices[0]["id"] == "heal"
+
+
 static func apply(id: String, stats: PlayerStats) -> void:
 	if id == "heal":
 		stats.hp = minf(stats.max_hp, stats.hp + stats.max_hp * 0.4)

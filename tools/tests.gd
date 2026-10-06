@@ -146,6 +146,8 @@ func _test_upgrades() -> void:
 		m.upgrade_levels[id] = Upgrades.DEFS[id]["max"]
 	var fallback := Upgrades.roll(m)
 	_check(fallback.size() == 1 and fallback[0]["id"] == "heal", "empty pool falls back to heal")
+	_check(Upgrades.is_exhausted(fallback), "a heal-only roll counts as exhausted")
+	_check(not Upgrades.is_exhausted(Upgrades.roll(PlayerStats.new())), "a normal roll is not exhausted")
 
 
 # --- items -------------------------------------------------------------------
@@ -381,6 +383,7 @@ func _test_loot() -> void:
 
 	# Kill drops respect chance.
 	var rolls := LootManager.new()
+	rolls.budgeted = false
 	for i in 50:
 		rolls.roll_kill_drop(Vector2.ZERO, 0.0, 0.0, 5, 0.0)
 	_check(rolls.drops.is_empty(), "0% chance never drops")
@@ -390,9 +393,29 @@ func _test_loot() -> void:
 	for d in rolls.drops:
 		_check(d.item.ilvl == 5, "dropped items use the given item level")
 
+	# The drop budget: a flood of guaranteed rolls only yields what the tokens allow.
+	var budget := LootManager.new()
+	budget.drops_per_minute = 6.0
+	budget.token_cap = 2.0
+	for i in 100:
+		budget.roll_kill_drop(Vector2.ZERO, 1.0, 0.0, 5, 0.0)
+	_check(budget.drops.size() == 1, "budget: only the starting token's worth drops at once (%d)" % budget.drops.size())
+	var inv2 := Inventory.new(PlayerStats.new())
+	for i in 600: # 10 seconds at 60 fps = 1 token at 6 drops/minute
+		budget.step(1.0 / 60.0, Vector2(999, 999), 3.0, inv2)
+	for i in 100:
+		budget.roll_kill_drop(Vector2.ZERO, 1.0, 0.0, 5, 0.0)
+	_check(budget.drops.size() == 2, "budget: tokens refill with time (%d drops)" % budget.drops.size())
+	for i in 6000: # a long quiet stretch must not bank more than the cap
+		budget.step(1.0 / 60.0, Vector2(999, 999), 3.0, inv2)
+	for i in 100:
+		budget.roll_kill_drop(Vector2.ZERO, 1.0, 0.0, 5, 0.0)
+	_check(budget.drops.size() == 4, "budget: banked tokens are capped (%d drops)" % budget.drops.size())
+
 	loot.free()
 	small.free()
 	rolls.free()
+	budget.free()
 
 
 func _test_director() -> void:

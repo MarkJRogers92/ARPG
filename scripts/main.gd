@@ -111,12 +111,20 @@ func _on_item_picked(item: Item, result: String) -> void:
 
 
 func _try_level_up() -> void:
-	if _choosing_upgrade or _game_over or _player.pending_levels <= 0:
+	if _choosing_upgrade or _game_over:
 		return
-	_choosing_upgrade = true
-	_player.pending_levels -= 1
-	get_tree().paused = true
-	_hud.show_upgrades(Upgrades.roll(_player.stats))
+	while _player.pending_levels > 0:
+		_player.pending_levels -= 1
+		var choices := Upgrades.roll(_player.stats)
+		if Upgrades.is_exhausted(choices):
+			# Everything is maxed: a menu with one useless card would just
+			# interrupt the run, so the level-up quietly heals instead.
+			Upgrades.apply("heal", _player.stats)
+			continue
+		_choosing_upgrade = true
+		get_tree().paused = true
+		_hud.show_upgrades(choices)
+		return
 
 
 func _on_upgrade_chosen(id: String) -> void:

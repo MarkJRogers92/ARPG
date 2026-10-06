@@ -9,6 +9,14 @@ signal item_picked(item: Item, result: String)
 ## Emitted (rate-limited) when the hero walks over loot but the backpack is full.
 signal backpack_full
 
+## Drops are rationed so a huge late-game kill rate can't flood the ground. A
+## drop needs a token; tokens refill at `drops_per_minute`, up to `token_cap`.
+## Enemy types still decide *which* kills drop (their loot_chance), the budget
+## only decides how many in total. Turn off to drop on every successful roll.
+@export var budgeted := true
+@export var drops_per_minute := 3.0
+@export var token_cap := 2.0
+
 ## Ground items beyond this are cleaned up, lowest rarity (then oldest) first.
 @export var max_drops := 40
 ## Items are collected within max(min_pickup_radius, pickup_radius * pickup_factor).
@@ -18,6 +26,7 @@ signal backpack_full
 var drops: Array[LootDrop] = []
 
 var _full_cooldown := 0.0
+var _tokens := 1.0
 
 
 ## Maybe drop an item where an enemy died. `chance` and `quality` come from the
@@ -25,6 +34,10 @@ var _full_cooldown := 0.0
 func roll_kill_drop(at: Vector2, chance: float, quality: float, ilvl: int, magic_find: float) -> void:
 	if randf() >= chance:
 		return
+	if budgeted:
+		if _tokens < 1.0:
+			return
+		_tokens -= 1.0
 	drop(ItemGenerator.generate(ilvl, quality + magic_find), at)
 
 
@@ -41,6 +54,7 @@ func drop(item: Item, at: Vector2) -> LootDrop:
 ## Picks up whatever the hero is standing near.
 func step(delta: float, hero: Vector2, pickup_radius: float, inventory: Inventory) -> void:
 	_full_cooldown -= delta
+	_tokens = minf(_tokens + drops_per_minute / 60.0 * delta, token_cap)
 	var reach := maxf(min_pickup_radius, pickup_radius * pickup_factor)
 	var reach_sq := reach * reach
 	var i := drops.size() - 1
