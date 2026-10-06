@@ -7,6 +7,10 @@ signal leveled_up
 ## Emitted once when a level-up (or several at once) earned skill points.
 signal skill_points_gained(amount: int)
 signal died
+## Emitted when a volley of bolts fires (for effects).
+signal cast
+## Emitted on every Frost Aura damage tick.
+signal aura_ticked
 
 ## Radius used for enemy contact damage.
 const RADIUS := 0.5
@@ -34,8 +38,9 @@ var _aura_timer := 0.0
 ## Fractional XP left over from the xp_gain multiplier.
 var _xp_carry := 0.0
 
-@onready var _visual: Node3D = $Visual
+@onready var _visual: HeroModel = $Visual
 @onready var _aura_visual: MeshInstance3D = $AuraVisual
+var _aura_pulse := 0.0
 
 
 ## Ground-plane position as Vector2(x, z), the space the swarms live in.
@@ -52,6 +57,18 @@ func _init() -> void:
 func _ready() -> void:
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	stats.xp_to_next = xp_for_level(stats.level)
+	inventory.changed.connect(_show_weapon)
+
+
+## The model holds the equipped weapon (or the starting staff).
+func _show_weapon() -> void:
+	if _visual == null:
+		return
+	var weapon: Item = inventory.equipped.get("weapon")
+	if weapon:
+		_visual.set_weapon(weapon.base_name, weapon.color())
+	else:
+		_visual.set_weapon(HeroModel.DEFAULT_WEAPON, HeroModel.DEFAULT_ACCENT)
 
 
 func xp_for_level(level: int) -> int:
@@ -72,6 +89,7 @@ func tick(delta: float) -> void:
 		# The model faces -Z, so yaw = atan2(-dx, -dz).
 		var yaw := atan2(-input.x, -input.y)
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, yaw, 1.0 - exp(-14.0 * delta))
+	_visual.set_motion(Vector2(velocity.x, velocity.z).length(), delta)
 	stats.hp = minf(stats.max_hp, stats.hp + stats.regen * delta)
 
 
@@ -137,14 +155,20 @@ func _update_bolt(delta: float) -> void:
 
 	_bolt_timer = stats.bolt_cooldown
 	var aim := (target - origin).normalized()
+	# Turn to face the target when standing still, so the cast reads.
+	if velocity.is_zero_approx():
+		_visual.rotation.y = atan2(-aim.x, -aim.y)
+	_visual.cast()
+	cast.emit()
 	var spread := deg_to_rad(9.0)
 	for k in stats.bolt_count:
 		var angle := (k - (stats.bolt_count - 1) * 0.5) * spread
 		var damage := stats.bolt_damage
-		if randf() < stats.crit_chance:
+		var crit := randf() < stats.crit_chance
+		if crit:
 			damage *= stats.crit_mult
 		_projectiles.spawn(origin, aim.rotated(angle), stats.bolt_speed,
-				damage, stats.bolt_pierce, 1.5)
+				damage, stats.bolt_pierce, 1.5, crit)
 
 
 func _update_aura(delta: float) -> void:
@@ -152,10 +176,14 @@ func _update_aura(delta: float) -> void:
 		return
 	_aura_visual.visible = true
 	_aura_visual.scale = Vector3(stats.aura_radius, 1.0, stats.aura_radius)
+	_aura_pulse = maxf(_aura_pulse - delta * 4.0, 0.0)
+	(_aura_visual.material_override as ShaderMaterial).set_shader_parameter("pulse", _aura_pulse)
 	_aura_timer -= delta
 	if _aura_timer > 0.0:
 		return
 	_aura_timer = stats.aura_interval
+	_aura_pulse = 1.0
+	aura_ticked.emit()
 	var origin := pos2
 	for swarm in _swarms:
 		swarm.damage_in_radius(origin, stats.aura_radius, stats.aura_damage)

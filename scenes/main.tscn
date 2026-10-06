@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -11,15 +11,31 @@
 [ext_resource type="Script" path="res://scripts/items/loot_manager.gd" id="10_loot"]
 [ext_resource type="Script" path="res://scripts/inventory_screen.gd" id="11_inventory"]
 [ext_resource type="Script" path="res://scripts/skills/skill_tree_screen.gd" id="12_skills"]
-[ext_resource type="Shader" path="res://shaders/ground_grid.gdshader" id="9_shader"]
+[ext_resource type="Shader" path="res://shaders/ground.gdshader" id="9_shader"]
+[ext_resource type="Script" path="res://scripts/visual/world_decor.gd" id="13_decor"]
+[ext_resource type="Script" path="res://scripts/fx_swarm.gd" id="14_fx"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
-background_color = Color(0.05, 0.055, 0.075, 1)
+background_color = Color(0.03, 0.035, 0.05, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.6, 0.65, 0.8, 1)
-ambient_light_energy = 0.7
+ambient_light_color = Color(0.42, 0.48, 0.7, 1)
+ambient_light_energy = 0.75
 tonemap_mode = 2
+tonemap_exposure = 1.1
+tonemap_white = 6.0
+glow_enabled = true
+glow_intensity = 0.7
+glow_strength = 1.0
+glow_bloom = 0.04
+glow_blend_mode = 1
+glow_hdr_threshold = 0.9
+fog_enabled = true
+fog_light_color = Color(0.07, 0.09, 0.13, 1)
+fog_density = 0.008
+adjustment_enabled = true
+adjustment_contrast = 1.08
+adjustment_saturation = 1.12
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ground"]
 shader = ExtResource("9_shader")
@@ -35,18 +51,24 @@ environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 10, 0)
-light_energy = 1.1
+light_color = Color(1, 0.9, 0.76, 1)
+light_energy = 1.25
 shadow_enabled = true
-directional_shadow_max_distance = 45.0
+shadow_blur = 1.5
+directional_shadow_mode = 0
+directional_shadow_max_distance = 50.0
 
 [node name="Ground" type="MeshInstance3D" parent="."]
 cast_shadow = 0
 material_override = SubResource("ShaderMaterial_ground")
 mesh = SubResource("PlaneMesh_ground")
 
+[node name="Decor" type="Node3D" parent="."]
+script = ExtResource("13_decor")
+
 [node name="Player" parent="." instance=ExtResource("2_player")]
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("target")]
 script = ExtResource("3_camera")
 target = NodePath("../Player")
 
@@ -58,6 +80,7 @@ far = 200.0
 
 [node name="Grunts" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("4_swarm")
+color = Color(0.52, 0.64, 0.42, 1)
 capacity = 4000
 
 [node name="Brutes" type="MultiMeshInstance3D" parent="."]
@@ -72,8 +95,9 @@ spawn_ramp_seconds = 480.0
 spawn_share = 0.45
 loot_chance = 0.1
 loot_quality = 0.5
+model = "brute"
 body_height = 2.4
-color = Color(0.55, 0.15, 0.6, 1)
+color = Color(0.5, 0.26, 0.58, 1)
 capacity = 500
 
 [node name="Runners" type="MultiMeshInstance3D" parent="."]
@@ -82,8 +106,9 @@ max_hp = 6.0
 move_speed = 5.2
 contact_dps = 3.0
 radius = 0.32
+model = "runner"
 body_height = 1.0
-color = Color(1, 0.75, 0.15, 1)
+color = Color(0.95, 0.42, 0.12, 1)
 capacity = 3000
 spawn_start_time = 90.0
 spawn_ramp_seconds = 120.0
@@ -94,6 +119,9 @@ script = ExtResource("5_proj")
 
 [node name="Gems" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("6_gems")
+
+[node name="Fx" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("14_fx")
 
 [node name="Loot" type="Node3D" parent="."]
 script = ExtResource("10_loot")

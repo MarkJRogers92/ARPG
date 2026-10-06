@@ -20,6 +20,7 @@ var _stats_text: RichTextLabel
 var _equip_button: Button
 var _discard_button: Button
 var _upgrades_button: Button
+var _icons: ItemIcons
 
 var _selected: Item
 var _selected_worn := false
@@ -28,6 +29,8 @@ var _selected_worn := false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS # works while the tree is paused
 	layer = 11
+	_icons = ItemIcons.new()
+	add_child(_icons)
 	_build()
 	_root.hide()
 
@@ -103,13 +106,14 @@ func _refresh() -> void:
 	_equipment_list.clear()
 	for slot in ItemData.SLOTS:
 		var item: Item = _inventory.equipped.get(slot)
-		var index := _equipment_list.add_item("%s:  %s" % [ItemData.SLOT_NAMES[slot], item.name if item else "-"])
+		var index := _equipment_list.add_item("%s:  %s" % [ItemData.SLOT_NAMES[slot], item.name if item else "-"],
+				_icons.icon(item) if item else null)
 		_equipment_list.set_item_custom_fg_color(index, item.color() if item else Color(0.5, 0.5, 0.55))
 
 	_backpack_list.clear()
 	for item in _inventory.backpack:
 		var marker := "▲ " if _inventory.is_upgrade(item) else "    "
-		var index := _backpack_list.add_item(marker + item.name)
+		var index := _backpack_list.add_item(marker + item.name, _icons.icon(item))
 		_backpack_list.set_item_custom_fg_color(index, item.color())
 	_backpack_title.text = "Backpack  %d / %d" % [_inventory.backpack.size(), Inventory.BACKPACK_SIZE]
 
@@ -135,6 +139,7 @@ func _show_details() -> void:
 	_equip_button.disabled = _selected == null
 	_equip_button.text = "Unequip" if _selected_worn else "Equip"
 	_discard_button.disabled = _selected == null or _selected_worn
+	_icons.show_item(_selected)
 	if _selected == null:
 		_details.text = "[color=#8a8f9c]Select an item.[/color]"
 		return
@@ -180,8 +185,9 @@ func _stats_bbcode() -> String:
 
 func _build() -> void:
 	_root = ColorRect.new()
-	(_root as ColorRect).color = Color(0, 0, 0, 0.62)
+	(_root as ColorRect).color = Color(0, 0, 0.02, 0.7)
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.theme = UiStyle.theme()
 	add_child(_root)
 
 	var center := CenterContainer.new()
@@ -201,8 +207,9 @@ func _build() -> void:
 	# Header
 	var header := HBoxContainer.new()
 	column.add_child(header)
-	var title := UiStyle.label(28)
+	var title := UiStyle.label(30)
 	title.text = "Inventory"
+	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	header.add_child(title)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -221,12 +228,12 @@ func _build() -> void:
 	left.custom_minimum_size.x = 330
 	body.add_child(left)
 	left.add_child(_section_label("Equipped"))
-	_equipment_list = _make_list(Vector2(330, 196))
+	_equipment_list = _make_list(Vector2(330, 290))
 	_equipment_list.item_selected.connect(_on_equipment_selected)
 	_equipment_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
 	left.add_child(_equipment_list)
 	left.add_child(_section_label("Stats"))
-	_stats_text = _make_text(Vector2(330, 214))
+	_stats_text = _make_text(Vector2(330, 190))
 	left.add_child(_stats_text)
 
 	var middle := VBoxContainer.new()
@@ -234,7 +241,7 @@ func _build() -> void:
 	body.add_child(middle)
 	_backpack_title = _section_label("Backpack")
 	middle.add_child(_backpack_title)
-	_backpack_list = _make_list(Vector2(290, 466))
+	_backpack_list = _make_list(Vector2(300, 520))
 	_backpack_list.item_selected.connect(_on_backpack_selected)
 	_backpack_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
 	middle.add_child(_backpack_list)
@@ -243,7 +250,8 @@ func _build() -> void:
 	right.custom_minimum_size.x = 330
 	body.add_child(right)
 	right.add_child(_section_label("Selected"))
-	_details = _make_text(Vector2(330, 414))
+	right.add_child(_icons.make_preview(Vector2(330, 150)))
+	_details = _make_text(Vector2(330, 300))
 	right.add_child(_details)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
@@ -268,9 +276,10 @@ func _build() -> void:
 
 
 func _section_label(text: String) -> Label:
-	var label := UiStyle.label(18)
+	var label := UiStyle.label(16)
 	label.text = text
-	label.modulate = Color(0.75, 0.82, 1.0)
+	label.add_theme_color_override("font_color", UiStyle.GOLD.darkened(0.1))
+	label.add_theme_constant_override("outline_size", 3)
 	return label
 
 
@@ -279,6 +288,7 @@ func _make_list(min_size: Vector2) -> ItemList:
 	list.custom_minimum_size = min_size
 	list.add_theme_font_size_override("font_size", 16)
 	list.allow_reselect = true
+	list.fixed_icon_size = Vector2i(36, 36)
 	return list
 
 

@@ -43,8 +43,11 @@ static var _next_id := 1
 @export var loot_quality := 0.0
 
 @export_group("Look")
+## Which model to draw (see Models.enemy).
+@export_enum("grunt", "brute", "runner") var model := "grunt"
 @export var body_height := 1.4
-@export var color := Color(0.8, 0.25, 0.25)
+## Main skin color of the model; also tints its death burst.
+@export var color := Color(0.5, 0.62, 0.42)
 
 @export_group("Horde")
 @export var capacity := 4000
@@ -72,7 +75,10 @@ var _push := PackedVector2Array()
 ## 1.0 = free to advance, 0.0 = boxed in by a full cell.
 var _advance := PackedFloat32Array()
 var _dead := PackedInt32Array()
+## Hit flash per enemy, 1 on a hit and fading to 0 (drawn by enemy.gdshader).
+var _flash := PackedFloat32Array()
 var _buffer := PackedFloat32Array()
+var _shadow: MultiMeshInstance3D
 var _frame := 0
 
 
@@ -84,15 +90,28 @@ func _ready() -> void:
 	ids.resize(capacity)
 	_push.resize(capacity)
 	_advance.resize(capacity)
+	_flash.resize(capacity)
 	grid = SpatialHash.new(radius * 2.0, 4096, capacity)
 
-	var mesh := CapsuleMesh.new()
-	mesh.radius = radius
-	mesh.height = maxf(body_height, radius * 2.0)
-	mesh.radial_segments = 8
-	mesh.rings = 3
-	MultiMeshUtil.setup(self, mesh, capacity, color)
-	_buffer = MultiMeshUtil.make_buffer(capacity, mesh.height * 0.5)
+	# Look: a model per type, animated in the shader (see enemy.gdshader), plus
+	# a blob shadow drawn from the same buffer.
+	var quadruped := model == "runner"
+	var mat := Models.material("enemy", {
+		"height": body_height,
+		"stride_speed": minf(move_speed / body_height * 4.2, 16.0),
+		"quadruped": quadruped,
+		"leg_height": 0.36 if quadruped else 0.3,
+		"stride": 0.12 if quadruped else 0.16,
+		"sway": 0.04 if model == "brute" else 0.08,
+	}, name)
+	MultiMeshUtil.setup(self, Models.enemy(model, color, body_height), capacity, mat)
+	var blob := PlaneMesh.new()
+	blob.size = Vector2.ONE * radius * 2.8
+	_shadow = MultiMeshUtil.add_layer(self, blob, Models.material("blob_shadow"))
+	_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
+	# Keep the horde out of the hero's light (it would cost a lighting pass).
+	layers = 2
+	_shadow.layers = 2
 
 
 static func random_ring_point(center: Vector2, ring_min: float, ring_max: float) -> Vector2:
@@ -122,6 +141,10 @@ func spawn(at: Vector2, hp_mult := 1.0) -> bool:
 	_next_id += 1
 	_push[count] = Vector2.ZERO
 	_advance[count] = 1.0
+	_flash[count] = 0.0
+	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM] = 0.0
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 1] = randf() # walk cycle phase
 	count += 1
 	return true
 
@@ -150,6 +173,7 @@ func step(delta: float, target: Vector2) -> void:
 	# piling onto one point.
 	var stop_sq := (radius + 0.35) * (radius + 0.35)
 	var buf := _buffer
+	var fade := delta * 7.0
 	for i in count:
 		var p := pos[i]
 		var to := target - p
@@ -166,11 +190,25 @@ func step(delta: float, target: Vector2) -> void:
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
 		buf[o + MultiMeshUtil.OFFSET_X] = p.x
 		buf[o + MultiMeshUtil.OFFSET_Z] = p.y
+		# Facing turns slowly, so each enemy refreshes it every 4th frame
+		# (inlined MultiMeshUtil.set_facing: this loop is the hot path).
+		if (i + _frame) & 3 == 0 and chase != Vector2.ZERO:
+			buf[o] = -chase.y
+			buf[o + 2] = -chase.x
+			buf[o + 8] = chase.x
+			buf[o + 10] = -chase.y
+		var f := _flash[i]
+		if f > 0.0:
+			f = maxf(f - fade, 0.0)
+			_flash[i] = f
+			buf[o + MultiMeshUtil.OFFSET_CUSTOM] = f
 
 	var mm := multimesh
 	mm.visible_instance_count = count
+	_shadow.multimesh.visible_instance_count = count
 	if count > 0:
 		mm.buffer = buf
+		_shadow.multimesh.buffer = buf
 
 
 ## Applies damage to enemy `i`. Safe to call while iterating query results.
@@ -178,6 +216,7 @@ func damage(i: int, amount: float) -> void:
 	if hp[i] <= 0.0:
 		return
 	hp[i] -= amount
+	_flash[i] = 1.0
 	if hp[i] <= 0.0:
 		_dead.append(i)
 		enemy_died.emit(pos[i], xp_value)
@@ -232,5 +271,7 @@ func _flush_dead() -> void:
 			ids[i] = ids[last]
 			_push[i] = _push[last]
 			_advance[i] = _advance[last]
+			_flash[i] = _flash[last]
+			MultiMeshUtil.copy_instance(_buffer, i, last)
 		count = last
 	_dead.clear()

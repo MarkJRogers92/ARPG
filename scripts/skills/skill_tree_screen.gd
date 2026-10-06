@@ -162,6 +162,17 @@ func _show_details() -> void:
 
 func _draw_links() -> void:
 	var center := _canvas.size / 2.0
+	# A faint star chart behind the tree.
+	for r in [1.0, 2.0, 3.0]:
+		_canvas.draw_arc(center, r * SPACING, 0.0, TAU, 96, Color(0.6, 0.55, 0.45, 0.07), 1.5, true)
+	# Owned nodes glow in their branch color.
+	for id: String in SkillData.ids():
+		if _tree.is_allocated(id):
+			var at := center + Vector2(SkillData.NODES[id]["pos"]) * SPACING
+			var glow: Color = SkillData.color(id)
+			var radius: float = NODE_SIZES[SkillData.NODES[id]["tier"]] * 0.5
+			for k in 4:
+				_canvas.draw_circle(at, radius + 4.0 + k * 5.0, Color(glow, 0.09))
 	var drawn := {}
 	for a: String in SkillData.ids():
 		for b: String in SkillData.neighbors(a):
@@ -176,7 +187,8 @@ func _draw_links() -> void:
 			if a_owned and b_owned:
 				# Colored by the outer node, so each branch glows its own color.
 				var outer := b if a == SkillData.ROOT else a
-				_canvas.draw_line(from, to, SkillData.color(outer), 5.0, true)
+				_canvas.draw_line(from, to, Color(SkillData.color(outer), 0.25), 11.0, true)
+				_canvas.draw_line(from, to, SkillData.color(outer), 4.0, true)
 			elif a_owned or b_owned:
 				_canvas.draw_line(from, to, Color(0.55, 0.6, 0.75, 0.8), 3.0, true)
 			else:
@@ -226,8 +238,9 @@ func _circle(fill: Color, border: Color, border_width: int, size: float) -> Styl
 
 func _build() -> void:
 	_root = ColorRect.new()
-	(_root as ColorRect).color = Color(0, 0, 0, 0.62)
+	(_root as ColorRect).color = Color(0, 0, 0.02, 0.7)
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.theme = UiStyle.theme()
 	add_child(_root)
 
 	var center := CenterContainer.new()
@@ -248,8 +261,9 @@ func _build() -> void:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 24)
 	column.add_child(header)
-	var title := UiStyle.label(28)
+	var title := UiStyle.label(30)
 	title.text = "Skill Tree"
+	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	header.add_child(title)
 	_points_label = UiStyle.label(22)
 	header.add_child(_points_label)

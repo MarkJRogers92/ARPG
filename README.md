@@ -28,6 +28,41 @@ machine and is the one the game was tested with. If you'd like Forward+ (Vulkan)
 switch it under Project Settings → Rendering → Renderer and restart the editor;
 nothing in the game depends on the choice, but Forward+ has not been tried.
 
+## The look
+
+Everything you see is built in code: there are no models, textures or icons on
+disk. `scripts/visual/models.gd` assembles each model (the hooded hero, the three
+enemy types, every item base, bolts, XP crystals and the scenery) out of
+primitive shapes with `MeshKit`, which merges them into one vertex-colored mesh.
+A part can glow (stored per vertex), and the shaders in `shaders/` do the rest.
+
+- **Enemies:** Grunts are hunched ghouls, Brutes are horned ogres with clubs,
+  Runners are burning hellhounds. Each type is still one MultiMesh. The walk
+  cycle (swinging legs, bob, sway), the hit flash and the rim light all run in
+  `enemy.gdshader`, so the CPU only writes position, facing and a flash value per
+  enemy. Soft blob shadows under the horde are a second MultiMesh fed the same
+  buffer; real shadow maps for thousands of enemies would cost far more.
+- **Hero:** holds the weapon you have equipped (staff, wand or orb, with its gem in
+  the item's rarity color), bobs and leans as it walks, thrusts the weapon on
+  every volley, and carries a small light.
+- **Loot:** each drop shows its own item model floating over a glow ring in its
+  rarity color. The inventory renders the same models into icons and shows the
+  selected item turning in a preview (see `visual/item_icons.gd`).
+- **World:** the ground shader paints grass, dirt and mossy flagstone plazas in
+  world space. `WorldDecor` scatters rocks, grass, dead trees, graves, ruined
+  pillars, bones, glowing mushrooms and crystals in chunks around the hero;
+  each chunk's props come from a seed, so the world stays the same when you walk
+  back. Props are decoration only: nothing collides with them.
+- **Effects:** kills, bolt hits (bigger and orange on crits), pickups and level-ups
+  throw particles from `FxSwarm`, another array-simulated MultiMesh. Glow (bloom),
+  fog and a vignette that reddens while you take damage finish the picture.
+- **UI:** a shared bronze-on-dark theme (`ui_style.gd`), illustrated level-up cards
+  with rank pips, and themed inventory and skill tree screens.
+
+To change the art, edit the colors and shapes in `models.gd` (enemy skins also
+follow each swarm's `color` export), the uniforms at the top of each shader, or
+the `density` table on the `Decor` node.
+
 ## Gear and loot
 
 - **Six slots:** weapon, helm, chest, boots, amulet, ring.
@@ -45,7 +80,8 @@ nothing in the game depends on the choice, but Forward+ has not been tried.
   caps the total, so a huge late-game kill rate can't flood the ground.
 - **Pickup:** walk over loot. It's worn straight away if the slot is empty,
   otherwise it goes to the 24-slot backpack. A full backpack leaves it on the
-  ground. Magic and better drops have a light beam; Rare and better show their name.
+  ground. Magic and better drops have a light beam (taller for better rarities);
+  Rare and better show their name.
 - **Inventory screen (Tab):** worn gear, backpack (▲ marks likely upgrades), the
   selected item compared against what you wear, live stats, equip / unequip /
   discard, and "equip all likely upgrades". The upgrade hint is a rough score
@@ -95,7 +131,8 @@ thousands of enemies. So enemies, projectiles and XP gems are **not nodes**:
 - Each is a row in flat typed arrays (`PackedVector2Array`, `PackedFloat32Array`, …),
   simulated in one tight loop.
 - Each swarm is drawn by **one `MultiMeshInstance3D`**. Every frame the whole
-  transform buffer is uploaded in a single call.
+  instance buffer (transform, color and custom data, 20 floats each) is uploaded
+  in a single call. Animation happens in the shaders.
 - There is no physics body per enemy. Collisions (bolt hits, aura, touching the
   player) use a **spatial hash** rebuilt every frame.
 - The horde spreads out using a **density push**: each enemy reads the occupancy
@@ -140,6 +177,16 @@ per-kill work, but it has not been re-benchmarked.
 | 16,000 | 13.7 ms | |
 
 The 60 fps budget is 16.7 ms. The cost stays flat as the crowd packs tighter.
+The visual overhaul (enemies turning to face you, hit flashes, a wider instance
+buffer and blob shadows) added roughly 10-20% to the swarm update in a
+before/after run of `bench_swarm.gd` on the same container (8,000 enemies: 4.4 ms
+before, 4.9 ms after).
+
+On the GPU side, enemy models are kept coarse: about 300 triangles for a Grunt
+or Runner and 520 for a Brute, so a full late-game horde is a couple of million
+triangles a frame. That's fine for a dedicated GPU; on a weak integrated one, the
+first thing to try is lowering `MeshKit.max_segments` for enemies in
+`Models.enemy()`.
 Visuals were checked by rendering with a software GL driver, which is far too slow
 to say anything about real GPU performance, and Forward+ itself was not exercised
 there. Run `tools/bench_swarm.gd` on your own machine and check the in-game FPS
@@ -202,6 +249,11 @@ godot --headless --path . -s tools/ui_test.gd                    # drives the re
 godot --headless --path . -s tools/skill_ui_test.gd              # drives the real skill tree screen
 godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd  # bot playthrough, exit 0 = ok
 godot --headless --path . -s tools/bench_swarm.gd                # simulation cost, 1k..16k enemies
+
+# Screenshots of play, the level-up cards, inventory and skill tree. Needs a
+# display (not --headless); on a server, wrap it in xvfb-run.
+godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 30          # 30 s of play
+godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # start in a big horde
 ```
 
 - `tests.gd` covers the modifier math, upgrades, item generation across every
@@ -224,22 +276,23 @@ commit those too.
 
 ```
 scenes/
-  main.tscn            The game: ground, lights, camera, swarms, loot, HUD
-  player.tscn          The hero (CharacterBody3D) + aura/ring visuals
+  main.tscn            The game: environment, ground, scenery, camera, swarms, loot, HUD
+  player.tscn          The hero (CharacterBody3D), its model, aura and ground ring
 scripts/
   main.gd              Game loop, owns update order, level-up flow
   enemy_swarm.gd       A horde of one enemy type (one node per type)
   projectile_swarm.gd  Bolts, pierce, hit memory
   gem_swarm.gd         XP gems and magnet pickup
+  fx_swarm.gd          Hit, death, pickup and level-up particles
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
   player.gd            Movement, Magic Bolt, Frost Aura, XP, levels
   player_stats.gd      Base values + modifiers -> effective stats
   upgrades.gd          The level-up pool (data + apply())
   wave_director.gd     Spawn rate / HP curves and enemy mix over time
-  hud.gd               HUD, level-up menu, toasts, game over (built in code)
+  hud.gd               HUD, level-up cards, toasts, game over (built in code)
   inventory_screen.gd  The Tab screen (built in code)
-  ui_style.gd          Shared panel / label look
+  ui_style.gd          Shared UI theme, panels, bars, labels
   camera_rig.gd        Smooth follow camera
   items/
     item_data.gd       Slots, rarities, bases, affixes, text and scoring
@@ -252,10 +305,21 @@ scripts/
     skill_data.gd      The tree: nodes, links, tiers, modifiers
     skill_tree.gd      Owned nodes and points, allocate / refund rules
     skill_tree_screen.gd  The K screen (built in code)
-shaders/ground_grid.gdshader   World-space grid so movement is visible
+  visual/
+    mesh_kit.gd        Builds one mesh out of colored primitive parts
+    models.gd          Every model (hero, enemies, items, bolts, gems, props) + materials
+    hero_model.gd      The hero's model and its animation
+    world_decor.gd     Scenery scattered in chunks around the hero
+    item_icons.gd      Item icons and the turning preview, rendered from the models
+    ui_icons.gd        Vector icons for the level-up cards
+shaders/
+  kit.gdshader         Vertex-colored models with glow and rim light
+  enemy.gdshader       Enemies: walk cycle, hit flash, rim light
+  ground.gdshader      Procedural grass, dirt and flagstones in world space
+  gem / glow / particle / beam / ground_glow / aura / blob_shadow / vignette
 tools/
   tests.gd, ui_test.gd, skill_ui_test.gd, smoke_test.gd, bench_swarm.gd
-  balance_bot.gd, balance.sh
+  balance_bot.gd, balance.sh, screenshot.gd
 ```
 
 ## Tuning
@@ -272,6 +336,8 @@ tools/
 - **Loot:** the tables in `items/item_data.gd`, and `drops_per_minute` on the
   `Loot` node.
 - **Camera:** angle, distance and FOV are on the `Camera3D` child of `CameraRig`.
+- **Look:** see "The look" above. Lighting, glow and fog are on the
+  `WorldEnvironment` and `Sun` nodes in `main.tscn`.
 
 ## Extending it
 
@@ -285,19 +351,21 @@ tools/
   `recalculate()` if code reads it), then to `ItemData.STAT_INFO` for display.
 - **New enemy type:** duplicate the `Brutes` node in `main.tscn` and change its
   exports, including when it starts spawning and its share. The wave director and
-  `main.gd` find it automatically.
+  `main.gd` find it automatically. For a new look, add a builder to
+  `Models.enemy()` and its name to the `model` export's list.
 - **New weapon:** add the state to `PlayerStats`, an `_update_*` method in
   `player.gd` (see `_update_aura` for the query-based pattern or `_update_bolt`
   for the projectile pattern), and upgrades to unlock and improve it.
-- **Hit flash / per-enemy color:** turn on `use_colors` in the MultiMesh and write
-  a color per instance into the buffer. That makes each instance's slice of the
-  buffer longer than the 12 transform floats, so update the layout constants in
-  `MultiMeshUtil` and the offsets in the swarms to match.
+- **Per-instance data:** every swarm's buffer already has a color and four custom
+  floats per instance (`MultiMeshUtil.OFFSET_COLOR` / `OFFSET_CUSTOM`). Enemies use
+  custom x for the hit flash and y for the walk phase, so z and w are free (for
+  example for a burning or frozen tint read in `enemy.gdshader`).
 
 ## Not built yet
 
 Saving and loading (items and the skill tree already serialize with `to_dict()`;
 use `var_to_str` or `FileAccess.store_var` rather than JSON, which turns ints into
 floats), more weapons, ranged enemies, elites and bosses, health
-pickups, biomes with obstacles (the player is already a `CharacterBody3D`), and
+pickups, biomes with obstacles (the player is already a `CharacterBody3D`; the
+scenery is decoration only), level-of-detail meshes for far-away enemies, and
 sound.

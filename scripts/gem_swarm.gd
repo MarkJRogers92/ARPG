@@ -5,7 +5,9 @@ extends MultiMeshInstance3D
 
 @export var capacity := 3000
 @export var height := 0.4
-@export var color := Color(0.3, 1.0, 0.6)
+## Gem color by XP value: the first entry whose value is at least the gem's.
+@export var tiers: Array[Color] = [Color(0.3, 1.0, 0.55), Color(0.35, 0.7, 1.0), Color(0.85, 0.4, 1.0), Color(1.0, 0.8, 0.3)]
+const TIER_VALUES: Array[int] = [2, 8, 30, 1000000]
 @export var magnet_accel := 40.0
 @export var collect_radius := 0.7
 
@@ -24,12 +26,8 @@ func _ready() -> void:
 	_value.resize(capacity)
 	_pull.resize(capacity)
 
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.18
-	mesh.height = 0.36
-	mesh.radial_segments = 6
-	mesh.rings = 3
-	MultiMeshUtil.setup(self, mesh, capacity, color, 0.5)
+	var mesh := Models.gem()
+	MultiMeshUtil.setup(self, mesh, capacity, mesh.surface_get_material(0))
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 
@@ -38,6 +36,16 @@ func _ready() -> void:
 func drop(at: Vector2, value: int) -> int:
 	if count >= capacity:
 		return value
+	var tier := 0
+	while value > TIER_VALUES[tier]:
+		tier += 1
+	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
+	var c := tiers[mini(tier, tiers.size() - 1)].srgb_to_linear()
+	for k in 4:
+		_buffer[o + MultiMeshUtil.OFFSET_COLOR + k] = c[k]
+	MultiMeshUtil.set_facing(_buffer, o, Vector2.UP, 1.5 + 0.3 * tier)
+	_buffer[o + MultiMeshUtil.OFFSET_X] = at.x
+	_buffer[o + MultiMeshUtil.OFFSET_Z] = at.y
 	_pos[count] = at
 	_value[count] = value
 	_pull[count] = 0.0
@@ -82,8 +90,5 @@ func _remove_at(i: int) -> void:
 		_pos[i] = _pos[last]
 		_value[i] = _value[last]
 		_pull[i] = _pull[last]
-		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
-		var q := last * MultiMeshUtil.FLOATS_PER_INSTANCE
-		_buffer[o + MultiMeshUtil.OFFSET_X] = _buffer[q + MultiMeshUtil.OFFSET_X]
-		_buffer[o + MultiMeshUtil.OFFSET_Z] = _buffer[q + MultiMeshUtil.OFFSET_Z]
+		MultiMeshUtil.copy_instance(_buffer, i, last)
 	count = last

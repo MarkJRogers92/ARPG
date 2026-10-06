@@ -60,7 +60,8 @@ const DEFS := {
 	},
 }
 
-const HEAL := {"id": "heal", "title": "Second Wind", "desc": "Restore 40% of max HP"}
+const HEAL := {"id": "heal", "name": "Second Wind", "level": 0, "max": 0,
+		"title": "Second Wind", "desc": "Restore 40% of max HP"}
 
 
 static func level_of(id: String, stats: PlayerStats) -> int:
@@ -68,7 +69,8 @@ static func level_of(id: String, stats: PlayerStats) -> int:
 
 
 ## Up to `n` random upgrades that aren't maxed out, as
-## [{id, title, desc}]. Falls back to a heal if the pool runs dry.
+## [{id, name, level, max, title, desc}], where level is the one you'd reach.
+## Falls back to a heal if the pool runs dry.
 static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 	var pool: Array[String] = []
 	for id: String in DEFS:
@@ -82,6 +84,9 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 		var def: Dictionary = DEFS[id]
 		out.append({
 			"id": id,
+			"name": def["name"],
+			"level": lvl + 1,
+			"max": def["max"],
 			"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
 			"desc": def["desc_next"] if lvl > 0 and def.has("desc_next") else def["desc"],
 		})
