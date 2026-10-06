@@ -51,7 +51,7 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_skill_label.text = "%d skill point%s  [K]" % [skill_points, "" if skill_points == 1 else "s"]
 	_time_label.text = _format_time(elapsed)
 	_kills_label.text = "%d" % kills
-	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills   [T] aim" % [Engine.get_frames_per_second(), enemies]
+	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills   [T] aim   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
 
 
@@ -106,6 +106,13 @@ func show_game_over(elapsed: float, kills: int, level: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Handled here because the HUD keeps running while the game is paused.
+	if event.is_action_pressed("toggle_fullscreen"):
+		var window := get_window()
+		var full := window.mode == Window.MODE_FULLSCREEN or window.mode == Window.MODE_EXCLUSIVE_FULLSCREEN
+		window.mode = Window.MODE_WINDOWED if full else Window.MODE_FULLSCREEN
+		get_viewport().set_input_as_handled()
+		return
 	if not _upgrade_root.visible:
 		return
 	var key := event as InputEventKey
