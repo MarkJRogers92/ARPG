@@ -18,6 +18,7 @@ func _initialize() -> void:
 	_test_rarity_distribution()
 	_test_serialization()
 	_test_inventory()
+	_test_loot()
 
 	print("")
 	if _failures == 0:
@@ -327,3 +328,66 @@ func _same_mods(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
 		if absf(a[i]["value"] - b[i]["value"]) > 1e-9:
 			return false
 	return true
+
+
+func _test_loot() -> void:
+	print("loot drops")
+	var stats := PlayerStats.new()
+	var inv := Inventory.new(stats)
+	var loot := LootManager.new()
+	var picked: Array = []
+	var full_signals := [0]
+	loot.item_picked.connect(func(item: Item, result: String) -> void: picked.append([item, result]))
+	loot.backpack_full.connect(func() -> void: full_signals[0] += 1)
+
+	var near := _make_item("weapon", [])
+	var far := _make_item("helm", [])
+	loot.drop(near, Vector2(1, 0))
+	loot.drop(far, Vector2(30, 0))
+	_check(loot.drops.size() == 2, "two items on the ground")
+
+	loot.step(0.016, Vector2(-30, 0), 3.0, inv)
+	_check(picked.is_empty() and loot.drops.size() == 2, "nothing is picked up out of range")
+
+	loot.step(0.016, Vector2(0, 0), 3.0, inv)
+	_check(picked.size() == 1 and picked[0][0] == near and picked[0][1] == "equipped", "walking over loot picks it up and wears it")
+	_check(loot.drops.size() == 1, "picked-up item leaves the ground")
+	_check(inv.equipped.get("weapon") == near, "it ended up in the inventory")
+
+	# A full backpack leaves the item on the ground and warns (rate-limited).
+	for i in Inventory.BACKPACK_SIZE:
+		inv.backpack.append(_make_item("helm", []))
+	var blocked := _make_item("weapon", [])
+	var node := loot.drop(blocked, Vector2(0, 0))
+	_check(node != null, "drop returns the ground item")
+	var before := loot.drops.size()
+	loot.step(0.016, Vector2(0, 0), 3.0, inv)
+	loot.step(0.016, Vector2(0, 0), 3.0, inv)
+	_check(loot.drops.size() == before, "full backpack: the item stays on the ground")
+	_check(full_signals[0] == 1, "full backpack: warns once, not every frame (%d)" % full_signals[0])
+
+	# Trimming removes the lowest rarity first.
+	var small := LootManager.new()
+	small.max_drops = 5
+	var legendary := _make_item("ring", [])
+	legendary.rarity = ItemData.Rarity.LEGENDARY
+	small.drop(legendary, Vector2.ZERO)
+	for i in 5:
+		small.drop(_make_item("ring", []), Vector2(i, 0))
+	_check(small.drops.size() == 5, "drops are capped at max_drops")
+	_check(small.drops.any(func(d: LootDrop) -> bool: return d.item == legendary), "the legendary survived the cleanup")
+
+	# Kill drops respect chance.
+	var rolls := LootManager.new()
+	for i in 50:
+		rolls.roll_kill_drop(Vector2.ZERO, 0.0, 0.0, 5, 0.0)
+	_check(rolls.drops.is_empty(), "0% chance never drops")
+	for i in 10:
+		rolls.roll_kill_drop(Vector2.ZERO, 1.0, 0.0, 5, 0.0)
+	_check(rolls.drops.size() == 10, "100% chance always drops")
+	for d in rolls.drops:
+		_check(d.item.ilvl == 5, "dropped items use the given item level")
+
+	loot.free()
+	small.free()
+	rolls.free()

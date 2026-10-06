@@ -10,6 +10,7 @@ signal died
 const RADIUS := 0.5
 
 var stats := PlayerStats.new()
+var inventory: Inventory
 ## Level-ups earned but not yet spent in the upgrade menu.
 var pending_levels := 0
 var dead := false
@@ -29,6 +30,10 @@ var _xp_carry := 0.0
 var pos2: Vector2:
 	get:
 		return Vector2(global_position.x, global_position.z)
+
+
+func _init() -> void:
+	inventory = Inventory.new(stats)
 
 
 func _ready() -> void:

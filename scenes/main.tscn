@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://scripts/gem_swarm.gd" id="6_gems"]
 [ext_resource type="Script" path="res://scripts/wave_director.gd" id="7_director"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="8_hud"]
+[ext_resource type="Script" path="res://scripts/items/loot_manager.gd" id="10_loot"]
+[ext_resource type="Script" path="res://scripts/inventory_screen.gd" id="11_inventory"]
 [ext_resource type="Shader" path="res://shaders/ground_grid.gdshader" id="9_shader"]
 
 [sub_resource type="Environment" id="Environment_main"]
@@ -64,6 +66,8 @@ move_speed = 2.2
 contact_dps = 14.0
 radius = 0.8
 xp_value = 6
+loot_chance = 0.1
+loot_quality = 0.5
 body_height = 2.4
 color = Color(0.55, 0.15, 0.6, 1)
 capacity = 500
@@ -74,8 +78,14 @@ script = ExtResource("5_proj")
 [node name="Gems" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("6_gems")
 
+[node name="Loot" type="Node3D" parent="."]
+script = ExtResource("10_loot")
+
 [node name="WaveDirector" type="Node" parent="."]
 script = ExtResource("7_director")
 
 [node name="Hud" type="CanvasLayer" parent="."]
 script = ExtResource("8_hud")
+
+[node name="InventoryScreen" type="CanvasLayer" parent="."]
+script = ExtResource("11_inventory")

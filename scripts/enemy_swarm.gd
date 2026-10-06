@@ -25,6 +25,12 @@ static var _next_id := 1
 @export var radius := 0.45
 @export var xp_value := 1
 
+@export_group("Loot")
+## Chance that a kill drops an item.
+@export_range(0.0, 1.0, 0.001) var loot_chance := 0.01
+## Pushes that item's rarity roll toward better results (see ItemGenerator).
+@export var loot_quality := 0.0
+
 @export_group("Look")
 @export var body_height := 1.4
 @export var color := Color(0.8, 0.25, 0.25)

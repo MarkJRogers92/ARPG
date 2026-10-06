@@ -12,6 +12,7 @@ var _level_label: Label
 var _time_label: Label
 var _kills_label: Label
 var _debug_label: Label
+var _toasts: VBoxContainer
 var _upgrade_root: Control
 var _upgrade_row: HBoxContainer
 var _upgrade_ids: Array[String] = []
@@ -35,7 +36,24 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int) -> vo
 	_level_label.text = "Lv %d" % stats.level
 	_time_label.text = _format_time(elapsed)
 	_kills_label.text = "Kills %d" % kills
-	_debug_label.text = "%d FPS   %d enemies" % [Engine.get_frames_per_second(), enemies]
+	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory" % [Engine.get_frames_per_second(), enemies]
+
+
+## A short message that fades out, e.g. loot pickups. Newest at the bottom.
+func toast(text: String, color := Color.WHITE) -> void:
+	var label := _make_label(18)
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_toasts.add_child(label)
+	while _toasts.get_child_count() > 6:
+		var oldest := _toasts.get_child(0)
+		_toasts.remove_child(oldest)
+		oldest.queue_free()
+	var tween := create_tween()
+	tween.tween_interval(3.5)
+	tween.tween_property(label, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(label.queue_free)
 
 
 func show_upgrades(choices: Array[Dictionary]) -> void:
@@ -124,6 +142,15 @@ func _build() -> void:
 	_debug_label.position += Vector2(12, -28)
 	root.add_child(_debug_label)
 
+	_toasts = VBoxContainer.new()
+	_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toasts.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_toasts.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_toasts.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_toasts.offset_right = -16.0
+	_toasts.offset_bottom = -16.0
+	root.add_child(_toasts)
+
 	# Level-up menu.
 	var upgrade_box := VBoxContainer.new()
 	upgrade_box.add_theme_constant_override("separation", 16)
@@ -167,12 +194,7 @@ func _make_modal(parent: Control, content: Control) -> Control:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
 	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.07, 0.08, 0.11, 0.96)
-	style.border_color = Color(0.35, 0.55, 0.9)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", UiStyle.panel())
 	center.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -202,8 +224,4 @@ func _make_bar(color: Color, height: float) -> ProgressBar:
 
 
 func _make_label(size: int) -> Label:
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", size)
-	label.add_theme_color_override("font_outline_color", Color.BLACK)
-	label.add_theme_constant_override("outline_size", 4)
-	return label
+	return UiStyle.label(size)

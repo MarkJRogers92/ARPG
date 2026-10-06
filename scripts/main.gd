@@ -21,8 +21,10 @@ var _game_over := false
 @onready var _brutes: EnemySwarm = $Brutes
 @onready var _projectiles: ProjectileSwarm = $Projectiles
 @onready var _gems: GemSwarm = $Gems
+@onready var _loot: LootManager = $Loot
 @onready var _director: WaveDirector = $WaveDirector
 @onready var _hud: Hud = $Hud
+@onready var _inventory_screen: InventoryScreen = $InventoryScreen
 @onready var _ground: Node3D = $Ground
 
 
@@ -31,10 +33,14 @@ func _ready() -> void:
 	_player.setup(_swarms, _projectiles)
 	_director.setup(_grunts, _brutes)
 	for swarm in _swarms:
-		swarm.enemy_died.connect(_on_enemy_died)
+		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
+	_loot.item_picked.connect(_on_item_picked)
+	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full", Color(1.0, 0.45, 0.4)))
 	_player.leveled_up.connect(_try_level_up)
 	_player.died.connect(_on_player_died)
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
+	_inventory_screen.setup(_player)
+	_inventory_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_hud.restart_pressed.connect(func() -> void: get_tree().reload_current_scene())
 
 
@@ -63,6 +69,8 @@ func _process(delta: float) -> void:
 	if xp > 0:
 		_player.add_xp(xp)
 
+	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
+
 	_director.tick(delta, origin)
 
 	# The ground plane trails the player in whole grid cells; the grid itself
@@ -74,6 +82,14 @@ func _process(delta: float) -> void:
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count())
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	# While the screen is open it handles its own close key (the tree is paused).
+	if event.is_action_pressed("inventory") and not _choosing_upgrade and not _game_over:
+		get_tree().paused = true
+		_inventory_screen.open()
+		get_viewport().set_input_as_handled()
+
+
 func _enemy_count() -> int:
 	var total := 0
 	for swarm in _swarms:
@@ -81,11 +97,18 @@ func _enemy_count() -> int:
 	return total
 
 
-func _on_enemy_died(at: Vector2, xp: int) -> void:
+func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	kills += 1
 	var overflow := _gems.drop(at, xp)
 	if overflow > 0:
 		_player.add_xp(overflow)
+	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality,
+			_player.stats.level, _player.stats.magic_find)
+
+
+func _on_item_picked(item: Item, result: String) -> void:
+	var verb := "Equipped" if result == "equipped" else "Found"
+	_hud.toast("%s: %s" % [verb, item.name], item.color())
 
 
 func _try_level_up() -> void:
