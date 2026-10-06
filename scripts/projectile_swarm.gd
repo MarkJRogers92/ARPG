@@ -40,7 +40,7 @@ func _ready() -> void:
 	mesh.height = projectile_radius * 2.0
 	mesh.radial_segments = 8
 	mesh.rings = 4
-	MultiMeshUtil.setup(self, mesh, capacity, color, 3.0)
+	MultiMeshUtil.setup(self, mesh, capacity, color, 1.0)
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 

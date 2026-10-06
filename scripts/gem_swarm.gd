@@ -29,7 +29,7 @@ func _ready() -> void:
 	mesh.height = 0.36
 	mesh.radial_segments = 6
 	mesh.rings = 3
-	MultiMeshUtil.setup(self, mesh, capacity, color, 1.5)
+	MultiMeshUtil.setup(self, mesh, capacity, color, 0.5)
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 
