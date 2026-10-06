@@ -94,7 +94,7 @@ func _test_remove_source() -> void:
 	_check(s.remove_source("gear:a") == 2, "removing gear:a removes its 2 mods")
 	s.recalculate()
 	_near(s.max_hp, 150.0, "gear:b still applies alone")
-	_near(s.regen, 0.0, "regen from gear:a is gone")
+	_near(s.regen, PlayerStats.BASE["regen"], "regen from gear:a is gone")
 
 	s.remove_source("gear:b")
 	s.recalculate()
