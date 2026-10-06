@@ -16,12 +16,19 @@ you can.
 | Input | Action |
 |---|---|
 | WASD / arrow keys / left stick | Move |
+| Mouse / right stick | Aim (the hero faces and shoots where you point) |
+| T / right stick click | Switch between mouse aim and auto-aim |
 | 1 / 2 / 3, click, Enter | Pick a level-up upgrade |
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 
-Attacks are automatic: *Magic Bolt* fires at the nearest enemy, and *Frost Aura*
-(an upgrade) damages everything around you.
+Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
+*Frost Aura* (an upgrade) damages everything around you. Aiming is twin-stick
+style: once you move the mouse, the hero faces the cursor and shoots toward it
+(a ring on the ground marks the spot) while WASD walks independently, so you can
+back away while firing. The right stick aims the same way while held. Until you
+touch the mouse, after you release the stick, or after pressing T, bolts auto-aim
+at the nearest enemy.
 
 The project uses the **Compatibility** renderer (OpenGL), which runs on nearly any
 machine and is the one the game was tested with. If you'd like Forward+ (Vulkan),
@@ -247,6 +254,7 @@ tools/balance.sh -g /path/to/godot -s "1 2 3 4" -p "greedy random" -m 10 \
 godot --headless --path . -s tools/tests.gd                      # unit tests
 godot --headless --path . -s tools/ui_test.gd                    # drives the real inventory screen
 godot --headless --path . -s tools/skill_ui_test.gd              # drives the real skill tree screen
+xvfb-run godot --path . --fixed-fps 60 -s tools/aim_test.gd     # mouse aim, T toggle, right stick (needs a display)
 godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd  # bot playthrough, exit 0 = ok
 godot --headless --path . -s tools/bench_swarm.gd                # simulation cost, 1k..16k enemies
 
@@ -265,6 +273,9 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
 - `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
   actions, check the pause, and click through equipping, discarding, allocating,
   refunding (including the refusals), resetting and closing.
+- `aim_test.gd` moves the real cursor around the game window and checks that the
+  hero faces it, bolts follow it while walking the other way, T switches to
+  auto-aim and back, and the right stick takes over while held.
 - `smoke_test.gd` runs a dumb bot for a minute (or `-- 600` for ten); one minute
   of game time takes about a second.
 
@@ -286,7 +297,7 @@ scripts/
   fx_swarm.gd          Hit, death, pickup and level-up particles
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
-  player.gd            Movement, Magic Bolt, Frost Aura, XP, levels
+  player.gd            Movement, aiming, Magic Bolt, Frost Aura, XP, levels
   player_stats.gd      Base values + modifiers -> effective stats
   upgrades.gd          The level-up pool (data + apply())
   wave_director.gd     Spawn rate / HP curves and enemy mix over time
@@ -318,7 +329,7 @@ shaders/
   ground.gdshader      Procedural grass, dirt and flagstones in world space
   gem / glow / particle / beam / ground_glow / aura / blob_shadow / vignette
 tools/
-  tests.gd, ui_test.gd, skill_ui_test.gd, smoke_test.gd, bench_swarm.gd
+  tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, smoke_test.gd, bench_swarm.gd
   balance_bot.gd, balance.sh, screenshot.gd
 ```
 

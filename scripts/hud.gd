@@ -51,7 +51,7 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_skill_label.text = "%d skill point%s  [K]" % [skill_points, "" if skill_points == 1 else "s"]
 	_time_label.text = _format_time(elapsed)
 	_kills_label.text = "%d" % kills
-	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills" % [Engine.get_frames_per_second(), enemies]
+	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills   [T] aim" % [Engine.get_frames_per_second(), enemies]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
 
 
