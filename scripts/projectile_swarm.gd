@@ -86,10 +86,11 @@ func spawn(at: Vector2, dir: Vector2, speed: float, dmg: float, pierce: int, lif
 func step(delta: float, swarms: Array[EnemySwarm]) -> void:
 	var i := count - 1
 	while i >= 0:
-		var p := _pos[i] + _vel[i] * delta
+		var from := _pos[i]
+		var p := from + _vel[i] * delta
 		_pos[i] = p
 		_life[i] -= delta
-		if _life[i] <= 0.0 or _hit_something(i, p, swarms):
+		if _life[i] <= 0.0 or _hit_something(i, from, p, swarms):
 			_remove_at(i)
 		else:
 			var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
@@ -104,33 +105,54 @@ func step(delta: float, swarms: Array[EnemySwarm]) -> void:
 
 
 ## Applies this projectile's hits for the frame. Returns true if it is spent.
-func _hit_something(i: int, p: Vector2, swarms: Array[EnemySwarm]) -> bool:
+## Swept: everything the bolt passed over between `from` and `to` counts, in
+## order along the path (across every enemy type), so a fast bolt or a long
+## frame can't skip an enemy and pierce is spent on the nearest first.
+func _hit_something(i: int, from: Vector2, to: Vector2, swarms: Array[EnemySwarm]) -> bool:
 	var base := i * HIT_MEMORY
+	var seg := to - from
+	var seg_len2 := maxf(seg.length_squared(), 0.000001)
+	var mid := (from + to) * 0.5
+	var half := sqrt(seg_len2) * 0.5
+	# [t along the path, swarm, index]
+	var hits: Array = []
 	for swarm in swarms:
-		var n := swarm.grid.query(p, projectile_radius + swarm.radius)
+		var reach := projectile_radius + swarm.radius
+		var n := swarm.grid.query(mid, reach + half)
 		if n == 0:
 			continue
 		var res := swarm.grid.results
 		for k in n:
 			var j := res[k]
-			if swarm.hp[j] <= 0.0:
+			if swarm.hp[j] <= 0.0 or _already_hit(base, swarm.ids[j]):
 				continue
-			var id := swarm.ids[j]
-			if _already_hit(base, id):
-				continue
-			var killed := Elements.hit(swarm, j, _damage[i], _element[i], _crit[i] == 1)
-			hit.emit(p, _crit[i] == 1, _damage[i])
-			if killed and _split[i] == 0 and Elements.has_power("splitting"):
-				# Hydra: the kill spits out three smaller bolts.
-				var v := _vel[i]
-				for a: float in [-0.6, 0.0, 0.6]:
-					spawn(swarm.pos[j], v.normalized().rotated(a), v.length(), _damage[i] * 0.6, 0,
-							0.7, false, _element[i], true)
-			_hit_ids[base + _hit_cursor[i]] = id
-			_hit_cursor[i] = (_hit_cursor[i] + 1) % HIT_MEMORY
-			if _pierce[i] <= 0:
-				return true
-			_pierce[i] -= 1
+			var t := clampf((swarm.pos[j] - from).dot(seg) / seg_len2, 0.0, 1.0)
+			if (from + seg * t).distance_squared_to(swarm.pos[j]) <= reach * reach:
+				hits.append([t, swarm, j])
+	if hits.is_empty():
+		return false
+	if hits.size() > 1:
+		hits.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for h: Array in hits:
+		var swarm: EnemySwarm = h[1]
+		var j: int = h[2]
+		if swarm.hp[j] <= 0.0:
+			continue
+		var id := swarm.ids[j]
+		var at: Vector2 = from + seg * h[0]
+		var killed := Elements.hit(swarm, j, _damage[i], _element[i], _crit[i] == 1)
+		hit.emit(at, _crit[i] == 1, _damage[i])
+		if killed and _split[i] == 0 and Elements.has_power("splitting"):
+			# Hydra: the kill spits out three smaller bolts.
+			var v := _vel[i]
+			for a: float in [-0.6, 0.0, 0.6]:
+				spawn(swarm.pos[j], v.normalized().rotated(a), v.length(), _damage[i] * 0.6, 0,
+						0.7, false, _element[i], true)
+		_hit_ids[base + _hit_cursor[i]] = id
+		_hit_cursor[i] = (_hit_cursor[i] + 1) % HIT_MEMORY
+		if _pierce[i] <= 0:
+			return true
+		_pierce[i] -= 1
 	return false
 
 

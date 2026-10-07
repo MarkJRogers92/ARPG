@@ -28,13 +28,13 @@ signal announced(text: String, color: Color)
 const BLESSINGS := {
 	"Fury": {"color": Color(1.0, 0.35, 0.25), "desc": "+60% damage",
 		"mods": [{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.6}]},
-	"Haste": {"color": Color(0.4, 1.0, 0.6), "desc": "+35% move and attack speed",
+	"Haste": {"color": Color(0.4, 1.0, 0.6), "desc": "+35% move speed and bolt fire rate",
 		"mods": [{"stat": "move_speed", "op": PlayerStats.Op.MORE, "value": 0.35},
 			{"stat": "bolt_rate", "op": PlayerStats.Op.MORE, "value": 0.35}]},
 	"Plenty": {"color": Color(1.0, 0.85, 0.3), "desc": "double XP and souls",
 		"mods": [{"stat": "xp_gain", "op": PlayerStats.Op.MORE, "value": 1.0},
 			{"stat": "soul_chance", "op": PlayerStats.Op.MORE, "value": 1.0}]},
-	"Warding": {"color": Color(0.5, 0.75, 1.0), "desc": "take 60% less damage",
+	"Warding": {"color": Color(0.5, 0.75, 1.0), "desc": "+150 armor (about half the damage)",
 		"mods": [{"stat": "armor", "op": PlayerStats.Op.ADD, "value": 150.0}]},
 }
 
@@ -112,21 +112,31 @@ func _start_random() -> void:
 		kinds.erase("goblin")
 	var kind: String = kinds.pick_random()
 	# Somewhere off screen, clear of solid scenery so it can be reached.
-	var at := _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(15.0, 19.0)
-	for attempt in 12:
-		if not Obstacles.blocked(at, shrine_radius + 0.5):
-			break
-		at = _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(15.0, 19.0)
+	var at := _clear_spot(15.0, 19.0, shrine_radius + 0.5)
+	if at == Vector2.INF:
+		_timer = 5.0 # nowhere clear right now: try again shortly
+		return
 	match kind:
 		"shrine":
 			_start_shrine(at)
 		"goblin":
 			_goblin_left = goblin_time
-			_goblins.spawn(_player.pos2 + Vector2.from_angle(randf() * TAU) * 11.0, _director.hp_multiplier())
+			var near := _clear_spot(10.0, 12.0, 1.0)
+			_goblins.spawn(near if near != Vector2.INF else at, _director.hp_multiplier())
 			announced.emit("A treasure goblin! Catch it before it escapes!", Color(1.0, 0.85, 0.3))
 			Sound.play("goblin")
 		"chest":
 			_start_chest(at)
+
+
+## A random point `min_r`..`max_r` from the hero with `clearance` around it
+## free of solid scenery, or Vector2.INF if none turned up.
+func _clear_spot(min_r: float, max_r: float, clearance: float) -> Vector2:
+	for attempt in 16:
+		var at := _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(min_r, max_r)
+		if not Obstacles.blocked(at, clearance):
+			return at
+	return Vector2.INF
 
 
 func _start_shrine(at: Vector2) -> void:
@@ -214,7 +224,8 @@ func _update_shrine(e: Dictionary, hero: Vector2, delta: float) -> bool:
 
 func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 	if not e["opened"]:
-		if hero.distance_to(e["at"]) <= 1.8:
+		e["retry"] = maxf(e.get("retry", 0.0) - get_process_delta_time(), 0.0)
+		if hero.distance_to(e["at"]) <= 1.8 and e["retry"] <= 0.0:
 			e["opened"] = true
 			Sound.play("chest")
 			Sound.play("boss_roar", 1.4, -6.0)
@@ -225,6 +236,12 @@ func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 				var at: Vector2 = e["at"] + Vector2.from_angle(TAU * k / n) * 7.0
 				if swarm.spawn(at, _director.hp_multiplier(), true):
 					e["guards"].append([swarm, swarm.ids[swarm.count - 1]])
+			if e["guards"].is_empty():
+				# The horde is at capacity: no guardians could rise. Try again
+				# shortly rather than handing out a free Legendary.
+				e["opened"] = false
+				e["retry"] = 3.0
+				return false
 			e["label"] = "GUARDIANS"
 			announced.emit("The chest's guardians awaken! Slay them all.", Color(0.8, 0.45, 1.0))
 		return false
@@ -250,7 +267,9 @@ func _on_goblin_died(at: Vector2, _xp: int) -> void:
 	for k in 3:
 		_loot.drop(ItemGenerator.generate(ilvl, 1.5 + _player.stats.magic_find), at)
 	for k in 20:
-		_gems.drop(at + Vector2.from_angle(randf() * TAU) * randf_range(0.5, 2.5), 6)
+		var overflow := _gems.drop(at + Vector2.from_angle(randf() * TAU) * randf_range(0.5, 2.5), 6)
+		if overflow > 0:
+			_player.add_xp(overflow) # the gem pool is full: pay the XP directly
 	shards += 3
 	drop_orb(at + Vector2(1.0, 0.0))
 	Sound.play("goblin", 0.7)

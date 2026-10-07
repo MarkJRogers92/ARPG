@@ -45,6 +45,7 @@ func _finish() -> void:
 	_test_heroes()
 	_test_events()
 	_test_obstacles()
+	_test_fixes()
 
 	print("")
 	if _failures == 0:
@@ -1283,3 +1284,88 @@ func _test_obstacles() -> void:
 	swarm.free()
 	Obstacles.clear()
 	_check(not Obstacles.near(Vector2(5, 0)) and Obstacles.resolve(Vector2(5, 0), 0.5) == Vector2(5, 0), "cleared, nothing blocks")
+
+
+func _test_fixes() -> void:
+	print("fixes")
+	# Swept bolts: a fast bolt crossing an enemy in one long step still hits it.
+	var near := EnemySwarm.new()
+	near.capacity = 4
+	root.add_child(near)
+	var far := EnemySwarm.new()
+	far.capacity = 4
+	root.add_child(far)
+	near.spawn(Vector2(1.5, 0))
+	far.spawn(Vector2(2.5, 0))
+	near.step(0.0, Vector2(0, -20))
+	far.step(0.0, Vector2(0, -20))
+	var bolts := ProjectileSwarm.new()
+	root.add_child(bolts)
+	var swarms: Array[EnemySwarm] = [far, near]
+	bolts.spawn(Vector2.ZERO, Vector2.RIGHT, 80.0, 5.0, 0, 1.0)
+	bolts.step(0.05, swarms)
+	_check(near.hp[0] < near.max_hp and far.hp[0] == far.max_hp,
+			"a fast bolt hits the enemy it passed over, the nearest first, across enemy types")
+	_check(bolts.count == 0, "and with no pierce it's spent on that first hit")
+	for n: Node in [bolts, near, far]:
+		n.free()
+
+	# A dash can't pass through a thin obstacle in one long step.
+	Obstacles.set_circles([[Vector2.ZERO, 0.35]], Rect2(-10, -10, 20, 20))
+	var end := Player.slide_scenery(Vector2(-0.86, 0), Vector2(0.16, 0))
+	_check(not Obstacles.blocked(end, Player.RADIUS - 0.01) and (end.x < -0.8 or absf(end.y) > 0.5),
+			"a dash goes around a thin post, never through it (%s)" % end)
+	var slid := Vector2(-1.5, 0.3)
+	var stuck := false
+	for k in 20: # walking right at 6 m/s, a frame at a time
+		slid = Player.slide_scenery(slid, slid + Vector2(0.1, 0.0))
+		stuck = stuck or Obstacles.blocked(slid, Player.RADIUS - 0.01)
+	_check(slid.x > 0.4 and not stuck, "walking into it slides around without entering (%s)" % slid)
+	Obstacles.clear()
+
+	# A first ability card for an ability you already have improves it.
+	var stats := PlayerStats.new()
+	stats.add_mods("class", [{"stat": "lightning_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	stats.recalculate()
+	var chains := stats.lightning_chains
+	var dmg := stats.lightning_damage
+	_check(Upgrades.already_active("lightning", stats), "Stormcaller's lightning counts as already active")
+	Upgrades.apply("lightning", stats)
+	_check(stats.lightning_chains > chains and stats.lightning_damage > dmg, "so the first Lightning card upgrades it right away")
+	stats.remove_source("class")
+	stats.recalculate()
+	_check(stats.lightning_level >= 1, "and still owns it without the class source")
+
+	# A bound boss isn't pushed out of a full army by an elite.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 4
+	root.add_child(grunts)
+	var army := Army.new()
+	root.add_child(army)
+	var army_swarms: Array[EnemySwarm] = [grunts]
+	army.setup(player, army_swarms)
+	army.collect_soul(Army.soul_value(0, false, true))
+	while army.count < player.stats.minion_max:
+		army._raise(0, false, false)
+	army.collect_soul(Army.soul_value(0, true, false))
+	_check(army._elite.slice(0, army.count).has(2), "the bound boss survives an elite joining a full army")
+	_check(army._elite.slice(0, army.count).has(1), "and the elite replaced a common minion")
+	for n: Node in [army, grunts, player]:
+		n.free()
+
+	# The night is won: the dawn sweep can't kill the hero too.
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var hero: Player = main.get_node("Player")
+	main._on_final_died(Vector2.ZERO)
+	hero.take_damage(1.0e9)
+	main._on_player_died()
+	_check(main.won and not hero.dead and not main._game_over, "after the final boss falls, the hero can't die")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = was

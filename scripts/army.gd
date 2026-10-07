@@ -37,7 +37,7 @@ var _type := PackedInt32Array()
 var _pos := PackedVector2Array()
 var _hp := PackedFloat32Array()
 var _max_hp := PackedFloat32Array()
-var _elite := PackedByteArray()
+var _elite := PackedByteArray() # rank: 0 common, 1 elite, 2 boss
 var _attack := PackedFloat32Array()
 var _retarget := PackedFloat32Array()
 var _hurt := PackedFloat32Array()
@@ -150,7 +150,8 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	count += 1
 	_type[k] = type
 	_pos[k] = _player.pos2 + Vector2.from_angle(randf() * TAU) * 1.5
-	_elite[k] = 1 if elite and not boss else 0
+	# Rank: 0 common, 1 elite champion, 2 bound boss. Only commons make way.
+	_elite[k] = 2 if boss else (1 if elite else 0)
 	_max_hp[k] = stats.minion_hp * t["hp"] * (2.0 if elite else 1.0)
 	_hp[k] = _max_hp[k]
 	_attack[k] = 0.0

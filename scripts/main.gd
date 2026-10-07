@@ -402,6 +402,9 @@ func _on_final_died(at: Vector2) -> void:
 	if won:
 		return
 	won = true
+	# The night is settled: the dawn sweep can't also kill the hero.
+	_player.invulnerable = true
+	_player.burning = 0.0
 	MetaProgress.record_win(Realm.current)
 	_run_shards += roundi(40.0 * Realm.data()["difficulty"])
 	_atmosphere.dawn(true)
@@ -435,6 +438,7 @@ func _sweep_horde(delta: float) -> void:
 func _start_endless() -> void:
 	_endless = true
 	_endless_start = elapsed
+	_player.invulnerable = false
 	_run_shards = 0
 	kills = 0
 	_bosses.endless = true
@@ -503,6 +507,8 @@ func _on_upgrade_chosen(id: String) -> void:
 
 
 func _on_player_died() -> void:
+	if _game_over or (won and not _endless):
+		return
 	_game_over = true
 	_sound.stop_music(0.8)
 	Sound.play("defeat")
