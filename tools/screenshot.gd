@@ -24,6 +24,7 @@ var _title_only := false
 var _ferry := false
 var _finale := false
 var _rift_mode := ""
+var _dawn := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -38,6 +39,7 @@ func _initialize() -> void:
 	_title_only = args.size() > 2 and args[2] == "title"
 	_ferry = args.size() > 2 and args[2] == "ferryman"
 	_finale = args.size() > 2 and args[2] == "finale"
+	_dawn = args.size() > 2 and args[2] == "dawn"
 	if args.size() > 2 and args[2] in ["market", "glitch"]:
 		_rift_mode = args[2]
 	if args.size() > 3:
@@ -82,6 +84,31 @@ func _process(_delta: float) -> bool:
 			player.global_position = Vector3(RiftDirector.MARKET_AT.x, 0, RiftDirector.MARKET_AT.y - 1.0)
 		if _frame == 110:
 			_save(_rift_mode)
+			quit(0)
+			return true
+		return false
+	if _dawn:
+		player.stats.hp = player.stats.max_hp
+		var bosses: BossDirector = _main.get_node("BossDirector")
+		var director: WaveDirector = _main.get_node("WaveDirector")
+		var final: EnemySwarm = _main.get_node("FinalBoss")
+		if _frame == 2:
+			director.elapsed = 300.0
+			director.rate_scale = 0.4
+		if _frame == 60:
+			_save("dawn_night")
+			director.elapsed = bosses.run_length - 25.0
+		if _frame == 140:
+			_save("dawn_first_light")
+			director.elapsed = bosses.run_length
+		if _frame == 150 and final.count > 0:
+			final.pos[0] = player.pos2 + Vector2(0, -6)
+		if _frame == 160 and final.count > 0:
+			final.damage(0, 1.0e12)
+		if _frame == 230:
+			_save("dawn_sunrise_front")
+		if _frame == 330:
+			_save("dawn_sunrise")
 			quit(0)
 			return true
 		return false

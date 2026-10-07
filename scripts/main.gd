@@ -29,6 +29,15 @@ var _endless := false
 var _endless_start := 0.0
 ## Seconds left of the dawn sweep that turns the horde to ash after a win.
 var _dawn_sweep := 0.0
+## Where the sunrise front starts (the final boss's last stand) and its ring.
+var _dawn_at := Vector2.ZERO
+var _dawn_front: MeshInstance3D
+var _dawn_glow: DawnGlow
+var _first_light_told := false
+## First Light: the last stretch of the night, when the sun starts to rise.
+const FIRST_LIGHT := 150.0
+const DAWN_SWEEP := 4.0
+const DAWN_REACH := 55.0
 var _in_title := false
 
 @onready var _player: Player = $Player
@@ -130,6 +139,8 @@ func _ready() -> void:
 	_landmarks.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_wager_panel = WagerPanel.new()
 	add_child(_wager_panel)
+	_dawn_glow = DawnGlow.new()
+	add_child(_dawn_glow)
 	_ferryman = Ferryman.new()
 	add_child(_ferryman)
 	var collectors := get_node_or_null("Collectors") as EnemySwarm
@@ -319,6 +330,7 @@ func _process(delta: float) -> void:
 	_decor.emit(delta, origin, _motes)
 	_motes.step(delta)
 	_decor.follow(origin)
+	_update_first_light(delta)
 	_atmosphere.tick(delta, elapsed, _bosses.boss_alive() or _bosses.final_alive())
 
 	# The ground plane trails the player in whole grid cells; the grid itself
@@ -538,7 +550,7 @@ func _spawn_motes(delta: float, origin: Vector2) -> void:
 
 
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
-	if _dawn_sweep > 0.0:
+	if won and not _endless:
 		return
 	_run_shards += 2
 	Sound.play("elite_kill")
@@ -553,7 +565,7 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 
 
 func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
-	if _dawn_sweep > 0.0:
+	if won and not _endless:
 		# Burned away by the sunrise: no rewards.
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
@@ -595,7 +607,11 @@ func _on_final_died(at: Vector2) -> void:
 	MetaProgress.record_win(Realm.current)
 	_run_shards += roundi(40.0 * Realm.data()["difficulty"])
 	_atmosphere.dawn(true)
-	_dawn_sweep = 3.0
+	_dawn_glow.dawn(true)
+	Sound.play("sunrise")
+	_dawn_sweep = DAWN_SWEEP
+	_dawn_at = at
+	_dawn_front = HazardDirector.make_decal(self, at, Color(1.0, 0.8, 0.45, 0.85), 1.0, 2.0)
 	_shots.clear()
 	Juice.shake(1.0)
 	Juice.flash(at, Color(1.0, 0.85, 0.5), 10.0, 30.0, 1.5)
@@ -603,15 +619,53 @@ func _on_final_died(at: Vector2) -> void:
 	_hud.toast("%s is destroyed. Dawn breaks!" % _bosses.final_name, UiStyle.GOLD)
 
 
-## During the dawn sweep, a share of the horde turns to ash every frame.
+## How far along the night is (0 at dusk, 1 at dawn), and First Light (0..1:
+## nothing until the last FIRST_LIGHT seconds, then the sun begins to rise).
+func night_progress() -> float:
+	if won or _bosses.final_arrived:
+		return 1.0
+	return clampf(_director.elapsed / maxf(_bosses.run_length, 1.0), 0.0, 1.0)
+
+
+func first_light() -> float:
+	if _endless:
+		return 0.0
+	if won or _bosses.final_arrived:
+		return 1.0
+	return clampf(1.0 - _bosses.time_to_final() / FIRST_LIGHT, 0.0, 1.0)
+
+
+func _update_first_light(delta: float) -> void:
+	var light := first_light()
+	_atmosphere.first_light = light
+	_dawn_glow.tick(delta, light)
+	_hud.set_night(night_progress(), light, not _endless)
+	if light > 0.0 and not _first_light_told and not won:
+		_first_light_told = true
+		_hud.toast("First light. Dawn is coming, and with it, their master...", Color(1.0, 0.75, 0.5))
+
+
+## The sunrise: a wall of light spreads from where the final boss fell, and
+## the horde turns to ash as it passes.
 func _sweep_horde(delta: float) -> void:
 	_dawn_sweep -= delta
+	var reach := DAWN_REACH * smoothstep(0.0, 1.0, 1.0 - _dawn_sweep / DAWN_SWEEP) + 1.0
+	if _dawn_front:
+		_dawn_front.scale = Vector3.ONE * reach
 	for swarm in _swarms:
 		for i in swarm.count:
-			if swarm.hp[i] > 0.0 and randf() < delta * 1.6:
+			if swarm.hp[i] > 0.0 and swarm.pos[i].distance_squared_to(_dawn_at) < reach * reach:
 				swarm.damage(i, 1.0e12)
 	if _dawn_sweep <= 0.0:
 		_dawn_sweep = 0.0
+		if _dawn_front:
+			_dawn_front.queue_free()
+			_dawn_front = null
+		# Whatever the light didn't reach goes too.
+		for swarm in _swarms:
+			for i in swarm.count:
+				if swarm.hp[i] > 0.0:
+					swarm.damage(i, 1.0e12)
 		var shards := _settle_run(elapsed)
 		get_tree().paused = true
 		_sound.stop_music(0.5)
@@ -630,6 +684,7 @@ func _start_endless() -> void:
 	_bosses.endless = true
 	_bosses._next_at = elapsed + 60.0
 	_atmosphere.dawn(false)
+	_dawn_glow.dawn(false)
 	_sound._realm = ""
 	_sound.play_realm(Realm.current)
 	_hud.hide_end()

@@ -11,6 +11,22 @@ is the `GAME_TITLE` constant in `scripts/title_screen.gd`.)
 
 ## Run it
 
+**On a Mac, without Godot:** paste this into Terminal. It installs the latest
+build into Applications and opens it; run it again any time to update.
+
+```bash
+curl -fL -o /tmp/Soulbound.zip https://github.com/MarkJRogers92/ARPG/releases/download/mac-latest/Soulbound.zip && rm -rf /Applications/Soulbound.app && ditto -xk /tmp/Soulbound.zip /Applications && open /Applications/Soulbound.app
+```
+
+After that it's an ordinary app (Launchpad, Spotlight, the Dock). The build
+comes from `.github/workflows/mac-build.yml`: every change to the main branch
+runs the tests, exports the app (`export_presets.cfg`, a universal build,
+ad-hoc signed) and replaces the `mac-latest` release. Saves are shared with
+the editor (`config/custom_user_dir_name` keeps the old folder name). The icon
+is drawn by `tools/make_icon.py`.
+
+**From the editor:**
+
 1. Install [Godot 4.6](https://godotengine.org/download) (the standard build, no .NET needed).
 2. Open `project.godot` in the editor and press **F5**.
 
@@ -55,6 +71,15 @@ From the victory screen you can go back to the realms, play again, or carry on
 in **Endless** mode (the night returns, the mid-bosses keep coming, and your
 time past dawn is recorded). Winning a realm unlocks the next one; progress is
 saved with the Soul Shards (`MetaProgress`).
+
+**The coming dawn.** A thin arc under the clock shows the moon crossing the
+night. For the last 2½ minutes (**First Light**) the moon turns into the sun,
+the sun sinks toward the horizon so shadows stretch out long, the light warms
+to rose-gold, and a glow with slow light rays builds from the corner the sun
+shines from (`scripts/visual/dawn_glow.gd`, `shaders/dawn_glow.gdshader`).
+When the final boss falls, a wall of sunlight spreads out from where it died
+and turns the horde to ash as it passes (no rewards for those), the sun
+climbs, and the sunrise chord plays.
 
 | | The Hollow Graveyard | The Frozen Wastes | The Ember Rift |
 |---|---|---|---|

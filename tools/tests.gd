@@ -54,6 +54,7 @@ func _finish() -> void:
 	_run(&"_test_final_mechanics", _test_final_mechanics())
 	_run(&"_test_replayability", _test_replayability())
 	_run(&"_test_rifts", _test_rifts())
+	_run(&"_test_dawn", _test_dawn())
 
 	print("")
 	if _failures == 0:
@@ -2017,6 +2018,49 @@ func _test_rifts() -> bool:
 	rift.glitch_left = 0.01
 	rift.tick(0.02)
 	_check(not rift.glitching() and (main.get_node("Loot") as LootManager).drops.size() == drops + 2, "and surviving it leaves a gift")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = was
+	return true
+
+
+func _test_dawn() -> bool:
+	print("dawn")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var director: WaveDirector = main.get_node("WaveDirector")
+	var bosses: BossDirector = main.get_node("BossDirector")
+	var atmosphere: Atmosphere = main.get_node("Atmosphere")
+	var sun: DirectionalLight3D = main.get_node("Sun")
+	_check(main.first_light() == 0.0 and main.night_progress() == 0.0, "no First Light at dusk")
+	director.elapsed = bosses.run_length - main.get_script().FIRST_LIGHT * 0.5
+	_check(absf(main.first_light() - 0.5) < 0.01, "First Light rises over the last minutes (%.2f)" % main.first_light())
+	_check(absf(main.night_progress() - (1.0 - main.get_script().FIRST_LIGHT * 0.5 / bosses.run_length)) < 0.01, "the night's arc follows the clock")
+	atmosphere.first_light = 0.0
+	atmosphere.tick(0.016, 0.0, false)
+	var high := sun.basis.z.y
+	atmosphere.first_light = 1.0
+	atmosphere.tick(0.016, 0.0, false)
+	var low := sun.basis.z.y
+	_check(high > 0.6 and low < high * 0.5 and low > 0.1, "the sun sinks toward the horizon before dawn (%.2f -> %.2f)" % [high, low])
+
+	# The sunrise front spreads from the final boss and burns the horde.
+	var grunts: EnemySwarm = main.get_node("Grunts")
+	grunts.spawn(Vector2(3, 0), 1.0)
+	grunts.spawn(Vector2(40, 0), 1.0)
+	var kills_before: int = main.kills
+	main._on_final_died(Vector2.ZERO)
+	_check(main.first_light() == 1.0, "full light once the night is won")
+	main._sweep_horde(1.0)
+	_check(grunts.hp[0] <= 0.0 and grunts.hp[1] > 0.0, "the light reaches the near enemy first")
+	main._sweep_horde(main.get_script().DAWN_SWEEP)
+	_check(grunts.alive_count() == 0, "and the whole horde is ash when the sweep ends")
+	_check(main.kills == kills_before, "the sunrise's kills give no rewards")
+	_check(main._dawn_front == null, "the light front is cleaned up")
+	paused = false
 	main.free()
 	Obstacles.clear()
 	MetaProgress.disabled = was
