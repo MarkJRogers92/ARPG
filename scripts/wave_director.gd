@@ -45,7 +45,7 @@ var pressure := 1.0
 @export var pressure_rate := 0.03
 @export var pressure_ramp := 2.0
 @export var pressure_max := 20.0
-@export var pressure_start := 360.0
+@export var pressure_start := 300.0
 
 var _swarms: Array[EnemySwarm] = []
 var _weights: Array[float] = []

@@ -85,7 +85,7 @@ func _process(_delta: float) -> void:
 func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill_points := 0) -> void:
 	_hp_bar.max_value = stats.max_hp
 	_hp_bar.value = stats.hp
-	_hp_text.text = "%d / %d" % [ceili(stats.hp), roundi(stats.max_hp)]
+	_hp_text.text = "%d / %d" % [mini(ceili(stats.hp), roundi(stats.max_hp)), roundi(stats.max_hp)]
 	_xp_bar.max_value = stats.xp_to_next
 	_xp_bar.value = stats.xp
 	_level_label.text = str(stats.level)
