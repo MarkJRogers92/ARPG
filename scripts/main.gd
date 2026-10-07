@@ -268,6 +268,7 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	Juice.tick()
 	if _game_over:
 		if _dying > 0.0:
 			_death_frame(delta)

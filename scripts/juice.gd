@@ -14,11 +14,14 @@ static var camera: CameraRig
 ## Whether hit-stop and slow motion may change the game speed (off in tests
 ## and bots, whose fixed steps would be distorted by it).
 static var time_effects := false
-static var _slow_until := 0
+## Slow effects in play: [scale, ends at (msec, real time)]. tick() sets the
+## game speed from them every frame, so it always returns to normal.
+static var _slows: Array = []
 
 
 static func reset() -> void:
 	time_effects = false
+	_slows.clear()
 	Engine.time_scale = 1.0
 	fx = null
 	numbers = null
@@ -60,17 +63,26 @@ static func slow_motion(scale: float, seconds: float) -> void:
 static func _slow_for(scale: float, seconds: float) -> void:
 	if not time_effects:
 		return
-	var tree := Engine.get_main_loop() as SceneTree
-	if tree == null:
-		return
-	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
-	if until <= _slow_until and Engine.time_scale <= scale:
-		return
-	_slow_until = maxi(_slow_until, until)
-	Engine.time_scale = minf(Engine.time_scale, scale)
-	tree.create_timer(seconds, true, false, true).timeout.connect(func() -> void:
-		if Time.get_ticks_msec() >= _slow_until:
-			Engine.time_scale = 1.0)
+	_slows.append([scale, Time.get_ticks_msec() + int(seconds * 1000.0)])
+	tick()
+
+
+## Called every frame (main.gd): the game runs at the slowest effect still in
+## play, or at normal speed when none is.
+static func tick() -> void:
+	var now := Time.get_ticks_msec()
+	var scale := 1.0
+	var k := _slows.size() - 1
+	while k >= 0:
+		if now >= int(_slows[k][1]):
+			_slows.remove_at(k)
+		else:
+			scale = minf(scale, float(_slows[k][0]))
+		k -= 1
+	if not time_effects:
+		scale = 1.0
+	if Engine.time_scale != scale:
+		Engine.time_scale = scale
 
 
 static func shake(amount: float) -> void:
