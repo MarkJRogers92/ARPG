@@ -19,6 +19,8 @@ signal elite_died(position: Vector2)
 signal charged_hero(damage: float)
 ## A raiser calls up the dead around `position` (see `raise_interval`).
 signal raise_called(position: Vector2)
+## A captor touched the hero (see `captor`).
+signal seized_hero
 
 ## Every swarm joins this group, which is how main.gd finds them.
 const GROUP := "enemy_swarms"
@@ -65,6 +67,8 @@ var shots: EnemyShots
 @export var raise_interval := 0.0
 ## Hang back this far from the hero (0 = close in).
 @export var hold_range := 0.0
+## Debt Collectors: touching the hero seizes something (every 4 s at most).
+@export var captor := false
 
 @export_group("Elites")
 ## Elites are rare, bigger, glowing versions with more HP, more XP and a
@@ -90,7 +94,7 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector") var model := "grunt"
 ## Runs away from the hero instead of chasing (treasure goblins).
 @export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
@@ -351,6 +355,11 @@ func step(delta: float, target: Vector2) -> void:
 				if _ctime[i] <= 0.0:
 					_cstate[i] = 0
 					_ctime[i] = randf_range(0.8, 2.0)
+		if captor:
+			_fire[i] -= delta
+			if _fire[i] <= 0.0 and d2 < (radius + 0.8) * (radius + 0.8):
+				_fire[i] = 4.0
+				seized_hero.emit()
 		if raise_interval > 0.0:
 			_fire[i] -= delta
 			if _fire[i] <= 0.0:

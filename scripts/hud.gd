@@ -14,7 +14,7 @@ const CARD_COLORS := {
 	"bolt_damage": "offense", "bolt_rate": "offense", "bolt_count": "offense", "bolt_pierce": "offense",
 	"aura": "aura", "max_hp": "defense", "regen": "defense", "heal": "defense",
 	"move_speed": "utility", "magnet": "utility",
-	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9),
+	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35),
 	"legion": Color(0.45, 0.8, 1.0), "harvest": Color(0.45, 0.8, 1.0),
 	"ignite": Color(1.0, 0.5, 0.15), "frostbite": Color(0.55, 0.85, 1.0),
 }
@@ -47,6 +47,7 @@ var _marker_canvas: Control
 var _marker_items: Array = []
 var _blessing_label: Label
 var _prompt_label: Label
+var _bet_label: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
 var _end_title: Label
@@ -126,6 +127,11 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 		_blessing_label.text = "✦ Blessing of %s   %d s" % [blessing_name, ceili(seconds)]
 		_blessing_label.add_theme_color_override("font_color", color)
 		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
+
+
+## The Ferryman's side bet countdown ("" hides it).
+func set_bet(text: String) -> void:
+	_bet_label.text = text
 
 
 ## The interact prompt at the bottom ("" hides it).
@@ -451,6 +457,18 @@ func _build() -> void:
 	_blessing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
+
+	# Under the blessing: the Ferryman's side bet.
+	_bet_label = UiStyle.label(18)
+	_bet_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_bet_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_bet_label.offset_top = 138
+	_bet_label.offset_left = -260
+	_bet_label.offset_right = 260
+	_bet_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_bet_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	_bet_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_bet_label)
 
 	# Bottom center: what the nearby landmark does (see Landmarks).
 	_prompt_label = UiStyle.label(20)

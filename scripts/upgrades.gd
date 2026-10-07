@@ -64,6 +64,17 @@ const DEFS := {
 			{"stat": "orbit_radius", "op": _MORE, "value": 0.06},
 		],
 	},
+	"obol": {
+		"name": "Ferryman's Obol", "desc": "Flick a heavy coin that ricochets between 4 enemies; heads hits twice as hard",
+		"desc_next": "+1 ricochet, +25% damage, +5% luck", "max": 5,
+		"first_mods": [{"stat": "obol_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "obol_level", "op": _ADD, "value": 1.0},
+			{"stat": "obol_bounces", "op": _ADD, "value": 1.0},
+			{"stat": "obol_damage", "op": _MORE, "value": 0.25},
+			{"stat": "obol_luck", "op": _ADD, "value": 0.05},
+		],
+	},
 	"nova": {
 		"name": "Arcane Nova", "desc": "A blast every 4 s damages and throws back nearby enemies",
 		"desc_next": "+30% damage, +12% radius, 12% more often", "max": 5,

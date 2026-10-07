@@ -68,6 +68,7 @@ var _dash_dir := Vector2.ZERO
 var _lightning: ChainLightning
 var _blades: SpiritBlades
 var _nova: ArcaneNova
+var _obol: Obol
 var _volleys := 0
 ## The hero's own statuses (from witch bolts, fireballs and hazards).
 var chilled := 0.0
@@ -150,7 +151,8 @@ func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
 	_lightning = ChainLightning.new()
 	_blades = SpiritBlades.new()
 	_nova = ArcaneNova.new()
-	for ability in [_lightning, _blades, _nova]:
+	_obol = Obol.new()
+	for ability in [_lightning, _blades, _nova, _obol]:
 		add_child(ability)
 		ability.setup(self, swarms)
 
@@ -285,6 +287,7 @@ func update_weapons(delta: float) -> void:
 		_lightning.update(delta)
 		_blades.update(delta)
 		_nova.update(delta)
+		_obol.update(delta)
 
 
 ## Damage before armor; armor is applied here.

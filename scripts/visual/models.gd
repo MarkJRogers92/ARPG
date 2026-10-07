@@ -66,6 +66,8 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_lancer(kit, skin)
 		"gravedigger":
 			_gravedigger(kit, skin)
+		"collector":
+			_collector(kit, skin)
 		"goblin":
 			_goblin(kit, skin)
 		_:
@@ -222,6 +224,30 @@ static func _gravedigger(k: MeshKit, skin: Color) -> void:
 	k.capsule(0.04, 0.3, MeshKit.at(Vector3(-0.2, 0.6, -0.12), Vector3(50, 0, 20)), coat, 0.0, 5)
 	k.box(Vector3(0.11, 0.15, 0.11), MeshKit.at(Vector3(-0.26, 0.42, -0.26)), Color(0.2, 0.2, 0.22))
 	k.sphere(0.06, MeshKit.at(Vector3(-0.26, 0.42, -0.26)), soul, 2.4, 6, 3)
+
+
+## The Debt Collector: a gaunt figure in a long coat and tall hat, a ledger
+## in one hand and a glowing chain in the other.
+static func _collector(k: MeshKit, skin: Color) -> void:
+	var coat := skin
+	var dark := skin.darkened(0.55)
+	var pale := Color(0.8, 0.78, 0.72)
+	var gold := Color(1.0, 0.8, 0.35)
+	k.cylinder(0.12, 0.3, 0.72, MeshKit.at(Vector3(0, 0.36, 0)), coat, 0.0, 8)
+	k.cylinder(0.15, 0.12, 0.3, MeshKit.at(Vector3(0, 0.84, 0)), coat, 0.0, 8)
+	k.box(Vector3(0.36, 0.05, 0.16), MeshKit.at(Vector3(0, 0.98, 0)), dark)
+	k.sphere(0.1, MeshKit.at(Vector3(0, 1.08, -0.02), Vector3.ZERO, Vector3(0.85, 1.1, 0.9)), pale, 0.0, 7, 4)
+	k.cylinder(0.17, 0.17, 0.02, MeshKit.at(Vector3(0, 1.17, 0)), dark, 0.0, 10)
+	k.cylinder(0.1, 0.1, 0.24, MeshKit.at(Vector3(0, 1.3, 0)), dark, 0.0, 8)
+	k.cylinder(0.105, 0.105, 0.04, MeshKit.at(Vector3(0, 1.21, 0)), gold, 0.6, 8)
+	k.sphere(0.02, MeshKit.at(Vector3(-0.035, 1.1, -0.09)), gold, 2.5, 4, 2)
+	k.sphere(0.02, MeshKit.at(Vector3(0.035, 1.1, -0.09)), gold, 2.5, 4, 2)
+	# The ledger, held open, and the chain hanging from the other hand.
+	k.capsule(0.035, 0.38, MeshKit.at(Vector3(-0.2, 0.78, -0.12), Vector3(55, 0, 15)), coat, 0.0, 5)
+	k.box(Vector3(0.22, 0.03, 0.16), MeshKit.at(Vector3(-0.24, 0.66, -0.3), Vector3(20, 0, 0)), Color(0.9, 0.86, 0.72))
+	k.capsule(0.035, 0.38, MeshKit.at(Vector3(0.2, 0.7, -0.05), Vector3(15, 0, -12)), coat, 0.0, 5)
+	for i in 6:
+		k.sphere(0.035, MeshKit.at(Vector3(0.24 + 0.02 * sin(i), 0.5 - i * 0.07, -0.08)), gold, 1.4, 5, 2)
 
 
 ## The Ogre Warlord: a brute in a crown and iron plate with a great hammer.
@@ -584,6 +610,39 @@ static func chest() -> ArrayMesh:
 
 
 ## A floating red heart crystal: heals when picked up.
+## The Ferryman: a tall hooded figure on a little raft, leaning on a pole
+## hung with a soul lantern. About 2.6 m tall; faces -Z.
+static func ferryman() -> ArrayMesh:
+	return _cached("ferryman", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var robe := Color(0.1, 0.1, 0.13)
+		var trim := Color(0.75, 0.62, 0.32)
+		var wood := Color(0.3, 0.21, 0.14)
+		var soul := Color(0.55, 0.9, 1.0)
+		var gold := Color(1.0, 0.82, 0.35)
+		# The raft, with a dark water shimmer under it.
+		k.cylinder(1.25, 1.25, 0.04, MeshKit.at(Vector3(0, 0.02, 0)), Color(0.08, 0.14, 0.2), 0.5, 16)
+		for i in 5:
+			k.box(Vector3(0.32, 0.12, 1.9), MeshKit.at(Vector3(-0.68 + i * 0.34, 0.1, 0)), wood.lightened(0.06 * (i % 2)))
+		# A long robe and a deep hood.
+		k.cylinder(0.24, 0.5, 1.5, MeshKit.at(Vector3(0, 0.91, 0.05)), robe, 0.0, 10)
+		k.cylinder(0.5, 0.52, 0.06, MeshKit.at(Vector3(0, 0.2, 0.05)), trim, 0.4, 10)
+		k.sphere(0.3, MeshKit.at(Vector3(0, 1.72, 0.02), Vector3.ZERO, Vector3(1.0, 1.15, 1.0)), robe, 0.0, 10, 6)
+		k.cylinder(0.0, 0.22, 0.4, MeshKit.at(Vector3(0, 2.06, 0.08), Vector3(25, 0, 0)), robe, 0.0, 8)
+		k.sphere(0.2, MeshKit.at(Vector3(0, 1.7, -0.14), Vector3.ZERO, Vector3(1.0, 1.1, 0.5)), Color(0.02, 0.02, 0.03), 0.0, 8, 4)
+		k.sphere(0.035, MeshKit.at(Vector3(-0.07, 1.72, -0.25)), soul, 2.5, 5, 2)
+		k.sphere(0.035, MeshKit.at(Vector3(0.07, 1.72, -0.25)), soul, 2.5, 5, 2)
+		# A coin on a cord around the neck.
+		k.cylinder(0.08, 0.08, 0.02, MeshKit.at(Vector3(0, 1.35, -0.26), Vector3(90, 0, 0)), gold, 1.0, 10)
+		# The pole, the lantern on its hook, and a bony hand on the shaft.
+		k.cylinder(0.035, 0.035, 2.9, MeshKit.at(Vector3(0.48, 1.45, -0.15)), wood, 0.0, 6)
+		k.box(Vector3(0.4, 0.04, 0.04), MeshKit.at(Vector3(0.48, 2.85, -0.33), Vector3(0, 90, 0)), wood)
+		k.box(Vector3(0.18, 0.24, 0.18), MeshKit.at(Vector3(0.48, 2.6, -0.52)), Color(0.18, 0.18, 0.2))
+		k.sphere(0.09, MeshKit.at(Vector3(0.48, 2.6, -0.52)), soul, 3.0, 6, 3)
+		k.sphere(0.07, MeshKit.at(Vector3(0.4, 1.4, -0.15)), Color(0.85, 0.82, 0.72), 0.0, 6, 3)
+		return k.commit(kit_material()))
+
+
 static func health_orb() -> ArrayMesh:
 	return _cached("health_orb", func() -> ArrayMesh:
 		var k := MeshKit.new()

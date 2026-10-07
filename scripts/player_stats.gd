@@ -50,6 +50,11 @@ static var BASE := {
 	"nova_damage": 24.0,
 	"nova_radius": 5.5,
 	"nova_rate": 0.25, # novas per second
+	"obol_level": 0.0, # 0 = locked
+	"obol_damage": 20.0,
+	"obol_bounces": 3.0, # ricochets after the first hit
+	"obol_rate": 0.5, # coins per second
+	"obol_luck": 0.2, # chance a hit lands heads: double damage, +1 bounce
 	"dash_cooldown": 3.0, # seconds
 	"minion_max": 2.0, # Soul Army size
 	"minion_damage": 12.0, # per second, per minion (scaled by the enemy type)
@@ -95,6 +100,11 @@ var nova_level := 0
 var nova_damage := 24.0
 var nova_radius := 5.5
 var nova_cooldown := 4.0
+var obol_level := 0
+var obol_damage := 20.0
+var obol_bounces := 3
+var obol_cooldown := 2.0
+var obol_luck := 0.2
 var dash_cooldown := 3.0
 var minion_max := 2
 var minion_damage := 12.0
@@ -200,6 +210,11 @@ func recalculate() -> void:
 	nova_damage = values["nova_damage"] * damage_mult
 	nova_radius = values["nova_radius"]
 	nova_cooldown = 1.0 / maxf(0.05, values["nova_rate"])
+	obol_level = maxi(0, roundi(values["obol_level"]))
+	obol_damage = values["obol_damage"] * damage_mult
+	obol_bounces = maxi(0, roundi(values["obol_bounces"]))
+	obol_cooldown = 1.0 / maxf(0.05, values["obol_rate"])
+	obol_luck = clampf(values["obol_luck"], 0.0, 0.9)
 	dash_cooldown = maxf(0.3, values["dash_cooldown"])
 	minion_max = maxi(0, roundi(values["minion_max"]))
 	minion_damage = values["minion_damage"] * damage_mult

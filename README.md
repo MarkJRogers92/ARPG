@@ -137,6 +137,33 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
+## The Ferryman's bargains
+
+A spectral boatman who trades in souls and risk (`scripts/ferryman.gd`,
+`scripts/wager_panel.gd`). He appears twice a night (around 2:30 and 7:00)
+near the hero; an arrow points the way. Walk up, press E, and his table
+opens (the game pauses):
+
+- **The prize:** a Rare item for a random slot. **Take it**, or **wager it**:
+  70% it becomes a Legendary, 30% it's lost to the river. Win, and you may
+  wager again: 45% for a second Legendary, 55% to lose both. You can take
+  your winnings at any point.
+- **Pledge a minion:** +10% on the first coin. It leaves the army and comes
+  back after 60 s, win or lose.
+- **Borrow power:** +50% damage for 90 s. 45 s later a **Debt Collector**
+  comes for you: a tough, fast elite that seizes a minion every time it
+  touches you. Kill it and they all come back, plus its guaranteed loot.
+
+Mid-bosses come with his **side bet**: slay the boss within 45 s (a countdown
+under the timer) for a Legendary and 10 Soul Shards.
+
+Every outcome uses the Ferryman's own random stream, is rolled the moment you
+choose (the spinning coin is just for show), and pays out once.
+
+**The Ferryman's Obol** (a level-up card) flicks a heavy coin at the nearest
+enemy. It ricochets between enemies, 4 hits at first. Each hit has a 20% chance
+to land heads: a gold flash, double damage and one more bounce.
+
 ## Landmarks you can use
 
 Some set pieces do something (`scripts/landmarks.gd`). Usable ones near the

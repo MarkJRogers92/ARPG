@@ -11,44 +11,45 @@ var _checks := 0
 
 func _initialize() -> void:
 	seed(12345) # tests that touch randomness are deterministic
-	_test_stat_math()
-	_test_remove_source()
-	_test_upgrades()
-	_test_generation()
-	_test_rarity_distribution()
-	_test_serialization()
-	_test_inventory()
-	_test_loot()
-	_test_director()
-	_test_skill_data()
-	_test_skill_tree()
-	_test_skill_points()
-	_test_new_weapons()
-	_test_meta_progress()
-	_test_elite_rate()
-	_test_legendaries()
-	_test_realms()
-	_test_realm_progress()
-	_test_classes_and_settings()
-	_test_sounds()
-	_test_asset_props()
-	_test_asset_placement()
+	_run(&"_test_stat_math", _test_stat_math())
+	_run(&"_test_remove_source", _test_remove_source())
+	_run(&"_test_upgrades", _test_upgrades())
+	_run(&"_test_generation", _test_generation())
+	_run(&"_test_rarity_distribution", _test_rarity_distribution())
+	_run(&"_test_serialization", _test_serialization())
+	_run(&"_test_inventory", _test_inventory())
+	_run(&"_test_loot", _test_loot())
+	_run(&"_test_director", _test_director())
+	_run(&"_test_skill_data", _test_skill_data())
+	_run(&"_test_skill_tree", _test_skill_tree())
+	_run(&"_test_skill_points", _test_skill_points())
+	_run(&"_test_new_weapons", _test_new_weapons())
+	_run(&"_test_meta_progress", _test_meta_progress())
+	_run(&"_test_elite_rate", _test_elite_rate())
+	_run(&"_test_legendaries", _test_legendaries())
+	_run(&"_test_realms", _test_realms())
+	_run(&"_test_realm_progress", _test_realm_progress())
+	_run(&"_test_classes_and_settings", _test_classes_and_settings())
+	_run(&"_test_sounds", _test_sounds())
+	_run(&"_test_asset_props", _test_asset_props())
+	_run(&"_test_asset_placement", _test_asset_placement())
 	# These need nodes in the running tree, which only exists after this returns.
 	_finish.call_deferred()
 
 
 func _finish() -> void:
-	_test_elites_and_knockback()
-	_test_enemy_shots()
-	_test_elements()
-	_test_army()
-	_test_heroes()
-	_test_events()
-	_test_obstacles()
-	_test_fixes()
-	_test_landmarks()
-	_test_minion_roles()
-	_test_specialists()
+	_run(&"_test_elites_and_knockback", _test_elites_and_knockback())
+	_run(&"_test_enemy_shots", _test_enemy_shots())
+	_run(&"_test_elements", _test_elements())
+	_run(&"_test_army", _test_army())
+	_run(&"_test_heroes", _test_heroes())
+	_run(&"_test_events", _test_events())
+	_run(&"_test_obstacles", _test_obstacles())
+	_run(&"_test_fixes", _test_fixes())
+	_run(&"_test_landmarks", _test_landmarks())
+	_run(&"_test_minion_roles", _test_minion_roles())
+	_run(&"_test_specialists", _test_specialists())
+	_run(&"_test_ferryman", _test_ferryman())
 
 	print("")
 	if _failures == 0:
@@ -56,6 +57,15 @@ func _finish() -> void:
 	else:
 		print("%d OF %d CHECKS FAILED" % [_failures, _checks])
 	quit(0 if _failures == 0 else 1)
+
+
+## A test that hits a script error stops early and returns null instead of
+## true: count that as a failure, so a crash can't pass silently.
+func _run(test_name: StringName, finished) -> void:
+	_checks += 1
+	if finished != true:
+		_failures += 1
+		print("  FAIL: %s stopped early (script error above)" % test_name)
 
 
 func _check(condition: bool, message: String) -> void:
@@ -71,7 +81,7 @@ func _near(a: float, b: float, message: String, eps := 0.0001) -> void:
 
 # --- stats -------------------------------------------------------------------
 
-func _test_stat_math() -> void:
+func _test_stat_math() -> bool:
 	print("stat math")
 	var s := PlayerStats.new()
 	_near(s.bolt_damage, 10.0, "base bolt damage")
@@ -108,9 +118,11 @@ func _test_stat_math() -> void:
 	r.add_mod("t", "bolt_rate", PlayerStats.Op.INCREASED, 1.0)
 	r.recalculate()
 	_near(r.bolt_cooldown, 0.25, "doubling rate halves the cooldown")
+	return true
 
 
-func _test_remove_source() -> void:
+
+func _test_remove_source() -> bool:
 	print("removing a modifier source")
 	var s := PlayerStats.new()
 	var before := s.values.duplicate()
@@ -137,9 +149,11 @@ func _test_remove_source() -> void:
 	h.remove_source("x")
 	h.recalculate()
 	_near(h.hp, 100.0, "HP is clamped when max HP drops")
+	return true
 
 
-func _test_upgrades() -> void:
+
+func _test_upgrades() -> bool:
 	print("upgrades")
 	var s := PlayerStats.new()
 	Upgrades.apply("bolt_damage", s)
@@ -180,8 +194,10 @@ func _test_upgrades() -> void:
 
 
 # --- items -------------------------------------------------------------------
+	return true
 
-func _test_generation() -> void:
+
+func _test_generation() -> bool:
 	print("item generation")
 	var checked := 0
 	for slot in ItemData.SLOTS:
@@ -218,6 +234,8 @@ func _test_generation() -> void:
 		avg[rarity] = total / 300.0
 	_check(avg[0] < avg[1] and avg[1] < avg[2] and avg[2] < avg[3],
 			"average score rises with rarity %s" % [avg])
+	return true
+
 
 
 func _validate_item(item: Item, slot: String, rarity: int, ilvl: int) -> void:
@@ -258,7 +276,7 @@ func _validate_item(item: Item, slot: String, rarity: int, ilvl: int) -> void:
 		_check(line != "", "%s: modifier has text" % tag)
 
 
-func _test_rarity_distribution() -> void:
+func _test_rarity_distribution() -> bool:
 	print("rarity distribution")
 	var n := 40000
 	var counts := [0, 0, 0, 0]
@@ -276,9 +294,11 @@ func _test_rarity_distribution() -> void:
 	var base_rare := float(counts[2] + counts[3]) / n
 	_check(float(boosted_rare) / n > base_rare * 1.7,
 			"magic find 100%% roughly doubles Rare+ (%.3f -> %.3f)" % [base_rare, float(boosted_rare) / n])
+	return true
 
 
-func _test_serialization() -> void:
+
+func _test_serialization() -> bool:
 	print("serialization")
 	for n in 60:
 		var item := ItemGenerator.generate(15, 0.5)
@@ -288,9 +308,11 @@ func _test_serialization() -> void:
 				and copy.ilvl == item.ilvl and copy.base_name == item.base_name, "basic fields survive a round trip")
 		_check(_same_mods(copy.modifiers(), item.modifiers()), "modifiers survive a round trip")
 		_check(copy.uid != item.uid, "a copy is a new item")
+	return true
 
 
-func _test_inventory() -> void:
+
+func _test_inventory() -> bool:
 	print("inventory and stats")
 	var s := PlayerStats.new()
 	var base := s.values.duplicate()
@@ -340,6 +362,8 @@ func _test_inventory() -> void:
 	_check(uinv.is_upgrade(strong), "stronger ring is flagged as an upgrade")
 	_check(uinv.equip_upgrades() == 1 and uinv.equipped["ring"] == strong, "equip_upgrades swaps in the better ring")
 	_check(uinv.equip_upgrades() == 0, "and then there is nothing left to upgrade")
+	return true
+
 
 
 func _make_item(slot: String, mods: Array) -> Item:
@@ -363,7 +387,7 @@ func _same_mods(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
 	return true
 
 
-func _test_loot() -> void:
+func _test_loot() -> bool:
 	print("loot drops")
 	var stats := PlayerStats.new()
 	var inv := Inventory.new(stats)
@@ -445,9 +469,11 @@ func _test_loot() -> void:
 	small.free()
 	rolls.free()
 	budget.free()
+	return true
 
 
-func _test_director() -> void:
+
+func _test_director() -> bool:
 	print("wave director")
 	var grunt := EnemySwarm.new()
 	var brute := EnemySwarm.new()
@@ -483,8 +509,10 @@ func _test_director() -> void:
 
 
 # --- skill tree --------------------------------------------------------------
+	return true
 
-func _test_skill_data() -> void:
+
+func _test_skill_data() -> bool:
 	print("skill tree data")
 	var names := {}
 	var positions := {}
@@ -525,9 +553,11 @@ func _test_skill_data() -> void:
 				seen[n] = true
 				frontier.append(n)
 	_check(seen.size() == SkillData.NODES.size(), "all %d nodes connect to the origin (%d reachable)" % [SkillData.NODES.size(), seen.size()])
+	return true
 
 
-func _test_skill_tree() -> void:
+
+func _test_skill_tree() -> bool:
 	print("skill tree rules")
 	var base := PlayerStats.new().values.duplicate()
 	var stats := PlayerStats.new()
@@ -617,9 +647,11 @@ func _test_skill_tree() -> void:
 	_check(t2.points == t1.points and t2.allocated.size() == t1.allocated.size(), "restore brings back points and nodes")
 	for stat: String in base:
 		_near(s2.values[stat], s1.values[stat], "restored tree gives the same '%s'" % stat)
+	return true
 
 
-func _test_skill_points() -> void:
+
+func _test_skill_points() -> bool:
 	print("earning skill points")
 	var p := Player.new()
 	p.stats.xp_to_next = p.xp_for_level(p.stats.level)
@@ -641,8 +673,10 @@ func _test_skill_points() -> void:
 
 
 # --- abilities, enemies, meta progression ----------------------------------------
+	return true
 
-func _test_new_weapons() -> void:
+
+func _test_new_weapons() -> bool:
 	print("new weapons")
 	var s := PlayerStats.new()
 	_check(s.lightning_level == 0 and s.orbit_level == 0 and s.nova_level == 0, "new weapons start locked")
@@ -664,9 +698,11 @@ func _test_new_weapons() -> void:
 	_near(s.nova_damage, 48.0, "global damage multiplies the new weapons too")
 	for id in ["lightning", "orbit", "nova"]:
 		_check(Upgrades.DEFS.has(id) and Hud.CARD_COLORS.has(id), "%s has a level-up card with a color" % id)
+	return true
 
 
-func _test_meta_progress() -> void:
+
+func _test_meta_progress() -> bool:
 	print("meta progression")
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
@@ -697,9 +733,11 @@ func _test_meta_progress() -> void:
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
+	return true
 
 
-func _test_elites_and_knockback() -> void:
+
+func _test_elites_and_knockback() -> bool:
 	print("elites and knockback")
 	var swarm := EnemySwarm.new()
 	swarm.capacity = 16
@@ -722,9 +760,11 @@ func _test_elites_and_knockback() -> void:
 	swarm.knockback(Vector2.ZERO, 10.0, 5.0)
 	_check(swarm.pos[1] == before, "knockback_taken = 0 means immovable (bosses)")
 	swarm.free()
+	return true
 
 
-func _test_enemy_shots() -> void:
+
+func _test_enemy_shots() -> bool:
 	print("enemy shots and dash")
 	var player: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(player)
@@ -743,9 +783,11 @@ func _test_enemy_shots() -> void:
 	_check(shots.count == 1, "a dodged shot keeps flying")
 	shots.free()
 	player.free()
+	return true
 
 
-func _test_elite_rate() -> void:
+
+func _test_elite_rate() -> bool:
 	print("elite rate")
 	var d := WaveDirector.new()
 	_near(d.elite_rate(), 0.0, "no elites at the start")
@@ -754,9 +796,11 @@ func _test_elite_rate() -> void:
 	d.elapsed = 100000.0
 	_near(d.elite_rate(), d.elites_per_minute_max, "and caps")
 	d.free()
+	return true
 
 
-func _test_legendaries() -> void:
+
+func _test_legendaries() -> bool:
 	print("legendary powers")
 	for slot in ItemData.SLOTS:
 		_check(not ItemData.powers_for(slot).is_empty(), "%s has legendary powers" % slot)
@@ -784,9 +828,11 @@ func _test_legendaries() -> void:
 	_check(s.powers.has("storm_eye"), "worn powers are listed in stats.powers")
 	inv.unequip("helm")
 	_check(s.lightning_level == 0 and not s.powers.has("storm_eye"), "unequipping removes the power and its mods")
+	return true
 
 
-func _test_elements() -> void:
+
+func _test_elements() -> bool:
 	print("elements and reactions")
 	var swarm := EnemySwarm.new()
 	swarm.capacity = 16
@@ -830,9 +876,11 @@ func _test_elements() -> void:
 	Elements.flush()
 	Elements.reset()
 	swarm.free()
+	return true
 
 
-func _test_army() -> void:
+
+func _test_army() -> bool:
 	print("soul army")
 	var player: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(player)
@@ -880,9 +928,11 @@ func _test_army() -> void:
 	_check(gems.collected == PackedInt32Array([7]), "gem swarms report what was collected")
 	for n: Node in [gems, army, grunts, brutes, player]:
 		n.free()
+	return true
 
 
-func _test_realms() -> void:
+
+func _test_realms() -> bool:
 	print("realms")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var models: Array = []
@@ -903,9 +953,11 @@ func _test_realms() -> void:
 		_check(d["stages"].size() >= 2 and d["stages"][0]["t"] == 0.0, "%s: lighting starts at t=0" % id)
 		_check(d["hazard"] in ["", "graves", "ice", "meteors"], "%s: known hazard" % id)
 	scene.free()
+	return true
 
 
-func _test_realm_progress() -> void:
+
+func _test_realm_progress() -> bool:
 	print("realm progress")
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
@@ -926,9 +978,11 @@ func _test_realm_progress() -> void:
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
+	return true
 
 
-func _test_classes_and_settings() -> void:
+
+func _test_classes_and_settings() -> bool:
 	print("hero classes and settings")
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
@@ -958,9 +1012,11 @@ func _test_classes_and_settings() -> void:
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
+	return true
 
 
-func _test_sounds() -> void:
+
+func _test_sounds() -> bool:
 	print("sounds")
 	for sound: String in Sound.RULES:
 		_check(ResourceLoader.exists("res://audio/sfx/%s.wav" % sound), "sound %s has a file" % sound)
@@ -969,9 +1025,11 @@ func _test_sounds() -> void:
 		for layer in ["calm", "drums"]:
 			_check(ResourceLoader.exists("res://audio/music/%s_%s.ogg" % [id, layer]), "%s has %s music" % [id, layer])
 	_check(ResourceLoader.exists("res://audio/music/boss.ogg"), "there's boss music")
+	return true
 
 
-func _test_heroes() -> void:
+
+func _test_heroes() -> bool:
 	print("hero class effects")
 	var player: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(player)
@@ -986,9 +1044,11 @@ func _test_heroes() -> void:
 	HeroClass.apply(player, "stormcaller")
 	_check(player.stats.lightning_level >= 1, "the Stormcaller starts with Chain Lightning")
 	player.free()
+	return true
 
 
-func _test_events() -> void:
+
+func _test_events() -> bool:
 	print("night events")
 	var player: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(player)
@@ -1060,6 +1120,8 @@ func _test_events() -> void:
 	_near(player.stats.hp, player.stats.max_hp * 0.75, "a health orb heals a quarter of max HP")
 	for n: Node in [events, goblins, grunts, gems, loot, director, player]:
 		n.free()
+	return true
+
 
 
 ## Godot XYZ size and emissive surface count, from the art pack's ASSET_CATALOG.json.
@@ -1120,7 +1182,7 @@ const _ASSET_CATALOG := {
 }
 
 
-func _test_asset_props() -> void:
+func _test_asset_props() -> bool:
 	print("imported scenery")
 	var listed := Models.PROPS.filter(func(k: String) -> bool: return AssetProps.has(k))
 	_check(listed == AssetProps.KINDS.keys(), "Models.PROPS lists every imported kind, in order")
@@ -1183,6 +1245,8 @@ func _test_asset_props() -> void:
 			if AssetProps.has(kind) and AssetProps.data(kind)["landmark"]:
 				landmark_share += Realm.data(realm)["props"][kind]
 		_check(landmark_share > 0.2 and landmark_share <= 0.5, "%s: set pieces in about a third of the chunks (%.2f)" % [realm, landmark_share])
+	return true
+
 
 
 func _solid_at(kind: String, p: Vector2, radius: float) -> bool:
@@ -1192,7 +1256,7 @@ func _solid_at(kind: String, p: Vector2, radius: float) -> bool:
 	return false
 
 
-func _test_asset_placement() -> void:
+func _test_asset_placement() -> bool:
 	print("imported scenery placement")
 	for realm: String in Realm.ORDER:
 		var decor := WorldDecor.new()
@@ -1260,9 +1324,11 @@ func _test_asset_placement() -> void:
 		if not Realm.data("frozen")["props"].has(kind):
 			_check(after[0][kind].is_empty(), "after switching to frozen, no %s remains" % kind)
 	decor.free()
+	return true
 
 
-func _test_obstacles() -> void:
+
+func _test_obstacles() -> bool:
 	print("solid scenery")
 	Obstacles.set_circles([[Vector2(5, 0), 1.0], [Vector2(5, 2.4), 1.0]], Rect2(-20, -20, 40, 40))
 	_check(Obstacles.near(Vector2(4.5, 0)) and not Obstacles.near(Vector2(-15, -15)), "the flag grid marks the area near obstacles")
@@ -1287,9 +1353,11 @@ func _test_obstacles() -> void:
 	swarm.free()
 	Obstacles.clear()
 	_check(not Obstacles.near(Vector2(5, 0)) and Obstacles.resolve(Vector2(5, 0), 0.5) == Vector2(5, 0), "cleared, nothing blocks")
+	return true
 
 
-func _test_fixes() -> void:
+
+func _test_fixes() -> bool:
 	print("fixes")
 	# Swept bolts: a fast bolt crossing an enemy in one long step still hits it.
 	var near := EnemySwarm.new()
@@ -1372,9 +1440,11 @@ func _test_fixes() -> void:
 	main.free()
 	Obstacles.clear()
 	MetaProgress.disabled = was
+	return true
 
 
-func _test_landmarks() -> void:
+
+func _test_landmarks() -> bool:
 	print("landmarks")
 	var player: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(player)
@@ -1457,9 +1527,11 @@ func _test_landmarks() -> void:
 	for n: Node in [marks, events, army, grunts, goblins, gems, loot, director, player]:
 		n.free()
 	decor.free()
+	return true
 
 
-func _test_minion_roles() -> void:
+
+func _test_minion_roles() -> bool:
 	print("minion roles")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
@@ -1498,9 +1570,11 @@ func _test_minion_roles() -> void:
 	_check(army._pos[0].distance_to(foes.pos[0]) > 3.0, "from a distance (%.1f m)" % army._pos[0].distance_to(foes.pos[0]))
 	for n: Node in [army, witches, foes, player]:
 		n.free()
+	return true
 
 
-func _test_specialists() -> void:
+
+func _test_specialists() -> bool:
 	print("lancers and gravediggers")
 	var lancers := EnemySwarm.new()
 	lancers.capacity = 8
@@ -1558,3 +1632,127 @@ func _test_specialists() -> void:
 	souls.drop(Vector2(20, 0), 1)
 	_check(souls.take_near(Vector2.ZERO, 7.0) == 1 and souls.count == 1, "and eats the souls near it")
 	souls.free()
+	return true
+
+
+
+func _test_ferryman() -> bool:
+	print("the Ferryman")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var loot := LootManager.new()
+	root.add_child(loot)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 32
+	root.add_child(grunts)
+	var collectors := EnemySwarm.new()
+	collectors.capacity = 2
+	collectors.captor = true
+	collectors.spawn_share = 0.0
+	root.add_child(collectors)
+	var swarms: Array[EnemySwarm] = [grunts, collectors]
+	director.setup(swarms)
+	Elements.swarms = swarms
+	Elements.player = player
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	var panel := WagerPanel.new()
+	root.add_child(panel)
+	var ferry := Ferryman.new()
+	root.add_child(ferry)
+	ferry.setup(player, army, loot, director, collectors, panel)
+
+	# The Obol ricochets between enemies.
+	player.setup(swarms, null)
+	player.stats.add_mods("test", [{"stat": "obol_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	player.stats.recalculate()
+	for k in 4:
+		grunts.spawn(Vector2(3 + k * 2.0, 0))
+	grunts.max_hp = 10.0
+	for k in grunts.count:
+		grunts.hp[k] = 1000.0
+	grunts.step(0.0, Vector2(0, -30))
+	collectors.step(0.0, Vector2(0, -30))
+	for f in 120:
+		player._obol.update(1.0 / 60.0)
+	var hurt := 0
+	for k in grunts.count:
+		if grunts.hp[k] < 1000.0:
+			hurt += 1
+	_check(hurt >= 3, "an Obol coin ricochets through several enemies (%d hit)" % hurt)
+	for k in grunts.count:
+		grunts.damage(k, 1.0e9)
+	grunts.step(0.0, Vector2(0, -30))
+	collectors.step(0.0, Vector2(0, -30))
+	player.stats.remove_source("test")
+	player.stats.recalculate()
+
+	# A visit: take the prize.
+	_check(ferry._arrive() and not ferry._visit.is_empty(), "the Ferryman arrives")
+	var drops := loot.drops.size()
+	ferry._on_chosen("take")
+	_check(loot.drops.size() == drops + 1 and ferry._visit.is_empty(), "taking the Rare pays it out and he leaves")
+	ferry._on_chosen("take")
+	_check(loot.drops.size() == drops + 1, "and only once")
+
+	# Wager twice and win twice: two Legendaries.
+	ferry._arrive()
+	army._raise(0, false, false)
+	_near(ferry.first_odds(), 0.7, "the first wager is posted at 70%")
+	ferry._on_chosen("pledge")
+	_check(army.count == 0 and army.away.size() == 1, "pledging a minion sends it away")
+	_near(ferry.first_odds(), 0.8, "and tilts the coin to 80%")
+	ferry._reveal(true, false)
+	_check(ferry._visit["stage"] == "double" and (ferry._visit["prizes"][0] as Item).rarity == ItemData.Rarity.LEGENDARY, "a win turns the prize Legendary")
+	ferry._reveal(true, true)
+	drops = loot.drops.size()
+	ferry._on_chosen("take")
+	_check(loot.drops.size() == drops + 2, "winning twice pays two Legendaries")
+	army.step(61.0)
+	_check(army.count == 1 and army.away.is_empty(), "the pledged minion comes back after 60 s")
+
+	# Wager and lose: nothing.
+	ferry._arrive()
+	ferry._reveal(false, false)
+	drops = loot.drops.size()
+	ferry._on_chosen("take")
+	ferry._on_chosen("leave")
+	_check(loot.drops.size() == drops and ferry._visit.is_empty(), "a lost wager pays nothing")
+
+	# Borrowing: power now, a Collector later, minions seized until it dies.
+	ferry._arrive()
+	var dmg := player.stats.bolt_damage
+	ferry._on_chosen("borrow")
+	_check(player.stats.bolt_damage > dmg * 1.4, "the loan is +50% damage")
+	ferry._update_loan(Ferryman.LOAN_DELAY + 0.1)
+	_check(collectors.alive_count() == 1, "and the Debt Collector comes")
+	ferry.seize()
+	_check(army.count == 0 and army.away.size() == 1, "it seizes a minion")
+	army.step(120.0)
+	_check(army.count == 0, "which stays gone while it lives")
+	collectors.damage(0, 1.0e9)
+	army.step(0.1)
+	_check(army.count == 1, "and returns when it dies")
+	ferry._update_loan(Ferryman.LOAN_TIME)
+	_near(player.stats.bolt_damage, dmg, "the loan wears off")
+	ferry._close()
+	ferry._depart()
+
+	# Side bets on bosses.
+	ferry.start_bet("Ogre Warlord")
+	drops = loot.drops.size()
+	ferry._update_bet(10.0)
+	ferry.boss_slain(Vector2.ZERO)
+	_check(ferry.shards == 10 and loot.drops.size() == drops + 1, "a boss slain in time wins the bet")
+	ferry.start_bet("Ogre Warlord")
+	ferry._update_bet(Ferryman.BET_TIME + 1.0)
+	ferry.boss_slain(Vector2.ZERO)
+	_check(ferry.shards == 10, "a slow kill doesn't")
+	get_root().get_tree().paused = false
+	for n: Node in [ferry, panel, army, collectors, grunts, loot, director, player]:
+		n.free()
+	return true
+
