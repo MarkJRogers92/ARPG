@@ -35,11 +35,12 @@ var elapsed := 0.0
 ## Pressure: the night pushes back against a hero who's walking through it.
 ## While the horde is being wiped out faster than it can gather and the hero
 ## is barely scratched, pressure climbs (more enemy health, and somewhat more
-## enemies); when the hero is hurting it eases off. 1 = the plain curve.
+## enemies: the spawn rate rises with its square root, at most 1.6x); when
+## the hero is hurting it eases off. 1 = the plain curve.
 var pressure := 1.0
 ## How high pressure can go (Ascension raises it), and how fast it builds.
-@export var pressure_max := 2.5
-@export var pressure_rate := 0.02
+@export var pressure_max := 5.0
+@export var pressure_rate := 0.03
 ## No pressure before this game time.
 @export var pressure_start := 150.0
 
@@ -81,7 +82,7 @@ func tick(delta: float, center: Vector2) -> void:
 
 ## Enemies per second right now.
 func spawn_rate() -> float:
-	return (base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed) * rate_scale * sqrt(pressure)
+	return (base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed) * rate_scale * minf(sqrt(pressure), 1.6)
 
 
 ## Elites per minute right now.
@@ -111,8 +112,9 @@ func update_pressure(delta: float, hero_hp: float, alive: int) -> void:
 		return
 	if hero_hp < 0.45:
 		pressure -= pressure_rate * 3.0 * delta
-	elif hero_hp > 0.8 and alive < crowd_target() * 0.85:
-		pressure += pressure_rate * delta
+	elif hero_hp > 0.9:
+		# Barely scratched: build. Faster still if the horde is being wiped out.
+		pressure += pressure_rate * delta * (2.0 if alive < crowd_target() * 0.85 else 1.0)
 	pressure = clampf(pressure, 1.0, pressure_max)
 
 

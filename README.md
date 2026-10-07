@@ -201,11 +201,12 @@ which the pause menu's sliders control.
   | 10 | The final boss has double health |
 
 - **Pressure** (`WaveDirector.update_pressure`): from 2:30 on, the night
-  pushes back against a hero walking through it. While fewer enemies are
-  alive than the time of night calls for (85% of `crowd_target()`) and the
-  hero is above 80% health, pressure climbs (2% a second, up to ×2.5 plus
-  Ascension); below 45% health it falls three times as fast. Enemy health
-  is multiplied by pressure and the spawn rate by its square root.
+  pushes back against a hero walking through it. While the hero is above 90%
+  health, pressure climbs (3% a second, twice that if fewer enemies are alive
+  than the time of night calls for, 85% of `crowd_target()`), up to ×5 plus
+  Ascension; below 45% health it falls three times as fast. Enemy health is
+  multiplied by pressure and the spawn rate by its square root (at most
+  ×1.6).
 - **Bestiary** (title screen): kills of each enemy kind across every night.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.

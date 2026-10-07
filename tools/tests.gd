@@ -2309,7 +2309,13 @@ func _test_ascension() -> bool:
 	_check(director.pressure > 1.2 and director.hp_multiplier() > hp1 * 1.2, "a dominant hero raises the pressure (%.2f)" % director.pressure)
 	var p := director.pressure
 	director.update_pressure(5.0, 1.0, 10000)
-	_check(director.pressure == p, "a big crowd holds it steady")
+	var with_crowd := director.pressure - p
+	p = director.pressure
+	director.update_pressure(5.0, 1.0, 0)
+	_check(with_crowd > 0.0 and director.pressure - p > with_crowd * 1.9, "an unhurt hero builds it anyway, twice as fast with the field cleared")
+	p = director.pressure
+	director.update_pressure(5.0, 0.85, 0)
+	_check(director.pressure == p, "a scratched hero holds it steady")
 	director.update_pressure(5.0, 0.3, 0)
 	_check(director.pressure < p, "a hurting hero lowers it")
 	director.update_pressure(9999.0, 1.0, 0)
