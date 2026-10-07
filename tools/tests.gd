@@ -27,6 +27,8 @@ func _initialize() -> void:
 	_test_meta_progress()
 	_test_elite_rate()
 	_test_legendaries()
+	_test_realms()
+	_test_realm_progress()
 	# These need nodes in the running tree, which only exists after this returns.
 	_finish.call_deferred()
 
@@ -867,3 +869,49 @@ func _test_army() -> void:
 	_check(gems.collected == PackedInt32Array([7]), "gem swarms report what was collected")
 	for n: Node in [gems, army, grunts, brutes, player]:
 		n.free()
+
+
+func _test_realms() -> void:
+	print("realms")
+	var scene: Node = load("res://scenes/main.tscn").instantiate()
+	var models: Array = []
+	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant"]:
+		models.append(m)
+	_check(Realm.ORDER.size() == Realm.REALMS.size(), "every realm is in the play order")
+	for id: String in Realm.ORDER:
+		var d := Realm.data(id)
+		for key in ["name", "tagline", "rule", "difficulty", "rate", "ground", "props", "stages", "motes", "hazard", "enemies", "chill_scale", "soul_bonus"]:
+			_check(d.has(key), "%s has %s" % [id, key])
+		for swarm_name: String in d["enemies"]:
+			var e: Dictionary = d["enemies"][swarm_name]
+			_check(scene.has_node(swarm_name), "%s: the scene has a %s node" % [id, swarm_name])
+			_check(e["model"] in models, "%s: %s uses a real model (%s)" % [id, swarm_name, e["model"]])
+			_check(Models.enemy(e["model"], e["color"], 1.0).get_surface_count() == 1, "%s: the %s model builds" % [id, e["model"]])
+		for kind: String in d["props"]:
+			_check(kind in Models.PROPS, "%s: prop %s exists" % [id, kind])
+		_check(d["stages"].size() >= 2 and d["stages"][0]["t"] == 0.0, "%s: lighting starts at t=0" % id)
+		_check(d["hazard"] in ["", "graves", "ice", "meteors"], "%s: known hazard" % id)
+	scene.free()
+
+
+func _test_realm_progress() -> void:
+	print("realm progress")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_realms.save"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.load_save()
+	_check(MetaProgress.is_unlocked("graveyard"), "the first realm is open")
+	_check(not MetaProgress.is_unlocked("frozen") and not MetaProgress.is_unlocked("ember"), "later realms start locked")
+	MetaProgress.record_win("graveyard")
+	_check(MetaProgress.is_won("graveyard") and MetaProgress.is_unlocked("frozen"), "winning a realm opens the next")
+	_check(not MetaProgress.is_unlocked("ember"), "but not the one after")
+	MetaProgress.record_endless("graveyard", 95.0)
+	MetaProgress.record_endless("graveyard", 40.0)
+	_near(MetaProgress.endless_best("graveyard"), 95.0, "Endless keeps the best time")
+	MetaProgress.load_save()
+	_check(MetaProgress.is_won("graveyard") and MetaProgress.endless_best("graveyard") == 95.0, "realm progress survives a reload")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()

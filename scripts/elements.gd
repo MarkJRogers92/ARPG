@@ -38,6 +38,8 @@ const COLORS := {
 }
 
 static var player: Player
+## Multiplies how long chill lasts (the Frozen Wastes double it).
+static var chill_scale := 1.0
 static var swarms: Array[EnemySwarm] = []
 static var _queue: Array[Dictionary] = []
 static var _text_ready := {}
@@ -45,6 +47,7 @@ static var _text_ready := {}
 
 static func reset() -> void:
 	player = null
+	chill_scale = 1.0
 	swarms = []
 	_queue.clear()
 	_text_ready.clear()
@@ -94,7 +97,7 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 static func apply_status(swarm: EnemySwarm, i: int, element: int) -> void:
 	match element:
 		FROST:
-			swarm.chill[i] = CHILL_TIME
+			swarm.chill[i] = CHILL_TIME * chill_scale
 		LIGHTNING:
 			swarm.shock[i] = SHOCK_TIME
 		FIRE:

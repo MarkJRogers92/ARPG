@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -20,6 +20,8 @@
 [ext_resource type="Script" path="res://scripts/visual/light_flashes.gd" id="18_flashes"]
 [ext_resource type="Script" path="res://scripts/visual/atmosphere.gd" id="19_atmo"]
 [ext_resource type="Script" path="res://scripts/army.gd" id="20_army"]
+[ext_resource type="Script" path="res://scripts/hazard_director.gd" id="21_hazards"]
+[ext_resource type="Script" path="res://scripts/title_screen.gd" id="22_title"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -157,6 +159,24 @@ color = Color(0.62, 0.2, 0.16, 1)
 capacity = 4
 recycle_distance = 50.0
 
+[node name="FinalBoss" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 100000.0
+move_speed = 2.2
+contact_dps = 40.0
+radius = 1.8
+xp_value = 400
+knockback_taken = 0.0
+boss = true
+spawn_share = 0.0
+loot_chance = 0.0
+elite_scale = 1.0
+model = "lich"
+body_height = 6.0
+color = Color(0.35, 0.3, 0.5, 1)
+capacity = 2
+recycle_distance = 60.0
+
 [node name="Projectiles" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("5_proj")
 
@@ -193,6 +213,9 @@ script = ExtResource("18_flashes")
 [node name="BossDirector" type="Node3D" parent="."]
 script = ExtResource("16_boss")
 
+[node name="Hazards" type="Node3D" parent="."]
+script = ExtResource("21_hazards")
+
 [node name="Atmosphere" type="Node" parent="." node_paths=PackedStringArray("environment_node", "sun")]
 script = ExtResource("19_atmo")
 environment_node = NodePath("../WorldEnvironment")
@@ -212,3 +235,6 @@ script = ExtResource("11_inventory")
 
 [node name="SkillTreeScreen" type="CanvasLayer" parent="."]
 script = ExtResource("12_skills")
+
+[node name="TitleScreen" type="CanvasLayer" parent="."]
+script = ExtResource("22_title")

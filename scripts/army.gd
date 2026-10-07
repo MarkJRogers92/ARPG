@@ -71,7 +71,7 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_elite.resize(CAPACITY)
 	for s in swarms:
 		var t := {
-			"swarm": s, "name": String(s.name),
+			"swarm": s, "name": s.display_name if s.display_name != "" else String(s.name),
 			"hp": 10.0 if s.boss else clampf(s.max_hp / 10.0, 1.0, 4.0),
 			"damage": 5.0 if s.boss else clampf(s.contact_dps / 5.0, 0.6, 2.5),
 			"speed": maxf(s.move_speed * 1.3, 4.5),

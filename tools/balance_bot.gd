@@ -7,7 +7,8 @@ extends SceneTree
 ##   godot --headless --path . --fixed-fps 60 -s tools/balance_bot.gd -- <seed> <policy> <minutes> [overrides...]
 ##
 ##   policy     greedy | tank | random
-##   overrides  node.property=value, applied after the scene loads, e.g.
+##   overrides  realm=<id> plays that realm (see Realm.REALMS; default graveyard)
+##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
 ##              base.<stat>=value changes a starting stat (see PlayerStats.BASE),
 ##              e.g. base.bolt_count=2
@@ -68,7 +69,10 @@ func _initialize() -> void:
 	for o in _overrides:
 		if o.begins_with("base."):
 			_apply_base_override(o)
+		elif o.begins_with("realm="):
+			Realm.current = o.substr(6)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
+	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 
@@ -97,7 +101,7 @@ func _process(_delta: float) -> bool:
 		_next_report += 60.0
 		_report("T")
 
-	if _main._game_over or now >= _max_seconds:
+	if _main._game_over or _main.won or now >= _max_seconds:
 		_report("RESULT")
 		_done = true
 	return _done
@@ -112,7 +116,7 @@ func _setup() -> void:
 		_items_found += 1
 		_rarities[item.rarity] += 1)
 	for o in _overrides:
-		if not o.begins_with("base."):
+		if not o.begins_with("base.") and not o.begins_with("realm="):
 			_apply_override(o)
 
 
@@ -181,7 +185,27 @@ func _steer() -> void:
 		heading = (heading + heading.rotated(PI * 0.5 * _orbit) * 0.7).normalized()
 	else:
 		heading = _toward_nearest_gem(here)
+	# Step out of telegraphed hazards and boss slams, like a person would.
+	var danger := _danger_escape(here)
+	if danger != Vector2.ZERO:
+		heading = danger
 	_apply(heading)
+
+
+## A direction out of any marked circle the bot is standing in (or ZERO).
+func _danger_escape(here: Vector2) -> Vector2:
+	var marks: Array = []
+	for h: Dictionary in _main.get_node("Hazards")._pending:
+		marks.append([h["at"], h["radius"]])
+	var bosses: BossDirector = _main.get_node("BossDirector")
+	for s: Dictionary in bosses._slams:
+		marks.append([s["at"], bosses.slam_radius])
+	var escape := Vector2.ZERO
+	for m: Array in marks:
+		var d: Vector2 = here - m[0]
+		if d.length() < m[1] + 1.2:
+			escape += d.normalized() if d.length() > 0.01 else Vector2.from_angle(randf() * TAU)
+	return escape.normalized() if escape != Vector2.ZERO else Vector2.ZERO
 
 
 func _toward_nearest_gem(here: Vector2) -> Vector2:
@@ -263,8 +287,8 @@ func _report(tag: String) -> void:
 	var worn := 0.0
 	for slot in _player.inventory.equipped:
 		worn += _player.inventory.equipped[slot].score()
-	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d skills=%d army=%d died=%s" % [
+	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d skills=%d army=%d won=%s died=%s" % [
 			_seed, _policy, _main.elapsed, _main._enemy_count(), _peak_enemies, s.level, s.hp, s.max_hp,
 			_main.kills, _items_found, _rarities[0], _rarities[1], _rarities[2], _rarities[3],
-			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, _main.get_node("Army").count, str(_main._game_over)]
+			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, _main.get_node("Army").count, str(_main.won), str(_main._game_over)]
 	print("%s %s" % [tag, fields])

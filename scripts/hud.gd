@@ -6,6 +6,8 @@ extends CanvasLayer
 signal upgrade_chosen(id: String)
 signal restart_pressed
 signal reroll_requested
+signal realms_pressed
+signal endless_pressed
 
 ## Card colors by upgrade: a skill tree branch name, or a color of its own.
 const CARD_COLORS := {
@@ -42,7 +44,12 @@ var _boss_box: Control
 var _boss_label: Label
 var _boss_bar: ProgressBar
 var _shards_earned_label: Label
-var _altar: GridContainer
+var _altar: AltarPanel
+var _end_title: Label
+var _endless_button: Button
+var _restart_button: Button
+var _clock_text := ""
+var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
 
@@ -64,7 +71,8 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_level_label.text = str(stats.level)
 	_skill_label.visible = skill_points > 0
 	_skill_label.text = "%d skill point%s  [K]" % [skill_points, "" if skill_points == 1 else "s"]
-	_time_label.text = _format_time(elapsed)
+	_time_label.text = _clock_text if _clock_text != "" else _format_time(elapsed)
+	_time_label.add_theme_color_override("font_color", _clock_color)
 	_kills_label.text = "%d" % kills
 	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills   [T] aim   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
@@ -138,47 +146,37 @@ func show_upgrades(choices: Array[Dictionary], rerolls := 0) -> void:
 	_upgrade_root.show()
 
 
+## What the clock at the top says ("DAWN IN 12:34", "SLAY THE LICH KING"...).
+## Empty shows the run time.
+func set_clock(text: String, color := Color(0.95, 0.93, 0.88)) -> void:
+	_clock_text = text
+	_clock_color = color
+
+
 func show_game_over(elapsed: float, kills: int, level: int, shards := 0) -> void:
-	_game_over_label.text = "Survived %s     Level %d     Kills %d" % [_format_time(elapsed), level, kills]
+	_show_end("YOU DIED", Color(0.85, 0.12, 0.1), "Survived %s     Level %d     Kills %d" % [_format_time(elapsed), level, kills],
+			shards, false)
+
+
+## The night is won: the realm's final boss is dead.
+func show_victory(realm_name: String, elapsed: float, kills: int, level: int, shards: int) -> void:
+	_show_end("DAWN BREAKS", Color(1.0, 0.82, 0.4), "%s is conquered.\nLevel %d     Kills %d     %s" % [
+			realm_name, level, kills, _format_time(elapsed)], shards, true)
+
+
+func _show_end(title: String, color: Color, line: String, shards: int, victory: bool) -> void:
+	_end_title.text = title
+	_end_title.add_theme_color_override("font_color", color)
+	_game_over_label.text = line
 	_shards_earned_label.text = "+%d Soul Shards this run" % shards
-	_refresh_altar()
+	_endless_button.visible = victory
+	_restart_button.text = "Play again" if victory else "Rise again"
+	_altar.refresh()
 	_game_over_root.show()
 
 
-## The Altar of Souls on the death screen: permanent upgrades bought with
-## Soul Shards (see MetaProgress).
-func _refresh_altar() -> void:
-	for child in _altar.get_children():
-		child.queue_free()
-	var header := UiStyle.label(18)
-	header.text = "ALTAR OF SOULS   ·   %d shards" % MetaProgress.shards
-	header.add_theme_color_override("font_color", Color(0.75, 0.65, 1.0))
-	_altar.add_child(header)
-	_altar.add_child(Control.new())
-	for id: String in MetaProgress.UPGRADES:
-		var def: Dictionary = MetaProgress.UPGRADES[id]
-		var r := MetaProgress.rank(id)
-		var cost := MetaProgress.cost(id)
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(350, 44)
-		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var pips := "●".repeat(r) + "○".repeat(def["max"] - r)
-		button.text = "%s  %s   %s" % [def["name"], pips, def["desc"]]
-		button.add_theme_font_size_override("font_size", 15)
-		button.disabled = not MetaProgress.can_buy(id)
-		var price := UiStyle.label(14)
-		price.text = "max" if cost < 0 else "%d ◆" % cost
-		price.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-		price.offset_left = -64
-		price.offset_right = -10
-		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		price.add_theme_color_override("font_color", Color(0.75, 0.65, 1.0) if MetaProgress.can_buy(id) else UiStyle.MUTED)
-		button.add_child(price)
-		button.pressed.connect(func() -> void:
-			if MetaProgress.buy(id):
-				_refresh_altar.call_deferred())
-		_altar.add_child(button)
+func hide_end() -> void:
+	_game_over_root.hide()
 
 
 func _input(event: InputEvent) -> void:
@@ -416,12 +414,12 @@ func _build() -> void:
 	# Game over.
 	var over_box := VBoxContainer.new()
 	over_box.add_theme_constant_override("separation", 18)
-	var dead := UiStyle.label(56)
-	dead.text = "YOU DIED"
-	dead.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	dead.add_theme_color_override("font_color", Color(0.85, 0.12, 0.1))
-	dead.add_theme_constant_override("outline_size", 12)
-	over_box.add_child(dead)
+	_end_title = UiStyle.label(56)
+	_end_title.text = "YOU DIED"
+	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_end_title.add_theme_color_override("font_color", Color(0.85, 0.12, 0.1))
+	_end_title.add_theme_constant_override("outline_size", 12)
+	over_box.add_child(_end_title)
 	_game_over_label = UiStyle.label(22)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
@@ -429,22 +427,35 @@ func _build() -> void:
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
 	over_box.add_child(_shards_earned_label)
-	_altar = GridContainer.new()
-	_altar.columns = 2
-	_altar.add_theme_constant_override("h_separation", 10)
-	_altar.add_theme_constant_override("v_separation", 8)
+	_altar = AltarPanel.new()
 	over_box.add_child(_altar)
-	var restart := Button.new()
-	restart.text = "Rise again"
-	restart.custom_minimum_size = Vector2(220, 56)
-	restart.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	restart.add_theme_font_size_override("font_size", 22)
-	restart.pressed.connect(restart_pressed.emit)
-	over_box.add_child(restart)
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 14)
+	over_box.add_child(buttons)
+	_endless_button = _end_button("Endless  (keep going)", Color(1.0, 0.82, 0.4))
+	_endless_button.pressed.connect(endless_pressed.emit)
+	buttons.add_child(_endless_button)
+	_restart_button = _end_button("Rise again")
+	_restart_button.pressed.connect(restart_pressed.emit)
+	buttons.add_child(_restart_button)
+	var realms := _end_button("Choose realm")
+	realms.pressed.connect(realms_pressed.emit)
+	buttons.add_child(realms)
 	_game_over_root = _make_overlay(root, over_box, true)
 	_game_over_root.visibility_changed.connect(func() -> void:
 		if _game_over_root.visible:
-			restart.grab_focus())
+			(_endless_button if _endless_button.visible else _restart_button).grab_focus())
+
+
+func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(210, 54)
+	b.add_theme_font_size_override("font_size", 20)
+	if color.a > 0.0:
+		b.add_theme_color_override("font_color", color)
+	return b
 
 
 func _make_card(index: int, choice: Dictionary) -> Button:

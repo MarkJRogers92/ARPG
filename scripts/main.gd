@@ -6,6 +6,9 @@ extends Node3D
 ##
 ## Enemy deaths are only marked during the frame and removed at the start of
 ## the next swarm step, so hash indices stay valid for every query above.
+##
+## A run is one night in a realm (see Realm): survive until dawn, then kill
+## the realm's final boss to win. The scene opens on the title screen.
 
 const GROUND_SNAP := 4.0
 
@@ -19,6 +22,14 @@ var _game_over := false
 var _run_shards := 0
 var _rerolls := 0
 var _mote_timer := 0.0
+var _mote_style := "embers"
+## The night is won (the final boss is dead).
+var won := false
+var _endless := false
+var _endless_start := 0.0
+## Seconds left of the dawn sweep that turns the horde to ash after a win.
+var _dawn_sweep := 0.0
+var _in_title := false
 
 @onready var _player: Player = $Player
 @onready var _projectiles: ProjectileSwarm = $Projectiles
@@ -37,6 +48,14 @@ var _mote_timer := 0.0
 @onready var _atmosphere: Atmosphere = $Atmosphere
 @onready var _souls: GemSwarm = $Souls
 @onready var _army: Army = $Army
+@onready var _hazards: HazardDirector = $Hazards
+@onready var _final: EnemySwarm = $FinalBoss
+@onready var _title: TitleScreen = $TitleScreen
+
+
+func _enter_tree() -> void:
+	# Before the swarms' _ready(), so they build the realm's models.
+	Realm.apply_gameplay(self)
 
 
 func _ready() -> void:
@@ -48,6 +67,12 @@ func _ready() -> void:
 	MetaProgress.load_save()
 	MetaProgress.apply(_player.stats)
 	_rerolls = MetaProgress.rerolls()
+	var realm := Realm.data()
+	if realm["soul_bonus"] > 0.0:
+		_player.stats.add_mod("realm", "soul_chance", PlayerStats.Op.INCREASED, realm["soul_bonus"])
+		_player.stats.recalculate()
+	Realm.apply_look(self)
+	_mote_style = realm["motes"]
 
 	_swarms.assign(get_tree().get_nodes_in_group(EnemySwarm.GROUP))
 	_player.setup(_swarms, _projectiles)
@@ -56,14 +81,17 @@ func _ready() -> void:
 	Elements.swarms = _swarms
 	_army.setup(_player, _swarms)
 	_army.raised.connect(func(kind: String) -> void:
-		var who := _bosses.boss_name if kind == "Bosses" else kind.trim_suffix("s")
-		_hud.toast("A spectral %s rises to serve you" % who, Color(0.55, 0.85, 1.0)))
+		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
 	for swarm in _swarms:
 		swarm.shots = _shots
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
 		swarm.elite_died.connect(_on_elite_died.bind(swarm))
-		if swarm.boss:
+		if swarm.boss and swarm != _final:
 			_bosses.setup(swarm, _director, _player)
+	_bosses.setup_final(_final, _shots, $Grunts)
+	_hazards.setup(_director, _player, $Grunts)
+	_bosses.final_spawned.connect(func(boss_name: String) -> void:
+		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
 		_hud.toast("%s approaches!" % boss_name, Color(1.0, 0.4, 0.3)))
 	_projectiles.hit.connect(func(at: Vector2, crit: bool, damage: float) -> void:
@@ -94,7 +122,27 @@ func _ready() -> void:
 		_hud.toast("+%d skill point%s  [K]" % [n, "" if n == 1 else "s"], Color(1.0, 0.85, 0.3)))
 	_player.mouse_aim_toggled.connect(func(on: bool) -> void:
 		_hud.toast("Aim: mouse" if on else "Aim: automatic (nearest enemy)", Color(1.0, 0.85, 0.5)))
-	_hud.restart_pressed.connect(func() -> void: get_tree().reload_current_scene())
+	_hud.restart_pressed.connect(func() -> void:
+		get_tree().paused = false
+		get_tree().reload_current_scene())
+	_hud.realms_pressed.connect(func() -> void:
+		Realm.in_title = true
+		get_tree().paused = false
+		get_tree().reload_current_scene())
+	_hud.endless_pressed.connect(_start_endless)
+	_title.previewed.connect(func(id: String) -> void:
+		Realm.apply_look(self, id)
+		_mote_style = Realm.data(id)["motes"])
+	_title.chosen.connect(func(id: String) -> void:
+		Realm.current = id
+		Realm.in_title = false
+		get_tree().reload_current_scene())
+	_in_title = Realm.in_title
+	if _in_title:
+		_hud.hide()
+		_title.open()
+	else:
+		_title.close()
 
 
 func _exit_tree() -> void:
@@ -107,6 +155,13 @@ func _process(delta: float) -> void:
 		return
 	# A long hitch (window drag, breakpoint) shouldn't teleport the whole horde.
 	delta = minf(delta, 0.05)
+	if _in_title:
+		# Only the scenery lives behind the title screen.
+		_spawn_motes(delta, _player.pos2)
+		_motes.step(delta)
+		_decor.follow(_player.pos2)
+		_atmosphere.tick(delta, 0.0, false)
+		return
 	elapsed += delta
 
 	_player.tick(delta)
@@ -121,6 +176,10 @@ func _process(delta: float) -> void:
 	Elements.flush()
 	_army.flush()
 	_bosses.tick(delta)
+	if not won or _endless:
+		_hazards.tick(delta)
+	if _dawn_sweep > 0.0:
+		_sweep_horde(delta)
 
 	var contact_dps := 0.0
 	for swarm in _swarms:
@@ -138,12 +197,15 @@ func _process(delta: float) -> void:
 		_army.collect_soul(value)
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 
-	_director.tick(delta, origin)
+	if not won or _endless:
+		_director.tick(delta, origin)
+	else:
+		_director.elapsed += delta
 	_fx.step(delta)
 	_spawn_motes(delta, origin)
 	_motes.step(delta)
 	_decor.follow(origin)
-	_atmosphere.tick(delta, elapsed, _bosses.boss_alive())
+	_atmosphere.tick(delta, elapsed, _bosses.boss_alive() or _bosses.final_alive())
 
 	# The ground plane trails the player in whole grid cells; the grid itself
 	# is drawn in world space, so it looks static.
@@ -153,13 +215,33 @@ func _process(delta: float) -> void:
 
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
-			_bosses.boss_name, _bosses.boss_health())
+			_bosses.current_boss_name(), _bosses.boss_health())
+	_update_clock()
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## The objective at the top of the screen.
+func _update_clock() -> void:
+	if _endless:
+		_hud.set_clock("ENDLESS  +" + _clock(elapsed - _endless_start), UiStyle.GOLD)
+	elif won:
+		_hud.set_clock("DAWN", UiStyle.GOLD)
+	elif _bosses.final_alive():
+		_hud.set_clock("SLAY " + _bosses.final_name.to_upper(), Color(1.0, 0.4, 0.3))
+	else:
+		var left := _bosses.time_to_final()
+		_hud.set_clock("DAWN IN " + _clock(left), Color(1.0, 0.45, 0.35) if left < 60.0 else Color(0.95, 0.93, 0.88))
+
+
+@warning_ignore("integer_division")
+static func _clock(seconds: float) -> String:
+	var total := floori(seconds)
+	return "%d:%02d" % [total / 60, total % 60]
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	# While a screen is open it handles its own close key (the tree is paused).
-	if _choosing_upgrade or _game_over:
+	if _choosing_upgrade or _game_over or _in_title:
 		return
 	if event.is_action_pressed("inventory"):
 		_open_screen(_inventory_screen)
@@ -180,17 +262,33 @@ func _enemy_count() -> int:
 	return total
 
 
-## Embers drifting up around the hero, for atmosphere.
+## Ambient particles in the realm's style: drifting embers in the Graveyard,
+## falling snow in the Frozen Wastes, rising sparks and ash in the Ember Rift.
 func _spawn_motes(delta: float, origin: Vector2) -> void:
 	_mote_timer -= delta
 	while _mote_timer <= 0.0:
-		_mote_timer += 0.12
-		var at := origin + Vector2.from_angle(randf() * TAU) * randf_range(2.0, 20.0)
-		var color := Color(1.0, 0.55, 0.25) if randf() < 0.6 else Color(0.5, 0.8, 1.0)
-		_motes.burst(at, randf_range(0.2, 2.5), color, 1, 0.5, 0.13, 4.5, 0.4)
+		var at := origin + Vector2.from_angle(randf() * TAU) * randf_range(1.0, 20.0)
+		match _mote_style:
+			"snow":
+				_mote_timer += 0.02
+				_motes.gravity = 0.45
+				_motes.burst(at + Vector2(-3.0, -2.0), randf_range(5.0, 9.0), Color(0.85, 0.92, 1.0, 0.9), 1, 1.6, 0.11, 5.5, 0.0)
+			"ash":
+				_mote_timer += 0.05
+				_motes.gravity = -0.6
+				var ember := randf() < 0.7
+				_motes.burst(at, randf_range(0.0, 1.5), Color(1.0, 0.4, 0.1) if ember else Color(0.35, 0.3, 0.3, 0.6),
+						1, 0.6, 0.12 if ember else 0.18, 4.0, 0.6)
+			_:
+				_mote_timer += 0.12
+				_motes.gravity = -0.25
+				var color := Color(1.0, 0.55, 0.25) if randf() < 0.6 else Color(0.5, 0.8, 1.0)
+				_motes.burst(at, randf_range(0.2, 2.5), color, 1, 0.5, 0.13, 4.5, 0.4)
 
 
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
+	if _dawn_sweep > 0.0:
+		return
 	_run_shards += 2
 	_souls.drop(at + Vector2(0.6, 0.0), Army.soul_value(_army.type_index(swarm), true, false))
 	_loot.drop(ItemGenerator.generate(ItemData.ilvl_for_player_level(_player.stats.level),
@@ -200,7 +298,13 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 
 
 func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
+	if _dawn_sweep > 0.0:
+		# Burned away by the sunrise: no rewards.
+		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
+		return
 	kills += 1
+	if swarm == _final:
+		_on_final_died(at)
 	if swarm.boss:
 		_on_boss_died(at, swarm)
 		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
@@ -216,6 +320,53 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 			ItemData.ilvl_for_player_level(_player.stats.level), _player.stats.magic_find)
 
 
+## The final boss is dead: the night is won. The sun comes up, the horde
+## burns away over a few seconds, then the victory screen.
+func _on_final_died(at: Vector2) -> void:
+	if won:
+		return
+	won = true
+	MetaProgress.record_win(Realm.current)
+	_run_shards += roundi(40.0 * Realm.data()["difficulty"])
+	_atmosphere.dawn(true)
+	_dawn_sweep = 3.0
+	_shots.clear()
+	Juice.shake(1.0)
+	Juice.flash(at, Color(1.0, 0.85, 0.5), 10.0, 30.0, 1.5)
+	_fx.ring(at, Color(1.0, 0.85, 0.5), 80, 20.0, 1.0, 1.0)
+	_hud.toast("%s is destroyed. Dawn breaks!" % _bosses.final_name, UiStyle.GOLD)
+
+
+## During the dawn sweep, a share of the horde turns to ash every frame.
+func _sweep_horde(delta: float) -> void:
+	_dawn_sweep -= delta
+	for swarm in _swarms:
+		for i in swarm.count:
+			if swarm.hp[i] > 0.0 and randf() < delta * 1.6:
+				swarm.damage(i, 1.0e12)
+	if _dawn_sweep <= 0.0:
+		_dawn_sweep = 0.0
+		var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
+		MetaProgress.add_shards(shards)
+		get_tree().paused = true
+		_hud.show_victory(Realm.data()["name"], elapsed, kills, _player.stats.level, shards)
+
+
+## After a win: keep playing past dawn for a record, with the night (and the
+## mid-bosses) coming back.
+func _start_endless() -> void:
+	_endless = true
+	_endless_start = elapsed
+	_run_shards = 0
+	kills = 0
+	_bosses.endless = true
+	_bosses._next_at = elapsed + 60.0
+	_atmosphere.dawn(false)
+	_hud.hide_end()
+	get_tree().paused = false
+	_hud.toast("The night returns...", Color(1.0, 0.4, 0.3))
+
+
 func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
 	var shards := 15 + 5 * (_bosses.spawned - 1)
 	_run_shards += shards
@@ -226,7 +377,7 @@ func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
 	_fx.burst(at, 2.0, swarm.color.lightened(0.3), 60, 9.0, 0.7, 1.0, 8.0)
 	Juice.flash(at, Color(1.0, 0.6, 0.3), 8.0, 16.0, 0.8)
 	Juice.shake(0.8)
-	_hud.toast("%s slain!  +%d Soul Shards" % [_bosses.boss_name, shards], Color(1.0, 0.75, 0.35))
+	_hud.toast("%s slain!  +%d Soul Shards" % [swarm.display_name, shards], Color(1.0, 0.75, 0.35))
 
 
 func _on_item_picked(item: Item, result: String) -> void:
@@ -272,6 +423,8 @@ func _on_upgrade_chosen(id: String) -> void:
 
 func _on_player_died() -> void:
 	_game_over = true
-	var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
+	if _endless:
+		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
+	var shards := _run_shards + MetaProgress.run_bonus(elapsed - _endless_start, kills)
 	MetaProgress.add_shards(shards)
 	_hud.show_game_over(elapsed, kills, _player.stats.level, shards)

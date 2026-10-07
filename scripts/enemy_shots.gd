@@ -18,6 +18,7 @@ var _pos := PackedVector2Array()
 var _vel := PackedVector2Array()
 var _life := PackedFloat32Array()
 var _damage := PackedFloat32Array()
+var _element := PackedByteArray()
 var _buffer := PackedFloat32Array()
 
 
@@ -27,17 +28,20 @@ func _ready() -> void:
 	_vel.resize(capacity)
 	_life.resize(capacity)
 	_damage.resize(capacity)
+	_element.resize(capacity)
 	var mesh := Models.enemy_orb()
 	MultiMeshUtil.setup(self, mesh, capacity, mesh.surface_get_material(0))
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 
-func spawn(at: Vector2, dir: Vector2, speed: float, damage: float) -> void:
+## `element` (see Elements): frost shots chill the hero, fire shots burn.
+func spawn(at: Vector2, dir: Vector2, speed: float, damage: float, element := 0) -> void:
 	if count >= capacity:
 		return
 	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
 	MultiMeshUtil.set_facing(_buffer, o, dir)
-	var tint := color.srgb_to_linear()
+	var tint: Color = Elements.COLORS.get(element, color).srgb_to_linear()
+	_element[count] = element
 	for c in 4:
 		_buffer[o + MultiMeshUtil.OFFSET_COLOR + c] = tint[c]
 	_buffer[o + MultiMeshUtil.OFFSET_X] = at.x
@@ -60,6 +64,7 @@ func step(delta: float, player: Player) -> void:
 		_life[i] -= delta
 		if p.distance_squared_to(target) < hit_sq and not player.is_dashing():
 			player.take_damage(_damage[i])
+			player.afflict(_element[i])
 			hit_player.emit(p)
 			_remove_at(i)
 		elif _life[i] <= 0.0:
@@ -87,5 +92,6 @@ func _remove_at(i: int) -> void:
 		_vel[i] = _vel[last]
 		_life[i] = _life[last]
 		_damage[i] = _damage[last]
+		_element[i] = _element[last]
 		MultiMeshUtil.copy_instance(_buffer, i, last)
 	count = last

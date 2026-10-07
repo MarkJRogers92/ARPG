@@ -17,6 +17,9 @@ extends Node
 ## ...plus (time / this) squared, so late enemies keep outscaling a maxed build.
 ## 0 turns the squared term off.
 @export var hp_squared_seconds := 330.0
+## The realm's difficulty: multiplies enemy HP and the spawn rate.
+@export var hp_scale := 1.0
+@export var rate_scale := 1.0
 ## Elites (see EnemySwarm) start appearing at this game time...
 @export var elite_start_time := 50.0
 ## ...at this many per minute, growing by `elites_per_minute_growth` every
@@ -67,7 +70,7 @@ func tick(delta: float, center: Vector2) -> void:
 
 ## Enemies per second right now.
 func spawn_rate() -> float:
-	return base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed
+	return (base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed) * rate_scale
 
 
 ## Elites per minute right now.
@@ -81,7 +84,7 @@ func hp_multiplier() -> float:
 	var mult := 1.0 + elapsed / hp_growth_seconds
 	if hp_squared_seconds > 0.0:
 		mult += pow(elapsed / hp_squared_seconds, 2.0)
-	return mult
+	return mult * hp_scale
 
 
 func _pick(roll: float) -> EnemySwarm:

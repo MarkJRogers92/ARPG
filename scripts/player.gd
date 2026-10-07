@@ -69,6 +69,11 @@ var _lightning: ChainLightning
 var _blades: SpiritBlades
 var _nova: ArcaneNova
 var _volleys := 0
+## The hero's own statuses (from witch bolts, fireballs and hazards).
+var chilled := 0.0
+var burning := 0.0
+const CHILL_SLOW := 0.6
+const BURN_DPS := 5.0
 var _storm_tick := 0.0
 
 
@@ -158,6 +163,14 @@ func tick(delta: float) -> void:
 		dashed.emit()
 		if stats.powers.has("blinkfire") and _nova:
 			_nova.fire()
+	chilled = maxf(chilled - delta, 0.0)
+	if burning > 0.0:
+		burning = maxf(burning - delta, 0.0)
+		take_damage(BURN_DPS * delta)
+		if Engine.get_process_frames() % 6 == 0:
+			Juice.burst(pos2, 1.0, Elements.COLORS[Elements.FIRE], 1, 1.0, 0.35, 0.4, 2.0)
+	if chilled > 0.0 and Engine.get_process_frames() % 8 == 0:
+		Juice.burst(pos2, 1.2, Elements.COLORS[Elements.FROST], 1, 1.5, 0.3, 0.5, 0.5)
 	if _dash_time > 0.0:
 		_dash_time -= delta
 		velocity = Vector3(_dash_dir.x, 0.0, _dash_dir.y) * stats.move_speed * DASH_SPEED
@@ -169,7 +182,7 @@ func tick(delta: float) -> void:
 			Elements.hit_area(pos2, 1.8, stats.lightning_damage * 0.5, Elements.LIGHTNING)
 			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
-		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed
+		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed * (CHILL_SLOW if chilled > 0.0 else 1.0)
 	move_and_slide()
 	_update_aim()
 	# Face the aim when aiming by hand, otherwise the way you walk.
@@ -206,6 +219,15 @@ func _update_aim() -> void:
 	var to := Vector2(hit.x, hit.z) - pos2
 	if to.length_squared() > 0.04:
 		aim_dir = to.normalized()
+
+
+## Frost slows the hero for a moment; fire burns for a few seconds.
+func afflict(element: int) -> void:
+	match element:
+		Elements.FROST:
+			chilled = maxf(chilled, 1.2)
+		Elements.FIRE:
+			burning = maxf(burning, 1.5)
 
 
 func heal(amount: float) -> void:
