@@ -13,6 +13,21 @@ extends RefCounted
 ## Title screen first. Tests and bots set this false to go straight to play.
 static var in_title := true
 static var current := "graveyard"
+## The Daily Night: the same realm, omen and seed for everyone today.
+static var daily := false
+
+
+static func today() -> String:
+	var d := Time.get_date_dict_from_system()
+	return "%04d-%02d-%02d" % [d["year"], d["month"], d["day"]]
+
+
+## Today's realm (among the unlocked ones) and omen pick (0..1).
+static func daily_pick(unlocked: Array) -> Dictionary:
+	var h := hash(today())
+	var rng := RandomNumberGenerator.new()
+	rng.seed = h
+	return {"realm": unlocked[rng.randi() % unlocked.size()], "omen": rng.randf(), "seed": h}
 
 const ORDER := ["graveyard", "frozen", "ember"]
 

@@ -91,6 +91,7 @@ func _fly(delta: float) -> void:
 		var stats := _player.stats
 		var lucky := randf() < stats.obol_luck
 		var crit := randf() < stats.crit_chance
+		Elements.source = "Obol"
 		var dmg: float = c["damage"] * (2.0 if lucky else 1.0) * (stats.crit_mult if crit else 1.0)
 		Elements.hit(swarm, k, dmg, Elements.NONE, crit or lucky)
 		c["hit"][c["id"]] = true

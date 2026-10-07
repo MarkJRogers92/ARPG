@@ -74,6 +74,8 @@ func _initialize() -> void:
 			Realm.current = o.substr(6)
 		elif o.begins_with("class="):
 			MetaProgress.forced_class = o.substr(6)
+		elif o.begins_with("omen="):
+			RunModifiers.forced_omen = o.substr(5)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
 	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()

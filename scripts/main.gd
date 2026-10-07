@@ -61,6 +61,10 @@ var _landmarks: Landmarks
 var _spec_chosen := false
 var _final_mech: FinalMechanics
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
+## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
+var pacts: Array = []
+var omen := ""
+var _kills_by := {}
 var frenzy := 0.0
 var frenzy_tier := 0
 const FRENZY_TIERS := [20.0, 45.0, 80.0]
@@ -200,6 +204,8 @@ func _ready() -> void:
 		get_tree().reload_current_scene())
 	_sound.play_realm(Realm.current)
 	_in_title = Realm.in_title
+	if not _in_title:
+		_begin_night()
 	if _in_title:
 		_hud.hide()
 		_title.open()
@@ -320,6 +326,39 @@ func _process(delta: float) -> void:
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## Pacts and this night's Omen (and the Daily Night's fixed seed).
+func _begin_night() -> void:
+	pacts = MetaProgress.pacts.duplicate() if MetaProgress.any_won() and not Realm.daily else []
+	if Realm.daily:
+		var pick := Realm.daily_pick([Realm.current])
+		seed(pick["seed"])
+		omen = RunModifiers.roll_omen(pick["omen"])
+	elif MetaProgress.disabled:
+		omen = RunModifiers.forced_omen
+	else:
+		omen = RunModifiers.roll_omen()
+	RunModifiers.apply(self, pacts, omen)
+	if omen == "":
+		return
+	var o: Dictionary = RunModifiers.OMENS[omen]
+	_hud.set_omen("%s%s" % ["DAILY NIGHT  ·  " if Realm.daily else "", o["name"]], o["desc"], o["color"],
+			RunModifiers.heat(pacts))
+	_hud.toast("Omen: %s. %s" % [o["name"], o["desc"]], o["color"])
+
+
+## Shards for the end screen, the Bestiary and the Daily record.
+func _settle_run(seconds: float) -> int:
+	var shards := roundi((_run_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen))
+	MetaProgress.add_shards(shards)
+	for kind: String in MetaProgress.record_kills(_kills_by):
+		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
+	if Realm.daily:
+		if MetaProgress.record_daily(Realm.today(), kills):
+			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen)
+	return shards
 
 
 ## Frenzy decays by half every ~1.4 s; tiers add attack and move speed.
@@ -485,6 +524,8 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
+	_kills_by[kind] = _kills_by.get(kind, 0) + 1
 	Sound.play("kill_%d" % (kills % 3))
 	_player.bell.on_kill(at)
 	frenzy += 1.0
@@ -537,8 +578,7 @@ func _sweep_horde(delta: float) -> void:
 				swarm.damage(i, 1.0e12)
 	if _dawn_sweep <= 0.0:
 		_dawn_sweep = 0.0
-		var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
-		MetaProgress.add_shards(shards)
+		var shards := _settle_run(elapsed)
 		get_tree().paused = true
 		_sound.stop_music(0.5)
 		Sound.play("victory")
@@ -642,6 +682,5 @@ func _on_player_died() -> void:
 	Sound.play("defeat")
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
-	var shards := _run_shards + MetaProgress.run_bonus(elapsed - _endless_start, kills)
-	MetaProgress.add_shards(shards)
+	var shards := _settle_run(elapsed - _endless_start)
 	_hud.show_game_over(elapsed, kills, _player.stats.level, shards)

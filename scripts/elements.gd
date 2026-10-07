@@ -43,6 +43,17 @@ static var chill_scale := 1.0
 static var swarms: Array[EnemySwarm] = []
 static var _queue: Array[Dictionary] = []
 static var _text_ready := {}
+## Who is hitting right now (each weapon sets it before its hits), and the
+## damage really dealt by each this run, for the run report.
+static var source := "Other"
+static var damage_by := {}
+
+
+## Credits `amount` of real damage to `who` (or the current source).
+static func record(amount: float, who := "") -> void:
+	if amount > 0.0:
+		var k := who if who != "" else source
+		damage_by[k] = damage_by.get(k, 0.0) + amount
 
 
 static func reset() -> void:
@@ -51,6 +62,8 @@ static func reset() -> void:
 	swarms = []
 	_queue.clear()
 	_text_ready.clear()
+	source = "Other"
+	damage_by.clear()
 
 
 static func has_power(id: String) -> bool:
@@ -86,7 +99,9 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 	if swarm.shock[i] > 0.0 and element != LIGHTNING:
 		amount *= SHOCK_BONUS
 
+	var before := swarm.hp[i]
 	var killed := swarm.damage(i, amount)
+	record(before - maxf(swarm.hp[i], 0.0))
 	Juice.number(at, amount, crit, COLORS.get(element, Color.WHITE).lightened(0.35))
 	if not killed:
 		apply_status(swarm, i, element)
@@ -177,7 +192,10 @@ static func _area(at: Vector2, r: float, amount: float, element: int) -> void:
 			var i := res[k]
 			if swarm.hp[i] <= 0.0:
 				continue
-			if not swarm.damage(i, amount):
+			var before := swarm.hp[i]
+			var killed := swarm.damage(i, amount)
+			record(before - maxf(swarm.hp[i], 0.0), "Reactions")
+			if not killed:
 				apply_status(swarm, i, element)
 
 

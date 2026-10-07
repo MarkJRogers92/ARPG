@@ -45,6 +45,7 @@ func ring() -> void:
 	var stats := _player.stats
 	var at := _player.pos2
 	_ringing = true
+	Elements.source = "Funeral Bell"
 	Elements.hit_area(at, stats.bell_radius, stats.bell_damage, Elements.NONE, stats.crit_chance, stats.crit_mult)
 	# The kills that queued hit causes land in Elements.flush(), later this
 	# frame; they mustn't count toward the next ring.

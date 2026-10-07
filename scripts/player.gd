@@ -200,6 +200,7 @@ func tick(delta: float) -> void:
 		if stats.powers.has("stormstride") and _storm_tick <= 0.0:
 			# Stormstride: the dash path crackles with lightning.
 			_storm_tick = 0.05
+			Elements.source = "Stormstride"
 			Elements.hit_area(pos2, 1.8, stats.lightning_damage * 0.5, Elements.LIGHTNING)
 			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
@@ -400,4 +401,5 @@ func _update_aura(delta: float) -> void:
 	_aura_pulse = 1.0
 	aura_ticked.emit()
 	# Frost Aura chills what it touches (see Elements).
+	Elements.source = "Frost Aura"
 	Elements.hit_area(pos2, stats.aura_radius, stats.aura_damage, Elements.FROST)

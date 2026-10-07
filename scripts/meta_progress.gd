@@ -46,6 +46,15 @@ static var settings := {}
 ## Hero classes bought, and the one picked (see HeroClass).
 static var classes := {}
 static var hero_class := "battlemage"
+## Kills per enemy (by its name in the realm) across every night; see BESTIARY_STEPS.
+static var bestiary := {}
+## Pacts of Night chosen for the next runs (see RunModifiers).
+static var pacts: Array = []
+## The Daily Night: date -> best kills.
+static var daily := {}
+## Kills of one kind that each earn a star; every star is +1% damage, for good.
+const BESTIARY_STEPS := [100, 1000, 5000]
+const SAVE_VERSION := 2
 
 const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true}
 static var _loaded := false
@@ -59,12 +68,15 @@ static func load_save() -> void:
 	settings = {}
 	classes = {}
 	hero_class = "battlemage"
-	if disabled or not FileAccess.file_exists(save_path):
+	bestiary = {}
+	pacts = []
+	daily = {}
+	if disabled:
 		return
-	var file := FileAccess.open(save_path, FileAccess.READ)
-	if file == null:
-		return
-	var data = file.get_var()
+	var data = _read(save_path)
+	if not (data is Dictionary):
+		# A broken or missing save: fall back to the last good one.
+		data = _read(save_path + ".bak")
 	if data is Dictionary:
 		shards = int(data.get("shards", 0))
 		var saved = data.get("ranks", {})
@@ -81,6 +93,15 @@ static func load_save() -> void:
 		if saved_classes is Dictionary:
 			classes = saved_classes
 		hero_class = data.get("hero_class", "battlemage")
+		var saved_bestiary = data.get("bestiary", {})
+		if saved_bestiary is Dictionary:
+			bestiary = saved_bestiary
+		var saved_pacts = data.get("pacts", [])
+		if saved_pacts is Array:
+			pacts = saved_pacts.filter(func(p) -> bool: return RunModifiers.PACTS.has(p))
+		var saved_daily = data.get("daily", {})
+		if saved_daily is Dictionary:
+			daily = saved_daily
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
@@ -88,13 +109,86 @@ static func load_save() -> void:
 					realms[id] = saved_realms[id]
 
 
+static func _read(path: String) -> Variant:
+	if not FileAccess.file_exists(path):
+		return null
+	var file := FileAccess.open(path, FileAccess.READ)
+	return file.get_var() if file else null
+
+
+## Writes the save safely: to a temporary file first, then swapped in, with
+## the previous save kept as a backup, so a crash mid-write loses nothing.
 static func save() -> void:
 	if disabled:
 		return
-	var file := FileAccess.open(save_path, FileAccess.WRITE)
-	if file:
-		file.store_var({"shards": shards, "ranks": ranks, "realms": realms,
-				"settings": settings, "classes": classes, "hero_class": hero_class})
+	var tmp := save_path + ".tmp"
+	var file := FileAccess.open(tmp, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_var({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
+			"settings": settings, "classes": classes, "hero_class": hero_class,
+			"bestiary": bestiary, "pacts": pacts, "daily": daily})
+	file.close()
+	var dir := DirAccess.open(save_path.get_base_dir())
+	if dir == null:
+		return
+	if FileAccess.file_exists(save_path):
+		dir.rename(save_path.get_file(), save_path.get_file() + ".bak")
+	dir.rename(tmp.get_file(), save_path.get_file())
+
+
+## Counts a night's kills in the Bestiary: {name: kills}. Returns the names
+## that earned a new star.
+static func record_kills(kills_by: Dictionary) -> Array:
+	_ensure_loaded()
+	var starred := []
+	for kind: String in kills_by:
+		var before := stars(kind)
+		bestiary[kind] = bestiary.get(kind, 0) + kills_by[kind]
+		if stars(kind) > before:
+			starred.append(kind)
+	save()
+	return starred
+
+
+static func stars(kind: String) -> int:
+	var n: int = bestiary.get(kind, 0)
+	var s := 0
+	for step: int in BESTIARY_STEPS:
+		if n >= step:
+			s += 1
+	return s
+
+
+static func total_stars() -> int:
+	var s := 0
+	for kind: String in bestiary:
+		s += stars(kind)
+	return s
+
+
+static func set_pacts(list: Array) -> void:
+	_ensure_loaded()
+	pacts = list.duplicate()
+	save()
+
+
+## True once any realm has been conquered (Pacts open up then).
+static func any_won() -> bool:
+	_ensure_loaded()
+	for id: String in realms:
+		if realms[id].get("won", false):
+			return true
+	return disabled
+
+
+static func record_daily(date: String, kills: int) -> bool:
+	_ensure_loaded()
+	if kills <= daily.get(date, -1):
+		return false
+	daily[date] = kills
+	save()
+	return true
 
 
 static func _ensure_loaded() -> void:
@@ -145,6 +239,9 @@ static func apply(stats: PlayerStats) -> void:
 	for id: String in UPGRADES:
 		for r in rank(id):
 			stats.add_mods(SOURCE, UPGRADES[id]["mods"])
+	var starred := total_stars()
+	if starred > 0:
+		stats.add_mod(SOURCE, "damage", PlayerStats.Op.INCREASED, 0.01 * starred)
 	stats.recalculate()
 	stats.hp = stats.max_hp
 

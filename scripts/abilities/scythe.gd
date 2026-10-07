@@ -110,6 +110,7 @@ func _fly(delta: float) -> void:
 
 
 func _cut(b: Dictionary, damage: float) -> void:
+	Elements.source = "Reaping Scythe"
 	var p: Vector2 = b["pos"]
 	var stats := _player.stats
 	for swarm in _swarms:

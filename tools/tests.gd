@@ -52,6 +52,7 @@ func _finish() -> void:
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
+	_run(&"_test_replayability", _test_replayability())
 
 	print("")
 	if _failures == 0:
@@ -68,6 +69,12 @@ func _run(test_name: StringName, finished) -> void:
 	if finished != true:
 		_failures += 1
 		print("  FAIL: %s stopped early (script error above)" % test_name)
+
+
+## Deletes the test save and its backup and temp files.
+func _wipe_save() -> void:
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + suffix))
 
 
 func _check(condition: bool, message: String) -> void:
@@ -709,7 +716,7 @@ func _test_meta_progress() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(MetaProgress.shards == 0 and MetaProgress.rank("vigor") == 0, "no save means a fresh start")
 	MetaProgress.add_shards(30)
@@ -731,7 +738,7 @@ func _test_meta_progress() -> bool:
 	_check(MetaProgress.rank("insight") == 3 and MetaProgress.cost("insight") == -1, "upgrades stop at their max rank")
 	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
 	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + 1 per 150 kills")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -964,7 +971,7 @@ func _test_realm_progress() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta_realms.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(MetaProgress.is_unlocked("graveyard"), "the first realm is open")
 	_check(not MetaProgress.is_unlocked("frozen") and not MetaProgress.is_unlocked("ember"), "later realms start locked")
@@ -976,7 +983,7 @@ func _test_realm_progress() -> bool:
 	_near(MetaProgress.endless_best("graveyard"), 95.0, "Endless keeps the best time")
 	MetaProgress.load_save()
 	_check(MetaProgress.is_won("graveyard") and MetaProgress.endless_best("graveyard") == 95.0, "realm progress survives a reload")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -989,7 +996,7 @@ func _test_classes_and_settings() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta_classes.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(HeroClass.ORDER.size() == HeroClass.CLASSES.size(), "every class is on the picker")
 	for id: String in HeroClass.ORDER:
@@ -1010,7 +1017,7 @@ func _test_classes_and_settings() -> bool:
 	MetaProgress.load_save()
 	_check(MetaProgress.current_class() == "necromancer" and MetaProgress.class_unlocked("necromancer"), "classes survive a reload")
 	_check(is_equal_approx(MetaProgress.setting("music_volume"), 0.25) and MetaProgress.setting("shake") == false, "settings survive a reload")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -1890,4 +1897,73 @@ func _test_final_mechanics() -> bool:
 		for n: Node in [mech, wards, final, director, player]:
 			n.free()
 	Realm.current = was
+	return true
+
+
+func _test_replayability() -> bool:
+	print("pacts, omens, bestiary, daily, report")
+	_near(RunModifiers.shard_mult([], ""), 1.0, "no pacts, no omen: normal shards")
+	_near(RunModifiers.shard_mult(["swarm", "bleak"], "midas"), (1.0 + 0.25 * 3) * 1.5, "heat 3 and Midas stack")
+	_check(RunModifiers.OMEN_ORDER.size() == RunModifiers.OMENS.size() and RunModifiers.PACT_ORDER.size() == RunModifiers.PACTS.size(), "every omen and pact is listed")
+	_check(RunModifiers.roll_omen(0.0) == RunModifiers.OMEN_ORDER[0] and RunModifiers.roll_omen(0.9999) == RunModifiers.OMEN_ORDER[-1], "omen picks cover the list")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	for omen: String in RunModifiers.OMEN_ORDER:
+		var main: Node = load("res://scenes/main.tscn").instantiate()
+		root.add_child(main)
+		var director: WaveDirector = main.get_node("WaveDirector")
+		var rate := director.rate_scale
+		RunModifiers.apply(main, RunModifiers.PACT_ORDER, omen)
+		var hero: Player = main.get_node("Player")
+		_check(director.rate_scale >= rate * 1.1 and hero.stats.regen <= 0.0 and is_equal_approx(hero.stats.hp, hero.stats.max_hp),
+				"%s with every pact applies" % omen)
+		main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_replay.save"
+	for f in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + f))
+	MetaProgress.load_save()
+	_check(not MetaProgress.any_won(), "pacts start locked")
+	var starred := MetaProgress.record_kills({"Ghoul": 120, "Ogre": 5})
+	_check(starred == ["Ghoul"] and MetaProgress.stars("Ghoul") == 1 and MetaProgress.total_stars() == 1, "100 kills of a kind earn a star")
+	var stats := PlayerStats.new()
+	var base := stats.bolt_damage
+	MetaProgress.apply(stats)
+	_check(stats.bolt_damage > base, "and each star is a little permanent damage")
+	MetaProgress.set_pacts(["hide", "wrath"])
+	_check(MetaProgress.record_daily("2026-10-08", 500) and not MetaProgress.record_daily("2026-10-08", 300), "the daily keeps the best")
+	MetaProgress.load_save()
+	_check(MetaProgress.bestiary.get("Ghoul", 0) == 120 and MetaProgress.pacts == ["hide", "wrath"] and MetaProgress.daily.get("2026-10-08") == 500,
+			"bestiary, pacts and daily bests survive a reload")
+	MetaProgress.save()
+	# A corrupted save falls back to the backup.
+	var f := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	f.store_string("garbage")
+	f.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.bestiary.get("Ghoul", 0) == 120, "a broken save falls back to the backup")
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + suffix))
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was
+	MetaProgress.load_save()
+	var pick := Realm.daily_pick(["graveyard", "frozen"])
+	_check(pick == Realm.daily_pick(["graveyard", "frozen"]), "the daily pick is the same all day")
+
+	# Damage is credited to whoever dealt it, and never more than the enemy had.
+	var foes := EnemySwarm.new()
+	foes.capacity = 4
+	root.add_child(foes)
+	foes.spawn(Vector2.ZERO)
+	foes.hp[0] = 50.0
+	Elements.damage_by.clear()
+	Elements.source = "Obol"
+	Elements.hit(foes, 0, 30.0)
+	Elements.source = "Magic Bolt"
+	Elements.hit(foes, 0, 999.0)
+	_check(is_equal_approx(Elements.damage_by.get("Obol", 0.0), 30.0) and is_equal_approx(Elements.damage_by.get("Magic Bolt", 0.0), 20.0),
+			"the run report credits real damage by source (%s)" % [Elements.damage_by])
+	foes.free()
 	return true

@@ -137,6 +137,27 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
+## Every night is different
+
+- **Omens** (`scripts/run_modifiers.gd`): every run rolls one rule, shown at
+  the start and under the army bar. The eight are Blood Moon, Soul Tide, Glass
+  Cannon, Midas Night, Swift Night, Restless Dead, Ferryman's Favor and Quiet
+  Night. Each has an upside and a cost.
+- **Pact of Night** (title screen, once you've conquered a realm): stack
+  opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
+  heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to
+  the Soul Shards earned.
+- **Bestiary** (title screen): kills of each enemy kind across every night.
+  100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
+  good.
+- **Daily Night** (title screen): today's realm, omen and seed are the same
+  for every run today. Your best kill count is kept.
+- **Run report** on the end screen: the share of damage dealt by each weapon,
+  the army, reactions and burning, plus the omen and heat.
+
+The permanent save is written to a temporary file and swapped in, with the
+previous save kept as a backup; a broken save falls back to it.
+
 ## Weapons, paths and finales
 
 **Reaping Scythe** (level-up card): thrown toward the nearest enemy (or your

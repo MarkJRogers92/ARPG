@@ -50,6 +50,8 @@ var _prompt_label: Label
 var _bet_label: Label
 var _upgrade_title: Label
 var _frenzy_label: Label
+var _omen_label: Label
+var _report: Label
 var _title_card: VBoxContainer
 var _title_main: Label
 var _title_sub: Label
@@ -148,6 +150,32 @@ func title_card(boss_name: String, subtitle: String, color: Color) -> void:
 	t.tween_property(_title_card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.chain().tween_interval(1.8)
 	t.chain().tween_property(_title_card, "modulate:a", 0.0, 0.7)
+
+
+func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
+	_omen_label.text = "OMEN: %s%s" % [omen_name.to_upper(), ("   ·   HEAT %d" % heat) if heat > 0 else ""]
+	_omen_label.tooltip_text = desc
+	_omen_label.add_theme_color_override("font_color", color)
+
+
+## The run report on the end screen: damage by source, best first.
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> void:
+	var total := 0.0
+	for k: String in damage_by:
+		total += damage_by[k]
+	var keys := damage_by.keys()
+	keys.sort_custom(func(a, b) -> bool: return damage_by[a] > damage_by[b])
+	var parts := []
+	for k: String in keys.slice(0, 6):
+		if total > 0.0:
+			parts.append("%s %d%%" % [k, roundi(100.0 * damage_by[k] / total)])
+	var line := "DAMAGE:  " + "   ·   ".join(parts) if not parts.is_empty() else ""
+	var extras := []
+	if omen != "":
+		extras.append("Omen: %s" % RunModifiers.OMENS[omen]["name"])
+	if heat > 0:
+		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
+	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
 
 
 ## The Frenzy tier next to the kill count (0 hides it).
@@ -491,6 +519,12 @@ func _build() -> void:
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
 
+	# Under the army bar: this night's omen (and pact heat).
+	_omen_label = UiStyle.label(14)
+	_omen_label.position = Vector2(100, 116)
+	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(_omen_label)
+
 	# A boss's name, big, when it arrives.
 	_title_card = VBoxContainer.new()
 	_title_card.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -610,6 +644,12 @@ func _build() -> void:
 	_game_over_label = UiStyle.label(22)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
+	_report = UiStyle.label(16)
+	_report.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_report.custom_minimum_size.x = 820
+	_report.modulate = Color(1, 1, 1, 0.85)
+	over_box.add_child(_report)
 	_shards_earned_label = UiStyle.label(20)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))

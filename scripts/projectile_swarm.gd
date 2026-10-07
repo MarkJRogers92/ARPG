@@ -109,6 +109,7 @@ func step(delta: float, swarms: Array[EnemySwarm]) -> void:
 ## order along the path (across every enemy type), so a fast bolt or a long
 ## frame can't skip an enemy and pierce is spent on the nearest first.
 func _hit_something(i: int, from: Vector2, to: Vector2, swarms: Array[EnemySwarm]) -> bool:
+	Elements.source = "Magic Bolt"
 	var base := i * HIT_MEMORY
 	var seg := to - from
 	var seg_len2 := maxf(seg.length_squared(), 0.000001)

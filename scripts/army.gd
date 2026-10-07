@@ -282,6 +282,7 @@ func _count_type(type: int) -> int:
 
 
 func step(delta: float) -> void:
+	Elements.source = "Soul Army"
 	if not away.is_empty():
 		_update_away(delta)
 	var hero := _player.pos2
@@ -467,6 +468,7 @@ func _queue_soulfire(at: Vector2) -> void:
 
 ## Soulfire bursts run after all minions have stepped (they query the hash).
 func flush() -> void:
+	Elements.source = "Soul Army"
 	for at in _soulfire:
 		Elements.hit_area(at, 3.0, _player.stats.minion_damage * 4.0)
 		Juice.ring(at, Color(0.45, 0.8, 1.0), 24, 8.0, 0.5, 0.4)
