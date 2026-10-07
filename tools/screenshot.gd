@@ -25,6 +25,7 @@ var _ferry := false
 var _finale := false
 var _rift_mode := ""
 var _dawn := false
+var _rival := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -40,6 +41,7 @@ func _initialize() -> void:
 	_ferry = args.size() > 2 and args[2] == "ferryman"
 	_finale = args.size() > 2 and args[2] == "finale"
 	_dawn = args.size() > 2 and args[2] == "dawn"
+	_rival = args.size() > 2 and args[2] == "rival"
 	if args.size() > 2 and args[2] in ["market", "glitch"]:
 		_rift_mode = args[2]
 	if args.size() > 3:
@@ -84,6 +86,27 @@ func _process(_delta: float) -> bool:
 			player.global_position = Vector3(RiftDirector.MARKET_AT.x, 0, RiftDirector.MARKET_AT.y - 1.0)
 		if _frame == 110:
 			_save(_rift_mode)
+			quit(0)
+			return true
+		return false
+	if _rival:
+		player.stats.hp = player.stats.max_hp
+		var rd: RivalDirector = _main._rival
+		var rs: EnemySwarm = _main.get_node("Rival")
+		if _frame == 2:
+			(_main.get_node("WaveDirector") as WaveDirector).rate_scale = 0.3
+			rd.arrive()
+			rs.pos[0] = player.pos2 + Vector2(5, -3)
+			for k in 4:
+				rd._raise_thrall(rs.pos[0] + Vector2(2, 1))
+			var army: Army = _main.get_node("Army")
+			army._raise(0, false, false)
+			army._raise(0, false, false)
+		if _frame == 100:
+			_save("rival")
+			rs.damage(0, 1.0e12)
+		if _frame == 160:
+			_save("rival_claimed")
 			quit(0)
 			return true
 		return false
@@ -234,6 +257,10 @@ func _spawn_crowd() -> void:
 	var stats := player.stats
 	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura", "legion", "legion", "ignite", "frostbite"]:
 		Upgrades.apply(id, stats)
+	# Spirit Blades maxed with its catalyst, so the level-up shows an evolution.
+	while Upgrades.level_of("orbit", stats) < Upgrades.DEFS["orbit"]["max"]:
+		Upgrades.apply("orbit", stats)
+	Upgrades.apply("move_speed", stats)
 	# A legendary weapon and a Soul Army already raised.
 	var hydra := ItemGenerator.generate_with(10, ItemData.Rarity.LEGENDARY, "weapon")
 	hydra.power = "splitting"
@@ -243,6 +270,9 @@ func _spawn_crowd() -> void:
 	for t in [0, 0, 1, 2]:
 		army._raise(t, false, false)
 	army._raise(1, true, false)
+	# Two of them veterans, to see the names and the glow.
+	army.credit(0, Army.RANKS[1]["kills"])
+	army.credit(2, Army.RANKS[3]["kills"])
 
 
 func _save(name: String) -> void:

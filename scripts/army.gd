@@ -17,12 +17,22 @@ extends Node3D
 ##   skirmisher  darts in and strikes fast (fast enemies)
 ##   tyrant      a bound boss: a crushing slam on a long cooldown
 ##
+## Veterans: minions count their kills. Enough of them and a minion earns a
+## name and a rank (RANKS), hitting harder and lasting longer with each, with
+## its name over its head. After a night the greatest is laid to rest in the
+## Crypt (MetaProgress.entomb) and can rise beside the hero in another; if a
+## veteran from the Crypt falls, it's gone for good.
+##
 ## Minions are few (a dozen or two), so they're simple arrays and per-type
 ## MultiMeshes rebuilt every frame. They hunt the enemy nearest to them (within
 ## reach of the hero), cleave what's around their target, take contact damage
 ## from the horde, and drift back to the hero when there's nothing to fight.
 
 signal raised(kind: String)
+## A minion earned a name or a higher rank.
+signal promoted(text: String)
+## A named veteran was destroyed (crypt: its Crypt id, or -1).
+signal veteran_fell(vet_name: String, crypt: int)
 
 const CAPACITY := 40
 const SIGHT := 11.0 # how far a minion looks for prey
@@ -36,6 +46,26 @@ const ROLES := {
 	"skirmisher": {"label": "Skirmisher", "interval": 0.22, "range": 0.5, "speed": 1.4},
 	"tyrant": {"label": "Tyrant", "interval": 0.5, "range": 0.8, "speed": 1.0},
 }
+## Kills to reach each rank, and how much harder it hits and how much more
+## it can take.
+const RANKS := [
+	{"label": "", "kills": 0, "power": 1.0},
+	{"label": "Veteran", "kills": 60, "power": 1.3},
+	{"label": "Hero", "kills": 300, "power": 1.7},
+	{"label": "Legend", "kills": 1000, "power": 2.3},
+]
+const NAMES := ["Morwen", "Grimwald", "Hollis", "Sable", "Corvin", "Ashka", "Bram", "Vesper", "Mordecai", "Isolde",
+	"Tobiah", "Wren", "Osric", "Nell", "Thane", "Ysolde", "Garrick", "Lenore", "Fenwick", "Ruth",
+	"Silas", "Agatha", "Edric", "Maud", "Caspian", "Hester", "Ulric", "Briar", "Lazarus", "Odile"]
+const EPITHETS := {
+	"brawler": ["the Butcher", "Grave-Fist", "the Unbowed", "Bonebreaker"],
+	"caster": ["the Whisperer", "Soul-Singer", "the Pale Voice", "Candlewick"],
+	"bulwark": ["the Wall", "Ironhide", "the Unmoving", "Gravestone"],
+	"skirmisher": ["Quickbones", "the Shade", "Swift-Rot", "the Flicker"],
+	"tyrant": ["the Bound King", "the Chained", "Oathbreaker", "the Crownless"],
+}
+const VETERAN_COLOR := Color(1.0, 0.82, 0.45)
+
 ## Seconds between a bulwark's / tyrant's slams.
 const SLAM_INTERVAL := 3.0
 const TYRANT_INTERVAL := 4.5
@@ -65,6 +95,13 @@ var _slam := PackedFloat32Array()
 var _target_swarm := PackedInt32Array()
 var _target_id := PackedInt32Array()
 var _target_index := PackedInt32Array()
+## Veterans: kills, rank (index in RANKS), name, Crypt id (-1: raised this
+## night), and the name tag over its head (null below Veteran).
+var _deeds := PackedInt32Array()
+var _rank := PackedByteArray()
+var _vname: Array[String] = []
+var _crypt := PackedInt32Array()
+var _tag: Array = []
 
 var _player: Player
 var _swarms: Array[EnemySwarm] = []
@@ -88,6 +125,11 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_pos.resize(CAPACITY)
 	_facing.resize(CAPACITY)
 	_elite.resize(CAPACITY)
+	_deeds.resize(CAPACITY)
+	_rank.resize(CAPACITY)
+	_vname.resize(CAPACITY)
+	_crypt.resize(CAPACITY)
+	_tag.resize(CAPACITY)
 	for s in swarms:
 		var t := {
 			"swarm": s, "name": s.display_name if s.display_name != "" else String(s.name),
@@ -164,7 +206,8 @@ func _try_raise() -> void:
 	_raise(best, false, false)
 
 
-func _raise(type: int, elite: bool, boss: bool) -> bool:
+## `beyond`: room or not, it joins (claimed from a rival), up to CAPACITY.
+func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	if type < 0 or type >= _types.size():
 		return false
 	var stats := _player.stats
@@ -172,16 +215,14 @@ func _raise(type: int, elite: bool, boss: bool) -> bool:
 		boss = false
 		elite = true
 		type = 0
-	if count >= maxi(stats.minion_max, 1) or count >= CAPACITY:
+	if beyond and count >= CAPACITY:
+		return false
+	if not beyond and (count >= maxi(stats.minion_max, 1) or count >= CAPACITY):
 		if not (elite or boss):
 			return false
-		# Champions push out the newest common minion.
-		var victim := -1
-		for k in range(count - 1, -1, -1):
-			if _elite[k] == 0:
-				victim = k
-				break
-		if victim < 0:
+		# Champions push out the newest common minion (sparing veterans).
+		var victim := _expendable()
+		if victim < 0 or _rank[victim] > 0:
 			return false
 		_remove(victim, false, false)
 	var t: Dictionary = _types[type]
@@ -199,6 +240,11 @@ func _raise(type: int, elite: bool, boss: bool) -> bool:
 	_facing[k] = Vector2(0, -1)
 	_phase[k] = randf()
 	_target_id[k] = -1
+	_deeds[k] = 0
+	_rank[k] = 0
+	_vname[k] = ""
+	_crypt[k] = -1
+	_tag[k] = null
 	Juice.ring(_pos[k], Color(0.45, 0.8, 1.0), 24, 5.0, 0.45, 0.5)
 	Juice.burst(_pos[k], 0.3, Color(0.6, 0.9, 1.0), 18, 1.5, 0.45, 0.9, 6.0)
 	Juice.flash(_pos[k], Color(0.45, 0.8, 1.0), 3.0, 6.0, 0.4)
@@ -220,13 +266,11 @@ var away: Array[Dictionary] = []
 func send_away(back_in: float) -> Dictionary:
 	if count == 0:
 		return {}
-	var victim := count - 1
-	for k in range(count - 1, -1, -1):
-		if _elite[k] == 0:
-			victim = k
-			break
+	var victim := _expendable()
+	if victim < 0:
+		victim = count - 1
 	var record := {"type": _type[victim], "elite": _elite[victim], "hp_frac": _hp[victim] / maxf(_max_hp[victim], 1.0),
-			"back_in": back_in, "name": _types[_type[victim]]["name"]}
+			"back_in": back_in, "name": _types[_type[victim]]["name"], "vet": _veteran_record(victim)}
 	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 16, 3.0, 0.4, 0.6, 3.0)
 	_remove(victim, false, false)
 	away.append(record)
@@ -254,9 +298,25 @@ func _update_away(delta: float) -> void:
 			if r["back_in"] <= 0.0 and count < CAPACITY and (r["elite"] > 0 or count < maxi(_player.stats.minion_max, 1)):
 				if _raise(r["type"], r["elite"] == 1, r["elite"] == 2):
 					var k := count - 1
+					if r.get("vet", {}).get("rank", 0) > 0:
+						_make_veteran(k, r["vet"])
 					_hp[k] = _max_hp[k] * clampf(r["hp_frac"], 0.2, 1.0)
 					away.remove_at(i)
 		i -= 1
+
+
+## Raises `n` minions of the kind `swarm` is made of, even past the army's
+## size (a defeated rival's thralls). `elite` makes them champions. Returns
+## how many rose.
+func claim(swarm: EnemySwarm, n: int, elite := false) -> int:
+	var type := type_index(swarm)
+	if not _type_of.has(swarm):
+		return 0
+	var risen := 0
+	for k in n:
+		if _raise(type, elite, false, true):
+			risen += 1
+	return risen
 
 
 ## Brings every minion to `at` (the hero stepped through a rift).
@@ -269,13 +329,124 @@ func gather(at: Vector2) -> void:
 func sacrifice() -> bool:
 	if count == 0:
 		return false
-	var victim := count - 1
-	for k in range(count - 1, -1, -1):
-		if _elite[k] == 0:
-			victim = k
-			break
+	var victim := _expendable()
+	if victim < 0:
+		victim = count - 1
+	if _rank[victim] > 0:
+		veteran_fell.emit(_vname[victim], _crypt[victim])
 	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 20, 3.0, 0.4, 0.8, 5.0)
 	_remove(victim, false, false)
+	return true
+
+
+## The minion to give up first: a common one, the least proven, the newest.
+## -1 if every minion is a champion.
+func _expendable() -> int:
+	var best := -1
+	for k in range(count - 1, -1, -1):
+		if _elite[k] == 0 and (best < 0 or _rank[k] < _rank[best] or (_rank[k] == _rank[best] and _deeds[k] < _deeds[best])):
+			best = k
+	return best
+
+
+# --- veterans ---------------------------------------------------------------------
+
+## Credits minion `k` with `kills`, promoting it when it earns a rank.
+func credit(k: int, kills: int) -> void:
+	_deeds[k] += kills
+	while _rank[k] < RANKS.size() - 1 and _deeds[k] >= RANKS[_rank[k] + 1]["kills"]:
+		_promote(k)
+
+
+func _promote(k: int) -> void:
+	var before: float = RANKS[_rank[k]]["power"]
+	_rank[k] += 1
+	var rank: Dictionary = RANKS[_rank[k]]
+	_max_hp[k] *= rank["power"] / before
+	_hp[k] = _max_hp[k]
+	var t: Dictionary = _types[_type[k]]
+	if _vname[k] == "":
+		_vname[k] = "%s %s" % [NAMES.pick_random(), (EPITHETS[t["role"]] as Array).pick_random()]
+		promoted.emit("Your %s has earned a name: %s, Veteran (%d kills)" % [t["name"], _vname[k], _deeds[k]])
+	else:
+		promoted.emit("%s rises to %s! (%d kills)" % [_vname[k], rank["label"], _deeds[k]])
+	_update_tag(k)
+	Juice.ring(_pos[k], VETERAN_COLOR, 28, 6.0, 0.5, 0.6)
+	Juice.burst(_pos[k], 0.6, VETERAN_COLOR, 24, 3.0, 0.45, 0.8, 6.0)
+	Sound.play("shrine_done", 1.3, -6.0)
+
+
+func _update_tag(k: int) -> void:
+	if _rank[k] == 0:
+		return
+	var tag: Label3D = _tag[k]
+	if tag == null:
+		tag = Label3D.new()
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.no_depth_test = true
+		tag.fixed_size = true
+		tag.pixel_size = 0.0006
+		tag.font_size = 30
+		tag.outline_size = 9
+		tag.outline_modulate = Color(0, 0, 0, 0.85)
+		tag.modulate = VETERAN_COLOR
+		add_child(tag)
+		_tag[k] = tag
+		# A gold ring on the ground under it (moved with the tag in _draw()).
+		var ring := HazardDirector.make_decal(tag, Vector2.ZERO, Color(VETERAN_COLOR, 0.55), 1.0, 2.0)
+		ring.top_level = true
+	tag.text = "%s  %s" % ["★".repeat(_rank[k]), _vname[k]]
+	(tag.get_child(0) as Node3D).scale = Vector3.ONE * (0.9 + 0.2 * _rank[k])
+
+
+## Everything that makes minion `k` a veteran, to keep or bring back.
+func _veteran_record(k: int) -> Dictionary:
+	var t: Dictionary = _types[_type[k]]
+	return {"crypt": _crypt[k], "name": _vname[k], "swarm": String(t["swarm"].name), "label": t["name"], "role": t["role"],
+			"elite": _elite[k], "deeds": _deeds[k], "rank": _rank[k], "slot": k}
+
+
+func _make_veteran(k: int, rec: Dictionary) -> void:
+	_vname[k] = rec["name"]
+	_deeds[k] = rec["deeds"]
+	_crypt[k] = rec.get("crypt", -1)
+	var rank := clampi(rec["rank"], 0, RANKS.size() - 1)
+	_rank[k] = rank
+	_max_hp[k] *= RANKS[rank]["power"]
+	_hp[k] = _max_hp[k]
+	_update_tag(k)
+
+
+## The living veterans, greatest first.
+func veterans() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for k in count:
+		if _rank[k] > 0:
+			out.append(_veteran_record(k))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["deeds"] > b["deeds"])
+	return out
+
+
+## After a night has been laid to rest: minion `slot` now belongs to the Crypt.
+func mark_crypt(slot: int, id: int) -> void:
+	if slot >= 0 and slot < count:
+		_crypt[slot] = id
+
+
+## Raises a veteran from the Crypt at the hero's side. False if it couldn't.
+func raise_veteran(rec: Dictionary) -> bool:
+	var type := 0
+	for t in _types.size():
+		if String(_types[t]["swarm"].name) == rec.get("swarm", ""):
+			type = t
+			break
+	var boss: bool = _types[type]["swarm"].boss
+	if not _raise(type, int(rec.get("elite", 0)) == 1 and not boss, boss):
+		return false
+	var rec2 := rec.duplicate()
+	rec2["crypt"] = rec.get("id", -1)
+	_make_veteran(count - 1, rec2)
+	Juice.ring(_pos[count - 1], VETERAN_COLOR, 40, 9.0, 0.7, 0.8)
 	return true
 
 
@@ -342,11 +513,12 @@ func step(delta: float) -> void:
 
 		_attack[k] -= delta
 		_slam[k] -= delta
+		var deaths_before := EnemySwarm.deaths
 		if fighting and _attack[k] <= 0.0:
 			var interval: float = r["interval"]
 			_attack[k] = interval
 			# Damage per second matches across roles; the rhythm differs.
-			var dmg: float = stats.minion_damage * t["damage"] * interval * (2.0 if _elite[k] == 1 else 1.0)
+			var dmg: float = stats.minion_damage * t["damage"] * interval * (2.0 if _elite[k] == 1 else 1.0) * RANKS[_rank[k]]["power"]
 			var target := _swarms[_target_swarm[k]].pos[_target_index[k]]
 			match t["role"]:
 				"caster":
@@ -360,7 +532,9 @@ func step(delta: float) -> void:
 		if fighting and _slam[k] <= 0.0 and (t["role"] == "bulwark" or t["role"] == "tyrant"):
 			var tyrant: bool = t["role"] == "tyrant"
 			_slam[k] = TYRANT_INTERVAL if tyrant else SLAM_INTERVAL
-			_ground_slam(p, 4.5 if tyrant else 3.0, stats.minion_damage * t["damage"] * (3.0 if tyrant else 1.5), tyrant)
+			_ground_slam(p, 4.5 if tyrant else 3.0, stats.minion_damage * t["damage"] * (3.0 if tyrant else 1.5) * RANKS[_rank[k]]["power"], tyrant)
+		if EnemySwarm.deaths > deaths_before:
+			credit(k, EnemySwarm.deaths - deaths_before)
 
 		_hurt[k] -= delta
 		if _hurt[k] <= 0.0:
@@ -444,6 +618,11 @@ func _remove(k: int, died: bool, refill := true) -> void:
 	Juice.burst(p, 1.0, Color(0.5, 0.85, 1.0), 14, 4.0, 0.4, 0.6, 3.0)
 	if died:
 		Sound.play("minion_death")
+		if _rank[k] > 0:
+			veteran_fell.emit(_vname[k], _crypt[k])
+	if _tag[k] != null:
+		(_tag[k] as Node).queue_free()
+		_tag[k] = null
 	if died and Elements.has_power("lich_shroud"):
 		# Soulfire: the fallen minion bursts, hurting everything around it.
 		_queue_soulfire(p)
@@ -463,6 +642,12 @@ func _remove(k: int, died: bool, refill := true) -> void:
 		_target_swarm[k] = _target_swarm[last]
 		_target_id[k] = _target_id[last]
 		_target_index[k] = _target_index[last]
+		_deeds[k] = _deeds[last]
+		_rank[k] = _rank[last]
+		_vname[k] = _vname[last]
+		_crypt[k] = _crypt[last]
+		_tag[k] = _tag[last]
+		_tag[last] = null
 	count = last
 	if refill:
 		_try_raise()
@@ -496,8 +681,14 @@ func _draw() -> void:
 		for j in n:
 			var k: int = list[j]
 			var f := _facing[k]
-			var sc := 1.35 if _elite[k] == 1 else 1.0
+			var sc := maxf(1.35 if _elite[k] == 1 else 1.0, 1.0 + 0.1 * _rank[k])
 			var basis := Basis(Vector3.UP, atan2(-f.x, -f.y)).scaled(Vector3.ONE * sc)
 			mm.set_instance_transform(j, Transform3D(basis, Vector3(_pos[k].x, 0.0, _pos[k].y)))
-			mm.set_instance_custom_data(j, Color(0.0, _phase[k], 0.0, 0.0))
+			mm.set_instance_custom_data(j, Color(0.0, _phase[k], _rank[k] / 3.0, 0.0))
+			if _rank[k] > 0:
+				var tag: Label3D = _tag[k]
+				if tag:
+					tag.position = Vector3(_pos[k].x, (_types[t]["swarm"] as EnemySwarm).body_height * sc + 0.7, _pos[k].y)
+					var ring: Node3D = tag.get_child(0)
+					ring.global_position = Vector3(_pos[k].x, 0.07, _pos[k].y)
 			mm.set_instance_color(j, Color(1.2, 1.2, 1.2) if _elite[k] == 1 else Color.WHITE)

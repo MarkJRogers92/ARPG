@@ -79,6 +79,7 @@ var frenzy := 0.0
 var frenzy_tier := 0
 const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
+var _rival: RivalDirector
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
 var _gem_streak := 0
@@ -116,6 +117,13 @@ func _ready() -> void:
 	Elements.player = _player
 	Elements.swarms = _swarms
 	_army.setup(_player, _swarms)
+	_army.promoted.connect(func(text: String) -> void: _hud.toast(text, Army.VETERAN_COLOR))
+	_army.veteran_fell.connect(func(vet_name: String, crypt: int) -> void:
+		if won and not _endless:
+			return
+		_hud.toast("%s has fallen%s." % [vet_name, ", gone from the Crypt forever" if crypt >= 0 else ""], Color(0.75, 0.75, 0.85))
+		if crypt >= 0:
+			MetaProgress.crypt_fell(crypt))
 	_army.raised.connect(func(kind: String) -> void:
 		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
 	for swarm in _swarms:
@@ -149,6 +157,10 @@ func _ready() -> void:
 	if collectors:
 		collectors.seized_hero.connect(_ferryman.seize)
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
+	_rival = RivalDirector.new()
+	add_child(_rival)
+	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
+	_rival.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_rift = RiftDirector.new()
 	add_child(_rift)
 	_rift.setup(self, _player, _loot, _army, _events, _decor, ($WorldEnvironment as WorldEnvironment).environment, _swarms,
@@ -282,6 +294,7 @@ func _process(delta: float) -> void:
 		_landmarks.tick(delta)
 		_ferryman.tick(delta)
 		_rift.tick(delta)
+		_rival.tick(delta)
 	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
@@ -289,7 +302,7 @@ func _process(delta: float) -> void:
 	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
-	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else _final_mech.hint)
+	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else (_rival.hint if _rival.hint != "" else _final_mech.hint))
 	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
@@ -386,6 +399,9 @@ func _begin_night() -> void:
 	else:
 		omen = RunModifiers.roll_omen()
 	RunModifiers.apply(self, pacts, omen)
+	var vet := MetaProgress.chosen_veteran()
+	if not vet.is_empty() and _army.raise_veteran(vet):
+		_hud.toast("%s rises from the Crypt to fight beside you." % vet["name"], Army.VETERAN_COLOR)
 	if omen == "":
 		return
 	var o: Dictionary = RunModifiers.OMENS[omen]
@@ -404,7 +420,23 @@ func _settle_run(seconds: float) -> int:
 		if MetaProgress.record_daily(Realm.today(), kills):
 			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
 	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen)
+	_rest_veterans()
 	return shards
+
+
+## The night is over: veterans from the Crypt go back to rest with their new
+## deeds, and the greatest new one joins them.
+func _rest_veterans() -> void:
+	var newcomer := false
+	for v: Dictionary in _army.veterans():
+		if v["crypt"] >= 0:
+			MetaProgress.entomb(v)
+		elif not newcomer:
+			newcomer = true
+			var id := MetaProgress.entomb(v)
+			if id >= 0:
+				_army.mark_crypt(v["slot"], id)
+				_hud.toast("%s is laid to rest in the Crypt. Choose who rises next on the title screen." % v["name"], Army.VETERAN_COLOR)
 
 
 ## Frenzy decays by half every ~1.4 s; tiers add attack and move speed.
@@ -469,7 +501,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers() + _rival.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue
@@ -756,6 +788,13 @@ func _on_upgrade_chosen(id: String) -> void:
 		Specializations.apply(_player.stats, MetaProgress.current_class(), id.substr(5))
 		_hud.toast("Your path: %s" % path.get("name", ""), path.get("color", UiStyle.GOLD))
 		Sound.play("shrine_done")
+	elif id.begins_with(Evolutions.PREFIX):
+		var evo: Dictionary = Evolutions.DEFS.get(id.substr(Evolutions.PREFIX.length()), {})
+		Upgrades.apply(id, _player.stats)
+		_hud.title_card(evo.get("name", ""), "EVOLUTION", evo.get("color", UiStyle.GOLD))
+		Sound.play("boss_title", 1.4, -4.0)
+		Juice.ring(_player.pos2, evo.get("color", UiStyle.GOLD), 48, 12.0, 0.7, 0.8)
+		Juice.flash(_player.pos2, evo.get("color", UiStyle.GOLD), 6.0, 12.0, 0.6)
 	else:
 		Upgrades.apply(id, _player.stats)
 	_choosing_upgrade = false

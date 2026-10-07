@@ -337,3 +337,42 @@ script = ExtResource("23_sound")
 
 [node name="TitleScreen" type="CanvasLayer" parent="."]
 script = ExtResource("22_title")
+
+[node name="Rival" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 2600.0
+move_speed = 3.6
+contact_dps = 8.0
+radius = 0.55
+xp_value = 120
+knockback_taken = 0.15
+attack_range = 13.0
+fire_interval = 1.1
+shot_speed = 9.0
+shot_damage = 12.0
+spawn_share = 0.0
+loot_chance = 1.0
+loot_quality = 2.5
+hold_range = 9.0
+model = "rival"
+display_name = "Rival Necromancer"
+body_height = 2.0
+color = Color(0.35, 0.08, 0.14, 1)
+capacity = 1
+recycle_distance = 200.0
+
+[node name="Thralls" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 30.0
+move_speed = 4.2
+contact_dps = 6.0
+radius = 0.45
+xp_value = 3
+spawn_share = 0.0
+loot_chance = 0.02
+display_name = "Thrall"
+body_height = 1.4
+color = Color(0.55, 0.3, 0.32, 1)
+capacity = 40
+recycle_distance = 80.0
+spectral = true

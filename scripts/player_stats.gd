@@ -240,7 +240,7 @@ func recalculate() -> void:
 	obol_luck = clampf(values["obol_luck"], 0.0, 0.9)
 	scythe_level = maxi(0, roundi(values["scythe_level"]))
 	scythe_damage = values["scythe_damage"] * damage_mult
-	scythe_count = clampi(roundi(values["scythe_count"]), 1, 6)
+	scythe_count = clampi(roundi(values["scythe_count"]), 1, 8)
 	scythe_cooldown = 1.0 / maxf(0.05, values["scythe_rate"])
 	scythe_range = values["scythe_range"]
 	bell_level = maxi(0, roundi(values["bell_level"]))

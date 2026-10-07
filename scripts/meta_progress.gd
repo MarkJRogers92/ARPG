@@ -52,6 +52,16 @@ static var bestiary := {}
 static var pacts: Array = []
 ## The Daily Night: date -> best kills.
 static var daily := {}
+## The Crypt: veterans laid to rest after a night, to rise again in another
+## ({"id", "name", "swarm", "label", "role", "elite", "deeds", "rank", "nights"}),
+## at most CRYPT_SIZE. One of them (crypt_chosen, an id; -1 for none) rises
+## at the hero's side when a night begins. If it falls, it's gone for good,
+## remembered among the fallen (newest first).
+static var crypt: Array = []
+static var fallen: Array = []
+static var crypt_chosen := -1
+const CRYPT_SIZE := 3
+const FALLEN_KEPT := 12
 ## Kills of one kind that each earn a star; every star is +1% damage, for good.
 const BESTIARY_STEPS := [100, 1000, 5000]
 const SAVE_VERSION := 2
@@ -71,6 +81,9 @@ static func load_save() -> void:
 	bestiary = {}
 	pacts = []
 	daily = {}
+	crypt = []
+	fallen = []
+	crypt_chosen = -1
 	if disabled:
 		return
 	var data = _read(save_path)
@@ -102,6 +115,13 @@ static func load_save() -> void:
 		var saved_daily = data.get("daily", {})
 		if saved_daily is Dictionary:
 			daily = saved_daily
+		var saved_crypt = data.get("crypt", [])
+		if saved_crypt is Array:
+			crypt = saved_crypt.filter(func(v) -> bool: return v is Dictionary and v.has("id") and v.has("name"))
+		var saved_fallen = data.get("fallen", [])
+		if saved_fallen is Array:
+			fallen = saved_fallen.filter(func(v) -> bool: return v is Dictionary)
+		crypt_chosen = int(data.get("crypt_chosen", -1))
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
@@ -127,7 +147,8 @@ static func save() -> void:
 		return
 	file.store_var({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
 			"settings": settings, "classes": classes, "hero_class": hero_class,
-			"bestiary": bestiary, "pacts": pacts, "daily": daily})
+			"bestiary": bestiary, "pacts": pacts, "daily": daily,
+			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen})
 	file.close()
 	var dir := DirAccess.open(save_path.get_base_dir())
 	if dir == null:
@@ -189,6 +210,79 @@ static func record_daily(date: String, kills: int) -> bool:
 	daily[date] = kills
 	save()
 	return true
+
+
+## Lays a veteran to rest (or brings one back to rest, with its new deeds).
+## Returns its crypt id, or -1 if the Crypt is full of greater ones.
+static func entomb(rec: Dictionary) -> int:
+	_ensure_loaded()
+	if disabled:
+		return -1
+	var id: int = rec.get("crypt", -1)
+	for v: Dictionary in crypt:
+		if v["id"] == id:
+			v["deeds"] = rec["deeds"]
+			v["rank"] = rec["rank"]
+			v["nights"] = int(v.get("nights", 1)) + 1
+			save()
+			return id
+	id = 1
+	for v: Dictionary in crypt:
+		id = maxi(id, int(v["id"]) + 1)
+	for v: Dictionary in fallen:
+		id = maxi(id, int(v.get("id", 0)) + 1)
+	var entry := {"id": id, "name": rec["name"], "swarm": rec["swarm"], "label": rec["label"], "role": rec["role"],
+			"elite": rec["elite"], "deeds": rec["deeds"], "rank": rec["rank"], "nights": 1}
+	crypt.append(entry)
+	if crypt.size() > CRYPT_SIZE:
+		# The least of them makes room (it may be the newcomer).
+		var least := 0
+		for k in crypt.size():
+			if crypt[k]["deeds"] < crypt[least]["deeds"]:
+				least = k
+		var gone: Dictionary = crypt[least]
+		crypt.remove_at(least)
+		if gone["id"] == crypt_chosen:
+			crypt_chosen = -1
+		if gone["id"] == id:
+			save()
+			return -1
+	if crypt_chosen < 0:
+		crypt_chosen = id
+	save()
+	return id
+
+
+## A veteran from the Crypt fell in battle: gone for good.
+static func crypt_fell(id: int) -> void:
+	_ensure_loaded()
+	if disabled:
+		return
+	for k in crypt.size():
+		if crypt[k]["id"] == id:
+			var v: Dictionary = crypt[k]
+			crypt.remove_at(k)
+			fallen.push_front(v)
+			fallen = fallen.slice(0, FALLEN_KEPT)
+			if crypt_chosen == id:
+				crypt_chosen = -1
+			save()
+			return
+
+
+## The veteran picked to rise at the start of a night ({} for none).
+static func chosen_veteran() -> Dictionary:
+	_ensure_loaded()
+	for v: Dictionary in crypt:
+		if v["id"] == crypt_chosen:
+			return v
+	return {}
+
+
+static func choose_veteran(id: int) -> void:
+	_ensure_loaded()
+	crypt_chosen = id
+	save()
 
 
 static func _ensure_loaded() -> void:

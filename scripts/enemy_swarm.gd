@@ -12,6 +12,9 @@ extends MultiMeshInstance3D
 
 ## Emitted the moment an enemy's HP hits zero. The row is removed at the start
 ## of the next step(), so don't hold indices across frames.
+## Every enemy death so far, in every swarm (the Soul Army counts its kills by it).
+static var deaths := 0
+
 signal enemy_died(position: Vector2, xp: int)
 ## Emitted alongside enemy_died when the one that died was an elite.
 signal elite_died(position: Vector2)
@@ -94,11 +97,14 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector", "phylactery") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector", "phylactery", "rival") var model := "grunt"
 ## Runs away from the hero instead of chasing (treasure goblins).
 @export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
 @export var display_name := ""
+## Drawn as a glowing ghost in `spectral_color` (a rival necromancer's thralls).
+@export var spectral := false
+@export var spectral_color := Color(1.0, 0.3, 0.35)
 @export var body_height := 1.4
 ## Main skin color of the model; also tints its death burst.
 @export var color := Color(0.5, 0.62, 0.42)
@@ -193,6 +199,8 @@ func _ready() -> void:
 		"leg_height": 0.36 if quadruped else 0.3,
 		"stride": 0.12 if quadruped else 0.16,
 		"sway": 0.04 if model in ["brute", "boss"] else 0.08,
+		"spectral": spectral,
+		"spectral_color": spectral_color,
 	}, name)
 	MultiMeshUtil.setup(self, Models.enemy(model, color, body_height), capacity, mat)
 	var blob := PlaneMesh.new()
@@ -500,6 +508,7 @@ func mark_afflicted(i: int) -> void:
 
 func _die(i: int) -> void:
 	_dead.append(i)
+	deaths += 1
 	var elite := _elite[i] == 1
 	enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
 	if elite:

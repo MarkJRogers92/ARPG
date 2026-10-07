@@ -169,7 +169,8 @@ static func level_of(id: String, stats: PlayerStats) -> int:
 
 ## Up to `n` random upgrades that aren't maxed out, as
 ## [{id, name, level, max, title, desc}], where level is the one you'd reach.
-## Falls back to a heal if the pool runs dry.
+## Falls back to a heal if the pool runs dry. A weapon ready to evolve (see
+## Evolutions) always takes the first place.
 static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 	var pool: Array[String] = []
 	for id: String in DEFS:
@@ -187,11 +188,28 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 			"level": lvl + 1,
 			"max": def["max"],
 			"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
-			"desc": def["desc_next"] if (lvl > 0 or already_active(id, stats)) and def.has("desc_next") else def["desc"],
+			"desc": _desc(id, lvl, stats),
 		})
+	var evolving := Evolutions.ready(stats)
+	if not evolving.is_empty():
+		var card := Evolutions.card(evolving.pick_random())
+		if out.size() >= n:
+			out[0] = card
+		else:
+			out.push_front(card)
 	if out.is_empty():
 		out.append(HEAL)
 	return out
+
+
+static func _desc(id: String, lvl: int, stats: PlayerStats) -> String:
+	var def: Dictionary = DEFS[id]
+	var text: String = def["desc_next"] if (lvl > 0 or already_active(id, stats)) and def.has("desc_next") else def["desc"]
+	# The last rank or two: say what it evolves with.
+	var evo := Evolutions.for_weapon(id)
+	if not evo.is_empty() and lvl + 2 >= def["max"]:
+		text += "\nAt max rank, with %s: evolves into %s" % [DEFS[evo["catalyst"]]["name"], evo["name"]]
+	return text
 
 
 ## True if an ability card's ability is already on from another source (a
@@ -210,6 +228,9 @@ static func is_exhausted(choices: Array[Dictionary]) -> bool:
 
 
 static func apply(id: String, stats: PlayerStats) -> void:
+	if id.begins_with(Evolutions.PREFIX):
+		Evolutions.apply(id.substr(Evolutions.PREFIX.length()), stats)
+		return
 	if id == "heal":
 		stats.hp = minf(stats.max_hp, stats.hp + stats.max_hp * 0.4)
 		return

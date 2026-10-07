@@ -100,6 +100,9 @@ func can_open() -> bool:
 	var bosses := _main.get_node("BossDirector") as BossDirector
 	if bosses.boss_alive() or bosses.final_alive() or bosses.final_arrived:
 		return false
+	var rival := _main.get("_rival") as RivalDirector
+	if rival and rival.active():
+		return false
 	return bosses.time_to_final() > 120.0
 
 

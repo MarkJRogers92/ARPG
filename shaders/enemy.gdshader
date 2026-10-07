@@ -3,7 +3,8 @@ shader_type spatial;
 // Instance custom data: x = hit flash (1 on hit, fading to 0), y = animation
 // phase, z = elite glow (0 or 1), w = burning (0 or 1). The instance color
 // tints the model (elites, chill, shock). With `spectral` on, the model is
-// drawn as a glowing ghost: the hero's raised minions. The walk is done here: legs swing, the body bobs and rocks, so the
+// drawn as a glowing ghost: the hero's raised minions (custom z then marks a
+// veteran's rank, gilding it). The walk is done here: legs swing, the body bobs and rocks, so the
 // CPU only ever writes positions and facing.
 
 uniform float glow_strength = 3.0;
@@ -20,6 +21,8 @@ uniform bool quadruped = false;
 uniform vec3 rim_color : source_color = vec3(1.0, 0.55, 0.45);
 uniform float rim_strength = 0.35;
 uniform bool spectral = false;
+// The ghost's glow: the hero's minions are blue, a rival's thralls red.
+uniform vec3 spectral_color : source_color = vec3(0.25, 0.7, 1.0);
 
 varying float v_glow;
 varying float v_flash;
@@ -66,9 +69,11 @@ void fragment() {
 	if (spectral) {
 		float lum = dot(base, vec3(0.3, 0.55, 0.15));
 		ALBEDO = vec3(0.1, 0.25, 0.35) * (0.5 + lum);
-		EMISSION = vec3(0.25, 0.7, 1.0) * (0.35 + lum * 0.6 + rim * 2.5 + v_glow * 1.5)
+		EMISSION = spectral_color * (0.35 + lum * 0.6 + rim * 2.5 + v_glow * 1.5)
 				* (0.85 + 0.15 * sin(TIME * 4.0 + v_phase * 6.28))
 				+ vec3(0.8, 0.95, 1.0) * v_flash * 0.5;
+		// Veterans (custom z = rank / 3): a golden rim, brighter with rank.
+		EMISSION = mix(EMISSION, EMISSION * vec3(1.5, 1.05, 0.45) + vec3(1.0, 0.7, 0.25) * rim * 2.0, clamp(v_elite * 1.5, 0.0, 1.0));
 	} else {
 		EMISSION = base * v_glow * glow_strength
 				+ rim_color * rim * rim_strength

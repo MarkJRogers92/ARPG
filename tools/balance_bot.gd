@@ -242,6 +242,9 @@ func _pick_upgrade() -> void:
 	var choice := 0
 	if _policy == "random":
 		choice = randi() % offered.size()
+	elif offered.any(func(id: String) -> bool: return id.begins_with(Evolutions.PREFIX)):
+		# An evolution is always worth it.
+		choice = offered.find(offered.filter(func(id: String) -> bool: return id.begins_with(Evolutions.PREFIX))[0])
 	else:
 		var best := 999
 		for i in offered.size():
@@ -296,4 +299,11 @@ func _report(tag: String) -> void:
 			_seed, _policy, _main.elapsed, _main._enemy_count(), _peak_enemies, s.level, s.hp, s.max_hp,
 			_main.kills, _items_found, _rarities[0], _rarities[1], _rarities[2], _rarities[3],
 			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, _main.get_node("Army").count, str(_main.won), str(_main._game_over)]
+	var army: Army = _main.get_node("Army")
+	var best := 0
+	for k in army.count:
+		best = maxi(best, army._deeds[k])
+	fields += " vets=%d best_minion_kills=%d" % [army.veterans().size(), best]
+	var rival: RivalDirector = _main._rival
+	fields += " rival=%s stolen=%d" % ["slain" if rival.defeated else ("here" if rival.active() else ("gone" if rival.arrived else "no")), rival.stolen]
 	print("%s %s" % [tag, fields])
