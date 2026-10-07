@@ -210,7 +210,7 @@ which the pause menu's sliders control.
   multiplied by pressure and the spawn rate by its square root (at most
   ×1.6).
 - **Late leveling:** from 5:00, kills give less and less XP (half by 7:00,
-  about a sixth by dawn; `main.gd` `xp_scale_at`), and levels past 20 cost
+  about a sixth by dawn; `main.gd` `xp_scale_at`), and levels past 30 cost
   more (`Player.xp_late_cubed`), so a strong build is still choosing its last
   upgrades at dawn instead of maxing everything by minute 9.
 - **Bestiary** (title screen): kills of each enemy kind across every night.
