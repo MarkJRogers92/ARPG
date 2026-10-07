@@ -25,6 +25,7 @@ is the `GAME_TITLE` constant in `scripts/title_screen.gd`.)
 | R / gamepad X | Reroll the level-up cards (if you have rerolls) |
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
+| E / gamepad B | Use the set piece in reach (a gold ring marks usable ones) |
 | Esc | Pause: music and sound volume, screen shake, damage numbers, back to the title |
 
 Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
@@ -135,6 +136,48 @@ grows and the night goes on. A boss layer comes in whenever a boss is alive.
 pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
+
+## Landmarks you can use
+
+Some set pieces do something (`scripts/landmarks.gd`). Usable ones near the
+hero get a gold ring. In reach, a prompt at the bottom of the screen says
+what it does, and E (gamepad B) uses it. Each works once; its identity is
+its kind and position, so walking away and back doesn't reset it.
+
+| Set piece | Use |
+|---|---|
+| Bell gibbet, wind chime, chained gong | Ring it: 4+ elite champions rise around it; kill them all for two good items and 6 Soul Shards |
+| Soul altar | Sacrifice a minion: +12% damage for the night (stacks per altar) |
+| Stone well, frozen pond | Toss in 5 run shards: a Rare item, a full heal, a blessing, +10 shards, or nothing |
+| Forge | 8 run shards: reforge your weapon at the same rarity, 3 item levels higher |
+| Cauldron | 6 souls: brew a 45 s blessing |
+| Fishing hut | Rest: heal to full |
+| Forbidden tome | +1 skill point, -8% max HP for the night |
+
+## The army's roles
+
+A raised minion keeps a piece of what it was (`Army.role_of`):
+
+| Role | From | Fights |
+|---|---|---|
+| Brawler | most enemies | cleaves around its target |
+| Caster | ranged enemies, gravediggers | soul bolts from 7 m |
+| Bulwark | big enemies (brutes) | every 3 s a ground slam that hurls the horde back |
+| Skirmisher | fast enemies, lancers | darts in with quick strikes |
+| Tyrant | bound bosses | a crushing slam on a long cooldown |
+
+Damage per second is the same across roles; the rhythm and reach differ.
+
+## Specialist enemies
+
+- **Lancers** (Bone Lancer, Rime Lancer, Hellspear) stop and show a red line
+  along their path, which grows as the wind-up runs out. Then they charge
+  straight down it for 14 damage and recover. Sidestep the line and punish
+  the recovery; a Lancer that hits a wall is stunned longer. At most six wind
+  up at once.
+- **Gravediggers** (Gravedigger, Frozen Sexton, Ash Sexton) hang back about
+  8 m from the hero. Every ~6 s they raise three fresh enemies from the
+  ground and swallow the uncollected souls nearby. Kill them first.
 
 ## Imported scenery
 

@@ -48,6 +48,7 @@ func _finish() -> void:
 	_test_fixes()
 	_test_landmarks()
 	_test_minion_roles()
+	_test_specialists()
 
 	print("")
 	if _failures == 0:
@@ -885,7 +886,7 @@ func _test_realms() -> void:
 	print("realms")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var models: Array = []
-	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant"]:
+	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger"]:
 		models.append(m)
 	_check(Realm.ORDER.size() == Realm.REALMS.size(), "every realm is in the play order")
 	for id: String in Realm.ORDER:
@@ -1462,7 +1463,7 @@ func _test_minion_roles() -> void:
 	print("minion roles")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
-			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler"}
+			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster"}
 	for swarm_name: String in want:
 		_check(Army.role_of(scene.get_node(swarm_name)) == want[swarm_name], "%s rise as %ss" % [swarm_name, want[swarm_name]])
 	scene.free()
@@ -1497,3 +1498,63 @@ func _test_minion_roles() -> void:
 	_check(army._pos[0].distance_to(foes.pos[0]) > 3.0, "from a distance (%.1f m)" % army._pos[0].distance_to(foes.pos[0]))
 	for n: Node in [army, witches, foes, player]:
 		n.free()
+
+
+func _test_specialists() -> void:
+	print("lancers and gravediggers")
+	var lancers := EnemySwarm.new()
+	lancers.capacity = 8
+	lancers.charger = true
+	lancers.model = "lancer"
+	root.add_child(lancers)
+	var hits := [0.0]
+	lancers.charged_hero.connect(func(dmg: float) -> void: hits[0] += dmg)
+	lancers.spawn(Vector2(0, 7))
+	lancers._ctime[0] = 0.0
+	var hero := Vector2.ZERO
+	lancers.step(1.0 / 60.0, hero)
+	_check(lancers._cstate[0] == 1 and lancers._telegraph.multimesh.visible_instance_count == 1,
+			"a lancer in range winds up and shows its line")
+	var start := lancers.pos[0]
+	for k in int(lancers.charge_windup * 60.0) - 2:
+		lancers.step(1.0 / 60.0, hero)
+	_check(lancers.pos[0].distance_to(start) < 0.05, "it holds still while winding up")
+	for k in 40:
+		lancers.step(1.0 / 60.0, hero)
+	_check(lancers._cstate[0] >= 2 and lancers.pos[0].y < 0.0, "then charges straight through where the hero was (y=%.1f)" % lancers.pos[0].y)
+	_check(hits[0] == lancers.charge_damage, "and hits a hero who stays in the line, once")
+	# Sidestepping: the line is locked when the wind-up starts.
+	lancers.free()
+	lancers = EnemySwarm.new()
+	lancers.capacity = 8
+	lancers.charger = true
+	root.add_child(lancers)
+	var dodged := [0.0]
+	lancers.charged_hero.connect(func(dmg: float) -> void: dodged[0] += dmg)
+	lancers.spawn(Vector2(0, 7))
+	lancers._ctime[0] = 0.0
+	lancers.step(1.0 / 60.0, hero)
+	for k in 120:
+		lancers.step(1.0 / 60.0, Vector2(3.0, 0.0)) # the hero stepped aside
+	_check(dodged[0] == 0.0, "a hero who sidesteps the line isn't hit")
+	lancers.free()
+
+	var diggers := EnemySwarm.new()
+	diggers.capacity = 4
+	diggers.raise_interval = 1.0
+	diggers.hold_range = 8.0
+	root.add_child(diggers)
+	var calls := [0]
+	diggers.raise_called.connect(func(_at: Vector2) -> void: calls[0] += 1)
+	diggers.spawn(Vector2(0, 15))
+	for k in 240:
+		diggers.step(1.0 / 60.0, Vector2.ZERO)
+	_check(calls[0] >= 2, "a gravedigger keeps raising the dead (%d)" % calls[0])
+	_check(diggers.pos[0].length() > 7.0, "from a distance (%.1f m)" % diggers.pos[0].length())
+	diggers.free()
+	var souls := GemSwarm.new()
+	root.add_child(souls)
+	souls.drop(Vector2(1, 0), 1)
+	souls.drop(Vector2(20, 0), 1)
+	_check(souls.take_near(Vector2.ZERO, 7.0) == 1 and souls.count == 1, "and eats the souls near it")
+	souls.free()

@@ -54,6 +54,8 @@ var _in_title := false
 @onready var _sound: Sound = $Sound
 @onready var _events: EventDirector = $Events
 @onready var _goblins: EnemySwarm = $Goblins
+@onready var _grunts: EnemySwarm = $Grunts
+var _warned := {}
 var _pause: PauseMenu
 var _landmarks: Landmarks
 ## XP gems picked up in quick succession chime higher and higher.
@@ -103,6 +105,11 @@ func _ready() -> void:
 	_hazards.setup(_director, _player, $Grunts)
 	_events.setup(_director, _player, _loot, _gems, _goblins, _swarms)
 	_events.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	for swarm in _swarms:
+		if swarm.charger:
+			swarm.charged_hero.connect(_on_charged)
+		if swarm.raise_interval > 0.0:
+			swarm.raise_called.connect(_on_raise_called.bind(swarm))
 	_landmarks = Landmarks.new()
 	add_child(_landmarks)
 	_landmarks.setup(_decor, _player, _director, _loot, _army, _events, _swarms, _spend_shards)
@@ -280,6 +287,35 @@ func _process(delta: float) -> void:
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## A Lancer's charge ran into the hero.
+func _on_charged(dmg: float) -> void:
+	if _player.is_dashing():
+		return
+	_player.take_damage(dmg)
+	Sound.play("hurt")
+	Sound.play("slam", 1.5, -8.0)
+	Juice.shake(0.3)
+	_fx.burst(_player.pos2, 1.0, Color(1.0, 0.3, 0.2), 14, 5.0, 0.45, 0.4, 2.0)
+
+
+## A Gravedigger calls up the dead: fresh grunts claw out of the ground around
+## it, and it swallows the uncollected souls nearby.
+func _on_raise_called(at: Vector2, digger: EnemySwarm) -> void:
+	if won and not _endless:
+		return
+	if not _warned.has(digger):
+		_warned[digger] = true
+		_hud.toast("A %s raises the dead! Kill it first." % digger.display_name, Color(0.7, 0.9, 0.6))
+	var eaten := _souls.take_near(at, 7.0)
+	for k in 3:
+		var p := at + Vector2.from_angle(randf() * TAU) * randf_range(1.2, 2.4)
+		if not Obstacles.blocked(p, 0.5):
+			_grunts.spawn(p, _director.hp_multiplier())
+	Sound.play("grave", 1.2, -4.0)
+	_fx.burst(at, 0.3, Color(0.55, 0.9, 1.0) if eaten > 0 else Color(0.45, 0.6, 0.35), 18, 3.0, 0.4, 0.7, 4.0)
+	_fx.ring(at, Color(0.45, 0.6, 0.35), 20, 5.0, 0.4, 0.5)
 
 
 ## Run shards for Landmarks: spend_shards(0) is how many there are; otherwise

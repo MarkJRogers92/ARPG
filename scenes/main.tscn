@@ -145,6 +145,43 @@ body_height = 1.5
 color = Color(0.32, 0.14, 0.4, 1)
 capacity = 80
 
+[node name="Lancers" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 28.0
+move_speed = 2.8
+contact_dps = 5.0
+radius = 0.45
+xp_value = 5
+spawn_start_time = 150.0
+spawn_ramp_seconds = 240.0
+spawn_share = 0.1
+loot_chance = 0.03
+loot_quality = 0.3
+charger = true
+model = "lancer"
+body_height = 1.7
+color = Color(0.3, 0.32, 0.36, 1)
+capacity = 120
+
+[node name="Gravediggers" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 70.0
+move_speed = 2.2
+contact_dps = 4.0
+radius = 0.5
+xp_value = 10
+spawn_start_time = 210.0
+spawn_ramp_seconds = 300.0
+spawn_share = 0.025
+loot_chance = 0.12
+loot_quality = 0.5
+raise_interval = 6.0
+hold_range = 8.0
+model = "gravedigger"
+body_height = 1.5
+color = Color(0.24, 0.22, 0.2, 1)
+capacity = 10
+
 [node name="Bosses" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("4_swarm")
 max_hp = 2500.0

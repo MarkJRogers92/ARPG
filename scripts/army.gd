@@ -115,8 +115,10 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 static func role_of(s: EnemySwarm) -> String:
 	if s.boss:
 		return "tyrant"
-	if s.attack_range > 0.0:
+	if s.attack_range > 0.0 or s.hold_range > 0.0:
 		return "caster"
+	if s.charger:
+		return "skirmisher"
 	if s.max_hp >= 60.0:
 		return "bulwark"
 	if s.move_speed >= 4.5 and not s.flee:

@@ -90,6 +90,20 @@ func step(delta: float, target: Vector2, pickup_radius: float) -> int:
 	return gained
 
 
+## Removes every gem within `r` of `at` (a Gravedigger eating souls). Returns how many.
+func take_near(at: Vector2, r: float) -> int:
+	var n := 0
+	var i := count - 1
+	while i >= 0:
+		if _pos[i].distance_squared_to(at) <= r * r:
+			_remove_at(i)
+			n += 1
+		i -= 1
+	if n > 0:
+		multimesh.visible_instance_count = count
+	return n
+
+
 func _remove_at(i: int) -> void:
 	var last := count - 1
 	if i != last:

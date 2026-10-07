@@ -132,7 +132,7 @@ func _process(_delta: float) -> bool:
 
 
 func _spawn_crowd() -> void:
-	var counts := {"Grunts": 260, "Brutes": 30, "Runners": 120, "Cultists": 25}
+	var counts := {"Grunts": 260, "Brutes": 30, "Runners": 120, "Cultists": 25, "Lancers": 14, "Gravediggers": 2}
 	for swarm_name: String in counts:
 		var swarm: EnemySwarm = _main.get_node(swarm_name)
 		for k in counts[swarm_name]:

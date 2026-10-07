@@ -62,6 +62,10 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_colossus(kit, skin)
 		"tyrant":
 			_tyrant(kit, skin)
+		"lancer":
+			_lancer(kit, skin)
+		"gravedigger":
+			_gravedigger(kit, skin)
 		"goblin":
 			_goblin(kit, skin)
 		_:
@@ -165,6 +169,59 @@ static func _cultist(k: MeshKit, skin: Color) -> void:
 		k.sphere(0.04, MeshKit.at(Vector3(0.1 * side, 0.68, -0.28)), flesh, 0.0, 5, 2)
 	k.sphere(0.08, MeshKit.at(Vector3(0, 0.74, -0.34)), fire, 2.2, 6, 3)
 	k.sphere(0.12, MeshKit.at(Vector3(0, 0.74, -0.34)), Color(1.0, 0.3, 0.1), 0.8, 6, 3)
+
+
+## The Lancer: a lean armored skeleton leaning into a long spear, a round
+## shield on its back arm. Charges in straight lines (see EnemySwarm.charger).
+static func _lancer(k: MeshKit, skin: Color) -> void:
+	var bone := Color(0.85, 0.82, 0.72)
+	var iron := skin.darkened(0.2)
+	var steel := Color(0.72, 0.74, 0.78)
+	var eye := Color(1.0, 0.35, 0.2)
+	# Legs, a skirt of plates and a leaning torso.
+	for side: float in [-1.0, 1.0]:
+		k.capsule(0.05, 0.42, MeshKit.at(Vector3(0.09 * side, 0.22, 0.02)), bone, 0.0, 6)
+		k.box(Vector3(0.1, 0.06, 0.16), MeshKit.at(Vector3(0.09 * side, 0.03, -0.03)), iron)
+	k.cylinder(0.14, 0.2, 0.18, MeshKit.at(Vector3(0, 0.46, 0)), iron, 0.0, 8)
+	k.cylinder(0.17, 0.13, 0.34, MeshKit.at(Vector3(0, 0.68, -0.05), Vector3(-18, 0, 0)), iron, 0.0, 8)
+	k.box(Vector3(0.36, 0.06, 0.18), MeshKit.at(Vector3(0, 0.86, -0.1), Vector3(-18, 0, 0)), steel)
+	# Skull in a crested helm.
+	k.sphere(0.11, MeshKit.at(Vector3(0, 0.98, -0.16)), bone, 0.0, 7, 4)
+	k.cylinder(0.12, 0.13, 0.1, MeshKit.at(Vector3(0, 1.03, -0.15)), iron, 0.0, 8)
+	k.box(Vector3(0.03, 0.12, 0.2), MeshKit.at(Vector3(0, 1.12, -0.13)), Color(0.75, 0.15, 0.1))
+	k.sphere(0.022, MeshKit.at(Vector3(-0.04, 0.98, -0.26)), eye, 2.2, 4, 2)
+	k.sphere(0.022, MeshKit.at(Vector3(0.04, 0.98, -0.26)), eye, 2.2, 4, 2)
+	# The lance, couched forward and low, and the shield.
+	k.capsule(0.04, 0.3, MeshKit.at(Vector3(0.14, 0.72, -0.18), Vector3(70, 0, 0)), bone, 0.0, 5)
+	k.cylinder(0.025, 0.03, 1.5, MeshKit.at(Vector3(0.15, 0.66, -0.55), Vector3(-82, 0, 0)), Color(0.35, 0.24, 0.16), 0.0, 5)
+	k.cylinder(0.0, 0.06, 0.28, MeshKit.at(Vector3(0.15, 0.62, -1.38), Vector3(-82, 0, 0)), steel, 0.4, 6)
+	k.cylinder(0.2, 0.2, 0.05, MeshKit.at(Vector3(-0.2, 0.68, -0.05), Vector3(0, 0, 90)), iron, 0.0, 10)
+	k.sphere(0.04, MeshKit.at(Vector3(-0.23, 0.68, -0.05)), steel, 0.3, 5, 2)
+
+
+## The Gravedigger: hunched in a long coat, a shovel over one shoulder and a
+## lantern of stolen souls. Raises the dead (see EnemySwarm.raise_interval).
+static func _gravedigger(k: MeshKit, skin: Color) -> void:
+	var coat := skin
+	var dark := skin.darkened(0.5)
+	var flesh := Color(0.62, 0.66, 0.55)
+	var wood := Color(0.38, 0.26, 0.16)
+	var soul := Color(0.55, 0.9, 1.0)
+	k.cylinder(0.16, 0.3, 0.6, MeshKit.at(Vector3(0, 0.3, 0.04)), coat, 0.0, 8)
+	k.sphere(0.24, MeshKit.at(Vector3(0, 0.66, 0.06), Vector3(-25, 0, 0), Vector3(1.1, 0.9, 1.0)), coat, 0.0, 8, 4)
+	# A hunched head under a wide-brimmed hat.
+	k.sphere(0.11, MeshKit.at(Vector3(0, 0.78, -0.16)), flesh, 0.0, 7, 4)
+	k.cylinder(0.24, 0.24, 0.025, MeshKit.at(Vector3(0, 0.88, -0.14)), dark, 0.0, 10)
+	k.cylinder(0.1, 0.12, 0.14, MeshKit.at(Vector3(0, 0.96, -0.14)), dark, 0.0, 8)
+	k.sphere(0.02, MeshKit.at(Vector3(-0.04, 0.79, -0.26)), soul, 2.0, 4, 2)
+	k.sphere(0.02, MeshKit.at(Vector3(0.04, 0.79, -0.26)), soul, 2.0, 4, 2)
+	# Shovel over the right shoulder.
+	k.cylinder(0.02, 0.02, 1.0, MeshKit.at(Vector3(0.2, 0.78, 0.08), Vector3(-50, 0, -15)), wood, 0.0, 5)
+	k.box(Vector3(0.16, 0.2, 0.03), MeshKit.at(Vector3(0.28, 1.12, 0.42), Vector3(-50, 0, -15)), Color(0.5, 0.5, 0.52))
+	# A soul lantern held out in the left hand.
+	k.capsule(0.04, 0.3, MeshKit.at(Vector3(-0.2, 0.6, -0.12), Vector3(50, 0, 20)), coat, 0.0, 5)
+	k.box(Vector3(0.11, 0.15, 0.11), MeshKit.at(Vector3(-0.26, 0.42, -0.26)), Color(0.2, 0.2, 0.22))
+	k.sphere(0.06, MeshKit.at(Vector3(-0.26, 0.42, -0.26)), soul, 2.4, 6, 3)
 
 
 ## The Ogre Warlord: a brute in a crown and iron plate with a great hammer.
