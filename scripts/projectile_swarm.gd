@@ -1,7 +1,8 @@
 class_name ProjectileSwarm
 extends MultiMeshInstance3D
 ## Player projectiles, simulated as flat arrays like EnemySwarm and tested
-## against the enemy spatial hashes (no physics bodies).
+## against the enemy spatial hashes (no physics bodies). A bolt can carry an
+## element (see Elements), which colors it and what it does on a hit.
 
 ## How many recently hit enemies a piercing bolt remembers, so it doesn't hit
 ## the same one again on every frame it overlaps it.
@@ -25,6 +26,9 @@ var _damage := PackedFloat32Array()
 ## Enemies a bolt can still pass through. Hitting one with 0 left destroys it.
 var _pierce := PackedInt32Array()
 var _crit := PackedByteArray()
+var _element := PackedByteArray()
+## 1 for the small bolts a Hydra weapon splits off; they don't split again.
+var _split := PackedByteArray()
 var _hit_ids := PackedInt32Array()
 var _hit_cursor := PackedInt32Array()
 var _buffer := PackedFloat32Array()
@@ -38,6 +42,8 @@ func _ready() -> void:
 	_damage.resize(capacity)
 	_pierce.resize(capacity)
 	_crit.resize(capacity)
+	_element.resize(capacity)
+	_split.resize(capacity)
 	_hit_ids.resize(capacity * HIT_MEMORY)
 	_hit_cursor.resize(capacity)
 
@@ -46,13 +52,18 @@ func _ready() -> void:
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 
-## `dir` must be normalized. Critical hits are drawn bigger and hotter.
-func spawn(at: Vector2, dir: Vector2, speed: float, dmg: float, pierce: int, lifetime: float, crit := false) -> void:
+## `dir` must be normalized. Critical hits are drawn bigger and hotter;
+## elemental bolts take their element's color.
+func spawn(at: Vector2, dir: Vector2, speed: float, dmg: float, pierce: int, lifetime: float,
+		crit := false, element := Elements.NONE, split := false) -> void:
 	if count >= capacity:
 		return
 	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
-	MultiMeshUtil.set_facing(_buffer, o, dir, 1.4 if crit else 1.0)
-	var tint := (crit_color if crit else color).srgb_to_linear()
+	MultiMeshUtil.set_facing(_buffer, o, dir, (1.4 if crit else 1.0) * (0.65 if split else 1.0))
+	var base_color: Color = Elements.COLORS.get(element, color)
+	var tint := (crit_color if crit else base_color).srgb_to_linear()
+	_element[count] = element
+	_split[count] = 1 if split else 0
 	for c in 4:
 		_buffer[o + MultiMeshUtil.OFFSET_COLOR + c] = tint[c]
 	_buffer[o + MultiMeshUtil.OFFSET_X] = at.x
@@ -107,8 +118,14 @@ func _hit_something(i: int, p: Vector2, swarms: Array[EnemySwarm]) -> bool:
 			var id := swarm.ids[j]
 			if _already_hit(base, id):
 				continue
-			swarm.damage(j, _damage[i])
+			var killed := Elements.hit(swarm, j, _damage[i], _element[i], _crit[i] == 1)
 			hit.emit(p, _crit[i] == 1, _damage[i])
+			if killed and _split[i] == 0 and Elements.has_power("splitting"):
+				# Hydra: the kill spits out three smaller bolts.
+				var v := _vel[i]
+				for a: float in [-0.6, 0.0, 0.6]:
+					spawn(swarm.pos[j], v.normalized().rotated(a), v.length(), _damage[i] * 0.6, 0,
+							0.7, false, _element[i], true)
 			_hit_ids[base + _hit_cursor[i]] = id
 			_hit_cursor[i] = (_hit_cursor[i] + 1) % HIT_MEMORY
 			if _pierce[i] <= 0:
@@ -133,6 +150,8 @@ func _remove_at(i: int) -> void:
 		_damage[i] = _damage[last]
 		_pierce[i] = _pierce[last]
 		_crit[i] = _crit[last]
+		_element[i] = _element[last]
+		_split[i] = _split[last]
 		_hit_cursor[i] = _hit_cursor[last]
 		var dst := i * HIT_MEMORY
 		var src := last * HIT_MEMORY

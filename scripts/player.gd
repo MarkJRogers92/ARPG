@@ -68,6 +68,8 @@ var _dash_dir := Vector2.ZERO
 var _lightning: ChainLightning
 var _blades: SpiritBlades
 var _nova: ArcaneNova
+var _volleys := 0
+var _storm_tick := 0.0
 
 
 ## Ground-plane position as Vector2(x, z), the space the swarms live in.
@@ -154,10 +156,18 @@ func tick(delta: float) -> void:
 		_dash_time = DASH_TIME
 		_dash_cooldown = stats.dash_cooldown
 		dashed.emit()
+		if stats.powers.has("blinkfire") and _nova:
+			_nova.fire()
 	if _dash_time > 0.0:
 		_dash_time -= delta
 		velocity = Vector3(_dash_dir.x, 0.0, _dash_dir.y) * stats.move_speed * DASH_SPEED
 		Juice.burst(pos2, 1.2, Color(0.5, 0.8, 1.0), 2, 1.0, 0.5, 0.35, 0.5)
+		_storm_tick -= delta
+		if stats.powers.has("stormstride") and _storm_tick <= 0.0:
+			# Stormstride: the dash path crackles with lightning.
+			_storm_tick = 0.05
+			Elements.hit_area(pos2, 1.8, stats.lightning_damage * 0.5, Elements.LIGHTNING)
+			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
 		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed
 	move_and_slide()
@@ -196,6 +206,11 @@ func _update_aim() -> void:
 	var to := Vector2(hit.x, hit.z) - pos2
 	if to.length_squared() > 0.04:
 		aim_dir = to.normalized()
+
+
+func heal(amount: float) -> void:
+	if not dead:
+		stats.hp = minf(stats.max_hp, stats.hp + amount)
 
 
 ## The ground direction the model is facing.
@@ -277,6 +292,9 @@ func _update_bolt(delta: float) -> void:
 		_visual.rotation.y = atan2(-aim.x, -aim.y)
 	_visual.cast()
 	cast.emit()
+	_volleys += 1
+	if stats.powers.has("heart_of_storms") and _volleys % 6 == 0 and _nova:
+		_nova.fire()
 	var spread := deg_to_rad(9.0)
 	for k in stats.bolt_count:
 		var angle := (k - (stats.bolt_count - 1) * 0.5) * spread
@@ -285,7 +303,19 @@ func _update_bolt(delta: float) -> void:
 		if crit:
 			damage *= stats.crit_mult
 		_projectiles.spawn(origin, aim.rotated(angle), stats.bolt_speed,
-				damage, stats.bolt_pierce, 1.5, crit)
+				damage, stats.bolt_pierce, 1.5, crit, _bolt_element())
+
+
+## Which element the next bolt carries: lightning with a Stormcaller weapon,
+## otherwise fire or frost by the ignite / chill chances.
+func _bolt_element() -> int:
+	if stats.powers.has("stormcaller"):
+		return Elements.LIGHTNING
+	if randf() < stats.ignite_chance:
+		return Elements.FIRE
+	if randf() < stats.chill_chance:
+		return Elements.FROST
+	return Elements.NONE
 
 
 func _update_aura(delta: float) -> void:
@@ -301,6 +331,5 @@ func _update_aura(delta: float) -> void:
 	_aura_timer = stats.aura_interval
 	_aura_pulse = 1.0
 	aura_ticked.emit()
-	var origin := pos2
-	for swarm in _swarms:
-		swarm.damage_in_radius(origin, stats.aura_radius, stats.aura_damage)
+	# Frost Aura chills what it touches (see Elements).
+	Elements.hit_area(pos2, stats.aura_radius, stats.aura_damage, Elements.FROST)

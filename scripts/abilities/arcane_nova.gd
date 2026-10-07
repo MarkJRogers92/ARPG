@@ -45,20 +45,17 @@ func update(delta: float) -> void:
 	if _timer > 0.0:
 		return
 	_timer = stats.nova_cooldown
+	fire()
 
+
+## Releases a nova now, whether or not the hero has the upgrade (legendary
+## powers trigger free ones).
+func fire() -> void:
+	var stats := _player.stats
 	var center := _player.pos2
 	var r := stats.nova_radius
+	Elements.hit_area(center, r, stats.nova_damage, Elements.NONE, stats.crit_chance, stats.crit_mult)
 	for swarm in _swarms:
-		var n := swarm.grid.query(center, r + swarm.radius)
-		var res := swarm.grid.results
-		for k in n:
-			var i := res[k]
-			if swarm.hp[i] <= 0.0:
-				continue
-			var crit := randf() < stats.crit_chance
-			var amount := stats.nova_damage * (stats.crit_mult if crit else 1.0)
-			swarm.damage(i, amount)
-			Juice.number(swarm.pos[i], amount, crit, COLOR.lightened(0.4))
 		swarm.knockback(center, r + swarm.radius, KNOCKBACK)
 	_anim = 0.0
 	Juice.ring(center, COLOR, 40, r / 0.45, 0.55, 0.45)

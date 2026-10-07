@@ -43,6 +43,67 @@ machine and is the one the game was tested with. If you'd like Forward+ (Vulkan)
 switch it under Project Settings → Rendering → Renderer and restart the editor;
 nothing in the game depends on the choice, but Forward+ has not been tried.
 
+## What makes it different
+
+Three systems feed each other: your **army** comes from the horde, **elements**
+combine into reactions, and **legendary powers** bend the rules of both.
+
+### The Soul Army
+
+Kills sometimes leave a **soul** (a pale blue crystal; 6% of kills at first).
+Each soul remembers what kind of enemy it came from. Gather `soul_cost` souls
+(12 at first) and the kind most of them came from **rises as a spectral minion**
+that fights for you. You start with room for 2 (see "SOULS / ARMY" under your
+health).
+
+- Minions hunt the enemy nearest to them (within reach of you), cleave
+  everything around their target, and fall back to your side when there's
+  nothing to fight. Tougher kinds make tougher minions: a spectral Brute hits
+  harder and lasts longer than a spectral Runner.
+- An **elite's soul** always drops and raises a glowing champion straight away,
+  pushing out your newest common minion if the army is full.
+- A slain **Ogre Warlord's soul** binds the Warlord itself to you (one at a time).
+- Level-up cards: **Soul Legion** (+1 army size, stronger minions) and **Soul
+  Harvest** (more souls, fewer needed per minion).
+- The army is `scripts/army.gd`; minions use the enemy models with a ghostly
+  shader (`spectral` in `enemy.gdshader`).
+
+### Elements and reactions
+
+| Status | Comes from | Effect |
+|---|---|---|
+| Chill | Frost Aura, bolts with **Frostbite** | half speed (bosses three-quarters) |
+| Shock | Chain Lightning, Stormcaller bolts, Stormstride | takes 25% more damage from everything else |
+| Burn | bolts with **Kindling** | damage over time; 35% chance to spread to neighbors on death |
+
+| Reaction | When | Effect |
+|---|---|---|
+| **Shatter** | lightning hits a chilled enemy | an ice burst damages and chills everything around it |
+| **Melt** | fire hits a chilled enemy | that hit deals 2.5x |
+| **Overload** | fire hits a shocked enemy, or lightning a burning one | an explosion |
+
+Chilled enemies are tinted icy blue, shocked ones flicker violet, burning ones
+glow with embers, and elemental bolts take their element's color. All damage
+goes through `Elements.hit()` (`scripts/elements.gd`); area reactions are queued
+and run once a frame, after the weapons.
+
+### Legendary powers
+
+Every Legendary item rolls a named power for its slot, on top of its affixes:
+
+| Slot | Power |
+|---|---|
+| Weapon | **Hydra**: bolts split into three when they kill. **Stormcaller's**: bolts shock (+1 lightning jump). |
+| Helm | **Endless Winter**: grants Frost Aura (+30% radius), bolts chill 20%. **Eye of the Storm**: grants Chain Lightning, +2 jumps, strikes faster. |
+| Chest | **Shroud of the Lich**: +1 minion, minions explode in soulfire when they fall. **Dragonscale**: bolts ignite 25%, +50% burn damage. |
+| Boots | **Stormstride**: dashing leaves lightning in your path. **Blinkfire**: 40% shorter dash cooldown, every dash releases an Arcane Nova. |
+| Amulet | **Heart of Storms**: every 6th volley releases a free Arcane Nova. **Soul Lantern**: twice the souls, minions need 4 fewer. |
+| Ring | **Ring of Embers**: 15% of hits ignite, reactions +50%. **Bloodseal**: crits heal 1 HP, +5% crit. |
+
+Powers are data (`ItemData.POWERS`): stat modifiers apply like affixes, and
+flags are checked with `stats.powers` where the effect lives. Picking one up
+announces its power.
+
 ## Abilities, enemies and progression
 
 **Weapons.** *Magic Bolt* is always on. The level-up cards can add:
@@ -264,15 +325,22 @@ manages gear. `tools/balance.sh` runs many seeds in parallel and prints
 per-minute averages. The bot is a consistent yardstick for comparing settings,
 **not** a stand-in for a person.
 
-Current defaults, 6 seeds each, 10 minutes of game time, with Cultists, elites
-and bosses. The bot spends skill points by policy (damage-first, or random
+Current defaults, 6 seeds each, 10 minutes of game time, with Cultists,
+elites, bosses, the Soul Army and elements. The bot spends skill points by policy (damage-first, or random
 picks). It never dashes or steps out of a boss slam, so a person has an easier
 time than these numbers suggest:
 
 | Policy | Survived | Level at 10 min | Items found |
 |---|---|---|---|
-| greedy (damage-first build; never takes the new weapons) | 6 of 6 reached 10:00 | ~71 | ~35 |
-| random upgrades and nodes | 3 of 6 reached 10:00 (the others died at 4.7 to 5.5 min) | ~65 | ~30 |
+| greedy (damage-first build, plus Soul Legion) | 5 of 6 reached 10:00 (one died at the first boss, 4.0 min) | ~70 | ~30 |
+| random upgrades and nodes | 5 of 6 reached 10:00 (one died at 7.4 min) | ~70 | ~30 |
+
+Before the Soul Army and elements, greedy survived 6 of 6 and random 3 of 6, so
+mixed builds got noticeably stronger. The first cut of the army was too fragile
+(minions died in seconds at the front and the army rarely passed 2): minions now
+have 90 base life and take a third of the horde's contact damage. If runs feel
+too easy, lower `hp_squared_seconds` (enemy HP ramps up sooner) on the
+WaveDirector or trim `minion_damage` in `PlayerStats.BASE`.
 
 The first version of this update let Cultists build up to about 300 alive (with
 a share of 0.12 of all spawns), and the damage-first bot died in 3 of 4 runs.
@@ -337,7 +405,11 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
   budget, the wave director's spawn schedule, and the skill tree (graph validity,
   allocate and refund rules, exact stat restore, serialization, earning points).
   Exit code 0 means everything passed.
-- `tests.gd` also covers the new weapons' upgrades, Soul Shards and the Altar
+- `tests.gd` also covers the Soul Army (souls, raising by majority kind, the cap,
+  elite champions, refilling from banked souls), elements and reactions (chill,
+  shock bonus, Melt, Shatter, Overload, burning), legendary powers (every slot
+  has some, names, serialization, mods and flags when worn and removed), the new
+  weapons' upgrades, Soul Shards and the Altar
   (buying, costs, max ranks, saving and loading, applying at run start), elites,
   knockback, enemy fireballs and dash invulnerability.
 - `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
@@ -373,6 +445,8 @@ scripts/
   boss_director.gd     When bosses come, and their telegraphed slam
   meta_progress.gd     Soul Shards and the Altar's permanent upgrades (saved)
   juice.gd             One place to trigger particles, numbers, flashes, shake
+  army.gd              The Soul Army: souls, raising minions, minion AI
+  elements.gd          Elemental hits, statuses and reactions
   player_stats.gd      Base values + modifiers -> effective stats
   upgrades.gd          The level-up pool (data + apply())
   wave_director.gd     Spawn rate / HP curves and enemy mix over time
@@ -420,6 +494,9 @@ tools/
   one is, the slam's timing, size and damage) and on the `Bosses` swarm (HP,
   speed, rewards). **Ranged enemies:** the "Ranged" exports on `Cultists`.
 - **Permanent upgrades:** `MetaProgress.UPGRADES`.
+- **Soul Army:** `minion_*` and `soul_*` in `PlayerStats.BASE`; reach and timing at
+  the top of `army.gd`. **Elements:** the constants at the top of `elements.gd`.
+  **Legendary powers:** `ItemData.POWERS`.
 - **Enemy stats, look and drops:** exports on the `Grunts` / `Brutes` / `Runners`
   nodes in `main.tscn` (HP, speed, contact damage, size, color, capacity, when
   they start spawning and how common they are, loot chance and quality).

@@ -147,6 +147,8 @@ func _show_details() -> void:
 	var item := _selected
 	var lines := "[font_size=24][color=#%s][b]%s[/b][/color][/font_size]\n" % [item.color().to_html(false), item.name]
 	lines += "[color=#8a8f9c]%s  ·  %s[/color]\n\n" % [item.subtitle(), ItemData.SLOT_NAMES[item.slot]]
+	if item.power != "":
+		lines += "[color=#ff9a3c]★ %s[/color]\n\n" % item.power_text()
 	for mod in item.implicit:
 		lines += "[color=#b8bcc8]%s[/color]\n" % ItemData.mod_text(mod)
 	for mod in item.affixes:
@@ -187,6 +189,11 @@ func _stats_bbcode() -> String:
 	if s.nova_level > 0:
 		rows.append("Nova  Lv [b]%d[/b]  dmg [b]%.1f[/b]  every [b]%.1f[/b]s" % [s.nova_level, s.nova_damage, s.nova_cooldown])
 	rows.append("Dash  every [b]%.1f[/b]s" % s.dash_cooldown)
+	rows.append("[color=#8fd8ff]Army [b]%d[/b]   %d souls each   [b]%.0f[/b] dmg/s[/color]" % [
+			s.minion_max, s.soul_cost, s.minion_damage])
+	if s.ignite_chance > 0.0 or s.chill_chance > 0.0:
+		rows.append("Ignite [b]%d%%[/b]  (burn [b]%.0f[/b]/s)   Chill [b]%d%%[/b]" % [
+				roundi(s.ignite_chance * 100.0), s.burn_dps, roundi(s.chill_chance * 100.0)])
 	return "\n".join(rows)
 
 
@@ -235,12 +242,12 @@ func _build() -> void:
 	left.custom_minimum_size.x = 330
 	body.add_child(left)
 	left.add_child(_section_label("Equipped"))
-	_equipment_list = _make_list(Vector2(330, 290))
+	_equipment_list = _make_list(Vector2(330, 262))
 	_equipment_list.item_selected.connect(_on_equipment_selected)
 	_equipment_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
 	left.add_child(_equipment_list)
 	left.add_child(_section_label("Stats"))
-	_stats_text = _make_text(Vector2(330, 190))
+	_stats_text = _make_text(Vector2(330, 218))
 	left.add_child(_stats_text)
 
 	var middle := VBoxContainer.new()
@@ -257,8 +264,8 @@ func _build() -> void:
 	right.custom_minimum_size.x = 330
 	body.add_child(right)
 	right.add_child(_section_label("Selected"))
-	right.add_child(_icons.make_preview(Vector2(330, 150)))
-	_details = _make_text(Vector2(330, 300))
+	right.add_child(_icons.make_preview(Vector2(330, 120)))
+	_details = _make_text(Vector2(330, 330))
 	right.add_child(_details)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)

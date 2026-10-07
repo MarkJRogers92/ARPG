@@ -1,7 +1,9 @@
 shader_type spatial;
 // Enemies: a MeshKit model (feet at y = 0, facing -Z) drawn by EnemySwarm.
 // Instance custom data: x = hit flash (1 on hit, fading to 0), y = animation
-// phase, z = elite glow (0 or 1). The instance color tints the model. The walk is done here: legs swing, the body bobs and rocks, so the
+// phase, z = elite glow (0 or 1), w = burning (0 or 1). The instance color
+// tints the model (elites, chill, shock). With `spectral` on, the model is
+// drawn as a glowing ghost: the hero's raised minions. The walk is done here: legs swing, the body bobs and rocks, so the
 // CPU only ever writes positions and facing.
 
 uniform float glow_strength = 3.0;
@@ -17,10 +19,13 @@ uniform float sway = 0.08;
 uniform bool quadruped = false;
 uniform vec3 rim_color : source_color = vec3(1.0, 0.55, 0.45);
 uniform float rim_strength = 0.35;
+uniform bool spectral = false;
 
 varying float v_glow;
 varying float v_flash;
 varying float v_elite;
+varying float v_burn;
+varying float v_phase;
 
 void vertex() {
 	float t = TIME * stride_speed + INSTANCE_CUSTOM.y * 6.2831853;
@@ -49,6 +54,8 @@ void vertex() {
 	VERTEX.y *= 1.0 - v_flash * 0.08;
 	v_glow = UV.x;
 	v_elite = INSTANCE_CUSTOM.z;
+	v_burn = INSTANCE_CUSTOM.w;
+	v_phase = INSTANCE_CUSTOM.y;
 }
 
 void fragment() {
@@ -56,8 +63,17 @@ void fragment() {
 	ALBEDO = mix(base, vec3(1.0), v_flash * 0.3);
 	ROUGHNESS = 0.8;
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
-	EMISSION = base * v_glow * glow_strength
-			+ rim_color * rim * rim_strength
-			+ vec3(1.0, 0.9, 0.85) * v_flash * 0.35
-			+ vec3(1.0, 0.72, 0.25) * (rim * 2.2 + 0.1 + 0.08 * sin(TIME * 5.0)) * v_elite;
+	if (spectral) {
+		float lum = dot(base, vec3(0.3, 0.55, 0.15));
+		ALBEDO = vec3(0.1, 0.25, 0.35) * (0.5 + lum);
+		EMISSION = vec3(0.25, 0.7, 1.0) * (0.35 + lum * 0.6 + rim * 2.5 + v_glow * 1.5)
+				* (0.85 + 0.15 * sin(TIME * 4.0 + v_phase * 6.28))
+				+ vec3(0.8, 0.95, 1.0) * v_flash * 0.5;
+	} else {
+		EMISSION = base * v_glow * glow_strength
+				+ rim_color * rim * rim_strength
+				+ vec3(1.0, 0.9, 0.85) * v_flash * 0.35
+				+ vec3(1.0, 0.72, 0.25) * (rim * 2.2 + 0.1 + 0.08 * sin(TIME * 5.0)) * v_elite
+				+ vec3(1.0, 0.4, 0.08) * (0.35 + rim * 1.8) * v_burn * (0.75 + 0.25 * sin(TIME * 23.0 + VERTEX.y * 9.0));
+	}
 }

@@ -13,6 +13,8 @@ const CARD_COLORS := {
 	"aura": "aura", "max_hp": "defense", "regen": "defense", "heal": "defense",
 	"move_speed": "utility", "magnet": "utility",
 	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9),
+	"legion": Color(0.45, 0.8, 1.0), "harvest": Color(0.45, 0.8, 1.0),
+	"ignite": Color(1.0, 0.5, 0.15), "frostbite": Color(0.55, 0.85, 1.0),
 }
 
 var _hp_bar: ProgressBar
@@ -41,6 +43,8 @@ var _boss_label: Label
 var _boss_bar: ProgressBar
 var _shards_earned_label: Label
 var _altar: GridContainer
+var _soul_bar: ProgressBar
+var _soul_label: Label
 
 
 func _ready() -> void:
@@ -101,6 +105,13 @@ func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_h
 	if _boss_box.visible:
 		_boss_label.text = boss_name
 		_boss_bar.value = boss_health
+
+
+## The Soul Army: souls toward the next minion, and how big the army is.
+func refresh_army(souls: int, cost: int, minions: int, max_minions: int) -> void:
+	_soul_bar.max_value = cost
+	_soul_bar.value = souls
+	_soul_label.text = "SOULS %d/%d   ARMY %d/%d" % [mini(souls, cost), cost, minions, max_minions]
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
@@ -318,6 +329,20 @@ func _build() -> void:
 	dash_row.add_child(_dash_bar)
 	_dash_label = UiStyle.label(12)
 	dash_row.add_child(_dash_label)
+
+	var soul_row := HBoxContainer.new()
+	soul_row.add_theme_constant_override("separation", 8)
+	soul_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_column.add_child(soul_row)
+	hp_column.move_child(soul_row, 2)
+	_soul_bar = UiStyle.bar(Color(0.45, 0.8, 1.0), 6)
+	_soul_bar.custom_minimum_size.x = 110
+	_soul_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_soul_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	soul_row.add_child(_soul_bar)
+	_soul_label = UiStyle.label(12)
+	_soul_label.add_theme_color_override("font_color", Color(0.6, 0.88, 1.0))
+	soul_row.add_child(_soul_label)
 
 	# Top center, under the timer: the boss health bar.
 	var boss_column := VBoxContainer.new()

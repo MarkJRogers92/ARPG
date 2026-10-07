@@ -17,7 +17,7 @@ extends SceneTree
 
 ## Upgrade priority per policy (first offered one in the list wins).
 const PRIORITY := {
-	"greedy": ["bolt_count", "bolt_damage", "bolt_rate", "aura", "bolt_pierce", "regen", "max_hp", "magnet", "move_speed"],
+	"greedy": ["bolt_count", "bolt_damage", "bolt_rate", "aura", "bolt_pierce", "regen", "max_hp", "legion", "magnet", "move_speed"],
 	"tank": ["max_hp", "regen", "move_speed", "bolt_damage", "bolt_rate", "aura", "bolt_count", "bolt_pierce", "magnet"],
 }
 ## Skill tree order per policy: the first node in the list that can be bought
@@ -263,8 +263,8 @@ func _report(tag: String) -> void:
 	var worn := 0.0
 	for slot in _player.inventory.equipped:
 		worn += _player.inventory.equipped[slot].score()
-	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d skills=%d died=%s" % [
+	var fields := "seed=%d policy=%s t=%.1f enemies=%d peak=%d level=%d hp=%.0f/%.0f kills=%d items=%d (N%d M%d R%d L%d) gear_score=%.2f dmg=%.1f bolts=%d skills=%d army=%d died=%s" % [
 			_seed, _policy, _main.elapsed, _main._enemy_count(), _peak_enemies, s.level, s.hp, s.max_hp,
 			_main.kills, _items_found, _rarities[0], _rarities[1], _rarities[2], _rarities[3],
-			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, str(_main._game_over)]
+			worn, s.bolt_damage, s.bolt_count, _player.skills.allocated.size() - 1, _main.get_node("Army").count, str(_main._game_over)]
 	print("%s %s" % [tag, fields])

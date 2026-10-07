@@ -124,9 +124,19 @@ func _spawn_crowd() -> void:
 			swarm.spawn(EnemySwarm.random_ring_point(Vector2.ZERO, 7.0, 18.0), 1.0, k < 3)
 	var bosses: EnemySwarm = _main.get_node("Bosses")
 	bosses.spawn(Vector2(7.0, 5.0), 3.0)
-	var stats: PlayerStats = _main.get_node("Player").stats
-	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura"]:
+	var player: Player = _main.get_node("Player")
+	var stats := player.stats
+	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura", "legion", "legion", "ignite", "frostbite"]:
 		Upgrades.apply(id, stats)
+	# A legendary weapon and a Soul Army already raised.
+	var hydra := ItemGenerator.generate_with(10, ItemData.Rarity.LEGENDARY, "weapon")
+	hydra.power = "splitting"
+	hydra.name = "Hydra " + hydra.base_name
+	player.inventory.pickup(hydra)
+	var army: Army = _main.get_node("Army")
+	for t in [0, 0, 1, 2]:
+		army._raise(t, false, false)
+	army._raise(1, true, false)
 
 
 func _save(name: String) -> void:

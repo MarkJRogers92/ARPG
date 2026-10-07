@@ -56,6 +56,21 @@ func show_number(at: Vector2, amount: float, crit: bool, color: Color) -> void:
 	_vel[i] = Vector3(randf_range(-0.6, 0.6), 3.2 if crit else 2.4, 0.0)
 
 
+## A word instead of a number (reactions like "SHATTER"), always shown.
+func show_text(at: Vector2, text: String, color: Color) -> void:
+	var i := _next
+	_next = (_next + 1) % pool_size
+	var label := _labels[i]
+	label.text = text
+	label.position = Vector3(at.x, 2.4, at.y)
+	label.modulate = color
+	label.font_size = 56
+	label.scale = Vector3.ONE * 1.6
+	label.visible = true
+	_age[i] = 0.0
+	_vel[i] = Vector3(0.0, 3.0, 0.0)
+
+
 func _process(delta: float) -> void:
 	for i in pool_size:
 		if _age[i] >= LIFE:

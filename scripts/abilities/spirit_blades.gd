@@ -75,7 +75,5 @@ func _cut(b: int, at: Vector2, delta: float) -> void:
 				continue
 			cd[swarm.ids[i]] = HIT_INTERVAL
 			var crit := randf() < stats.crit_chance
-			var amount := stats.orbit_damage * (stats.crit_mult if crit else 1.0)
-			swarm.damage(i, amount)
-			Juice.number(swarm.pos[i], amount, crit, COLOR.lightened(0.4))
+			Elements.hit(swarm, i, stats.orbit_damage * (stats.crit_mult if crit else 1.0), Elements.NONE, crit)
 			Juice.burst(swarm.pos[i], 1.0, COLOR, 2, 3.0, 0.3, 0.25, 1.5)

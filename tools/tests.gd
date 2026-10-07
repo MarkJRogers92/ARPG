@@ -26,6 +26,7 @@ func _initialize() -> void:
 	_test_new_weapons()
 	_test_meta_progress()
 	_test_elite_rate()
+	_test_legendaries()
 	# These need nodes in the running tree, which only exists after this returns.
 	_finish.call_deferred()
 
@@ -33,6 +34,8 @@ func _initialize() -> void:
 func _finish() -> void:
 	_test_elites_and_knockback()
 	_test_enemy_shots()
+	_test_elements()
+	_test_army()
 
 	print("")
 	if _failures == 0:
@@ -738,3 +741,129 @@ func _test_elite_rate() -> void:
 	d.elapsed = 100000.0
 	_near(d.elite_rate(), d.elites_per_minute_max, "and caps")
 	d.free()
+
+
+func _test_legendaries() -> void:
+	print("legendary powers")
+	for slot in ItemData.SLOTS:
+		_check(not ItemData.powers_for(slot).is_empty(), "%s has legendary powers" % slot)
+	for id: String in ItemData.POWERS:
+		var def: Dictionary = ItemData.POWERS[id]
+		_check(def["slot"] in ItemData.SLOTS and def.has("desc") and def.has("name"), "power %s is complete" % id)
+		for mod: Dictionary in def.get("mods", []):
+			_check(PlayerStats.BASE.has(mod["stat"]) and ItemData.STAT_INFO.has(mod["stat"]), "power %s: stat %s exists" % [id, mod["stat"]])
+	for k in 60:
+		var slot: String = ItemData.SLOTS[k % ItemData.SLOTS.size()]
+		var item := ItemGenerator.generate_with(10, ItemData.Rarity.LEGENDARY, slot)
+		_check(item.power != "" and ItemData.POWERS[item.power]["slot"] == slot, "legendary %s gets a %s power" % [item.name, slot])
+		_check(not item.name.contains("%"), "legendary name is filled in (%s)" % item.name)
+	var rare := ItemGenerator.generate_with(10, ItemData.Rarity.RARE, "ring")
+	_check(rare.power == "", "only legendaries have powers")
+
+	var helm := ItemGenerator.generate_with(5, ItemData.Rarity.LEGENDARY, "helm")
+	helm.power = "storm_eye"
+	var copy := Item.from_dict(helm.to_dict())
+	_check(copy.power == "storm_eye", "the power survives serialization")
+	var s := PlayerStats.new()
+	var inv := Inventory.new(s)
+	inv.pickup(helm)
+	_check(s.lightning_level == 1 and s.lightning_chains == 5, "a power's stat mods apply when worn (lightning %d, jumps %d)" % [s.lightning_level, s.lightning_chains])
+	_check(s.powers.has("storm_eye"), "worn powers are listed in stats.powers")
+	inv.unequip("helm")
+	_check(s.lightning_level == 0 and not s.powers.has("storm_eye"), "unequipping removes the power and its mods")
+
+
+func _test_elements() -> void:
+	print("elements and reactions")
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 16
+	swarm.max_hp = 1000.0
+	root.add_child(swarm)
+	Elements.swarms = [swarm]
+	Elements.player = null
+	for k in 4:
+		swarm.spawn(Vector2(k * 0.5, 0))
+	swarm.step(0.0, Vector2.ZERO)
+
+	Elements.hit(swarm, 0, 10.0, Elements.FROST)
+	_check(swarm.chill[0] > 0.0, "frost chills")
+	Elements.hit(swarm, 0, 10.0, Elements.FIRE)
+	_near(swarm.hp[0], 1000.0 - 10.0 - 10.0 * Elements.MELT_MULT, "fire on a chilled enemy melts (2.5x)")
+	_check(swarm.chill[0] == 0.0 and swarm.burn[0] > 0.0, "melting uses up the chill, and the fire then burns")
+
+	Elements.hit(swarm, 1, 10.0, Elements.LIGHTNING)
+	_check(swarm.shock[1] > 0.0, "lightning shocks")
+	var before := swarm.hp[1]
+	Elements.hit(swarm, 1, 10.0)
+	_near(before - swarm.hp[1], 10.0 * Elements.SHOCK_BONUS, "shocked enemies take 25% more")
+
+	Elements.hit(swarm, 2, 10.0, Elements.FROST)
+	Elements.hit(swarm, 2, 10.0, Elements.LIGHTNING)
+	_check(Elements._queue.size() == 1 and Elements._queue[0]["kind"] == "shatter", "lightning on a chilled enemy queues a Shatter")
+	var hp3 := swarm.hp[3]
+	Elements.flush()
+	_check(swarm.hp[3] < hp3 and swarm.chill[3] > 0.0, "the Shatter hurts and chills neighbors")
+
+	var hp0 := swarm.hp[0]
+	swarm.step(0.5, Vector2.ZERO)
+	_check(swarm.hp[0] < hp0, "burning enemies lose HP over time")
+
+	swarm.spawn(Vector2(5, 5))
+	swarm.step(0.0, Vector2.ZERO)
+	var i := swarm.count - 1
+	Elements.hit(swarm, i, 1.0, Elements.LIGHTNING)
+	Elements.hit(swarm, i, 1.0, Elements.FIRE)
+	_check(Elements._queue.size() == 1 and Elements._queue[0]["kind"] == "overload", "fire on a shocked enemy queues an Overload")
+	Elements.flush()
+	Elements.reset()
+	swarm.free()
+
+
+func _test_army() -> void:
+	print("soul army")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var grunts := EnemySwarm.new()
+	grunts.name = "Grunts"
+	grunts.capacity = 8
+	root.add_child(grunts)
+	var brutes := EnemySwarm.new()
+	brutes.name = "Brutes"
+	brutes.capacity = 8
+	brutes.max_hp = 120.0
+	brutes.model = "brute"
+	root.add_child(brutes)
+	var swarms: Array[EnemySwarm] = [grunts, brutes]
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	_check(army.type_index(brutes) == 1, "each enemy type has a minion type")
+	_check(Army.soul_value(1, true, false) == 102 and Army.soul_value(0, false, true) == 201, "soul values encode type, elite and boss")
+
+	var cost := player.stats.soul_cost
+	for k in cost - 1:
+		army.collect_soul(Army.soul_value(1 if k % 3 else 0, false, false))
+	_check(army.count == 0 and army.souls == cost - 1, "no minion until enough souls")
+	army.collect_soul(Army.soul_value(1, false, false))
+	_check(army.count == 1 and army.souls == 0, "a minion rises at %d souls" % cost)
+	_check(army._type[0] == 1, "it's the kind most of those souls came from")
+	_near(army._hp[0], player.stats.minion_hp * army._types[1]["hp"], "tougher kinds make tougher minions")
+
+	for k in cost:
+		army.collect_soul(Army.soul_value(0, false, false))
+	_check(army.count == player.stats.minion_max, "the army fills up to minion_max")
+	for k in cost:
+		army.collect_soul(Army.soul_value(0, false, false))
+	_check(army.count == player.stats.minion_max and army.souls == cost, "a full army banks souls instead")
+	army.collect_soul(Army.soul_value(1, true, false))
+	_check(army.count == player.stats.minion_max and army._elite.slice(0, army.count).has(1), "an elite soul rises at once, replacing a common minion")
+	army._remove(0, true)
+	_check(army.count == player.stats.minion_max, "when a minion falls, banked souls raise the next")
+
+	var gems := GemSwarm.new()
+	root.add_child(gems)
+	gems.drop(Vector2(0.1, 0), 7)
+	gems.step(0.016, Vector2.ZERO, 3.0)
+	_check(gems.collected == PackedInt32Array([7]), "gem swarms report what was collected")
+	for n: Node in [gems, army, grunts, brutes, player]:
+		n.free()

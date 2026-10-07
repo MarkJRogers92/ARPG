@@ -87,6 +87,33 @@ func _draw() -> void:
 			for k in 8:
 				var dir := Vector2.from_angle(k * TAU / 8.0)
 				draw_line(c + dir * s * 0.62, c + dir * s * 0.82, color, 2.5, true)
+		"legion":
+			# Three hooded spirits, the middle one in front.
+			for k in [-1, 1, 0]:
+				var at := c + Vector2(k * s * 0.55, s * (0.1 if k != 0 else 0.25))
+				var a := Color(color, 0.55 if k != 0 else 1.0)
+				draw_circle(at + Vector2(0, -s * 0.35), s * 0.28, a)
+				draw_colored_polygon([at + Vector2(-s * 0.32, -s * 0.3), at + Vector2(s * 0.32, -s * 0.3), at + Vector2(s * 0.42, s * 0.55), at + Vector2(-s * 0.42, s * 0.55)], a)
+				draw_circle(at + Vector2(-s * 0.1, -s * 0.38), s * 0.06, Color(1, 1, 1, 0.9))
+				draw_circle(at + Vector2(s * 0.1, -s * 0.38), s * 0.06, Color(1, 1, 1, 0.9))
+		"harvest":
+			# A wisp: a flame-shaped soul trailing upward.
+			draw_colored_polygon([c + Vector2(0, -s * 0.95), c + Vector2(s * 0.45, -s * 0.1), c + Vector2(s * 0.5, s * 0.35),
+					c + Vector2(0, s * 0.75), c + Vector2(-s * 0.5, s * 0.35), c + Vector2(-s * 0.45, -s * 0.1)], color)
+			draw_circle(c + Vector2(0, s * 0.25), s * 0.25, Color(1, 1, 1, 0.85))
+		"ignite":
+			draw_colored_polygon([c + Vector2(0, -s), c + Vector2(s * 0.5, -s * 0.15), c + Vector2(s * 0.55, s * 0.4),
+					c + Vector2(s * 0.2, s * 0.85), c + Vector2(-s * 0.2, s * 0.85), c + Vector2(-s * 0.55, s * 0.4),
+					c + Vector2(-s * 0.35, -s * 0.1), c + Vector2(-s * 0.1, s * 0.05)], color)
+			draw_colored_polygon([c + Vector2(0, -s * 0.15), c + Vector2(s * 0.25, s * 0.4), c + Vector2(0, s * 0.75), c + Vector2(-s * 0.25, s * 0.4)], Color(1, 0.9, 0.5))
+		"frostbite":
+			for k in 3:
+				var dir := Vector2.from_angle(k * PI / 3.0)
+				draw_line(c - dir * s * 0.9, c + dir * s * 0.9, color, 3.0, true)
+				for side: float in [-1.0, 1.0]:
+					var b := c + dir * s * 0.55 * side
+					draw_line(b, b + dir.rotated(0.8 * side) * s * 0.25 * side, color, 2.0, true)
+			draw_circle(c, s * 0.18, Color(1, 1, 1, 0.9))
 		_:
 			draw_circle(c, s * 0.5, color)
 
