@@ -8,6 +8,10 @@ uniform vec3 grass_light : source_color = vec3(0.17, 0.21, 0.12);
 uniform vec3 dirt : source_color = vec3(0.21, 0.17, 0.13);
 uniform vec3 stone : source_color = vec3(0.24, 0.235, 0.25);
 uniform vec3 grout : source_color = vec3(0.09, 0.095, 0.09);
+// Realm features: snow cover (Frozen Wastes) and glowing lava cracks (Ember Rift).
+uniform float snow = 0.0;
+uniform vec3 snow_color : source_color = vec3(0.86, 0.9, 0.97);
+uniform float lava = 0.0;
 
 varying vec3 world_pos;
 
@@ -100,6 +104,21 @@ void fragment() {
 	vec2 cell = floor(p * 3.0);
 	float pebble = step(0.985, hash(cell)) * smoothstep(0.35, 0.15, length(fract(p * 3.0) - 0.5));
 	col = mix(col, vec3(0.25, 0.23, 0.21) * (0.7 + 0.5 * hash(cell + 3.0)), pebble * 0.7);
+
+	if (snow > 0.0) {
+		float drift = smoothstep(0.3, 0.65, fbm(p * 0.09 + vec2(5.0, 1.0)) * 0.7 + detail * 0.45);
+		float cover = clamp(snow * (0.55 + drift * 0.8), 0.0, 1.0);
+		col = mix(col, snow_color * (0.88 + 0.12 * blades), cover);
+	}
+	if (lava > 0.0) {
+		vec2 cv = voronoi(p * 0.32 + vec2(11.0, 4.0));
+		float region = smoothstep(0.48, 0.62, fbm(p * 0.05 + vec2(3.0, 9.0)));
+		float crack = (1.0 - smoothstep(0.0, 0.07, cv.x)) * region * lava;
+		float pulse = 0.75 + 0.25 * sin(TIME * 1.7 + cv.y * 6.28);
+		col = mix(col, vec3(0.05, 0.015, 0.01), crack);
+		EMISSION = vec3(1.0, 0.32, 0.05) * crack * pulse * 1.4
+				+ vec3(0.6, 0.12, 0.02) * region * lava * (1.0 - smoothstep(0.0, 0.2, cv.x)) * 0.25;
+	}
 
 	ALBEDO = col;
 	ROUGHNESS = 0.95;

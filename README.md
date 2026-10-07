@@ -1,12 +1,13 @@
-# ARPG
+# Soulbound
 
 A 3D survivors-like (Vampire Survivors / Soulstone Survivors style) with an ARPG
 gear layer, built in **Godot 4.6** and designed from the start for **thousands of
 enemies on screen**.
 
-Move, auto-attack, kill the horde, collect XP gems, pick an upgrade on every
-level-up, spend skill points in a tree, loot and equip gear, survive as long as
-you can.
+Pick a realm and survive its night: move, auto-attack, kill the horde, raise the
+dead into your own army, level up, loot and equip gear. At dawn the realm's final
+boss comes for you; kill it and you've won the night. (The title, "Soulbound",
+is the `GAME_TITLE` constant in `scripts/title_screen.gd`.)
 
 ## Run it
 
@@ -42,6 +43,41 @@ The project uses the **Compatibility** renderer (OpenGL), which runs on nearly a
 machine and is the one the game was tested with. If you'd like Forward+ (Vulkan),
 switch it under Project Settings → Rendering → Renderer and restart the editor;
 nothing in the game depends on the choice, but Forward+ has not been tried.
+
+## Runs, realms and winning
+
+The game opens on the **title screen**: pick a realm. A run is one **night**: the
+clock at the top counts down to **dawn** (15:00). At dawn the realm's **final
+boss** rises; kill it and the sun comes up, the horde burns away, and you win.
+From the victory screen you can go back to the realms, play again, or carry on
+in **Endless** mode (the night returns, the mid-bosses keep coming, and your
+time past dawn is recorded). Winning a realm unlocks the next one; progress is
+saved with the Soul Shards (`MetaProgress`).
+
+| | The Hollow Graveyard | The Frozen Wastes | The Ember Rift |
+|---|---|---|---|
+| Look | mossy graves, flagstones, drifting embers, dusk to blood moon | snow, ice spikes, dead pines, falling snow, blizzard by the end | cracked ground glowing with lava, obsidian, rising embers and ash |
+| Horde | ghouls, ogres, hellhounds, cultists | ice wraiths, frost trolls, ice wolves, frost witches (bolts chill you) | imps, magma brutes, hellhounds, fire cultists (fireballs burn you) |
+| Hazard | graves burst open and ghouls climb out | ice shards fall, hurting and chilling everything they hit | meteors fall, hurting and burning everything they hit |
+| Rule | +50% souls | chill lasts twice as long on enemies | (the hardest: enemies have the most HP) |
+| Mid-boss | Ogre Warlord | Troll Chieftain | Magma Lord |
+| At dawn | **The Lich King** | **The Frost Colossus** | **The Ashen Tyrant** |
+
+Every hazard is telegraphed with a circle that fills up, and they hit the horde
+too, so you can lead enemies into them. When the hero is chilled it moves at 60%
+speed for a moment; when it's burning it takes damage for a second and a half.
+
+The **final boss** slams the ground like the mid-bosses (harder and more
+often), fires rings of shots in its realm's element, calls in waves of the
+realm's foot soldiers around you, and gets faster below half health. With mouse
+aim you can focus it; auto-aim tends to hit the soldiers in between.
+
+A realm is pure data in `scripts/realm.gd` (ground colors and features,
+scenery, lighting stages, enemy names, models and colors, bosses, hazard,
+difficulty). `Realm.apply_gameplay()` runs before the enemy swarms build their
+models; `apply_look()` changes the ground, scenery and light, and the title
+screen uses it to preview each realm behind the menu. To add a realm, add an
+entry to `REALMS` and its id to `ORDER`.
 
 ## What makes it different
 
@@ -325,8 +361,9 @@ manages gear. `tools/balance.sh` runs many seeds in parallel and prints
 per-minute averages. The bot is a consistent yardstick for comparing settings,
 **not** a stand-in for a person.
 
-Current defaults, 6 seeds each, 10 minutes of game time, with Cultists,
-elites, bosses, the Soul Army and elements. The bot spends skill points by policy (damage-first, or random
+Current defaults in the Hollow Graveyard, 6 seeds each, 10 minutes of game
+time, with Cultists, elites, bosses, the Soul Army and elements. The bot now
+steps out of telegraphed circles (hazards and slams) the way a person would. The bot spends skill points by policy (damage-first, or random
 picks). It never dashes or steps out of a boss slam, so a person has an easier
 time than these numbers suggest:
 
@@ -334,6 +371,21 @@ time than these numbers suggest:
 |---|---|---|---|
 | greedy (damage-first build, plus Soul Legion) | 5 of 6 reached 10:00 (one died at the first boss, 4.0 min) | ~70 | ~30 |
 | random upgrades and nodes | 5 of 6 reached 10:00 (one died at 7.4 min) | ~70 | ~30 |
+
+**Whole nights** (19 minutes of game time, 4 seeds, the bot dodging telegraphs):
+
+| Realm | Damage-first bot | Random picks |
+|---|---|---|
+| The Hollow Graveyard | wins 4 of 4 (final boss falls 50-70 s after dawn) | survives 10 min in 3 of 6 |
+| The Frozen Wastes | wins 2 of 4 | dies at 4-5 min |
+| The Ember Rift | survives 10 min in 2 of 4 | survives 10 min in 1 of 4 |
+
+The later realms are meant to be a step up: by the time you reach them you'll
+have Altar upgrades, which the bots don't. (The Frozen and Ember numbers come
+from slightly earlier tuning: the Frozen run before the hero's chill from witch
+bolts was shortened, and the Ember run at 10 minutes.) The first version of the
+hazards aimed half of all ice shards and meteors at where you were heading,
+and with no dodging the bot died at 2-5 minutes in both realms.
 
 Before the Soul Army and elements, greedy survived 6 of 6 and random 3 of 6, so
 mixed builds got noticeably stronger. The first cut of the army was too fragile
@@ -405,6 +457,9 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
   budget, the wave director's spawn schedule, and the skill tree (graph validity,
   allocate and refund rules, exact stat restore, serialization, earning points).
   Exit code 0 means everything passed.
+- `tests.gd` also checks every realm (complete data, nodes and models that
+  exist, props, lighting, hazards) and realm progress (unlocking in order,
+  Endless records, saving).
 - `tests.gd` also covers the Soul Army (souls, raising by majority kind, the cap,
   elite champions, refilling from banked souls), elements and reactions (chill,
   shock bonus, Melt, Shatter, Overload, burning), legendary powers (every slot
@@ -447,6 +502,10 @@ scripts/
   juice.gd             One place to trigger particles, numbers, flashes, shake
   army.gd              The Soul Army: souls, raising minions, minion AI
   elements.gd          Elemental hits, statuses and reactions
+  realm.gd             The realms: look, enemies, bosses, hazards, difficulty
+  hazard_director.gd   Each realm's telegraphed hazard
+  title_screen.gd      Realm select (previews each realm behind the menu)
+  altar_panel.gd       The Altar of Souls, on the title, death and victory screens
   player_stats.gd      Base values + modifiers -> effective stats
   upgrades.gd          The level-up pool (data + apply())
   wave_director.gd     Spawn rate / HP curves and enemy mix over time
@@ -490,6 +549,11 @@ tools/
 - **Difficulty curve:** exports on the `WaveDirector` node (`base_rate`,
   `rate_growth`, `rate_acceleration`, `hp_growth_seconds`, `hp_squared_seconds`,
   and the elite rate).
+- **The night:** `run_length` on `BossDirector` (900 s); the final boss's HP and
+  speed on the `FinalBoss` node; its attacks in the "Final boss" exports on
+  `BossDirector`. **Realms:** `REALMS` in `realm.gd` (`difficulty` multiplies
+  enemy HP, `rate` the spawn rate). **Hazards:** timing and damage in
+  `hazard_director.gd`.
 - **Bosses:** exports on `BossDirector` (when they come, how much tougher each
   one is, the slam's timing, size and damage) and on the `Bosses` swarm (HP,
   speed, rewards). **Ranged enemies:** the "Ranged" exports on `Cultists`.
@@ -535,7 +599,8 @@ tools/
 ## Not built yet
 
 Saving a run in progress (items and the skill tree already serialize with
-`to_dict()`; Soul Shards and the Altar already save with `FileAccess.store_var`),
-a title screen, more boss types and boss attacks, health pickups, biomes with obstacles (the player is already a `CharacterBody3D`; the
+`to_dict()`; Soul Shards, the Altar and realm progress already save with
+`FileAccess.store_var`), harder difficulty tiers for conquered realms, health
+pickups, biomes with obstacles (the player is already a `CharacterBody3D`; the
 scenery is decoration only), level-of-detail meshes for far-away enemies, and
 sound.

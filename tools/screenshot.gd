@@ -8,7 +8,8 @@ extends SceneTree
 ## Saves <out_dir>/game_<t>.png every 10 s of game time, then the level-up
 ## menu, the inventory and the skill tree. A third argument "crowd" starts with
 ## a horde of every enemy type around the hero (with elites and a boss) and
-## gives the hero every weapon, to see them all at once.
+## gives the hero every weapon, to see them all at once; "title" just saves the
+## title screen. A fourth argument picks the realm (see Realm.REALMS).
 
 var _main: Node
 var _frame := 0
@@ -18,6 +19,7 @@ var _phase := 0
 var _wait := 0
 var _pending := ""
 var _menu_frame := -10
+var _title_only := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -29,8 +31,12 @@ func _initialize() -> void:
 		_max_frames = int(float(args[1]) * 60.0)
 	DirAccess.make_dir_recursive_absolute(_out)
 	var crowd := args.size() > 2 and args[2] == "crowd"
+	_title_only = args.size() > 2 and args[2] == "title"
+	if args.size() > 3:
+		Realm.current = args[3]
 	seed(7)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
+	Realm.in_title = _title_only # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 	# A few items on the ground near the start so the loot look shows up.
@@ -45,6 +51,12 @@ func _initialize() -> void:
 
 func _process(_delta: float) -> bool:
 	_frame += 1
+	if _title_only:
+		if _frame == 40:
+			_save("title")
+			quit(0)
+			return true
+		return false
 	var hud: Hud = _main.get_node("Hud")
 	var player: Player = _main.get_node("Player")
 	player.stats.hp = player.stats.max_hp # keep the bot alive for the pictures
@@ -124,6 +136,8 @@ func _spawn_crowd() -> void:
 			swarm.spawn(EnemySwarm.random_ring_point(Vector2.ZERO, 7.0, 18.0), 1.0, k < 3)
 	var bosses: EnemySwarm = _main.get_node("Bosses")
 	bosses.spawn(Vector2(7.0, 5.0), 3.0)
+	var final: EnemySwarm = _main.get_node("FinalBoss")
+	final.spawn(Vector2(-8.0, -6.0), 0.05)
 	var player: Player = _main.get_node("Player")
 	var stats := player.stats
 	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura", "legion", "legion", "ignite", "frostbite"]:

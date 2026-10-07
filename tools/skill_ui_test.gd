@@ -15,6 +15,7 @@ var _hud: Hud
 
 func _initialize() -> void:
 	MetaProgress.disabled = true # saved upgrades mustn't change results
+	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 

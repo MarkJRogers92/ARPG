@@ -12,12 +12,13 @@ extends Node3D
 ## Chunks drawn in each direction from the hero's chunk.
 @export var view_chunks := 3
 ## Average number of each prop per chunk.
+## The realm sets this (see Realm); kinds not listed don't appear.
 @export var density := {
 	"grass": 10.0, "rock": 0.9, "bush": 1.0, "mushroom": 0.5, "bones": 0.5,
 	"tree": 0.35, "grave": 0.35, "pillar": 0.12, "crystal": 0.14,
 }
 ## Kinds big enough to cast real shadows.
-const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush"]
+const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush", "pine", "ice", "snowrock", "obsidian", "ashtree"]
 
 var _layers := {}
 var _center := Vector2i(1 << 30, 0)
@@ -42,6 +43,12 @@ func follow(hero: Vector2) -> void:
 	var c := Vector2i(floori(hero.x / chunk_size), floori(hero.y / chunk_size))
 	if c != _center:
 		_center = c
+		_rebuild()
+
+
+## Rebuilds the scenery now (after changing `density`).
+func rebuild_now() -> void:
+	if not _layers.is_empty():
 		_rebuild()
 
 

@@ -42,6 +42,8 @@ static var _next_id := 1
 @export var fire_interval := 3.0
 @export var shot_speed := 7.0
 @export var shot_damage := 10.0
+## The shots' element (see Elements): frost chills the hero, fire burns.
+@export var shot_element := 0
 ## Where shots go. main.gd sets it.
 var shots: EnemyShots
 
@@ -69,7 +71,9 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant") var model := "grunt"
+## What the game calls one of these (the realm sets it; see Realm).
+@export var display_name := ""
 @export var body_height := 1.4
 ## Main skin color of the model; also tints its death burst.
 @export var color := Color(0.5, 0.62, 0.42)
@@ -279,7 +283,7 @@ func step(delta: float, target: Vector2) -> void:
 				_fire[i] = fire_interval * randf_range(0.8, 1.2)
 				if d2 < fire_sq:
 					var dir := (target - p).normalized()
-					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage)
+					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage, shot_element)
 		if _afflicted[i] == 1:
 			_update_status(i, o, delta)
 		var f := _flash[i]

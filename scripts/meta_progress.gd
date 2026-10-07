@@ -39,6 +39,8 @@ static var disabled := false
 
 static var shards := 0
 static var ranks := {}
+## Realm id -> {"won": bool, "endless": seconds survived past dawn (best)}.
+static var realms := {}
 static var _loaded := false
 
 
@@ -46,6 +48,7 @@ static func load_save() -> void:
 	_loaded = true
 	shards = 0
 	ranks = {}
+	realms = {}
 	if disabled or not FileAccess.file_exists(save_path):
 		return
 	var file := FileAccess.open(save_path, FileAccess.READ)
@@ -59,6 +62,11 @@ static func load_save() -> void:
 			for id: String in saved:
 				if UPGRADES.has(id):
 					ranks[id] = clampi(int(saved[id]), 0, UPGRADES[id]["max"])
+		var saved_realms = data.get("realms", {})
+		if saved_realms is Dictionary:
+			for id: String in saved_realms:
+				if Realm.REALMS.has(id) and saved_realms[id] is Dictionary:
+					realms[id] = saved_realms[id]
 
 
 static func save() -> void:
@@ -66,7 +74,7 @@ static func save() -> void:
 		return
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
-		file.store_var({"shards": shards, "ranks": ranks})
+		file.store_var({"shards": shards, "ranks": ranks, "realms": realms})
 
 
 static func _ensure_loaded() -> void:
@@ -119,6 +127,39 @@ static func apply(stats: PlayerStats) -> void:
 			stats.add_mods(SOURCE, UPGRADES[id]["mods"])
 	stats.recalculate()
 	stats.hp = stats.max_hp
+
+
+## The first realm is always open; each later one opens when the one before
+## it has been won.
+static func is_unlocked(id: String) -> bool:
+	var i := Realm.index(id)
+	return i <= 0 or disabled or is_won(Realm.ORDER[i - 1])
+
+
+static func is_won(id: String) -> bool:
+	_ensure_loaded()
+	return realms.get(id, {}).get("won", false)
+
+
+static func endless_best(id: String) -> float:
+	_ensure_loaded()
+	return realms.get(id, {}).get("endless", 0.0)
+
+
+static func record_win(id: String) -> void:
+	_ensure_loaded()
+	var r: Dictionary = realms.get(id, {})
+	r["won"] = true
+	realms[id] = r
+	save()
+
+
+static func record_endless(id: String, seconds_past_dawn: float) -> void:
+	_ensure_loaded()
+	var r: Dictionary = realms.get(id, {})
+	r["endless"] = maxf(r.get("endless", 0.0), seconds_past_dawn)
+	realms[id] = r
+	save()
 
 
 static func rerolls() -> int:

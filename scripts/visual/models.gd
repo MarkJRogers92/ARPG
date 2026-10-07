@@ -52,6 +52,16 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_cultist(kit, skin)
 		"boss":
 			_boss(kit, skin)
+		"wraith":
+			_wraith(kit, skin)
+		"imp":
+			_imp(kit, skin)
+		"lich":
+			_lich(kit, skin)
+		"colossus":
+			_colossus(kit, skin)
+		"tyrant":
+			_tyrant(kit, skin)
 		_:
 			_grunt(kit, skin)
 	kit.transform_all(Transform3D(Basis.from_scale(Vector3.ONE * height), Vector3.ZERO))
@@ -175,6 +185,104 @@ static func _boss(k: MeshKit, skin: Color) -> void:
 	k.cylinder(0.025, 0.025, 0.75, MeshKit.at(Vector3(-0.42, 0.38, -0.12), Vector3(-15, 0, -8)), Color(0.3, 0.2, 0.12), 0.0, 6)
 	k.box(Vector3(0.2, 0.14, 0.16), MeshKit.at(Vector3(-0.47, 0.06, -0.02)), iron)
 	k.box(Vector3(0.05, 0.1, 0.17), MeshKit.at(Vector3(-0.47, 0.06, -0.02)), rune, 1.2)
+
+
+## An ice wraith: a hooded, legless spirit trailing frost. Its "legs" are the
+## tattered hem, so the walk cycle makes it ripple.
+static func _wraith(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.5)
+	var eye := Color(0.6, 0.95, 1.0)
+	k.cylinder(0.12, 0.04, 0.45, MeshKit.at(Vector3(0, 0.3, 0.02)), skin.darkened(0.2), 0.2, 6)
+	for a in 5:
+		var ang := a * TAU / 5.0
+		k.cylinder(0.0, 0.06, 0.3, MeshKit.at(Vector3(cos(ang) * 0.1, 0.12, sin(ang) * 0.1), Vector3(180, 0, 0)), skin.darkened(0.3), 0.3, 4)
+	k.sphere(0.2, MeshKit.at(Vector3(0, 0.58, 0), Vector3(-15, 0, 0), Vector3(1.0, 1.2, 0.85)), skin)
+	k.sphere(0.14, MeshKit.at(Vector3(0, 0.84, -0.06)), dark)
+	k.cylinder(0.0, 0.12, 0.22, MeshKit.at(Vector3(0, 1.0, 0.03), Vector3(-20, 0, 0)), dark, 0.0, 6)
+	k.sphere(0.09, MeshKit.at(Vector3(0, 0.83, -0.12), Vector3.ZERO, Vector3(1.0, 0.9, 0.6)), Color(0.02, 0.04, 0.06), 0.0, 5, 2)
+	k.sphere(0.025, MeshKit.at(Vector3(-0.04, 0.85, -0.17)), eye, 2.0, 4, 2)
+	k.sphere(0.025, MeshKit.at(Vector3(0.04, 0.85, -0.17)), eye, 2.0, 4, 2)
+	for side: float in [-1.0, 1.0]:
+		k.capsule(0.04, 0.4, MeshKit.at(Vector3(0.2 * side, 0.58, -0.16), Vector3(60, 0, 20 * side)), skin)
+		k.cylinder(0.0, 0.03, 0.16, MeshKit.at(Vector3(0.22 * side, 0.46, -0.34), Vector3(110, 0, 0)), eye, 0.8, 4)
+
+
+## A small winged imp with a forked tail.
+static func _imp(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.45)
+	var eye := Color(1.0, 0.9, 0.3)
+	var horn := Color(0.15, 0.1, 0.1)
+	k.capsule(0.05, 0.3, MeshKit.at(Vector3(-0.08, 0.15, 0.02)), dark)
+	k.capsule(0.05, 0.3, MeshKit.at(Vector3(0.08, 0.15, 0.02)), dark)
+	k.sphere(0.18, MeshKit.at(Vector3(0, 0.42, 0), Vector3(-15, 0, 0), Vector3(1.0, 1.1, 0.9)), skin)
+	k.sphere(0.13, MeshKit.at(Vector3(0, 0.66, -0.05)), skin)
+	k.sphere(0.025, MeshKit.at(Vector3(-0.05, 0.68, -0.16)), eye, 2.0, 4, 2)
+	k.sphere(0.025, MeshKit.at(Vector3(0.05, 0.68, -0.16)), eye, 2.0, 4, 2)
+	for side: float in [-1.0, 1.0]:
+		k.cylinder(0.0, 0.03, 0.15, MeshKit.at(Vector3(0.07 * side, 0.8, -0.02), Vector3(-20, 0, -30 * side)), horn, 0.0, 4)
+		# Bat wings: two thin flat triangles spread wide.
+		k.box(Vector3(0.32, 0.18, 0.02), MeshKit.at(Vector3(0.24 * side, 0.55, 0.12), Vector3(0, 25 * side, -25 * side)), dark, 0.1)
+		k.capsule(0.035, 0.22, MeshKit.at(Vector3(0.17 * side, 0.42, -0.1), Vector3(60, 0, 15 * side)), skin)
+	k.cylinder(0.005, 0.03, 0.4, MeshKit.at(Vector3(0, 0.25, 0.26), Vector3(-55, 0, 0)), dark, 0.0, 4)
+	k.cylinder(0.0, 0.05, 0.08, MeshKit.at(Vector3(0, 0.12, 0.42), Vector3(-120, 0, 0)), Color(1.0, 0.45, 0.1), 1.0, 4)
+
+
+## The Lich King: a towering robed skeleton with a crown of soulfire and a staff.
+static func _lich(k: MeshKit, skin: Color) -> void:
+	var robe := skin.darkened(0.35)
+	var bone := Color(0.88, 0.86, 0.78)
+	var soul := Color(0.45, 0.85, 1.0)
+	var gold := Color(0.95, 0.75, 0.3)
+	k.cylinder(0.16, 0.38, 0.6, MeshKit.at(Vector3(0, 0.3, 0)), robe, 0.0, 8)
+	k.cylinder(0.39, 0.4, 0.04, MeshKit.at(Vector3(0, 0.02, 0)), soul, 0.8, 8)
+	k.cylinder(0.2, 0.16, 0.25, MeshKit.at(Vector3(0, 0.7, 0)), robe, 0.0, 8)
+	k.sphere(0.28, MeshKit.at(Vector3(0, 0.82, 0.02), Vector3.ZERO, Vector3(1.35, 0.45, 1.0)), robe.darkened(0.3))
+	k.box(Vector3(0.12, 0.22, 0.04), MeshKit.at(Vector3(0, 0.66, -0.2)), bone) # ribs
+	k.sphere(0.12, MeshKit.at(Vector3(0, 0.95, -0.02), Vector3.ZERO, Vector3(0.9, 1.1, 1.0)), bone)
+	k.sphere(0.03, MeshKit.at(Vector3(-0.04, 0.96, -0.12)), soul, 3.0, 4, 2)
+	k.sphere(0.03, MeshKit.at(Vector3(0.04, 0.96, -0.12)), soul, 3.0, 4, 2)
+	k.cylinder(0.11, 0.12, 0.04, MeshKit.at(Vector3(0, 1.06, -0.02)), gold, 0.3, 8)
+	for a in 5:
+		var ang := a * TAU / 5.0
+		k.cylinder(0.0, 0.025, 0.12, MeshKit.at(Vector3(cos(ang) * 0.1, 1.13, -0.02 + sin(ang) * 0.1)), soul, 1.5, 4)
+	for side: float in [-1.0, 1.0]:
+		k.sphere(0.1, MeshKit.at(Vector3(0.27 * side, 0.83, 0.0)), bone, 0.0, 6, 3, true) # pauldron skulls
+		k.capsule(0.035, 0.42, MeshKit.at(Vector3(0.28 * side, 0.62, -0.08), Vector3(30, 0, 10 * side)), bone)
+	# Staff topped with a cage holding a burning soul.
+	k.cylinder(0.02, 0.02, 1.0, MeshKit.at(Vector3(0.36, 0.55, -0.22)), Color(0.2, 0.15, 0.25), 0.0, 6)
+	k.torus(0.06, 0.08, MeshKit.at(Vector3(0.36, 1.1, -0.22)), gold, 0.3, 10)
+	k.sphere(0.07, MeshKit.at(Vector3(0.36, 1.1, -0.22)), soul, 3.0, 6, 3)
+	for a in 4:
+		var ang := a * TAU / 4.0
+		k.sphere(0.05, MeshKit.at(Vector3(cos(ang) * 0.5, 0.75 + 0.1 * (a % 2), sin(ang) * 0.5)), soul, 2.5, 5, 3)
+
+
+## The Frost Colossus: a giant of packed ice and stone, crowned with spikes.
+static func _colossus(k: MeshKit, skin: Color) -> void:
+	_brute(k, skin)
+	var ice := Color(0.65, 0.9, 1.0)
+	for i in 9:
+		var ang := i * 0.7
+		var at := Vector3(cos(ang) * 0.22, 0.6 + 0.1 * sin(i * 1.3), 0.08 + sin(ang) * 0.12)
+		k.cylinder(0.0, 0.06, 0.3, MeshKit.at(at, Vector3(-40 + i * 9, i * 40, 20 - i * 6)), ice, 0.9, 5, true)
+	for i in 5:
+		k.cylinder(0.0, 0.035, 0.2, MeshKit.at(Vector3(-0.12 + i * 0.06, 0.95, -0.12), Vector3(0, 0, -20 + i * 10)), ice, 1.2, 4, true)
+	k.box(Vector3(0.18, 0.2, 0.16), MeshKit.at(Vector3(0.4, 0.62, -0.42)), ice, 0.6)
+
+
+## The Ashen Tyrant: a horned demon king with great wings and a molten core.
+static func _tyrant(k: MeshKit, skin: Color) -> void:
+	_brute(k, skin)
+	var horn := Color(0.12, 0.08, 0.08)
+	var magma := Color(1.0, 0.45, 0.1)
+	for side: float in [-1.0, 1.0]:
+		k.cylinder(0.0, 0.05, 0.35, MeshKit.at(Vector3(0.12 * side, 1.0, -0.05), Vector3(-30, 0, -45 * side)), horn, 0.0, 6)
+		# Wings: a spar and two membranes each.
+		k.capsule(0.03, 0.7, MeshKit.at(Vector3(0.45 * side, 0.95, 0.25), Vector3(-20, 0, -55 * side)), horn)
+		k.box(Vector3(0.6, 0.5, 0.02), MeshKit.at(Vector3(0.5 * side, 0.8, 0.3), Vector3(20, 30 * side, -20 * side)), skin.darkened(0.55), 0.15)
+	k.sphere(0.12, MeshKit.at(Vector3(0, 0.55, -0.24)), magma, 2.2, 6, 3)
+	for i in 4:
+		k.box(Vector3(0.03, 0.18, 0.02), MeshKit.at(Vector3(-0.12 + i * 0.08, 0.5, -0.27), Vector3(0, 0, 15 - i * 10)), magma, 1.6)
 
 
 # --- hero -------------------------------------------------------------------------
@@ -374,7 +482,8 @@ static func gem() -> ArrayMesh:
 # --- props ------------------------------------------------------------------------
 # Scenery for WorldDecor. Each returns a mesh with feet at y = 0.
 
-const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar", "crystal"]
+const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar", "crystal",
+		"pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree"]
 
 
 static func prop(kind: String) -> ArrayMesh:
@@ -446,4 +555,40 @@ static func prop(kind: String) -> ArrayMesh:
 					var off := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.3)
 					k.cylinder(0.0, 0.13, h, MeshKit.at(off + Vector3(0, h * 0.4, 0), Vector3(rng.randf_range(-25, 25), 0, rng.randf_range(-25, 25))), Color(0.65, 0.35, 1.0), 1.1, 5, true)
 				k.sphere(0.3, MeshKit.at(Vector3(0, 0.0, 0), Vector3.ZERO, Vector3(1.4, 0.4, 1.4)), Color(0.3, 0.3, 0.33), 0.0, 6, 3, true)
+			"pine":
+				# A snow-laden dead pine: stacked cones on a dark trunk.
+				k.cylinder(0.08, 0.14, 1.0, MeshKit.at(Vector3(0, 0.5, 0)), Color(0.22, 0.17, 0.14), 0.0, 6, true)
+				for i in 4:
+					var r := 0.75 - i * 0.16
+					k.cylinder(0.0, r, 0.7, MeshKit.at(Vector3(0, 0.9 + i * 0.42, 0)), Color(0.12, 0.2, 0.17), 0.0, 7, true)
+					k.cylinder(0.0, r * 0.8, 0.28, MeshKit.at(Vector3(0, 1.1 + i * 0.42, 0)), Color(0.88, 0.92, 0.98), 0.0, 7, true)
+			"ice":
+				for i in 5:
+					var h := rng.randf_range(0.6, 1.8)
+					var a := rng.randf() * TAU
+					var off := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.4)
+					k.cylinder(0.0, 0.16, h, MeshKit.at(off + Vector3(0, h * 0.4, 0), Vector3(rng.randf_range(-30, 30), 0, rng.randf_range(-30, 30))), Color(0.62, 0.86, 1.0), 0.45, 5, true)
+			"snowrock":
+				k.sphere(0.5, MeshKit.at(Vector3(0, 0.15, 0), Vector3(0, 20, 8), Vector3(1.2, 0.75, 0.9)), Color(0.42, 0.44, 0.48), 0.0, 7, 4, true)
+				k.sphere(0.45, MeshKit.at(Vector3(0.05, 0.32, 0.0), Vector3(0, 20, 0), Vector3(1.15, 0.35, 0.85)), Color(0.9, 0.93, 0.98), 0.0, 7, 3, true)
+			"obsidian":
+				for i in 3:
+					var a := rng.randf() * TAU
+					var off := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.5)
+					k.sphere(rng.randf_range(0.25, 0.5), MeshKit.at(off + Vector3(0, 0.15, 0), Vector3(rng.randf() * 40, rng.randf() * 180, 0), Vector3(1.0, 1.4, 0.8)), Color(0.08, 0.07, 0.1), 0.0, 5, 3, true)
+				k.box(Vector3(0.05, 0.02, 0.6), MeshKit.at(Vector3(0, 0.02, 0), Vector3(0, 30, 0)), Color(1.0, 0.4, 0.1), 2.0)
+			"brimstone":
+				# A cracked vent glowing from inside.
+				k.sphere(0.55, MeshKit.at(Vector3(0, 0.05, 0), Vector3.ZERO, Vector3(1.3, 0.35, 1.3)), Color(0.18, 0.12, 0.1), 0.0, 8, 3, true)
+				k.cylinder(0.25, 0.32, 0.12, MeshKit.at(Vector3(0, 0.18, 0)), Color(1.0, 0.5, 0.12), 2.4, 8)
+				for i in 4:
+					var a := i * TAU / 4.0 + 0.3
+					k.box(Vector3(0.06, 0.03, 0.5), MeshKit.at(Vector3(cos(a) * 0.45, 0.05, sin(a) * 0.45), Vector3(0, -rad_to_deg(a) + 90, 0)), Color(1.0, 0.35, 0.08), 1.8)
+			"ashtree":
+				var char_color := Color(0.1, 0.08, 0.08)
+				k.cylinder(0.1, 0.22, 2.0, MeshKit.at(Vector3(0, 1.0, 0)), char_color, 0.0, 6, true)
+				for i in 4:
+					var a := i * TAU / 4.0 + rng.randf()
+					k.cylinder(0.02, 0.06, 0.8, Transform3D(Basis.from_euler(Vector3(0, -a + PI / 2.0, 0)) * Basis.from_euler(Vector3(deg_to_rad(55), 0, 0)), Vector3(cos(a) * 0.3, 1.6 + i * 0.1, sin(a) * 0.3)), char_color, 0.0, 4, true)
+				k.box(Vector3(0.04, 0.6, 0.02), MeshKit.at(Vector3(0, 0.8, -0.16)), Color(1.0, 0.4, 0.1), 1.6) # ember crack
 		return k.commit(kit_material()))
