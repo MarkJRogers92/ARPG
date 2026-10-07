@@ -310,5 +310,11 @@ func _report(tag: String) -> void:
 	fields += " vets=%d best_minion_kills=%d" % [army.veterans().size(), best]
 	var rival: RivalDirector = _main._rival
 	fields += " pressure=%.2f" % (_main.get_node("WaveDirector") as WaveDirector).pressure
+	var total := 0.0
+	for k: String in Elements.damage_by:
+		total += Elements.damage_by[k]
+	if total > 0.0:
+		fields += " army%%=%.1f reactions%%=%.1f power=%.1f" % [100.0 * Elements.damage_by.get("Soul Army", 0.0) / total,
+				100.0 * Elements.damage_by.get("Reactions", 0.0) / total, s.hero_power]
 	fields += " rival=%s stolen=%d" % ["slain" if rival.defeated else ("here" if rival.active() else ("gone" if rival.arrived else "no")), rival.stolen]
 	print("%s %s" % [tag, fields])

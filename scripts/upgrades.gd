@@ -134,11 +134,11 @@ const DEFS := {
 	},
 	"frostbite": {
 		"name": "Frostbite", "desc": "Bolts have a 20% chance to chill (slow) enemies",
-		"desc_next": "+10% chill chance, reactions +20% damage", "max": 4,
+		"desc_next": "+10% chill chance, reactions +12% damage", "max": 4,
 		"first_mods": [{"stat": "chill_chance", "op": _ADD, "value": 0.2}],
 		"mods": [
 			{"stat": "chill_chance", "op": _ADD, "value": 0.1},
-			{"stat": "reaction_damage", "op": _MORE, "value": 0.2},
+			{"stat": "reaction_damage", "op": _MORE, "value": 0.12},
 		],
 	},
 	"move_speed": {

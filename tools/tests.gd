@@ -752,7 +752,8 @@ func _test_meta_progress() -> bool:
 		pass
 	_check(MetaProgress.rank("insight") == 3 and MetaProgress.cost("insight") == -1, "upgrades stop at their max rank")
 	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
-	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + 1 per 150 kills")
+	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + a sixth of the root of the kills")
+	_check(MetaProgress.run_bonus(1140.0, 254884) < 200, "a huge night no longer pays thousands (%d)" % MetaProgress.run_bonus(1140.0, 254884))
 	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
@@ -871,7 +872,7 @@ func _test_elements() -> bool:
 	Elements.hit(swarm, 0, 10.0, Elements.FROST)
 	_check(swarm.chill[0] > 0.0, "frost chills")
 	Elements.hit(swarm, 0, 10.0, Elements.FIRE)
-	_near(swarm.hp[0], 1000.0 - 10.0 - 10.0 * Elements.MELT_MULT, "fire on a chilled enemy melts (2.5x)")
+	_near(swarm.hp[0], 1000.0 - 10.0 - 10.0 * Elements.MELT_MULT, "fire on a chilled enemy melts")
 	_check(swarm.chill[0] == 0.0 and swarm.burn[0] > 0.0, "melting uses up the chill, and the fire then burns")
 
 	Elements.hit(swarm, 1, 10.0, Elements.LIGHTNING)
@@ -2537,8 +2538,9 @@ func _test_late_leveling() -> bool:
 	var p: Player = load("res://scenes/player.tscn").instantiate()
 	root.add_child(p)
 	_check(p.xp_for_level(10) == int(6 + 5 * 10 + 0.45 * 100), "early levels cost what they always did")
+	_check(p.xp_for_level(25) == int(6 + 5 * 25 + 0.45 * 625), "...through the mid-game")
 	var plain := int(6 + 5 * 60 + 0.45 * 3600)
-	_check(p.xp_for_level(60) > plain * 2, "late levels cost much more (%d vs %d)" % [p.xp_for_level(60), plain])
+	_check(p.xp_for_level(60) > plain * 1.5, "late levels cost much more (%d vs %d)" % [p.xp_for_level(60), plain])
 	var main_script: GDScript = load("res://scripts/main.gd")
 	_near(main_script.xp_scale_at(0.0), 1.0, "kills are worth full XP early")
 	_near(main_script.xp_scale_at(300.0), 1.0, "...through the first five minutes")

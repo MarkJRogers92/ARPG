@@ -489,4 +489,11 @@ static func rerolls() -> int:
 ## Shards for a finished run: a share for time survived and kills, on top of
 ## what elites and bosses already dropped during it.
 static func run_bonus(seconds: float, kills: int) -> int:
-	return floori(seconds / 60.0) * 2 + floori(kills / 150.0)
+	# Kills count with diminishing returns: a late-game horde dies by the
+	# hundred thousand, and the Altar shouldn't be maxed by one night.
+	return floori(seconds / 60.0) * 2 + floori(sqrt(float(kills)) / 6.0)
+
+
+## Of the Soul Shards picked up during a night (spent at wells, forges and the
+## Night Market), this share is banked at the end.
+const BANKED_RUN_SHARDS := 0.25

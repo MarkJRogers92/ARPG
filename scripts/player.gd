@@ -38,7 +38,7 @@ const RADIUS := 0.5
 @export var xp_per_level := 5.0
 @export var xp_per_level_squared := 0.45
 @export var xp_late_cubed := 0.06
-@export var xp_late_from := 20
+@export var xp_late_from := 30
 ## XP from kills is worth this much (main.gd lowers it as the night goes on:
 ## late-game kill rates are hundreds a second).
 var xp_scale := 1.0

@@ -20,6 +20,8 @@ var _choosing_upgrade := false
 var _game_over := false
 ## Soul Shards found this run (elites and bosses); the run bonus comes on top.
 var _run_shards := 0
+## Shards for winning the night: banked in full (in-night shards only in part).
+var _win_shards := 0
 var _rerolls := 0
 var _mote_timer := 0.0
 var _mote_style := "embers"
@@ -441,7 +443,7 @@ func _begin_night() -> void:
 
 ## Shards for the end screen, the Bestiary and the Daily record.
 func _settle_run(seconds: float) -> int:
-	var shards := roundi((_run_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
+	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
 	MetaProgress.add_shards(shards)
 	for kind: String in MetaProgress.record_kills(_kills_by):
 		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
@@ -672,7 +674,7 @@ func _on_final_died(at: Vector2) -> void:
 	MetaProgress.record_win(Realm.current)
 	if MetaProgress.record_ascension_win(ascension):
 		_hud.toast("Ascension %d unlocked! Choose it under Pact of Night on the title screen." % MetaProgress.ascension_unlocked, Color(1.0, 0.45, 0.4))
-	_run_shards += roundi(40.0 * Realm.data()["difficulty"])
+	_win_shards += roundi(40.0 * Realm.data()["difficulty"])
 	_atmosphere.dawn(true)
 	_dawn_glow.dawn(true)
 	Sound.play("sunrise")
@@ -758,6 +760,7 @@ func _start_endless() -> void:
 	_endless_start = elapsed
 	_player.invulnerable = false
 	_run_shards = 0
+	_win_shards = 0
 	kills = 0
 	_bosses.endless = true
 	_bosses._next_at = elapsed + 60.0

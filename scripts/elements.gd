@@ -26,7 +26,11 @@ const CHILL_TIME := 2.5
 const SHOCK_TIME := 3.0
 const BURN_TIME := 3.0
 const SHOCK_BONUS := 1.25
-const MELT_MULT := 2.5
+## Reaction strength: Shatter and Overload hit an area for this much of the
+## triggering hit; Melt multiplies it.
+const SHATTER_MULT := 1.0
+const OVERLOAD_MULT := 1.3
+const MELT_MULT := 1.8
 const SPREAD_CHANCE := 0.35
 ## At most this many queued area effects run per frame; the rest are dropped.
 const MAX_PER_FLUSH := 24
@@ -83,10 +87,10 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 		LIGHTNING:
 			if swarm.chill[i] > 0.0:
 				swarm.chill[i] = 0.0
-				_queue.append({"kind": "shatter", "at": at, "damage": maxf(amount, 10.0) * 1.5 * react})
+				_queue.append({"kind": "shatter", "at": at, "damage": maxf(amount, 10.0) * SHATTER_MULT * react})
 			elif swarm.burn[i] > 0.0:
 				swarm.burn[i] = 0.0
-				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * 2.0 * react})
+				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * OVERLOAD_MULT * react})
 		FIRE:
 			if swarm.chill[i] > 0.0:
 				swarm.chill[i] = 0.0
@@ -95,7 +99,7 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 				Sound.play("melt")
 			elif swarm.shock[i] > 0.0:
 				swarm.shock[i] = 0.0
-				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * 2.0 * react})
+				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * OVERLOAD_MULT * react})
 	if swarm.shock[i] > 0.0 and element != LIGHTNING:
 		amount *= SHOCK_BONUS
 

@@ -126,6 +126,15 @@ var bell_cost := 30
 var dash_cooldown := 3.0
 var minion_max := 2
 var minion_damage := 12.0
+## How much the hero's weapons have grown (the average, over the weapons in
+## use, of their damage against where they started). The army draws on it:
+## minions hit 1 + SOUL_LINK * (hero_power - 1) times as hard, so the army
+## keeps pace with the hero instead of fading out late in the night.
+var hero_power := 1.0
+const SOUL_LINK := 0.5
+const _WEAPONS := [["bolt_damage", ""], ["aura_damage", "aura_level"], ["lightning_damage", "lightning_level"],
+		["orbit_damage", "orbit_level"], ["nova_damage", "nova_level"], ["obol_damage", "obol_level"],
+		["scythe_damage", "scythe_level"], ["bell_damage", "bell_level"]]
 var minion_hp := 90.0
 var soul_chance := 0.06
 var soul_cost := 12
@@ -249,7 +258,14 @@ func recalculate() -> void:
 	bell_cost = maxi(6, roundi(values["bell_cost"]))
 	dash_cooldown = maxf(0.3, values["dash_cooldown"])
 	minion_max = maxi(0, roundi(values["minion_max"]))
-	minion_damage = values["minion_damage"] * damage_mult
+	var grown := 0.0
+	var weapons := 0
+	for w: Array in _WEAPONS:
+		if w[1] == "" or values[w[1]] >= 0.5:
+			grown += values[w[0]] / BASE[w[0]]
+			weapons += 1
+	hero_power = maxf(grown / maxf(weapons, 1.0), 1.0)
+	minion_damage = values["minion_damage"] * damage_mult * (1.0 + SOUL_LINK * (hero_power - 1.0))
 	minion_hp = maxf(1.0, values["minion_hp"])
 	soul_chance = clampf(values["soul_chance"], 0.0, 1.0)
 	soul_cost = maxi(3, roundi(values["soul_cost"]))
