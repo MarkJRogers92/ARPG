@@ -167,6 +167,20 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	raised.emit(t["name"])
 
 
+## Gives up one minion (a common one if there is one; the Soul Altar).
+func sacrifice() -> bool:
+	if count == 0:
+		return false
+	var victim := count - 1
+	for k in range(count - 1, -1, -1):
+		if _elite[k] == 0:
+			victim = k
+			break
+	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 20, 3.0, 0.4, 0.8, 5.0)
+	_remove(victim, false, false)
+	return true
+
+
 func _count_type(type: int) -> int:
 	var n := 0
 	for k in count:

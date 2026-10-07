@@ -46,6 +46,7 @@ func _finish() -> void:
 	_test_events()
 	_test_obstacles()
 	_test_fixes()
+	_test_landmarks()
 
 	print("")
 	if _failures == 0:
@@ -1369,3 +1370,88 @@ func _test_fixes() -> void:
 	main.free()
 	Obstacles.clear()
 	MetaProgress.disabled = was
+
+
+func _test_landmarks() -> void:
+	print("landmarks")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var loot := LootManager.new()
+	root.add_child(loot)
+	var gems := GemSwarm.new()
+	root.add_child(gems)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 64
+	root.add_child(grunts)
+	var goblins := EnemySwarm.new()
+	goblins.capacity = 2
+	goblins.flee = true
+	goblins.spawn_share = 0.0
+	root.add_child(goblins)
+	var swarms: Array[EnemySwarm] = [grunts, goblins]
+	director.setup(swarms)
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	var events := EventDirector.new()
+	root.add_child(events)
+	events.setup(director, player, loot, gems, goblins, swarms)
+	var decor := WorldDecor.new()
+	var bank := [20]
+	var spend := func(n: int) -> Variant:
+		if n == 0:
+			return bank[0]
+		if bank[0] < n:
+			return false
+		bank[0] -= n
+		return true
+	var marks := Landmarks.new()
+	root.add_child(marks)
+	marks.setup(decor, player, director, loot, army, events, swarms, spend)
+	var spots := {"bell_gibbet": Vector2(20, 0), "soul_altar": Vector2(40, 0), "stone_well": Vector2(60, 0),
+			"forge": Vector2(80, 0), "cauldron": Vector2(100, 0), "fishing_hut": Vector2(120, 0), "tome_pedestal": Vector2(140, 0)}
+	for kind: String in spots:
+		decor.placed[kind] = [Transform3D(Basis.IDENTITY, Vector3(spots[kind].x, 0, spots[kind].y))]
+	var go := func(kind: String) -> bool:
+		player.global_position = Vector3(spots[kind].x, 0, spots[kind].y + AssetProps.data(kind)["footprint"] + 0.8)
+		marks._rescan()
+		return marks.prompt != "" and marks.use_nearest()
+
+	_check(go.call("bell_gibbet"), "ringing a bell works")
+	_check(marks.markers().size() == 1 and grunts.alive_count() >= 4, "and summons champions (%d)" % grunts.alive_count())
+	_check(not go.call("bell_gibbet") and marks.is_used("bell_gibbet", spots["bell_gibbet"]), "a bell rings once")
+	var drops := loot.drops.size()
+	for i in grunts.count:
+		grunts.damage(i, 1.0e9)
+	marks._update_bells()
+	_check(marks.shards == 6 and loot.drops.size() == drops + 2 and marks.markers().is_empty(), "slaying them pays out")
+
+	_check(not go.call("soul_altar"), "the altar needs a minion")
+	army._raise(0, false, false)
+	var dmg := player.stats.bolt_damage
+	_check(go.call("soul_altar") and army.count == 0 and player.stats.bolt_damage > dmg * 1.1, "sacrificing one raises damage")
+
+	_check(go.call("stone_well") and bank[0] == 15, "the well takes 5 shards")
+
+	var weapon := ItemGenerator.generate_with(5, ItemData.Rarity.MAGIC, "weapon")
+	player.inventory.pickup(weapon)
+	_check(go.call("forge") and bank[0] == 7, "the forge takes 8 shards")
+	var reforged: Item = player.inventory.equipped.get("weapon")
+	_check(reforged != weapon and reforged.rarity == ItemData.Rarity.MAGIC, "and reforges the weapon at the same rarity")
+
+	_check(not go.call("cauldron"), "the cauldron needs souls")
+	army.souls = 6
+	_check(go.call("cauldron") and events.blessing != "" and is_equal_approx(events.blessing_left, 45.0) and army.souls == 0,
+			"6 souls brew a 45 s blessing")
+
+	player.stats.hp = 10.0
+	_check(go.call("fishing_hut") and is_equal_approx(player.stats.hp, player.stats.max_hp), "resting heals to full")
+
+	var hp := player.stats.max_hp
+	var points := player.skills.points
+	_check(go.call("tome_pedestal") and player.skills.points == points + 1 and player.stats.max_hp < hp, "the tome trades health for a skill point")
+	for n: Node in [marks, events, army, grunts, goblins, gems, loot, director, player]:
+		n.free()
+	decor.free()

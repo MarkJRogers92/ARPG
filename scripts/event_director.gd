@@ -280,14 +280,19 @@ func _on_goblin_died(at: Vector2, _xp: int) -> void:
 # --- blessings and orbs ------------------------------------------------------------
 
 func _bless(name: String) -> void:
+	bless_for(name, blessing_time)
+
+
+## A blessing that lasts `seconds` (shrines: blessing_time; the Cauldron: 45 s).
+func bless_for(name: String, seconds: float) -> void:
 	var stats := _player.stats
 	stats.remove_source("shrine")
 	stats.add_mods("shrine", BLESSINGS[name]["mods"])
 	stats.recalculate()
 	blessing = name
-	blessing_left = blessing_time
+	blessing_left = seconds
 	Sound.play("shrine_done")
-	announced.emit("Blessing of %s: %s for %d s" % [name, BLESSINGS[name]["desc"], int(blessing_time)], BLESSINGS[name]["color"])
+	announced.emit("Blessing of %s: %s for %d s" % [name, BLESSINGS[name]["desc"], int(seconds)], BLESSINGS[name]["color"])
 
 
 func _update_blessing(delta: float) -> void:

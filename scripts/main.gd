@@ -55,6 +55,7 @@ var _in_title := false
 @onready var _events: EventDirector = $Events
 @onready var _goblins: EnemySwarm = $Goblins
 var _pause: PauseMenu
+var _landmarks: Landmarks
 ## XP gems picked up in quick succession chime higher and higher.
 var _gem_streak := 0
 var _gem_streak_time := 0.0
@@ -102,6 +103,10 @@ func _ready() -> void:
 	_hazards.setup(_director, _player, $Grunts)
 	_events.setup(_director, _player, _loot, _gems, _goblins, _swarms)
 	_events.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_landmarks = Landmarks.new()
+	add_child(_landmarks)
+	_landmarks.setup(_decor, _player, _director, _loot, _army, _events, _swarms, _spend_shards)
+	_landmarks.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
@@ -212,8 +217,11 @@ func _process(delta: float) -> void:
 	if not won or _endless:
 		_hazards.tick(delta)
 		_events.tick(delta)
-	_run_shards += _events.shards
+		_landmarks.tick(delta)
+	_run_shards += _events.shards + _landmarks.shards
 	_events.shards = 0
+	_landmarks.shards = 0
+	_hud.set_prompt(_landmarks.prompt if not won or _endless else "", _landmarks.prompt_color)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
 
@@ -274,9 +282,20 @@ func _process(delta: float) -> void:
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
 
 
+## Run shards for Landmarks: spend_shards(0) is how many there are; otherwise
+## takes `n` and returns true, or false if there aren't enough.
+func _spend_shards(n: int) -> Variant:
+	if n == 0:
+		return _run_shards
+	if _run_shards < n:
+		return false
+	_run_shards -= n
+	return true
+
+
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers()
+	var out := _events.markers() + _landmarks.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue

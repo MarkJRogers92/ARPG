@@ -50,6 +50,12 @@ func equip(item: Item) -> void:
 	changed.emit()
 
 
+## Wears `item` in its slot, discarding what was there (the Forge's reforge).
+func replace_worn(item: Item) -> void:
+	_wear(item)
+	changed.emit()
+
+
 ## Moves a worn item to the backpack. Returns false if there's no room.
 func unequip(slot: String) -> bool:
 	if not equipped.has(slot) or is_full():

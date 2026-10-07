@@ -35,6 +35,8 @@ var fixed: Array = []
 ## No imported prop closer than this to the start (plus its footprint); landmarks
 ## keep twice as far away.
 const ASSET_CLEAR := 6.0
+## Every prop in view, as built: {kind: [Transform3D]} (Landmarks reads it).
+var placed := {}
 ## Glowing imported props in view: [[Vector3 top, Color]] (see emit()).
 var emitters: Array = []
 var _emit_timer := 0.0
@@ -95,6 +97,7 @@ func _rebuild() -> void:
 	Obstacles.set_circles(result[2], Rect2(Vector2(_center - Vector2i.ONE * view_chunks) * chunk_size,
 			Vector2.ONE * (2 * view_chunks + 1) * chunk_size))
 	emitters = result[3]
+	placed = xforms
 	for kind: String in Models.PROPS:
 		var mm: MultiMesh = _layers[kind].multimesh
 		var list: Array = xforms[kind]

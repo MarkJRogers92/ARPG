@@ -46,6 +46,7 @@ var _boss_bar: ProgressBar
 var _marker_canvas: Control
 var _marker_items: Array = []
 var _blessing_label: Label
+var _prompt_label: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
 var _end_title: Label
@@ -125,6 +126,14 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 		_blessing_label.text = "✦ Blessing of %s   %d s" % [blessing_name, ceili(seconds)]
 		_blessing_label.add_theme_color_override("font_color", color)
 		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
+
+
+## The interact prompt at the bottom ("" hides it).
+func set_prompt(text: String, color := Color.WHITE) -> void:
+	_prompt_label.visible = text != ""
+	if _prompt_label.visible:
+		_prompt_label.text = text
+		_prompt_label.add_theme_color_override("font_color", color)
 
 
 ## Things worth walking to: [{"at": world Vector2, "color", "label"}]. Off
@@ -442,6 +451,20 @@ func _build() -> void:
 	_blessing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
+
+	# Bottom center: what the nearby landmark does (see Landmarks).
+	_prompt_label = UiStyle.label(20)
+	_prompt_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_prompt_label.offset_bottom = -64
+	_prompt_label.offset_left = -500
+	_prompt_label.offset_right = 500
+	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_prompt_label.add_theme_constant_override("outline_size", 8)
+	_prompt_label.hide()
+	root.add_child(_prompt_label)
 
 	# Arrows at the screen edge toward events and bosses (see set_markers).
 	_marker_canvas = Control.new()
