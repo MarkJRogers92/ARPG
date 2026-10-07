@@ -34,7 +34,7 @@ const RADIUS := 0.5
 ##   xp_base + xp_per_level * L + xp_per_level_squared * L^2
 @export var xp_base := 6.0
 @export var xp_per_level := 5.0
-@export var xp_per_level_squared := 0.45
+@export var xp_per_level_squared := 0.7
 ## One skill point is earned every this many levels (0 turns skill points off).
 @export var skill_point_every_levels := 2
 

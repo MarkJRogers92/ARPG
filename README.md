@@ -182,6 +182,30 @@ which the pause menu's sliders control.
   opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
   heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to
   the Soul Shards earned.
+- **Ascension** (in the Pact of Night screen): winning a realm at level N
+  opens level N + 1, up to 10. Each level keeps the rules below it and adds
+  one, raises how far the night's pressure can climb (+0.25), and adds 10%
+  to the Soul Shards earned:
+
+  | | Adds |
+  |---|---|
+  | 1 | Enemies have 20% more health |
+  | 2 | Elites come 50% more often |
+  | 3 | Enemy shots fly 30% faster and hit 25% harder |
+  | 4 | The horde arrives 20% faster |
+  | 5 | Bosses have 50% more health |
+  | 6 | Your minions have 25% less life |
+  | 7 | Half health regeneration |
+  | 8 | The night adapts twice as fast |
+  | 9 | Enemies move 10% faster |
+  | 10 | The final boss has double health |
+
+- **Pressure** (`WaveDirector.update_pressure`): from 2:30 on, the night
+  pushes back against a hero walking through it. While fewer enemies are
+  alive than the time of night calls for (85% of `crowd_target()`) and the
+  hero is above 80% health, pressure climbs (2% a second, up to ×2.5 plus
+  Ascension); below 45% health it falls three times as fast. Enemy health
+  is multiplied by pressure and the spawn rate by its square root.
 - **Bestiary** (title screen): kills of each enemy kind across every night.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.

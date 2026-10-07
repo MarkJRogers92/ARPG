@@ -39,7 +39,7 @@ var elapsed := 0.0
 var pressure := 1.0
 ## How high pressure can go (Ascension raises it), and how fast it builds.
 @export var pressure_max := 2.5
-@export var pressure_rate := 0.015
+@export var pressure_rate := 0.02
 ## No pressure before this game time.
 @export var pressure_start := 150.0
 
@@ -111,7 +111,7 @@ func update_pressure(delta: float, hero_hp: float, alive: int) -> void:
 		return
 	if hero_hp < 0.45:
 		pressure -= pressure_rate * 3.0 * delta
-	elif hero_hp > 0.8 and alive < crowd_target() * 0.6:
+	elif hero_hp > 0.8 and alive < crowd_target() * 0.85:
 		pressure += pressure_rate * delta
 	pressure = clampf(pressure, 1.0, pressure_max)
 
