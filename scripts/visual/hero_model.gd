@@ -46,6 +46,13 @@ func _ready() -> void:
 	add_child(_light)
 
 
+func set_body(look: Dictionary) -> void:
+	if _body:
+		_body.mesh = Models.hero_body(look)
+	if _light and look.has("eye"):
+		_light.light_color = (look["eye"] as Color).lerp(Color.WHITE, 0.3)
+
+
 ## Shows the weapon base `base_name` (see ItemData.BASES) with an `accent` gem.
 func set_weapon(base_name: String, accent: Color) -> void:
 	_weapon.mesh = Models.item("weapon", base_name, accent)

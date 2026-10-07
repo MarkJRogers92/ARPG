@@ -76,6 +76,7 @@ func update(delta: float) -> void:
 		if target.is_empty():
 			break
 	_arcs.append({"points": points, "life": ARC_LIFE})
+	Sound.play("lightning")
 	Juice.flash(first["swarm"].pos[first["index"]], COLOR, 3.0, 7.0, 0.15)
 
 

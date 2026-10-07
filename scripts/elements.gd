@@ -79,6 +79,7 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 				swarm.chill[i] = 0.0
 				amount *= MELT_MULT * react
 				_text(at, "MELT", COLORS[FIRE])
+				Sound.play("melt")
 			elif swarm.shock[i] > 0.0:
 				swarm.shock[i] = 0.0
 				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * 2.0 * react})
@@ -101,6 +102,8 @@ static func apply_status(swarm: EnemySwarm, i: int, element: int) -> void:
 		LIGHTNING:
 			swarm.shock[i] = SHOCK_TIME
 		FIRE:
+			if swarm.burn[i] <= 0.0:
+				Sound.play("ignite")
 			swarm.burn[i] = BURN_TIME
 			swarm.burn_dps[i] = maxf(swarm.burn_dps[i], player.stats.burn_dps if player else 6.0)
 		_:
@@ -121,7 +124,8 @@ static func hit_area(center: Vector2, r: float, amount: float, element := NONE, 
 
 ## A burning enemy died: maybe set its neighbors on fire.
 static func queue_spread(at: Vector2, dps: float) -> void:
-	if randf() < SPREAD_CHANCE:
+	# The Pyromancer's "pyre": fire always spreads.
+	if randf() < SPREAD_CHANCE or has_power("pyre"):
 		_queue.append({"kind": "spread", "at": at, "damage": dps})
 
 
@@ -141,6 +145,7 @@ static func flush() -> void:
 				Juice.burst(at, 1.0, Color(0.8, 0.95, 1.0), 10, 5.0, 0.35, 0.4, 3.0)
 				Juice.flash(at, COLORS[FROST], 3.0, 6.0, 0.2)
 				_text(at, "SHATTER", COLORS[FROST])
+				Sound.play("shatter")
 			"overload":
 				_area(at, 3.0, e["damage"], NONE)
 				Juice.ring(at, Color(1.0, 0.6, 0.9), 22, 8.0, 0.5, 0.4)
@@ -148,6 +153,7 @@ static func flush() -> void:
 				Juice.flash(at, Color(1.0, 0.55, 0.6), 4.0, 8.0, 0.25)
 				Juice.shake(0.08)
 				_text(at, "OVERLOAD", Color(1.0, 0.55, 0.85))
+				Sound.play("overload")
 			"spread":
 				for swarm in swarms:
 					var n := swarm.grid.query(at, 2.2 + swarm.radius)

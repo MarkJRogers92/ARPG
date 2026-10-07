@@ -41,6 +41,13 @@ static var shards := 0
 static var ranks := {}
 ## Realm id -> {"won": bool, "endless": seconds survived past dawn (best)}.
 static var realms := {}
+## Player settings (see SETTINGS for the defaults).
+static var settings := {}
+## Hero classes bought, and the one picked (see HeroClass).
+static var classes := {}
+static var hero_class := "battlemage"
+
+const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true}
 static var _loaded := false
 
 
@@ -49,6 +56,9 @@ static func load_save() -> void:
 	shards = 0
 	ranks = {}
 	realms = {}
+	settings = {}
+	classes = {}
+	hero_class = "battlemage"
 	if disabled or not FileAccess.file_exists(save_path):
 		return
 	var file := FileAccess.open(save_path, FileAccess.READ)
@@ -62,6 +72,15 @@ static func load_save() -> void:
 			for id: String in saved:
 				if UPGRADES.has(id):
 					ranks[id] = clampi(int(saved[id]), 0, UPGRADES[id]["max"])
+		var saved_settings = data.get("settings", {})
+		if saved_settings is Dictionary:
+			for key: String in saved_settings:
+				if SETTINGS.has(key):
+					settings[key] = saved_settings[key]
+		var saved_classes = data.get("classes", {})
+		if saved_classes is Dictionary:
+			classes = saved_classes
+		hero_class = data.get("hero_class", "battlemage")
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
@@ -74,7 +93,8 @@ static func save() -> void:
 		return
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
-		file.store_var({"shards": shards, "ranks": ranks, "realms": realms})
+		file.store_var({"shards": shards, "ranks": ranks, "realms": realms,
+				"settings": settings, "classes": classes, "hero_class": hero_class})
 
 
 static func _ensure_loaded() -> void:
@@ -159,6 +179,54 @@ static func record_endless(id: String, seconds_past_dawn: float) -> void:
 	var r: Dictionary = realms.get(id, {})
 	r["endless"] = maxf(r.get("endless", 0.0), seconds_past_dawn)
 	realms[id] = r
+	save()
+
+
+static func class_unlocked(id: String) -> bool:
+	_ensure_loaded()
+	return HeroClass.data(id)["cost"] == 0 or disabled or classes.get(id, false)
+
+
+## Buys a class if it's affordable. Returns true when it's (now) unlocked.
+static func unlock_class(id: String) -> bool:
+	if class_unlocked(id):
+		return true
+	var cost: int = HeroClass.data(id)["cost"]
+	if shards < cost:
+		return false
+	shards -= cost
+	classes[id] = true
+	save()
+	return true
+
+
+static func select_class(id: String) -> void:
+	_ensure_loaded()
+	if class_unlocked(id):
+		hero_class = id
+		save()
+
+
+## The class to play: the picked one, or the Battlemage for bots and tests.
+static func current_class() -> String:
+	_ensure_loaded()
+	if disabled and forced_class == "":
+		return "battlemage"
+	return forced_class if forced_class != "" else hero_class
+
+
+## Bots can force a class (balance_bot's class= option).
+static var forced_class := ""
+
+
+static func setting(key: String):
+	_ensure_loaded()
+	return settings.get(key, SETTINGS[key])
+
+
+static func set_setting(key: String, value) -> void:
+	_ensure_loaded()
+	settings[key] = value
 	save()
 
 

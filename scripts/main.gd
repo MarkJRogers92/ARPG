@@ -51,6 +51,14 @@ var _in_title := false
 @onready var _hazards: HazardDirector = $Hazards
 @onready var _final: EnemySwarm = $FinalBoss
 @onready var _title: TitleScreen = $TitleScreen
+@onready var _sound: Sound = $Sound
+@onready var _events: EventDirector = $Events
+@onready var _goblins: EnemySwarm = $Goblins
+var _pause: PauseMenu
+## XP gems picked up in quick succession chime higher and higher.
+var _gem_streak := 0
+var _gem_streak_time := 0.0
+var _hurt_sound := 0.0
 
 
 func _enter_tree() -> void:
@@ -64,8 +72,10 @@ func _ready() -> void:
 	Juice.numbers = $DamageNumbers
 	Juice.flashes = $LightFlashes
 	Juice.camera = $CameraRig
+	apply_settings()
 	MetaProgress.load_save()
 	MetaProgress.apply(_player.stats)
+	HeroClass.apply(_player, MetaProgress.current_class())
 	_rerolls = MetaProgress.rerolls()
 	var realm := Realm.data()
 	if realm["soul_bonus"] > 0.0:
@@ -90,23 +100,27 @@ func _ready() -> void:
 			_bosses.setup(swarm, _director, _player)
 	_bosses.setup_final(_final, _shots, $Grunts)
 	_hazards.setup(_director, _player, $Grunts)
+	_events.setup(_director, _player, _loot, _gems, _goblins, _swarms)
+	_events.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
 		_hud.toast("%s approaches!" % boss_name, Color(1.0, 0.4, 0.3)))
 	_projectiles.hit.connect(func(at: Vector2, crit: bool, damage: float) -> void:
-		Juice.number(at, damage, crit)
+		Sound.play("bolt_hit")
 		if crit:
 			_fx.burst(at, 1.0, _projectiles.crit_color, 5, 5.0, 0.4, 0.3, 2.0)
 		else:
 			_fx.burst(at, 1.0, _projectiles.color, 2, 3.0, 0.3, 0.25, 1.5))
 	_shots.hit_player.connect(func(at: Vector2) -> void:
+		Sound.play("hurt")
 		_fx.burst(at, 1.2, _shots.color, 8, 4.0, 0.4, 0.35, 2.0)
 		Juice.shake(0.15))
 	_player.dashed.connect(func() -> void:
 		_fx.burst(_player.pos2, 0.6, Color(0.5, 0.8, 1.0), 12, 4.0, 0.45, 0.4, 1.0))
 	_hud.reroll_requested.connect(_on_reroll)
 	_player.leveled_up.connect(func() -> void:
+		Sound.play("levelup")
 		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
 		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.9, 0.6), 24, 3.0, 0.4, 1.0, 8.0))
 	_loot.item_picked.connect(_on_item_picked)
@@ -130,19 +144,36 @@ func _ready() -> void:
 		get_tree().paused = false
 		get_tree().reload_current_scene())
 	_hud.endless_pressed.connect(_start_endless)
+	_pause = PauseMenu.new()
+	add_child(_pause)
+	_pause.resumed.connect(func() -> void: get_tree().paused = false)
+	_pause.settings_changed.connect(apply_settings)
+	_pause.quit_to_title.connect(func() -> void:
+		Realm.in_title = true
+		get_tree().paused = false
+		get_tree().reload_current_scene())
 	_title.previewed.connect(func(id: String) -> void:
+		_sound.play_realm(id)
 		Realm.apply_look(self, id)
 		_mote_style = Realm.data(id)["motes"])
 	_title.chosen.connect(func(id: String) -> void:
 		Realm.current = id
 		Realm.in_title = false
 		get_tree().reload_current_scene())
+	_sound.play_realm(Realm.current)
 	_in_title = Realm.in_title
 	if _in_title:
 		_hud.hide()
 		_title.open()
 	else:
 		_title.close()
+
+
+## Screen shake and damage numbers on or off, and the volumes (see PauseMenu).
+func apply_settings() -> void:
+	($CameraRig as CameraRig).shake_enabled = MetaProgress.setting("shake")
+	Juice.numbers = $DamageNumbers if MetaProgress.setting("numbers") else null
+	Sound.apply_volumes()
 
 
 func _exit_tree() -> void:
@@ -178,23 +209,37 @@ func _process(delta: float) -> void:
 	_bosses.tick(delta)
 	if not won or _endless:
 		_hazards.tick(delta)
+		_events.tick(delta)
+	_run_shards += _events.shards
+	_events.shards = 0
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
 
 	var contact_dps := 0.0
 	for swarm in _swarms:
 		contact_dps += swarm.contact_load(origin, Player.RADIUS)
+	_hurt_sound -= delta
 	if contact_dps > 0.0:
 		_player.take_damage(contact_dps * delta)
+		if _hurt_sound <= 0.0:
+			_hurt_sound = 0.6
+			Sound.play("hurt", 1.0, -4.0)
 	_hud.set_hurt(contact_dps > 0.0, delta)
 
 	var xp := _gems.step(delta, origin, _player.stats.pickup_radius)
+	_gem_streak_time -= delta
+	if _gem_streak_time <= 0.0:
+		_gem_streak = 0
 	if xp > 0:
 		_player.add_xp(xp)
+		_gem_streak = mini(_gem_streak + 1, 24)
+		_gem_streak_time = 0.6
+		Sound.play("gem", 1.0 + _gem_streak * 0.03)
 
 	_souls.step(delta, origin, _player.stats.pickup_radius)
 	for value in _souls.collected:
 		_army.collect_soul(value)
+		Sound.play("soul")
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 
 	if not won or _endless:
@@ -217,7 +262,26 @@ func _process(delta: float) -> void:
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
 			_bosses.current_boss_name(), _bosses.boss_health())
 	_update_clock()
+	# Music: the drums swell with the size of the horde and the hour.
+	_sound.set_intensity(maxf(_enemy_count() / 700.0, elapsed / 1200.0) if not won else 0.0)
+	_sound.set_boss(_bosses.boss_alive() or _bosses.final_alive())
+	_hud.set_blessing(_events.blessing, _events.blessing_left,
+			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
+	_hud.set_markers(_markers(), $CameraRig/Camera3D)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## Edge arrows: the night's events, and any boss.
+func _markers() -> Array:
+	var out := _events.markers()
+	for swarm in _swarms:
+		if not swarm.boss:
+			continue
+		for i in swarm.count:
+			if swarm.hp[i] > 0.0:
+				out.append({"at": swarm.pos[i], "color": Color(1.0, 0.35, 0.3),
+						"label": swarm.display_name.to_upper() if swarm.display_name != "" else "BOSS"})
+	return out
 
 
 ## The objective at the top of the screen.
@@ -243,7 +307,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	# While a screen is open it handles its own close key (the tree is paused).
 	if _choosing_upgrade or _game_over or _in_title:
 		return
-	if event.is_action_pressed("inventory"):
+	if event.is_action_pressed("ui_cancel") and not get_tree().paused:
+		Sound.play("ui_click")
+		_open_screen(_pause)
+	elif event.is_action_pressed("inventory"):
 		_open_screen(_inventory_screen)
 	elif event.is_action_pressed("skill_tree"):
 		_open_screen(_skill_screen)
@@ -290,6 +357,9 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if _dawn_sweep > 0.0:
 		return
 	_run_shards += 2
+	Sound.play("elite_kill")
+	if randf() < 0.5:
+		_events.drop_orb(at + Vector2(-0.6, 0.0))
 	_souls.drop(at + Vector2(0.6, 0.0), Army.soul_value(_army.type_index(swarm), true, false))
 	_loot.drop(ItemGenerator.generate(ItemData.ilvl_for_player_level(_player.stats.level),
 			1.0 + swarm.loot_quality + _player.stats.magic_find), at)
@@ -303,6 +373,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	Sound.play("kill_%d" % (kills % 3))
 	if swarm == _final:
 		_on_final_died(at)
 	if swarm.boss:
@@ -316,6 +387,8 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	var overflow := _gems.drop(at, xp)
 	if overflow > 0:
 		_player.add_xp(overflow)
+	if randf() < 0.002 and not swarm.boss:
+		_events.drop_orb(at)
 	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality,
 			ItemData.ilvl_for_player_level(_player.stats.level), _player.stats.magic_find)
 
@@ -349,6 +422,8 @@ func _sweep_horde(delta: float) -> void:
 		var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
 		MetaProgress.add_shards(shards)
 		get_tree().paused = true
+		_sound.stop_music(0.5)
+		Sound.play("victory")
 		_hud.show_victory(Realm.data()["name"], elapsed, kills, _player.stats.level, shards)
 
 
@@ -362,6 +437,8 @@ func _start_endless() -> void:
 	_bosses.endless = true
 	_bosses._next_at = elapsed + 60.0
 	_atmosphere.dawn(false)
+	_sound._realm = ""
+	_sound.play_realm(Realm.current)
 	_hud.hide_end()
 	get_tree().paused = false
 	_hud.toast("The night returns...", Color(1.0, 0.4, 0.3))
@@ -381,6 +458,7 @@ func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
 
 
 func _on_item_picked(item: Item, result: String) -> void:
+	Sound.play("pickup")
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
 	_hud.toast("%s: %s" % [verb, item.name], item.color())
@@ -423,6 +501,8 @@ func _on_upgrade_chosen(id: String) -> void:
 
 func _on_player_died() -> void:
 	_game_over = true
+	_sound.stop_music(0.8)
+	Sound.play("defeat")
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
 	var shards := _run_shards + MetaProgress.run_bonus(elapsed - _endless_start, kills)

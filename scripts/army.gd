@@ -162,6 +162,7 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	Juice.ring(_pos[k], Color(0.45, 0.8, 1.0), 24, 5.0, 0.45, 0.5)
 	Juice.burst(_pos[k], 0.3, Color(0.6, 0.9, 1.0), 18, 1.5, 0.45, 0.9, 6.0)
 	Juice.flash(_pos[k], Color(0.45, 0.8, 1.0), 3.0, 6.0, 0.4)
+	Sound.play("minion_raise")
 	raised.emit(t["name"])
 
 
@@ -287,6 +288,8 @@ func _contact_damage(p: Vector2, r: float) -> float:
 func _remove(k: int, died: bool, refill := true) -> void:
 	var p := _pos[k]
 	Juice.burst(p, 1.0, Color(0.5, 0.85, 1.0), 14, 4.0, 0.4, 0.6, 3.0)
+	if died:
+		Sound.play("minion_death")
 	if died and Elements.has_power("lich_shroud"):
 		# Soulfire: the fallen minion bursts, hurting everything around it.
 		_queue_soulfire(p)

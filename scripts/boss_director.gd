@@ -144,6 +144,8 @@ func _spawn_final() -> void:
 		_bosses[_final.ids[_final.count - 1]] = {"max_hp": _final.hp[_final.count - 1], "timer": 3.0}
 		final_spawned.emit(final_name)
 		Juice.shake(0.7)
+		Sound.play("boss_arrive")
+		Sound.play("boss_roar", 0.8)
 		Juice.flash(at, Color(1.0, 0.3, 0.2), 8.0, 20.0, 1.0)
 
 
@@ -188,12 +190,15 @@ func _spawn() -> void:
 		spawned += 1
 		boss_spawned.emit(boss_name)
 		Juice.shake(0.4)
+		Sound.play("boss_arrive")
+		Sound.play("boss_roar")
 
 
 func _start_slam(at: Vector2) -> void:
 	var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.15, 0.1, 0.8), 1.0, slam_radius * 2.0)
 	var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.25, 0.1, 0.35), 0.0, slam_radius * 2.0)
 	fill.scale = Vector3.ONE * 0.05
+	Sound.play("telegraph")
 	_slams.append({"at": at, "t": 0.0, "ring": ring, "fill": fill,
 			"damage": slam_damage * (1.0 + growth * maxi(spawned - 1, 0)) * (1.5 if final_alive() else 1.0)})
 
@@ -210,6 +215,7 @@ func _update_slams(delta: float) -> void:
 			if _player.pos2.distance_to(at) <= slam_radius + Player.RADIUS and not _player.is_dashing():
 				_player.take_damage(slam["damage"])
 			Juice.shake(0.55)
+			Sound.play("slam")
 			Juice.flash(at, Color(1.0, 0.45, 0.2), 6.0, slam_radius * 3.0, 0.4)
 			Juice.ring(at, Color(1.0, 0.5, 0.2), 36, slam_radius / 0.4, 0.6, 0.4)
 			Juice.burst(at, 0.3, Color(0.55, 0.45, 0.35), 24, 6.0, 0.5, 0.7, 5.0)

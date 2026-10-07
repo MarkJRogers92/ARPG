@@ -43,6 +43,9 @@ var _dash_label: Label
 var _boss_box: Control
 var _boss_label: Label
 var _boss_bar: ProgressBar
+var _marker_canvas: Control
+var _marker_items: Array = []
+var _blessing_label: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
 var _end_title: Label
@@ -113,6 +116,69 @@ func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_h
 	if _boss_box.visible:
 		_boss_label.text = boss_name
 		_boss_bar.value = boss_health
+
+
+## The shrine blessing in effect ("" hides it) and its seconds left.
+func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
+	_blessing_label.visible = blessing_name != ""
+	if _blessing_label.visible:
+		_blessing_label.text = "✦ Blessing of %s   %d s" % [blessing_name, ceili(seconds)]
+		_blessing_label.add_theme_color_override("font_color", color)
+		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
+
+
+## Things worth walking to: [{"at": world Vector2, "color", "label"}]. Off
+## screen they get an arrow at the edge; on screen, a marker bobbing above.
+func set_markers(items: Array, camera: Camera3D) -> void:
+	_marker_items.clear()
+	if camera == null:
+		_marker_canvas.queue_redraw()
+		return
+	var view := _marker_canvas.get_viewport_rect().size
+	var center := view * 0.5
+	for m: Dictionary in items:
+		var world := Vector3(m["at"].x, 1.5, m["at"].y)
+		var behind := camera.is_position_behind(world)
+		var p := camera.unproject_position(world)
+		if behind:
+			p = center - (p - center) * 1000.0
+		var margin := 44.0
+		var inside := not behind and Rect2(Vector2.ONE * margin, view - Vector2.ONE * margin * 2.0).has_point(p)
+		var item := {"color": m["color"], "label": m["label"], "inside": inside, "p": p}
+		if not inside:
+			var d := (p - center)
+			var half := center - Vector2.ONE * margin
+			var t := minf(half.x / maxf(absf(d.x), 0.001), half.y / maxf(absf(d.y), 0.001))
+			item["p"] = center + d * minf(t, 1.0)
+			item["dir"] = d.normalized()
+		_marker_items.append(item)
+	_marker_canvas.queue_redraw()
+
+
+func _draw_markers() -> void:
+	var font := ThemeDB.fallback_font
+	var bob := sin(Time.get_ticks_msec() * 0.006) * 4.0
+	for m: Dictionary in _marker_items:
+		var color: Color = m["color"]
+		var p: Vector2 = m["p"]
+		if m["inside"]:
+			var tip := p + Vector2(0, -40 + bob)
+			_marker_canvas.draw_colored_polygon(PackedVector2Array([tip + Vector2(-9, -12), tip + Vector2(9, -12), tip]), color)
+			continue
+		var dir: Vector2 = m["dir"]
+		var side := dir.orthogonal()
+		var tip := p + dir * (6.0 + bob)
+		var pts := PackedVector2Array([tip + dir * 12.0, tip - dir * 8.0 + side * 11.0, tip - dir * 8.0 - side * 11.0])
+		_marker_canvas.draw_colored_polygon(pts, Color(0, 0, 0, 0.6))
+		var inner := PackedVector2Array()
+		for q in pts:
+			inner.append(tip + (q - tip) * 0.75)
+		_marker_canvas.draw_colored_polygon(inner, color)
+		var text: String = m["label"]
+		var size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+		var at := p - dir * 26.0 - Vector2(size.x * 0.5, -5.0)
+		_marker_canvas.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85))
+		_marker_canvas.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, color)
 
 
 ## The Soul Army: souls toward the next minion, and how big the army is.
@@ -190,6 +256,7 @@ func _input(event: InputEvent) -> void:
 	if not _upgrade_root.visible:
 		return
 	if event.is_action_pressed("reroll") and _reroll_button.visible:
+		Sound.play("reroll")
 		reroll_requested.emit()
 		get_viewport().set_input_as_handled()
 		return
@@ -203,6 +270,7 @@ func _input(event: InputEvent) -> void:
 
 func _choose(index: int) -> void:
 	_upgrade_root.hide()
+	Sound.play("card_pick")
 	upgrade_chosen.emit(_upgrade_ids[index])
 
 
@@ -363,6 +431,25 @@ func _build() -> void:
 	_boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	boss_column.add_child(_boss_bar)
 
+	# Under the boss bar: the shrine blessing in effect.
+	_blessing_label = UiStyle.label(18)
+	_blessing_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_blessing_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_blessing_label.offset_top = 112
+	_blessing_label.offset_left = -260
+	_blessing_label.offset_right = 260
+	_blessing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_blessing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blessing_label.hide()
+	root.add_child(_blessing_label)
+
+	# Arrows at the screen edge toward events and bosses (see set_markers).
+	_marker_canvas = Control.new()
+	_marker_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_marker_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_marker_canvas.draw.connect(_draw_markers)
+	root.add_child(_marker_canvas)
+
 	_debug_label = UiStyle.label(13)
 	_debug_label.modulate = Color(1, 1, 1, 0.5)
 	_debug_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
@@ -407,7 +494,9 @@ func _build() -> void:
 	_reroll_button.custom_minimum_size = Vector2(240, 40)
 	_reroll_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_reroll_button.focus_mode = Control.FOCUS_NONE
-	_reroll_button.pressed.connect(reroll_requested.emit)
+	_reroll_button.pressed.connect(func() -> void:
+		Sound.play("reroll")
+		reroll_requested.emit())
 	upgrade_box.add_child(_reroll_button)
 	_upgrade_root = _make_overlay(root, upgrade_box, false)
 
@@ -453,6 +542,7 @@ func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(210, 54)
 	b.add_theme_font_size_override("font_size", 20)
+	b.pressed.connect(func() -> void: Sound.play("ui_click"))
 	if color.a > 0.0:
 		b.add_theme_color_override("font_color", color)
 	return b
@@ -478,6 +568,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	card.pressed.connect(_choose.bind(index))
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		card.connect(signal_name, func() -> void:
+			Sound.play("ui_hover")
 			card.create_tween().tween_property(card, "scale", Vector2(1.05, 1.05), 0.12))
 	for signal_name in ["mouse_exited", "focus_exited"]:
 		card.connect(signal_name, func() -> void:

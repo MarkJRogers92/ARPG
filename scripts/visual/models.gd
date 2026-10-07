@@ -62,6 +62,8 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_colossus(kit, skin)
 		"tyrant":
 			_tyrant(kit, skin)
+		"goblin":
+			_goblin(kit, skin)
 		_:
 			_grunt(kit, skin)
 	kit.transform_all(Transform3D(Basis.from_scale(Vector3.ONE * height), Vector3.ZERO))
@@ -285,19 +287,38 @@ static func _tyrant(k: MeshKit, skin: Color) -> void:
 		k.box(Vector3(0.03, 0.18, 0.02), MeshKit.at(Vector3(-0.12 + i * 0.08, 0.5, -0.27), Vector3(0, 0, 15 - i * 10)), magma, 1.6)
 
 
+## A treasure goblin: a little hunched thief hauling an overstuffed sack.
+static func _goblin(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.4)
+	var sack := Color(0.5, 0.36, 0.2)
+	var gold := Color(1.0, 0.82, 0.3)
+	k.capsule(0.05, 0.3, MeshKit.at(Vector3(-0.08, 0.15, 0)), dark)
+	k.capsule(0.05, 0.3, MeshKit.at(Vector3(0.08, 0.15, 0)), dark)
+	k.sphere(0.17, MeshKit.at(Vector3(0, 0.4, -0.04), Vector3(-30, 0, 0)), skin)
+	k.sphere(0.13, MeshKit.at(Vector3(0, 0.58, -0.16)), skin)
+	for side: float in [-1.0, 1.0]:
+		k.cylinder(0.0, 0.05, 0.22, MeshKit.at(Vector3(0.14 * side, 0.62, -0.14), Vector3(0, 0, -75 * side)), skin, 0.0, 4) # ears
+		k.sphere(0.022, MeshKit.at(Vector3(0.045 * side, 0.6, -0.27)), Color(1.0, 0.9, 0.3), 2.0, 4, 2)
+	k.sphere(0.26, MeshKit.at(Vector3(0, 0.62, 0.2), Vector3.ZERO, Vector3(1.0, 1.1, 0.9)), sack)
+	k.cylinder(0.05, 0.08, 0.08, MeshKit.at(Vector3(0, 0.9, 0.22)), sack.darkened(0.3), 0.0, 6)
+	for i in 5:
+		k.sphere(0.05, MeshKit.at(Vector3(-0.1 + i * 0.05, 0.92 + (i % 2) * 0.03, 0.2)), gold, 1.2, 5, 2)
+
+
 # --- hero -------------------------------------------------------------------------
 
-## The hero's body (everything but the weapon), about 2 units tall.
-static func hero_body() -> ArrayMesh:
-	return _cached("hero", func() -> ArrayMesh:
+## The hero's body (everything but the weapon), about 2 units tall, in a hero
+## class's colors (see HeroClass).
+static func hero_body(look := {}) -> ArrayMesh:
+	return _cached("hero|" + str(look), func() -> ArrayMesh:
 		var k := MeshKit.new()
-		var robe := Color(0.2, 0.33, 0.78)
-		var robe_dark := Color(0.12, 0.18, 0.45)
-		var trim := Color(0.95, 0.75, 0.3)
+		var robe: Color = look.get("robe", Color(0.2, 0.33, 0.78))
+		var robe_dark: Color = look.get("robe_dark", Color(0.12, 0.18, 0.45))
+		var trim: Color = look.get("trim", Color(0.95, 0.75, 0.3))
 		var skin := Color(0.92, 0.74, 0.6)
-		var cape := Color(0.55, 0.1, 0.14)
+		var cape: Color = look.get("cape", Color(0.55, 0.1, 0.14))
 		var leather := Color(0.33, 0.2, 0.12)
-		var eye := Color(0.5, 0.9, 1.0)
+		var eye: Color = look.get("eye", Color(0.5, 0.9, 1.0))
 		k.cylinder(0.3, 0.52, 1.0, MeshKit.at(Vector3(0, 0.55, 0)), robe, 0.0, 12)
 		k.cylinder(0.53, 0.55, 0.08, MeshKit.at(Vector3(0, 0.08, 0)), trim, 0.15, 12)
 		k.cylinder(0.12, 0.12, 0.98, MeshKit.at(Vector3(0, 0.56, -0.38), Vector3(-17, 0, 0)), trim, 0.1, 6) # front stripe
@@ -467,6 +488,52 @@ static func spirit_blade() -> ArrayMesh:
 		k.cylinder(0.0, 0.1, 0.25, MeshKit.at(Vector3(0, 0, -0.74), Vector3(-90, 0, 0), Vector3(1.0, 1.0, 0.3)), c, 1.8, 4, true)
 		k.box(Vector3(0.34, 0.05, 0.06), MeshKit.at(Vector3(0, 0, 0.14)), Color(0.9, 0.95, 1.0), 0.8)
 		k.box(Vector3(0.05, 0.05, 0.22), MeshKit.at(Vector3(0, 0, 0.28)), Color(0.2, 0.5, 0.45), 0.4)
+		return k.commit(kit_material()))
+
+
+## A wayside shrine: a carved obelisk with a floating rune crystal, both
+## glowing in `glow`.
+static func shrine(glow: Color) -> ArrayMesh:
+	return _cached("shrine|" + glow.to_html(), func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var st := Color(0.4, 0.4, 0.43)
+		k.cylinder(1.2, 1.3, 0.2, MeshKit.at(Vector3(0, 0.1, 0)), st.darkened(0.3), 0.0, 10, true)
+		k.cylinder(0.9, 1.0, 0.15, MeshKit.at(Vector3(0, 0.27, 0)), st.darkened(0.15), 0.0, 10, true)
+		k.box(Vector3(0.5, 2.0, 0.5), MeshKit.at(Vector3(0, 1.3, 0), Vector3(0, 45, 0)), st)
+		k.cylinder(0.0, 0.42, 0.5, MeshKit.at(Vector3(0, 2.55, 0), Vector3(0, 45, 0)), st, 0.0, 4, true)
+		for a in 4:
+			var ang := a * PI / 2.0 + PI / 4.0
+			k.box(Vector3(0.06, 1.2, 0.02), MeshKit.at(Vector3(cos(ang) * 0.26, 1.3, sin(ang) * 0.26), Vector3(0, -rad_to_deg(ang) + 90, 0)), glow, 1.8)
+		k.sphere(0.28, MeshKit.at(Vector3(0, 3.4, 0), Vector3.ZERO, Vector3(0.7, 1.3, 0.7)), glow, 2.0, 6, 2, true)
+		return k.commit(kit_material()))
+
+
+## A cursed chest bound in iron with a glowing seal.
+static func chest() -> ArrayMesh:
+	return _cached("chest", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var wood := Color(0.35, 0.22, 0.13)
+		var iron := Color(0.25, 0.25, 0.28)
+		var curse := Color(0.75, 0.3, 1.0)
+		k.box(Vector3(1.2, 0.6, 0.8), MeshKit.at(Vector3(0, 0.3, 0)), wood)
+		k.cylinder(0.4, 0.4, 1.2, MeshKit.at(Vector3(0, 0.6, 0), Vector3(0, 0, 90), Vector3(1.0, 1.0, 1.0)), wood.darkened(0.1), 0.0, 8, true)
+		for x: float in [-0.45, 0.0, 0.45]:
+			k.box(Vector3(0.08, 0.65, 0.84), MeshKit.at(Vector3(x, 0.32, 0)), iron)
+			k.torus(0.37, 0.42, MeshKit.at(Vector3(x, 0.6, 0), Vector3(0, 0, 90)), iron, 0.0, 10)
+		k.box(Vector3(0.24, 0.28, 0.06), MeshKit.at(Vector3(0, 0.55, -0.42)), curse, 2.2)
+		for i in 3:
+			k.sphere(0.07, MeshKit.at(Vector3(-0.5 + i * 0.5, 1.15, 0)), curse, 1.8, 5, 2)
+		return k.commit(kit_material()))
+
+
+## A floating red heart crystal: heals when picked up.
+static func health_orb() -> ArrayMesh:
+	return _cached("health_orb", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var red := Color(1.0, 0.2, 0.25)
+		k.sphere(0.2, MeshKit.at(Vector3(-0.12, 0.08, 0)), red, 1.5, 8, 4)
+		k.sphere(0.2, MeshKit.at(Vector3(0.12, 0.08, 0)), red, 1.5, 8, 4)
+		k.cylinder(0.0, 0.3, 0.36, MeshKit.at(Vector3(0, -0.14, 0), Vector3(180, 0, 0)), red, 1.5, 8)
 		return k.commit(kit_material()))
 
 

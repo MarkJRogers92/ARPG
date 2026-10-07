@@ -45,6 +45,10 @@ func drop(item: Item, at: Vector2) -> LootDrop:
 	var scatter := Vector2.from_angle(randf() * TAU) * randf_range(0.0, 0.8)
 	var node := LootDrop.new()
 	node.setup(item, at + scatter)
+	if item.rarity == ItemData.Rarity.LEGENDARY:
+		Sound.play("legendary")
+	elif item.rarity == ItemData.Rarity.RARE:
+		Sound.play("loot")
 	add_child(node)
 	drops.append(node)
 	_trim()

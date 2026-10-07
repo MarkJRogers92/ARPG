@@ -9,7 +9,8 @@ extends SceneTree
 ## menu, the inventory and the skill tree. A third argument "crowd" starts with
 ## a horde of every enemy type around the hero (with elites and a boss) and
 ## gives the hero every weapon, to see them all at once; "title" just saves the
-## title screen. A fourth argument picks the realm (see Realm.REALMS).
+## title screen; "events" puts a shrine, a cursed chest, a treasure goblin
+## and a health orb by the hero, with another shrine off screen. A fourth argument picks the realm (see Realm.REALMS).
 
 var _main: Node
 var _frame := 0
@@ -47,6 +48,8 @@ func _initialize() -> void:
 		loot.drop(item, Vector2(-4.0 + r * 2.6, -3.0))
 	if crowd:
 		_spawn_crowd.call_deferred()
+	if args.size() > 2 and args[2] == "events":
+		_spawn_events.call_deferred()
 
 
 func _process(_delta: float) -> bool:
@@ -157,3 +160,16 @@ func _save(name: String) -> void:
 	var img := root.get_texture().get_image()
 	img.save_png(_out.path_join(name + ".png"))
 	print("saved ", name)
+
+
+func _spawn_events() -> void:
+	var events: EventDirector = _main.get_node("Events")
+	events._timer = 1.0e9
+	events._start_shrine(Vector2(5.5, 2.0))
+	events._start_chest(Vector2(-6.0, 2.5))
+	events._start_shrine(Vector2(40.0, -10.0))
+	events._bless("Fury")
+	var goblins: EnemySwarm = _main.get_node("Goblins")
+	goblins.spawn(Vector2(2.5, -3.5))
+	events._goblin_left = 1.0e9
+	events.drop_orb(Vector2(-2.0, 1.5))
