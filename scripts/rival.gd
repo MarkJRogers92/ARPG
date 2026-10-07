@@ -1,6 +1,6 @@
 class_name RivalDirector
 extends Node3D
-## A rival necromancer, once a night (around 9:00): another binder of the dead
+## A rival necromancer, once a night (from 9:00 on the night's clock): another binder of the dead
 ## who has come for the hero's souls.
 ##
 ##   - keeps its distance (EnemySwarm hold_range) and casts soul bolts
@@ -49,7 +49,6 @@ var _souls: GemSwarm
 var _loot: LootManager
 var _director: WaveDirector
 var _bosses: BossDirector
-var _elapsed := 0.0
 var _left := 0.0
 var _blink := 0.0
 var _drain := DRAIN_INTERVAL
@@ -79,9 +78,8 @@ func active() -> bool:
 
 
 func tick(delta: float) -> void:
-	_elapsed += delta
 	if not arrived:
-		if _elapsed >= ARRIVE_AT and not _bosses.boss_alive() and not _bosses.final_alive() and _bosses.time_to_final() > LINGER + 20.0:
+		if _director.elapsed >= ARRIVE_AT and not _bosses.boss_alive() and not _bosses.final_alive() and _bosses.time_to_final() > LINGER + 20.0:
 			arrive()
 		return
 	if not active():

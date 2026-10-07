@@ -304,4 +304,6 @@ func _report(tag: String) -> void:
 	for k in army.count:
 		best = maxi(best, army._deeds[k])
 	fields += " vets=%d best_minion_kills=%d" % [army.veterans().size(), best]
+	var rival: RivalDirector = _main._rival
+	fields += " rival=%s stolen=%d" % ["slain" if rival.defeated else ("here" if rival.active() else ("gone" if rival.arrived else "no")), rival.stolen]
 	print("%s %s" % [tag, fields])
