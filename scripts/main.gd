@@ -60,6 +60,7 @@ var _pause: PauseMenu
 var _landmarks: Landmarks
 var _spec_chosen := false
 var _final_mech: FinalMechanics
+var _rift: RiftDirector
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
 var pacts: Array = []
@@ -137,6 +138,12 @@ func _ready() -> void:
 	if collectors:
 		collectors.seized_hero.connect(_ferryman.seize)
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
+	_rift = RiftDirector.new()
+	add_child(_rift)
+	_rift.setup(self, _player, _loot, _army, _events, _decor, ($WorldEnvironment as WorldEnvironment).environment, _swarms,
+			_spend_shards, func(n: int) -> void: _rerolls += n)
+	_rift.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_landmarks.rift = _rift
 	_final_mech = FinalMechanics.new()
 	add_child(_final_mech)
 	_final_mech.setup(_final, get_node("Phylacteries") as EnemySwarm, _player, _director)
@@ -239,6 +246,9 @@ func _process(delta: float) -> void:
 		_decor.follow(_player.pos2)
 		_atmosphere.tick(delta, 0.0, false)
 		return
+	if _rift.in_market():
+		_market_frame(delta)
+		return
 	elapsed += delta
 
 	_player.tick(delta)
@@ -260,12 +270,14 @@ func _process(delta: float) -> void:
 		_events.tick(delta)
 		_landmarks.tick(delta)
 		_ferryman.tick(delta)
+		_rift.tick(delta)
 	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
 	_ferryman.shards = 0
-	var prompt := _ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt
-	_hud.set_prompt(prompt if not won or _endless else "", Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
+	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else _final_mech.hint)
 	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:
@@ -325,6 +337,28 @@ func _process(delta: float) -> void:
 	_hud.set_blessing(_events.blessing, _events.blessing_left,
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
+	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## A frame in the Night Market: the realm (horde, clock, spawns, events)
+## holds still; the hero, the army, loot and the market run.
+func _market_frame(delta: float) -> void:
+	_player.tick(delta)
+	_army.step(delta)
+	_rift.market_tick(delta)
+	if not _rift.in_market():
+		return
+	var origin := _player.pos2
+	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
+	_fx.step(delta)
+	_motes.step(delta)
+	_decor.follow(origin)
+	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
+			snappedf(_player.global_position.z, GROUND_SNAP))
+	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
+	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
+	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
 
 
@@ -423,7 +457,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue
@@ -534,12 +568,12 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	if swarm.boss:
 		_on_boss_died(at, swarm)
 		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
-	elif randf() < _player.stats.soul_chance:
+	elif randf() < _player.stats.soul_chance * (2.0 if _rift.glitching() else 1.0):
 		_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
 	var big := swarm.body_height > 2.0
 	_fx.burst(at, swarm.body_height * 0.5, swarm.color.lightened(0.25), 12 if big else 5,
 			5.0 if big else 3.5, 0.55 if big else 0.4, 0.55, 3.0)
-	var overflow := _gems.drop(at, xp)
+	var overflow := _gems.drop(at, xp * (2 if _rift.glitching() else 1))
 	if overflow > 0:
 		_player.add_xp(overflow)
 	if randf() < 0.002 and not swarm.boss:

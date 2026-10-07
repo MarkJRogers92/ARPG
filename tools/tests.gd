@@ -53,6 +53,7 @@ func _finish() -> void:
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
 	_run(&"_test_replayability", _test_replayability())
+	_run(&"_test_rifts", _test_rifts())
 
 	print("")
 	if _failures == 0:
@@ -1966,4 +1967,57 @@ func _test_replayability() -> bool:
 	_check(is_equal_approx(Elements.damage_by.get("Obol", 0.0), 30.0) and is_equal_approx(Elements.damage_by.get("Magic Bolt", 0.0), 20.0),
 			"the run report credits real damage by source (%s)" % [Elements.damage_by])
 	foes.free()
+	return true
+
+
+func _test_rifts() -> bool:
+	print("rifts")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var rift: RiftDirector = main._rift
+	var hero: Player = main.get_node("Player")
+	var grunts: EnemySwarm = main.get_node("Grunts")
+	for f in 5:
+		main._process(1.0 / 60.0)
+	hero.global_position = Vector3(12, 0, 7)
+	grunts.spawn(Vector2(15, 7))
+	var foe_at := grunts.pos[grunts.count - 1]
+	var hp := hero.stats.hp
+	var clock: float = main.elapsed
+	_check(rift.can_open(), "a rift can open early in the night")
+	rift.enter_market()
+	_check(rift.in_market() and hero.pos2.distance_to(RiftDirector.MARKET_AT) < 1.0, "the market takes the hero far away")
+	_check(not grunts.visible, "and hides the horde")
+	for f in 120:
+		main._process(1.0 / 60.0)
+	_check(main.elapsed == clock and grunts.pos[grunts.count - 1] == foe_at, "the realm holds still (clock and horde)")
+	main._run_shards = 20
+	_check(rift.buy("rare") and main._run_shards == 12, "the Bone Merchant sells a Rare for 8 shards")
+	_check(not rift.buy("rare"), "once per visit")
+	var rerolls: int = main._rerolls
+	_check(rift.buy("rerolls") and main._rerolls == rerolls + 2, "the Fortune Teller sells rerolls")
+	_check(not rift.buy("elixir") or main._run_shards >= 0, "can't spend shards you don't have")
+	rift.leave_market()
+	_check(not rift.in_market() and hero.pos2.distance_to(Vector2(12, 7)) < 1.0 and grunts.visible, "leaving puts the hero back where they were")
+	_check(hero.invulnerable, "with a moment's grace")
+	_near(hero.stats.hp, hp, "and nothing else changed", 5.0)
+	for f in 120:
+		main._process(1.0 / 60.0)
+	_check(not hero.invulnerable and main.elapsed > clock, "then the night goes on")
+	rift.enter_market()
+	rift._market["left"] = 0.01
+	main._process(1.0 / 60.0)
+	_check(not rift.in_market(), "the market fades on its own")
+	rift.start_glitch()
+	_check(rift.glitching(), "the glitch starts")
+	var drops := (main.get_node("Loot") as LootManager).drops.size()
+	rift.glitch_left = 0.01
+	rift.tick(0.02)
+	_check(not rift.glitching() and (main.get_node("Loot") as LootManager).drops.size() == drops + 2, "and surviving it leaves a gift")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = was
 	return true

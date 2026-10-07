@@ -259,6 +259,12 @@ func _update_away(delta: float) -> void:
 		i -= 1
 
 
+## Brings every minion to `at` (the hero stepped through a rift).
+func gather(at: Vector2) -> void:
+	for k in count:
+		_pos[k] = at + Vector2.from_angle(TAU * k / maxf(count, 1.0)) * 2.0
+
+
 ## Gives up one minion (a common one if there is one; the Soul Altar).
 func sacrifice() -> bool:
 	if count == 0:

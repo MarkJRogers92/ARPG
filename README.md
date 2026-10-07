@@ -240,6 +240,34 @@ its kind and position, so walking away and back doesn't reset it.
 | Fishing hut | Rest: heal to full |
 | Forbidden tome | +1 skill point, -8% max HP for the night |
 
+## Rifts
+
+Tears in the night that lead somewhere else for a while (`scripts/rift_director.gd`).
+The first opens around 4:00, then one every 3 to 4 minutes, alternating
+between the two kinds. None opens while a boss is up or within two minutes of
+dawn. A portal lasts a minute, and an arrow points to it.
+
+- **The Night Market** (violet portal, or a graveyard's ritual door). Step in
+  and the realm holds still: no spawns, no clock, the horde frozen where it
+  stands. Four stalls take this run's Soul Shards, once each:
+
+  | Stall | Price | You get |
+  |---|---|---|
+  | Bone Merchant | 8 | a Rare item |
+  | Soul Broker | 6 | a champion spirit (an elite minion) |
+  | Apothecary | 5 | a full heal and a blessing |
+  | Fortune Teller | 5 | +2 rerolls |
+
+  Leave by the exit portal, or the market fades after 75 s. You come back
+  exactly where you left, with 1.5 s of grace.
+- **The Glitch** (green portal). Touch it and for 30 s the world plays like an
+  old game: chunky pixels, a small palette, scanlines
+  (`shaders/glitch.gdshader`). XP and souls are doubled while it lasts. Survive
+  it for two items.
+
+The market is just a far-off spot in the same scene with its own props and
+light, so nothing about the run has to be saved and restored.
+
 ## The army's roles
 
 A raised minion keeps a piece of what it was (`Army.role_of`):
