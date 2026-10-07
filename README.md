@@ -42,6 +42,7 @@ is drawn by `tools/make_icon.py`.
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 | E / gamepad B | Use the set piece in reach (a gold ring marks usable ones) |
+| Q / gamepad LB | Switch the army's stance: Hunt, Guard, Swarm |
 | Esc | Pause: music and sound volume, screen shake, damage numbers, back to the title |
 
 Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
@@ -105,6 +106,15 @@ difficulty). `Realm.apply_gameplay()` runs before the enemy swarms build their
 models; `apply_look()` changes the ground, scenery and light, and the title
 screen uses it to preview each realm behind the menu. To add a realm, add an
 entry to `REALMS` and its id to `ORDER`.
+
+**Soul trails.** Kills send pale wisps rising from the bodies to stream into
+the hero, each leaving a short fading trail (`scripts/visual/wisps.gd`; capped
+at 260 at once, so a huge fight stays cheap).
+
+**Death.** When the hero falls, time slows, the army bursts apart minion by
+minion, the hero's souls scatter up into the dark and the hero crumples; the
+end screen comes up after a few seconds. (The night is settled at the moment
+of death, so the Crypt still gets its veteran.)
 
 ## Heroes
 
@@ -172,6 +182,33 @@ which the pause menu's sliders control.
   opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
   heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to
   the Soul Shards earned.
+- **Ascension** (in the Pact of Night screen): winning a realm at level N
+  opens level N + 1, up to 10. Each level keeps the rules below it and adds
+  one, makes the night's pressure climb 10% faster, and adds 10%
+  to the Soul Shards earned:
+
+  | | Adds |
+  |---|---|
+  | 1 | Enemies have 20% more health |
+  | 2 | Elites come 50% more often |
+  | 3 | Enemy shots fly 30% faster and hit 25% harder |
+  | 4 | The horde arrives 20% faster |
+  | 5 | Bosses have 50% more health |
+  | 6 | Your minions have 25% less life |
+  | 7 | Half health regeneration |
+  | 8 | The night adapts twice as fast |
+  | 9 | Enemies move 10% faster |
+  | 10 | The final boss has double health |
+
+- **Pressure** (`WaveDirector.update_pressure`): from 6:00 on, the night
+  pushes back against a hero walking through it. While the hero is above 90%
+  health, pressure climbs (3% a second, twice that if fewer enemies are alive
+  than the time of night calls for, 85% of `crowd_target()`); below 45%
+  health it falls three times as fast. Its cap grows with the night: +2 a
+  minute from 6:00 (×13 by 12:00, ×20 at most), 10% faster per Ascension
+  level. Enemy health is
+  multiplied by pressure and the spawn rate by its square root (at most
+  ×1.6).
 - **Bestiary** (title screen): kills of each enemy kind across every night.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.
@@ -284,6 +321,14 @@ Kill it in time and **its army is yours**: up to 6 of its thralls (at least
 army's usual size. It also drops a Legendary and 15 Soul Shards. No rift
 opens while it's about.
 
+**The nemesis.** A rival that escapes, or is still about when you fall,
+comes back the next night under the same name, one rank stronger (up to 5),
+and taunts you with what it took. Each rank adds 40% health, 10 s before it
+flees, an extra thrall at the start and 4 more at most, quicker blinks and a
+greedier drain. Putting a nemesis down pays a Legendary and the 15 shards
+once more per rank, and clears it; the Bestiary shows your current nemesis
+(`MetaProgress.nemesis`).
+
 ## Landmarks you can use
 
 Some set pieces do something (`scripts/landmarks.gd`). Usable ones near the
@@ -342,6 +387,15 @@ A raised minion keeps a piece of what it was (`Army.role_of`):
 | Tyrant | bound bosses | a crushing slam on a long cooldown |
 
 Damage per second is the same across roles; the rhythm and reach differ.
+
+**Stances** (Q / gamepad LB cycles them; the HUD shows the current one next
+to the army count):
+
+| Stance | Looks for prey | Moves | Takes |
+|---|---|---|---|
+| Hunt (default) | within 11 m, up to 15 m from you | normal | normal damage |
+| Guard | within 6 m, only up to 5.5 m from you; forms up tight | normal | half damage |
+| Swarm | within 18 m, up to 28 m from you; elites and bosses first | 25% faster | 25% more damage |
 
 ## Veterans and the Crypt
 

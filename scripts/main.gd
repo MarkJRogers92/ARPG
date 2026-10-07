@@ -33,6 +33,11 @@ var _dawn_sweep := 0.0
 var _dawn_at := Vector2.ZERO
 var _dawn_front: MeshInstance3D
 var _dawn_glow: DawnGlow
+var _wisps: Wisps
+## The hero's death plays out for this long (real seconds) before the end screen.
+const DEATH_TIME := 2.6
+var _dying := 0.0
+var _death_shards := 0
 var _first_light_told := false
 ## First Light: the last stretch of the night, when the sun starts to rise.
 const FIRST_LIGHT := 150.0
@@ -74,6 +79,7 @@ var _rift: RiftDirector
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
 var pacts: Array = []
 var omen := ""
+var ascension := 0
 var _kills_by := {}
 var frenzy := 0.0
 var frenzy_tier := 0
@@ -117,6 +123,9 @@ func _ready() -> void:
 	Elements.player = _player
 	Elements.swarms = _swarms
 	_army.setup(_player, _swarms)
+	_army.stance_changed.connect(func(stance: String) -> void:
+		var st: Dictionary = Army.STANCES[stance]
+		_hud.toast("%s: %s" % [st["label"], st["desc"]], st["color"]))
 	_army.promoted.connect(func(text: String) -> void: _hud.toast(text, Army.VETERAN_COLOR))
 	_army.veteran_fell.connect(func(vet_name: String, crypt: int) -> void:
 		if won and not _endless:
@@ -149,6 +158,8 @@ func _ready() -> void:
 	add_child(_wager_panel)
 	_dawn_glow = DawnGlow.new()
 	add_child(_dawn_glow)
+	_wisps = Wisps.new()
+	add_child(_wisps)
 	_ferryman = Ferryman.new()
 	add_child(_ferryman)
 	var collectors := get_node_or_null("Collectors") as EnemySwarm
@@ -258,6 +269,8 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	if _game_over:
+		if _dying > 0.0:
+			_death_frame(delta)
 		return
 	# A long hitch (window drag, breakpoint) shouldn't teleport the whole horde.
 	delta = minf(delta, 0.05)
@@ -336,9 +349,11 @@ func _process(delta: float) -> void:
 
 	if not won or _endless:
 		_director.tick(delta, origin)
+		_director.update_pressure(delta, _player.stats.hp / maxf(_player.stats.max_hp, 1.0), _enemy_count())
 	else:
 		_director.elapsed += delta
 	_fx.step(delta)
+	_wisps.step(delta, origin)
 	_spawn_motes(delta, origin)
 	_decor.emit(delta, origin, _motes)
 	_motes.step(delta)
@@ -362,7 +377,7 @@ func _process(delta: float) -> void:
 	_hud.set_blessing(_events.blessing, _events.blessing_left,
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
-	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
 
 
 ## A frame in the Night Market: the realm (horde, clock, spawns, events)
@@ -376,6 +391,7 @@ func _market_frame(delta: float) -> void:
 	var origin := _player.pos2
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 	_fx.step(delta)
+	_wisps.step(delta, origin)
 	_motes.step(delta)
 	_decor.follow(origin)
 	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
@@ -384,7 +400,7 @@ func _market_frame(delta: float) -> void:
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
 	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D)
-	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
 
 
 ## Pacts and this night's Omen (and the Daily Night's fixed seed).
@@ -398,21 +414,27 @@ func _begin_night() -> void:
 		omen = RunModifiers.forced_omen
 	else:
 		omen = RunModifiers.roll_omen()
-	RunModifiers.apply(self, pacts, omen)
+	if RunModifiers.forced_ascension >= 0:
+		ascension = RunModifiers.forced_ascension
+	else:
+		ascension = MetaProgress.ascension if MetaProgress.any_won() and not Realm.daily and not MetaProgress.disabled else 0
+	RunModifiers.apply(self, pacts, omen, ascension)
+	if ascension > 0:
+		_hud.toast("Ascension %d: %s" % [ascension, " ".join(RunModifiers.ASCENSION.slice(0, ascension))], Color(1.0, 0.45, 0.4))
 	var vet := MetaProgress.chosen_veteran()
 	if not vet.is_empty() and _army.raise_veteran(vet):
 		_hud.toast("%s rises from the Crypt to fight beside you." % vet["name"], Army.VETERAN_COLOR)
 	if omen == "":
 		return
 	var o: Dictionary = RunModifiers.OMENS[omen]
-	_hud.set_omen("%s%s" % ["DAILY NIGHT  ·  " if Realm.daily else "", o["name"]], o["desc"], o["color"],
+	_hud.set_omen("%s%s%s" % ["DAILY NIGHT  ·  " if Realm.daily else "", ("ASCENSION %d  ·  " % ascension) if ascension > 0 else "", o["name"]], o["desc"], o["color"],
 			RunModifiers.heat(pacts))
 	_hud.toast("Omen: %s. %s" % [o["name"], o["desc"]], o["color"])
 
 
 ## Shards for the end screen, the Bestiary and the Daily record.
 func _settle_run(seconds: float) -> int:
-	var shards := roundi((_run_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen))
+	var shards := roundi((_run_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
 	MetaProgress.add_shards(shards)
 	for kind: String in MetaProgress.record_kills(_kills_by):
 		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
@@ -542,6 +564,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_screen(_inventory_screen)
 	elif event.is_action_pressed("skill_tree"):
 		_open_screen(_skill_screen)
+	elif event.is_action_pressed("army_stance"):
+		_army.cycle_stance()
+		get_viewport().set_input_as_handled()
 
 
 func _open_screen(screen: Node) -> void:
@@ -602,6 +627,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	_wisps.from_kill(at)
 	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1
 	Sound.play("kill_%d" % (kills % 3))
@@ -637,6 +663,8 @@ func _on_final_died(at: Vector2) -> void:
 	_player.invulnerable = true
 	_player.burning = 0.0
 	MetaProgress.record_win(Realm.current)
+	if MetaProgress.record_ascension_win(ascension):
+		_hud.toast("Ascension %d unlocked! Choose it under Pact of Night on the title screen." % MetaProgress.ascension_unlocked, Color(1.0, 0.45, 0.4))
 	_run_shards += roundi(40.0 * Realm.data()["difficulty"])
 	_atmosphere.dawn(true)
 	_dawn_glow.dawn(true)
@@ -810,5 +838,31 @@ func _on_player_died() -> void:
 	Sound.play("defeat")
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
-	var shards := _settle_run(elapsed - _endless_start)
-	_hud.show_game_over(elapsed, kills, _player.stats.level, shards)
+	_rival.hero_fell()
+	# The night is settled now (the Crypt gets its veteran before the army falls).
+	_death_shards = _settle_run(elapsed - _endless_start)
+	# The fall: time slows, the army bursts apart, the hero's souls scatter.
+	_dying = DEATH_TIME
+	Juice.slow_motion(0.3, 1.2)
+	Juice.shake(0.6)
+	Juice.flash(_player.pos2, Color(1.0, 0.25, 0.2), 6.0, 10.0, 0.8)
+	_fx.ring(_player.pos2, Color(1.0, 0.3, 0.25), 40, 9.0, 0.6, 0.8)
+	_wisps.scatter(_player.pos2, 160)
+	_army.collapse()
+	var visual := _player.get_node("Visual") as Node3D
+	var tw := create_tween().set_ignore_time_scale(true).set_parallel(true)
+	tw.tween_property(visual, "rotation:x", -1.35, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(visual, "position:y", -0.25, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+## While the hero's death plays out: only the effects keep moving.
+func _death_frame(delta: float) -> void:
+	delta = minf(delta, 0.05)
+	_dying -= delta / maxf(Engine.time_scale, 0.05)
+	_fx.step(delta)
+	_wisps.step(delta, _player.pos2)
+	_motes.step(delta)
+	_hud.set_hurt(true, delta)
+	if _dying <= 0.0:
+		_dying = 0.0
+		_hud.show_game_over(elapsed, kills, _player.stats.level, _death_shards)

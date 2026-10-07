@@ -26,6 +26,7 @@ var _finale := false
 var _rift_mode := ""
 var _dawn := false
 var _rival := false
+var _death := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -42,6 +43,9 @@ func _initialize() -> void:
 	_finale = args.size() > 2 and args[2] == "finale"
 	_dawn = args.size() > 2 and args[2] == "dawn"
 	_rival = args.size() > 2 and args[2] == "rival"
+	_death = args.size() > 2 and args[2] == "death"
+	if _death:
+		_spawn_crowd.call_deferred()
 	if args.size() > 2 and args[2] in ["market", "glitch"]:
 		_rift_mode = args[2]
 	if args.size() > 3:
@@ -86,6 +90,23 @@ func _process(_delta: float) -> bool:
 			player.global_position = Vector3(RiftDirector.MARKET_AT.x, 0, RiftDirector.MARKET_AT.y - 1.0)
 		if _frame == 110:
 			_save(_rift_mode)
+			quit(0)
+			return true
+		return false
+	if _death:
+		if _frame < 90:
+			player.stats.hp = player.stats.max_hp
+		if _frame == 80:
+			_save("death_before")
+		if _frame == 90:
+			player.dead = true
+			_main._on_player_died()
+		if _frame == 100:
+			_save("death_fall")
+		if _frame == 150:
+			_save("death_souls")
+		if _frame == 400:
+			_save("death_end")
 			quit(0)
 			return true
 		return false

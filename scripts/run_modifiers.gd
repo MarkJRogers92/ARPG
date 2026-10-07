@@ -8,8 +8,13 @@ extends RefCounted
 ##   Omens           one random rule for every run (shown when it starts), a
 ##                   twist with an upside and a cost.
 ##
+##   Ascension       levels 1..10, unlocked one at a time by winning at the
+##                   level below. Each adds one lasting rule on top of the
+##                   ones before, lets the night's pressure (WaveDirector)
+##                   climb 10% faster, and adds 10% to the Soul Shards you earn.
+##
 ## Applied by main.gd once the realm is set up (apply()), as stat modifiers
-## under "pact" / "omen" and tweaks to the wave and boss directors.
+## under "pact" / "omen" / "ascension" and tweaks to the wave and boss directors.
 
 const PACTS := {
 	"swarm": {"name": "Swarming Dark", "heat": 1, "desc": "Enemies arrive 30% faster."},
@@ -33,8 +38,25 @@ const OMENS := {
 	"quiet": {"name": "Quiet Night", "color": Color(0.75, 0.75, 0.85), "desc": "15% fewer enemies. 25% less XP."},
 }
 const OMEN_ORDER := ["blood_moon", "soul_tide", "glass", "midas", "swift", "restless", "ferry", "quiet"]
+const ASCENSION := [
+	"Enemies have 20% more health.",
+	"Elites come 50% more often.",
+	"Enemy shots fly 30% faster and hit 25% harder.",
+	"The horde arrives 20% faster.",
+	"Bosses have 50% more health.",
+	"Your minions have 25% less life.",
+	"Half health regeneration.",
+	"The night adapts twice as fast.",
+	"Enemies move 10% faster.",
+	"The final boss has double health.",
+]
+const ASCENSION_MAX := 10
+const ASCENSION_SHARDS := 0.1
+const ASCENSION_PRESSURE := 0.1
 ## Bots and tests play with no omen (MetaProgress.disabled) unless this names one.
 static var forced_omen := ""
+## Bots and tests: play at this Ascension (-1: the saved choice).
+static var forced_ascension := -1
 
 
 static func heat(pacts: Array) -> int:
@@ -45,8 +67,8 @@ static func heat(pacts: Array) -> int:
 
 
 ## The Soul Shard multiplier for a night with these pacts and omen.
-static func shard_mult(pacts: Array, omen: String) -> float:
-	return (1.0 + HEAT_BONUS * heat(pacts)) * (1.5 if omen == "midas" else 1.0)
+static func shard_mult(pacts: Array, omen: String, ascension := 0) -> float:
+	return (1.0 + HEAT_BONUS * heat(pacts)) * (1.5 if omen == "midas" else 1.0) * (1.0 + ASCENSION_SHARDS * ascension)
 
 
 ## A random omen (or a set one, for the Daily Night: `pick` in 0..1).
@@ -56,7 +78,7 @@ static func roll_omen(pick := -1.0) -> String:
 
 
 ## Sets up the night. `main` is the main scene (its nodes are looked up by name).
-static func apply(main: Node, pacts: Array, omen: String) -> void:
+static func apply(main: Node, pacts: Array, omen: String, ascension := 0) -> void:
 	var director := main.get_node("WaveDirector") as WaveDirector
 	var bosses := main.get_node("BossDirector") as BossDirector
 	var player := main.get_node("Player") as Player
@@ -110,10 +132,41 @@ static func apply(main: Node, pacts: Array, omen: String) -> void:
 		"quiet":
 			director.rate_scale *= 0.85
 			omen_mods.append({"stat": "xp_gain", "op": PlayerStats.Op.MORE, "value": -0.25})
+	var asc_mods := []
+	director.pressure_ramp *= 1.0 + ASCENSION_PRESSURE * ascension
+	for level in range(1, mini(ascension, ASCENSION_MAX) + 1):
+		match level:
+			1: director.hp_scale *= 1.2
+			2:
+				director.elites_per_minute *= 1.5
+				director.elites_per_minute_max *= 1.5
+			3:
+				for s: EnemySwarm in swarms:
+					s.shot_speed *= 1.3
+					s.shot_damage *= 1.25
+				bosses.final_shot_speed *= 1.3
+			4: director.rate_scale *= 1.2
+			5:
+				for s: EnemySwarm in swarms:
+					if s.boss and String(s.name) != "FinalBoss":
+						s.max_hp *= 1.5
+			6: asc_mods.append({"stat": "minion_hp", "op": PlayerStats.Op.MORE, "value": -0.25})
+			7: asc_mods.append({"stat": "regen", "op": PlayerStats.Op.MORE, "value": -0.5})
+			8: director.pressure_rate *= 2.0
+			9:
+				for s: EnemySwarm in swarms:
+					if not s.boss:
+						s.move_speed *= 1.1
+			10:
+				for s: EnemySwarm in swarms:
+					if String(s.name) == "FinalBoss":
+						s.max_hp *= 2.0
 	var stats := player.stats
 	stats.remove_source("pact")
 	stats.remove_source("omen")
+	stats.remove_source("ascension")
 	stats.add_mods("pact", pact_mods)
 	stats.add_mods("omen", omen_mods)
+	stats.add_mods("ascension", asc_mods)
 	stats.recalculate()
 	stats.hp = stats.max_hp

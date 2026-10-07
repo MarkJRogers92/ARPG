@@ -262,10 +262,11 @@ func _draw_markers() -> void:
 
 
 ## The Soul Army: souls toward the next minion, and how big the army is.
-func refresh_army(souls: int, cost: int, minions: int, max_minions: int) -> void:
+func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance := "") -> void:
 	_soul_bar.max_value = cost
 	_soul_bar.value = souls
-	_soul_label.text = "SOULS %d/%d   ARMY %d/%d" % [mini(souls, cost), cost, minions, max_minions]
+	_soul_label.text = "SOULS %d/%d   ARMY %d/%d%s" % [mini(souls, cost), cost, minions, max_minions,
+			("   %s [Q]" % stance) if stance != "" else ""]
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.

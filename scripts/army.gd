@@ -29,14 +29,30 @@ extends Node3D
 ## from the horde, and drift back to the hero when there's nothing to fight.
 
 signal raised(kind: String)
+signal stance_changed(stance: String)
 ## A minion earned a name or a higher rank.
 signal promoted(text: String)
 ## A named veteran was destroyed (crypt: its Crypt id, or -1).
 signal veteran_fell(vet_name: String, crypt: int)
 
 const CAPACITY := 40
-const SIGHT := 11.0 # how far a minion looks for prey
-const LEASH := 15.0 # targets must be this close to the hero
+const SIGHT := 11.0 # how far a minion looks for prey (in Hunt)
+const LEASH := 15.0 # targets must be this close to the hero (in Hunt)
+## Stances, cycled by the hero (Q / left shoulder):
+##   hunt   the default: hunt whatever is near
+##   guard  stay close and fight only what comes near the hero, taking half damage
+##   swarm  range far and go for elites and bosses first, faster but more exposed
+const STANCES := {
+	"hunt": {"label": "HUNT", "sight": 11.0, "leash": 15.0, "speed": 1.0, "taken": 1.0, "ring": 2.2,
+			"color": Color(0.5, 0.85, 1.0), "desc": "Your army hunts whatever is near."},
+	"guard": {"label": "GUARD", "sight": 6.0, "leash": 5.5, "speed": 1.0, "taken": 0.5, "ring": 1.5,
+			"color": Color(0.55, 1.0, 0.7), "desc": "Your army holds close and shields you: half damage taken."},
+	"swarm": {"label": "SWARM", "sight": 18.0, "leash": 28.0, "speed": 1.25, "taken": 1.25, "ring": 2.6,
+			"color": Color(1.0, 0.55, 0.4), "desc": "Your army ranges far and goes for elites and bosses first."},
+}
+const STANCE_ORDER := ["hunt", "guard", "swarm"]
+## An elite or boss counts as this much closer (squared) to a swarming minion.
+const SWARM_PREY := 0.05
 const ATTACK_INTERVAL := 0.4
 const RETARGET := 0.35
 const ROLES := {
@@ -102,6 +118,8 @@ var _rank := PackedByteArray()
 var _vname: Array[String] = []
 var _crypt := PackedInt32Array()
 var _tag: Array = []
+
+var stance := "hunt"
 
 var _player: Player
 var _swarms: Array[EnemySwarm] = []
@@ -319,6 +337,21 @@ func claim(swarm: EnemySwarm, n: int, elite := false) -> int:
 	return risen
 
 
+## The hero has fallen: one by one the minions burst into motes and the army
+## is gone from sight (the records stay, for the Crypt).
+func collapse() -> void:
+	var tw := create_tween().set_ignore_time_scale(true)
+	var spots: Array[Vector2] = []
+	for k in count:
+		spots.append(_pos[k])
+	for at: Vector2 in spots:
+		tw.tween_callback(func() -> void:
+			Juice.burst(at, 0.8, Color(0.55, 0.88, 1.0), 22, 4.0, 0.4, 0.8, 4.0)
+			Juice.ring(at, Color(0.5, 0.85, 1.0), 14, 3.0, 0.3, 0.4)
+			Sound.play("minion_death", randf_range(0.8, 1.1), -6.0)).set_delay(0.12)
+	tw.tween_callback(func() -> void: visible = false)
+
+
 ## Brings every minion to `at` (the hero stepped through a rift).
 func gather(at: Vector2) -> void:
 	for k in count:
@@ -488,14 +521,14 @@ func step(delta: float) -> void:
 			fighting = p.distance_to(enemy) <= reach
 		else:
 			# Nothing to fight: fall in around the hero.
-			var slot := Vector2.from_angle(TAU * k / maxf(count, 1.0) + 0.5) * (2.2 + 0.4 * (k % 3))
+			var slot := Vector2.from_angle(TAU * k / maxf(count, 1.0) + 0.5) * (float(STANCES[stance]["ring"]) + 0.4 * (k % 3))
 			goal = hero + slot
 			reach = 0.4
 
 		var to := goal - p
 		var d := to.length()
 		if d > reach:
-			var speed: float = t["speed"] * r["speed"]
+			var speed: float = t["speed"] * r["speed"] * float(STANCES[stance]["speed"])
 			if not fighting and p.distance_to(hero) > 8.0:
 				speed = maxf(speed, stats.move_speed * 1.2)
 			p += to / d * minf(speed * delta, d - reach * 0.9)
@@ -539,7 +572,7 @@ func step(delta: float) -> void:
 		_hurt[k] -= delta
 		if _hurt[k] <= 0.0:
 			_hurt[k] = 0.25
-			_hp[k] -= _contact_damage(p, t["radius"]) * 0.25
+			_hp[k] -= _contact_damage(p, t["radius"]) * 0.25 * float(STANCES[stance]["taken"])
 			if _hp[k] <= 0.0:
 				_remove(k, true)
 		k -= 1
@@ -557,18 +590,35 @@ func _target_alive(k: int) -> bool:
 	return true
 
 
+## Switches to the next stance (or `to`, if given).
+func cycle_stance(to := "") -> void:
+	stance = to if STANCES.has(to) else STANCE_ORDER[(STANCE_ORDER.find(stance) + 1) % STANCE_ORDER.size()]
+	for k in count:
+		_retarget[k] = 0.0
+	var st: Dictionary = STANCES[stance]
+	Juice.ring(_player.pos2, st["color"], 32, 7.0, 0.4, 0.45)
+	Sound.play("minion_raise", 1.4, -6.0)
+	stance_changed.emit(stance)
+
+
 func _find_target(k: int, p: Vector2, hero: Vector2) -> void:
 	_target_id[k] = -1
-	var best := SIGHT * SIGHT
+	var st: Dictionary = STANCES[stance]
+	var sight: float = st["sight"]
+	var leash: float = st["leash"]
+	var swarming := stance == "swarm"
+	var best := sight * sight
 	for s in _swarms.size():
 		var swarm := _swarms[s]
-		var n := swarm.grid.query(p, SIGHT)
+		var n := swarm.grid.query(p, sight)
 		var res := swarm.grid.results
 		for j in n:
 			var i := res[j]
-			if swarm.hp[i] <= 0.0 or swarm.pos[i].distance_squared_to(hero) > LEASH * LEASH:
+			if swarm.hp[i] <= 0.0 or swarm.pos[i].distance_squared_to(hero) > leash * leash:
 				continue
 			var d2 := p.distance_squared_to(swarm.pos[i])
+			if swarming and (swarm.boss or swarm._elite[i] == 1):
+				d2 *= SWARM_PREY
 			if d2 < best:
 				best = d2
 				_target_swarm[k] = s

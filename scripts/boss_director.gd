@@ -36,6 +36,8 @@ signal final_spawned(boss_name: String)
 @export var run_length := 900.0
 ## The final boss's shots use this element (see Elements).
 @export var final_shot := 0
+## The final boss's shot ring speed (Ascension raises it).
+var final_shot_speed := 6.0
 @export var ring_interval := 6.0
 @export var ring_shots := 18
 @export var summon_interval := 14.0
@@ -173,7 +175,7 @@ func _final_attacks(delta: float) -> void:
 		var offset := randf() * TAU
 		for k in n:
 			var dir := Vector2.from_angle(offset + TAU * k / n)
-			_shots.spawn(at + dir * 1.5, dir, 6.0, 10.0 + 6.0 * _director.hp_scale, final_shot)
+			_shots.spawn(at + dir * 1.5, dir, final_shot_speed, 10.0 + 6.0 * _director.hp_scale, final_shot)
 		Juice.flash(at, Elements.COLORS.get(final_shot, Color(0.8, 0.5, 1.0)), 4.0, 10.0, 0.3)
 	_summon_timer -= delta
 	if _summon_timer <= 0.0 and _summon_swarm:
