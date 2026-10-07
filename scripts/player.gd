@@ -116,7 +116,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		mouse_aim_toggled.emit(mouse_aim_enabled)
 
 
-## The model holds the equipped weapon (or the starting staff).
+var _start_weapon := HeroModel.DEFAULT_WEAPON
+var _start_accent := HeroModel.DEFAULT_ACCENT
+
+
+## The class's colors and the weapon it holds before finding one.
+func set_class_look(look: Dictionary, weapon: String, accent: Color) -> void:
+	_start_weapon = weapon
+	_start_accent = accent
+	if _visual:
+		_visual.set_body(look)
+	_show_weapon()
+
+
+## The model holds the equipped weapon (or the class's starting one).
 func _show_weapon() -> void:
 	if _visual == null:
 		return
@@ -124,7 +137,7 @@ func _show_weapon() -> void:
 	if weapon:
 		_visual.set_weapon(weapon.base_name, weapon.color())
 	else:
-		_visual.set_weapon(HeroModel.DEFAULT_WEAPON, HeroModel.DEFAULT_ACCENT)
+		_visual.set_weapon(_start_weapon, _start_accent)
 
 
 func xp_for_level(level: int) -> int:
@@ -161,6 +174,7 @@ func tick(delta: float) -> void:
 		_dash_time = DASH_TIME
 		_dash_cooldown = stats.dash_cooldown
 		dashed.emit()
+		Sound.play("dash")
 		if stats.powers.has("blinkfire") and _nova:
 			_nova.fire()
 	chilled = maxf(chilled - delta, 0.0)
@@ -314,6 +328,7 @@ func _update_bolt(delta: float) -> void:
 		_visual.rotation.y = atan2(-aim.x, -aim.y)
 	_visual.cast()
 	cast.emit()
+	Sound.play("bolt_cast")
 	_volleys += 1
 	if stats.powers.has("heart_of_storms") and _volleys % 6 == 0 and _nova:
 		_nova.fire()

@@ -8,6 +8,7 @@ extends SceneTree
 ##
 ##   policy     greedy | tank | random
 ##   overrides  realm=<id> plays that realm (see Realm.REALMS; default graveyard)
+##              class=<id> plays that hero class (see HeroClass; default battlemage)
 ##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
 ##              base.<stat>=value changes a starting stat (see PlayerStats.BASE),
@@ -71,6 +72,8 @@ func _initialize() -> void:
 			_apply_base_override(o)
 		elif o.begins_with("realm="):
 			Realm.current = o.substr(6)
+		elif o.begins_with("class="):
+			MetaProgress.forced_class = o.substr(6)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
 	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -116,7 +119,7 @@ func _setup() -> void:
 		_items_found += 1
 		_rarities[item.rarity] += 1)
 	for o in _overrides:
-		if not o.begins_with("base.") and not o.begins_with("realm="):
+		if not o.begins_with("base.") and not o.begins_with("realm=") and not o.begins_with("class="):
 			_apply_override(o)
 
 

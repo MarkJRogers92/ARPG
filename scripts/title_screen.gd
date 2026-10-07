@@ -1,6 +1,6 @@
 class_name TitleScreen
 extends CanvasLayer
-## The title screen: pick a realm to spend the night in. The world behind it
+## The title screen: pick a hero and a realm to spend the night in. The world behind it
 ## is the real scene, so hovering a realm previews its ground, scenery and
 ## light (main.gd listens to `previewed`). Realms open in order: winning one
 ## unlocks the next. The Altar of Souls is reachable from here too.
@@ -14,6 +14,7 @@ var _root: Control
 var _altar_overlay: Control
 var _altar: AltarPanel
 var _first: Button
+var _class_desc: Label
 
 
 func _ready() -> void:
@@ -59,7 +60,7 @@ func _build() -> void:
 	column.add_theme_constant_override("separation", 10)
 	_root.add_child(column)
 
-	var title := UiStyle.label(84)
+	var title := UiStyle.label(76)
 	title.text = GAME_TITLE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -72,8 +73,27 @@ func _build() -> void:
 	tagline.modulate = Color(1, 1, 1, 0.75)
 	column.add_child(tagline)
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 26
+	gap.custom_minimum_size.y = 14
 	column.add_child(gap)
+
+	# Heroes: pick one, or buy one with Soul Shards.
+	var heroes := HBoxContainer.new()
+	heroes.alignment = BoxContainer.ALIGNMENT_CENTER
+	heroes.add_theme_constant_override("separation", 12)
+	column.add_child(heroes)
+	for id: String in HeroClass.ORDER:
+		heroes.add_child(_class_button(id))
+	_class_desc = UiStyle.label(15)
+	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_class_desc.custom_minimum_size = Vector2(900, 24)
+	_class_desc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_class_desc.modulate = Color(1, 1, 1, 0.8)
+	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"]
+	column.add_child(_class_desc)
+	var gap3 := Control.new()
+	gap3.custom_minimum_size.y = 8
+	column.add_child(gap3)
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -137,13 +157,42 @@ func _build() -> void:
 	altar_box.add_child(back)
 
 
+func _class_button(id: String) -> Button:
+	var d := HeroClass.data(id)
+	var unlocked := MetaProgress.class_unlocked(id)
+	var picked := MetaProgress.hero_class == id
+	var accent: Color = d["accent"]
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(200, 54)
+	if picked:
+		b.text = "✓ " + d["name"]
+	elif unlocked:
+		b.text = d["name"]
+	else:
+		b.text = "%s   ·   %d ◆" % [d["name"], d["cost"]]
+	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_color_override("font_color", accent if unlocked else UiStyle.MUTED)
+	if picked:
+		b.add_theme_stylebox_override("normal", UiStyle.box(Color(0.1, 0.1, 0.12, 0.95), accent, 3, 8))
+	b.disabled = not unlocked and MetaProgress.shards < d["cost"]
+	b.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		if MetaProgress.unlock_class(id):
+			MetaProgress.select_class(id)
+			get_tree().reload_current_scene())
+	for signal_name in ["mouse_entered", "focus_entered"]:
+		b.connect(signal_name, func() -> void:
+			_class_desc.text = d["desc"] + ("" if unlocked else "   (unlock for %d Soul Shards)" % d["cost"]))
+	return b
+
+
 func _realm_card(id: String) -> Button:
 	var d := Realm.data(id)
 	var accent: Color = d["accent"]
 	var unlocked := MetaProgress.is_unlocked(id)
 	var won := MetaProgress.is_won(id)
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(330, 380)
+	card.custom_minimum_size = Vector2(330, 330)
 	card.disabled = not unlocked
 	card.pivot_offset = card.custom_minimum_size * 0.5
 	var normal := UiStyle.box(Color(0.06, 0.06, 0.08, 0.92), accent.darkened(0.5), 2, 12)
@@ -157,9 +206,12 @@ func _realm_card(id: String) -> Button:
 	for state in ["hover", "pressed", "hover_pressed", "focus"]:
 		card.add_theme_stylebox_override(state, hover)
 	card.add_theme_stylebox_override("disabled", locked)
-	card.pressed.connect(func() -> void: chosen.emit(id))
+	card.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		chosen.emit(id))
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		card.connect(signal_name, func() -> void:
+			Sound.play("ui_hover")
 			previewed.emit(id)
 			card.create_tween().tween_property(card, "scale", Vector2(1.04, 1.04), 0.12))
 	for signal_name in ["mouse_exited", "focus_exited"]:

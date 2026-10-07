@@ -55,6 +55,7 @@ func fire() -> void:
 	var center := _player.pos2
 	var r := stats.nova_radius
 	Elements.hit_area(center, r, stats.nova_damage, Elements.NONE, stats.crit_chance, stats.crit_mult)
+	Sound.play("nova")
 	for swarm in _swarms:
 		swarm.knockback(center, r + swarm.radius, KNOCKBACK)
 	_anim = 0.0

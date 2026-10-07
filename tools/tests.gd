@@ -29,6 +29,8 @@ func _initialize() -> void:
 	_test_legendaries()
 	_test_realms()
 	_test_realm_progress()
+	_test_classes_and_settings()
+	_test_sounds()
 	# These need nodes in the running tree, which only exists after this returns.
 	_finish.call_deferred()
 
@@ -38,6 +40,8 @@ func _finish() -> void:
 	_test_enemy_shots()
 	_test_elements()
 	_test_army()
+	_test_heroes()
+	_test_events()
 
 	print("")
 	if _failures == 0:
@@ -915,3 +919,137 @@ func _test_realm_progress() -> void:
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
+
+
+func _test_classes_and_settings() -> void:
+	print("hero classes and settings")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_classes.save"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.load_save()
+	_check(HeroClass.ORDER.size() == HeroClass.CLASSES.size(), "every class is on the picker")
+	for id: String in HeroClass.ORDER:
+		var d := HeroClass.data(id)
+		for key in ["name", "cost", "desc", "weapon", "accent", "look", "mods", "powers"]:
+			_check(d.has(key), "%s has %s" % [id, key])
+	_check(MetaProgress.current_class() == "battlemage", "a fresh save plays the Battlemage")
+	_check(MetaProgress.class_unlocked("battlemage") and not MetaProgress.class_unlocked("necromancer"), "only the Battlemage starts unlocked")
+	MetaProgress.add_shards(35)
+	_check(not MetaProgress.unlock_class("pyromancer"), "can't buy a class you can't afford")
+	_check(MetaProgress.unlock_class("necromancer") and MetaProgress.shards == 5, "buying the Necromancer spends 30 shards")
+	MetaProgress.select_class("necromancer")
+	MetaProgress.select_class("stormcaller")
+	_check(MetaProgress.current_class() == "necromancer", "locked classes can't be selected")
+	_near(MetaProgress.setting("music_volume"), 0.7, "settings have defaults")
+	MetaProgress.set_setting("music_volume", 0.25)
+	MetaProgress.set_setting("shake", false)
+	MetaProgress.load_save()
+	_check(MetaProgress.current_class() == "necromancer" and MetaProgress.class_unlocked("necromancer"), "classes survive a reload")
+	_check(is_equal_approx(MetaProgress.setting("music_volume"), 0.25) and MetaProgress.setting("shake") == false, "settings survive a reload")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+
+
+func _test_sounds() -> void:
+	print("sounds")
+	for sound: String in Sound.RULES:
+		_check(ResourceLoader.exists("res://audio/sfx/%s.wav" % sound), "sound %s has a file" % sound)
+		_check(Sound.RULES[sound].size() == 4, "sound %s has a full rule" % sound)
+	for id: String in Realm.ORDER:
+		for layer in ["calm", "drums"]:
+			_check(ResourceLoader.exists("res://audio/music/%s_%s.ogg" % [id, layer]), "%s has %s music" % [id, layer])
+	_check(ResourceLoader.exists("res://audio/music/boss.ogg"), "there's boss music")
+
+
+func _test_heroes() -> void:
+	print("hero class effects")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var base_minions := player.stats.minion_max
+	HeroClass.apply(player, "necromancer")
+	_near(player.stats.minion_max, base_minions + 2.0, "the Necromancer commands two more minions")
+	_check(player.stats.powers.has("lich_shroud"), "and has the Lich Shroud power")
+	_near(player.stats.hp, player.stats.max_hp, "a class starts at full health")
+	HeroClass.apply(player, "pyromancer")
+	_near(player.stats.minion_max, base_minions, "switching class removes the old bonuses")
+	_check(player.stats.powers.has("pyre") and not player.stats.powers.has("lich_shroud"), "and the old powers")
+	HeroClass.apply(player, "stormcaller")
+	_check(player.stats.lightning_level >= 1, "the Stormcaller starts with Chain Lightning")
+	player.free()
+
+
+func _test_events() -> void:
+	print("night events")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var loot := LootManager.new()
+	root.add_child(loot)
+	var gems := GemSwarm.new()
+	root.add_child(gems)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 32
+	root.add_child(grunts)
+	var goblins := EnemySwarm.new()
+	goblins.capacity = 2
+	goblins.flee = true
+	goblins.spawn_share = 0.0
+	goblins.model = "goblin"
+	root.add_child(goblins)
+	var swarms: Array[EnemySwarm] = [grunts, goblins]
+	director.setup(swarms)
+	var events := EventDirector.new()
+	root.add_child(events)
+	events.setup(director, player, loot, gems, goblins, swarms)
+	_check(goblins.spawn_weight(600.0) == 0.0, "the wave director never spawns goblins")
+
+	# Shrines: stand in the circle to charge it, then a blessing for a while.
+	events._start_shrine(player.pos2 + Vector2(1, 0))
+	_check(events.markers().size() == 1, "a shrine gets a marker")
+	var damage_before := player.stats.bolt_damage
+	events._events[0]["blessing"] = "Fury"
+	for k in 5:
+		events._update_events(1.0)
+	_check(events._events.is_empty() and events.blessing == "Fury", "standing in a shrine blesses you")
+	_check(player.stats.bolt_damage > damage_before * 1.5, "Fury raises damage (%s -> %s)" % [damage_before, player.stats.bolt_damage])
+	events._update_blessing(events.blessing_time + 1.0)
+	_check(events.blessing == "" and is_equal_approx(player.stats.bolt_damage, damage_before), "the blessing wears off")
+
+	# Goblins: flee from the hero, and pay out when caught.
+	goblins.spawn(Vector2(3, 0))
+	goblins.step(0.1, player.pos2)
+	_check(goblins.pos[0].x > 3.0, "goblins run away (x=%.2f)" % goblins.pos[0].x)
+	var drops_before := loot.drops.size()
+	goblins.damage(0, 1.0e9)
+	_check(events.shards == 3 and loot.drops.size() == drops_before + 3, "a caught goblin drops loot and shards")
+	goblins.spawn(Vector2(3, 0))
+	events._goblin_left = 0.01
+	var died := [0]
+	goblins.enemy_died.connect(func(_a: Vector2, _x: int) -> void: died[0] += 1)
+	events._update_events(0.1)
+	_check(goblins.alive_count() == 0 and died[0] == 0, "an escaped goblin vanishes without a death")
+
+	# Cursed chests: guardians, then a Legendary.
+	events._start_chest(player.pos2 + Vector2(1, 0))
+	events._update_events(0.1)
+	var guards: Array = events._events[0]["guards"]
+	_check(guards.size() >= 5, "opening a chest summons its guardians (%d)" % guards.size())
+	_check(grunts.is_elite(grunts.count - 1), "the guardians are elites")
+	for i in grunts.count:
+		grunts.damage(i, 1.0e9)
+	var before := loot.drops.size()
+	events._update_events(0.1)
+	_check(events._events.is_empty() and loot.drops.size() == before + 1, "the curse breaks when they're all dead")
+	_check(loot.drops[-1].item.rarity == ItemData.Rarity.LEGENDARY, "and the chest gives a Legendary")
+
+	# Health orbs.
+	player.stats.hp = player.stats.max_hp * 0.5
+	events.drop_orb(player.pos2 + Vector2(0.5, 0))
+	events._update_orbs(0.016)
+	_near(player.stats.hp, player.stats.max_hp * 0.75, "a health orb heals a quarter of max HP")
+	for n: Node in [events, goblins, grunts, gems, loot, director, player]:
+		n.free()

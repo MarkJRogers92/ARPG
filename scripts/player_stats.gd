@@ -106,9 +106,11 @@ var burn_dps := 6.0
 var chill_chance := 0.0
 var reaction_damage := 1.0
 
-## Legendary powers in effect: power id -> how many equipped items grant it.
-## Inventory keeps this up to date.
+## Legendary powers in effect: power id -> how many sources grant it (worn
+## items plus `innate_powers`). Inventory keeps this up to date.
 var powers := {}
+## Powers the hero has without gear (its class, see HeroClass).
+var innate_powers := {}
 
 ## Every effective stat by id (after recalculate()), for UI and tooltips.
 var values := {}

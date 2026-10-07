@@ -93,6 +93,9 @@ func _land(at: Vector2, r: float) -> void:
 	var t := _director.elapsed
 	var hero_hit := _player.pos2.distance_to(at) <= r + Player.RADIUS and not _player.is_dashing()
 	var near := _player.pos2.distance_to(at) < 10.0
+	# Far-off impacts are quieter.
+	var vol := -clampf((_player.pos2.distance_to(at) - 4.0) * 0.8, 0.0, 14.0)
+	Sound.play({"graves": "grave", "ice": "ice_impact", "meteors": "meteor"}.get(kind, "grave"), 1.0, vol)
 	match kind:
 		"graves":
 			var n := 4 + int(t / 180.0)

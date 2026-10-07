@@ -71,7 +71,9 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin") var model := "grunt"
+## Runs away from the hero instead of chasing (treasure goblins).
+@export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
 @export var display_name := ""
 @export var body_height := 1.4
@@ -256,7 +258,10 @@ func step(delta: float, target: Vector2) -> void:
 			to = target - p
 			d2 = to.length_squared()
 		var chase := Vector2.ZERO
-		if d2 > stop_sq:
+		if flee:
+			# Run from the hero, weaving a little.
+			chase = (-to / sqrt(maxf(d2, 0.0001))).rotated(sin(float(_frame) * 0.03 + i) * 0.6)
+		elif d2 > stop_sq:
 			chase = to / sqrt(d2)
 		# Chilled enemies move at half speed (bosses at three quarters).
 		var sl := step_len if chill[i] <= 0.0 else step_len * (0.75 if boss else 0.5)
@@ -312,6 +317,14 @@ func damage(i: int, amount: float) -> bool:
 		_die(i)
 		return true
 	return false
+
+
+## Removes every enemy without a death (no XP, no loot): an escaped goblin.
+func despawn_all() -> void:
+	for i in count:
+		if hp[i] > 0.0:
+			hp[i] = 0.0
+			_dead.append(i)
 
 
 func mark_afflicted(i: int) -> void:

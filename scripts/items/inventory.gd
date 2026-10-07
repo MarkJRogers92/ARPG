@@ -97,7 +97,12 @@ func _sync(slot: String) -> void:
 	if equipped.has(slot):
 		_stats.add_mods(source, equipped[slot].modifiers())
 	_stats.recalculate()
-	_stats.powers.clear()
+	refresh_powers()
+
+
+## Rebuilds stats.powers from the class's innate powers and the worn items.
+func refresh_powers() -> void:
+	_stats.powers = _stats.innate_powers.duplicate()
 	for worn: Item in equipped.values():
 		if worn.power != "":
 			_stats.powers[worn.power] = _stats.powers.get(worn.power, 0) + 1
