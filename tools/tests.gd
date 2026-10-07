@@ -63,6 +63,7 @@ func _finish() -> void:
 	_run(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
 	_run(&"_test_nemesis", _test_nemesis())
 	_run(&"_test_slow_motion_ends", _test_slow_motion_ends())
+	_run(&"_test_late_leveling", _test_late_leveling())
 
 	print("")
 	if _failures == 0:
@@ -2528,4 +2529,24 @@ func _test_slow_motion_ends() -> bool:
 	_near(Engine.time_scale, 1.0, "even after a flurry of overlapping hit-stops")
 	Juice.time_effects = was
 	Juice.tick()
+	return true
+
+
+func _test_late_leveling() -> bool:
+	print("late-game leveling")
+	var p: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(p)
+	_check(p.xp_for_level(10) == int(6 + 5 * 10 + 0.45 * 100), "early levels cost what they always did")
+	var plain := int(6 + 5 * 60 + 0.45 * 3600)
+	_check(p.xp_for_level(60) > plain * 2, "late levels cost much more (%d vs %d)" % [p.xp_for_level(60), plain])
+	var main_script: GDScript = load("res://scripts/main.gd")
+	_near(main_script.xp_scale_at(0.0), 1.0, "kills are worth full XP early")
+	_near(main_script.xp_scale_at(300.0), 1.0, "...through the first five minutes")
+	_near(main_script.xp_scale_at(420.0), 0.5, "half by 7:00")
+	_check(main_script.xp_scale_at(900.0) < 0.2, "and under a fifth by dawn")
+	p.xp_scale = 0.5
+	var before := p.stats.xp
+	p.add_xp(4)
+	_check(p.stats.xp - before == roundi(4 * p.stats.xp_gain * 0.5), "the hero takes XP at the current scale")
+	p.free()
 	return true

@@ -32,9 +32,16 @@ const RADIUS := 0.5
 @export_group("Leveling")
 ## XP needed to go from level L to L+1:
 ##   xp_base + xp_per_level * L + xp_per_level_squared * L^2
+##     + xp_late_cubed * max(0, L - xp_late_from)^3
+## The last term leaves the early levels alone and slows the late ones.
 @export var xp_base := 6.0
 @export var xp_per_level := 5.0
 @export var xp_per_level_squared := 0.45
+@export var xp_late_cubed := 0.06
+@export var xp_late_from := 20
+## XP from kills is worth this much (main.gd lowers it as the night goes on:
+## late-game kill rates are hundreds a second).
+var xp_scale := 1.0
 ## One skill point is earned every this many levels (0 turns skill points off).
 @export var skill_point_every_levels := 2
 
@@ -145,7 +152,8 @@ func _show_weapon() -> void:
 
 
 func xp_for_level(level: int) -> int:
-	return int(xp_base + xp_per_level * level + xp_per_level_squared * level * level)
+	var late := maxi(level - xp_late_from, 0)
+	return int(xp_base + xp_per_level * level + xp_per_level_squared * level * level + xp_late_cubed * late * late * late)
 
 
 func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
@@ -309,7 +317,7 @@ func take_damage(amount: float) -> void:
 
 
 func add_xp(amount: int) -> void:
-	var scaled := amount * stats.xp_gain + _xp_carry
+	var scaled := amount * stats.xp_gain * xp_scale + _xp_carry
 	var whole := floori(scaled)
 	_xp_carry = scaled - whole
 	stats.xp += whole

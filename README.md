@@ -200,15 +200,19 @@ which the pause menu's sliders control.
   | 9 | Enemies move 10% faster |
   | 10 | The final boss has double health |
 
-- **Pressure** (`WaveDirector.update_pressure`): from 6:00 on, the night
+- **Pressure** (`WaveDirector.update_pressure`): from 5:00 on, the night
   pushes back against a hero walking through it. While the hero is above 90%
   health, pressure climbs (3% a second, twice that if fewer enemies are alive
   than the time of night calls for, 85% of `crowd_target()`); below 45%
   health it falls three times as fast. Its cap grows with the night: +2 a
-  minute from 6:00 (×13 by 12:00, ×20 at most), 10% faster per Ascension
+  minute from 5:00 (×15 by 12:00, ×20 at most), 10% faster per Ascension
   level. Enemy health is
   multiplied by pressure and the spawn rate by its square root (at most
   ×1.6).
+- **Late leveling:** from 5:00, kills give less and less XP (half by 7:00,
+  about a sixth by dawn; `main.gd` `xp_scale_at`), and levels past 20 cost
+  more (`Player.xp_late_cubed`), so a strong build is still choosing its last
+  upgrades at dawn instead of maxing everything by minute 9.
 - **Bestiary** (title screen): kills of each enemy kind across every night.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.

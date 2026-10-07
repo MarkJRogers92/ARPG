@@ -358,6 +358,7 @@ func _process(delta: float) -> void:
 		_director.update_pressure(delta, _player.stats.hp / maxf(_player.stats.max_hp, 1.0), _enemy_count())
 	else:
 		_director.elapsed += delta
+	_player.xp_scale = xp_scale_at(_director.elapsed)
 	_fx.step(delta)
 	_wisps.step(delta, origin)
 	_spawn_motes(delta, origin)
@@ -691,6 +692,17 @@ func night_progress() -> float:
 	if won or _bosses.final_arrived:
 		return 1.0
 	return clampf(_director.elapsed / maxf(_bosses.run_length, 1.0), 0.0, 1.0)
+
+
+## XP from kills at game time `t`: full for the first XP_FADE_FROM seconds,
+## then worth less and less (half by 7:00, about a sixth by dawn), so a
+## build stops levelling every few seconds once kills come by the hundred.
+const XP_FADE_FROM := 300.0
+const XP_FADE_SECONDS := 120.0
+
+
+static func xp_scale_at(t: float) -> float:
+	return 1.0 / (1.0 + maxf(t - XP_FADE_FROM, 0.0) / XP_FADE_SECONDS)
 
 
 func first_light() -> float:
