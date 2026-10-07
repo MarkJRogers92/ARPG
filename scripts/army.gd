@@ -164,9 +164,9 @@ func _try_raise() -> void:
 	_raise(best, false, false)
 
 
-func _raise(type: int, elite: bool, boss: bool) -> void:
+func _raise(type: int, elite: bool, boss: bool) -> bool:
 	if type < 0 or type >= _types.size():
-		return
+		return false
 	var stats := _player.stats
 	if boss and _count_type(type) > 0:
 		boss = false
@@ -174,7 +174,7 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 		type = 0
 	if count >= maxi(stats.minion_max, 1) or count >= CAPACITY:
 		if not (elite or boss):
-			return
+			return false
 		# Champions push out the newest common minion.
 		var victim := -1
 		for k in range(count - 1, -1, -1):
@@ -182,7 +182,7 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 				victim = k
 				break
 		if victim < 0:
-			return
+			return false
 		_remove(victim, false, false)
 	var t: Dictionary = _types[type]
 	var k := count
@@ -205,6 +205,58 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	Sound.play("minion_raise")
 	_slam[k] = randf_range(0.5, 1.5)
 	raised.emit("%s %s" % [t["name"], "(%s)" % ROLES[t["role"]]["label"]])
+	return true
+
+
+## Minions away from the army (pledged to the Ferryman, or seized by a Debt
+## Collector): [{"type", "elite", "hp_frac", "back_in"}]. back_in < 0 means
+## "until released".
+var away: Array[Dictionary] = []
+
+
+## Takes one minion out of the army without killing it (a common one if there
+## is one). Returns its record, or {} if the army is empty. `back_in`: seconds
+## until it returns by itself (-1 = until release_away()).
+func send_away(back_in: float) -> Dictionary:
+	if count == 0:
+		return {}
+	var victim := count - 1
+	for k in range(count - 1, -1, -1):
+		if _elite[k] == 0:
+			victim = k
+			break
+	var record := {"type": _type[victim], "elite": _elite[victim], "hp_frac": _hp[victim] / maxf(_max_hp[victim], 1.0),
+			"back_in": back_in, "name": _types[_type[victim]]["name"]}
+	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 16, 3.0, 0.4, 0.6, 3.0)
+	_remove(victim, false, false)
+	away.append(record)
+	return record
+
+
+## Brings back every minion held until release (a Collector died).
+func release_away() -> int:
+	var n := 0
+	for r in away:
+		if r["back_in"] < 0.0:
+			r["back_in"] = 0.0
+			n += 1
+	return n
+
+
+## Returning minions come back as they were, when there's room.
+func _update_away(delta: float) -> void:
+	var i := away.size() - 1
+	while i >= 0:
+		var r := away[i]
+		if r["back_in"] >= 0.0:
+			r["back_in"] -= delta
+			# A common one waits for a free place; champions make their own.
+			if r["back_in"] <= 0.0 and count < CAPACITY and (r["elite"] > 0 or count < maxi(_player.stats.minion_max, 1)):
+				if _raise(r["type"], r["elite"] == 1, r["elite"] == 2):
+					var k := count - 1
+					_hp[k] = _max_hp[k] * clampf(r["hp_frac"], 0.2, 1.0)
+					away.remove_at(i)
+		i -= 1
 
 
 ## Gives up one minion (a common one if there is one; the Soul Altar).
@@ -230,6 +282,8 @@ func _count_type(type: int) -> int:
 
 
 func step(delta: float) -> void:
+	if not away.is_empty():
+		_update_away(delta)
 	var hero := _player.pos2
 	var stats := _player.stats
 	var k := count - 1

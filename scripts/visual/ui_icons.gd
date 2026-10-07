@@ -87,6 +87,13 @@ func _draw() -> void:
 			for k in 8:
 				var dir := Vector2.from_angle(k * TAU / 8.0)
 				draw_line(c + dir * s * 0.62, c + dir * s * 0.82, color, 2.5, true)
+		"obol":
+			# A coin with a skull stamp, and the arc of a ricochet.
+			draw_arc(c + Vector2(-s * 0.1, s * 0.1), s * 0.85, PI * 1.05, PI * 1.75, 16, Color(color, 0.45), 2.5, true)
+			draw_circle(c + Vector2(s * 0.15, -s * 0.05), s * 0.5, color)
+			draw_arc(c + Vector2(s * 0.15, -s * 0.05), s * 0.38, 0.0, TAU, 24, Color(0.45, 0.3, 0.1, 0.8), 2.0, true)
+			draw_circle(c + Vector2(s * 0.15, -s * 0.12), s * 0.15, Color(0.45, 0.3, 0.1, 0.9))
+			draw_rect(Rect2(c + Vector2(s * 0.06, s * 0.0), Vector2(s * 0.18, s * 0.12)), Color(0.45, 0.3, 0.1, 0.9))
 		"legion":
 			# Three hooded spirits, the middle one in front.
 			for k in [-1, 1, 0]:

@@ -182,6 +182,25 @@ body_height = 1.5
 color = Color(0.24, 0.22, 0.2, 1)
 capacity = 10
 
+[node name="Collectors" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 400.0
+move_speed = 3.7
+contact_dps = 6.0
+radius = 0.6
+xp_value = 60
+knockback_taken = 0.3
+spawn_share = 0.0
+loot_chance = 1.0
+loot_quality = 1.5
+captor = true
+model = "collector"
+display_name = "Debt Collector"
+body_height = 2.2
+color = Color(0.14, 0.12, 0.16, 1)
+capacity = 2
+recycle_distance = 120.0
+
 [node name="Bosses" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("4_swarm")
 max_hp = 2500.0

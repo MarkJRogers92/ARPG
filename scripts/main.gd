@@ -58,6 +58,8 @@ var _in_title := false
 var _warned := {}
 var _pause: PauseMenu
 var _landmarks: Landmarks
+var _ferryman: Ferryman
+var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
 var _gem_streak := 0
 var _gem_streak_time := 0.0
@@ -114,6 +116,16 @@ func _ready() -> void:
 	add_child(_landmarks)
 	_landmarks.setup(_decor, _player, _director, _loot, _army, _events, _swarms, _spend_shards)
 	_landmarks.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_wager_panel = WagerPanel.new()
+	add_child(_wager_panel)
+	_ferryman = Ferryman.new()
+	add_child(_ferryman)
+	var collectors := get_node_or_null("Collectors") as EnemySwarm
+	_ferryman.setup(_player, _army, _loot, _director, collectors, _wager_panel)
+	_ferryman.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	if collectors:
+		collectors.seized_hero.connect(_ferryman.seize)
+	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
@@ -225,10 +237,14 @@ func _process(delta: float) -> void:
 		_hazards.tick(delta)
 		_events.tick(delta)
 		_landmarks.tick(delta)
-	_run_shards += _events.shards + _landmarks.shards
+		_ferryman.tick(delta)
+	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
-	_hud.set_prompt(_landmarks.prompt if not won or _endless else "", _landmarks.prompt_color)
+	_ferryman.shards = 0
+	var prompt := _ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt
+	_hud.set_prompt(prompt if not won or _endless else "", Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	_hud.set_bet(_ferryman.bet_text)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
 
@@ -331,7 +347,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue
@@ -507,6 +523,8 @@ func _start_endless() -> void:
 
 
 func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
+	if swarm != _final:
+		_ferryman.boss_slain(at)
 	var shards := 15 + 5 * (_bosses.spawned - 1)
 	_run_shards += shards
 	var ilvl := ItemData.ilvl_for_player_level(_player.stats.level)

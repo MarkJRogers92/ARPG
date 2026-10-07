@@ -21,6 +21,7 @@ var _wait := 0
 var _pending := ""
 var _menu_frame := -10
 var _title_only := false
+var _ferry := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -33,6 +34,7 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(_out)
 	var crowd := args.size() > 2 and args[2] == "crowd"
 	_title_only = args.size() > 2 and args[2] == "title"
+	_ferry = args.size() > 2 and args[2] == "ferryman"
 	if args.size() > 3:
 		Realm.current = args[3]
 	seed(7)
@@ -62,6 +64,24 @@ func _process(_delta: float) -> bool:
 		return false
 	var hud: Hud = _main.get_node("Hud")
 	var player: Player = _main.get_node("Player")
+	if _ferry:
+		var f: Ferryman = _main._ferryman
+		if _frame == 2:
+			f._schedule.clear()
+			f._arrive()
+			f._visit["at"] = Vector2(3.0, -2.5)
+			(f._visit["node"] as Node3D).position = Vector3(3.0, 0.0, -2.5)
+		if _frame == 50:
+			_save("ferryman_world")
+			f.open_table()
+		if _frame == 60:
+			_save("ferryman_table")
+			f._reveal(true, false)
+		if _frame == 70:
+			_save("ferryman_won")
+			quit(0)
+			return true
+		return false
 	player.stats.hp = player.stats.max_hp # keep the bot alive for the pictures
 
 	if _phase == 0:
