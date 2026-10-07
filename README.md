@@ -136,6 +136,72 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
+## Imported scenery (stage 1)
+
+Hand-made Blender props (`assets/environment/arpg_pack/`) can join the
+code-built scenery. `AssetProps` (`scripts/visual/asset_props.gd`) loads each
+GLB once and finds its mesh. It bakes in any node transform and copies the
+surfaces into an ArrayMesh with kit-shader materials, so the props share the
+world's lighting, rim light and fog. `WorldDecor` then draws them with one
+MultiMesh per kind, like every other prop.
+
+**Stage 1 status:** nine assets are imported and wired in, but no realm
+scatters them yet. Every realm looks exactly as before; a pixel diff against
+the previous version shows no change outside the hero's idle animation. To see
+them in the real game, use `tools/asset_showcase.gd` (below), which also
+previews the proposed densities in `AssetProps.PROPOSED`.
+
+| Kind | Asset (pack) | Realm | Role | Placement |
+|---|---|---|---|---|
+| `rune_gravestone` | Rune_Gravestone (01) | Graveyard | opaque prop | scale 0.9–1.1, turns ±0.5 rad from facing the camera |
+| `soul_brazier` | Soul_Lantern_Brazier (01) | Graveyard | glowing prop | scale 0.95–1.05, any direction |
+| `mausoleum` | Graveyard_Mausoleum (04) | Graveyard | landmark | scale 1, ±0.35 rad, footprint 2.6 m |
+| `snow_boulder` | Snowbound_Boulder (03) | Frozen | opaque prop | scale 0.8–1.15, any direction |
+| `frosted_pine` | Frosted_Pine (03) | Frozen | opaque prop | scale 0.9–1.25, any direction |
+| `ice_arch` | Glacial_Ice_Arch (03) | Frozen | landmark | scale 1, ±0.35 rad, footprint 1.8 m |
+| `obsidian_outcrop` | Obsidian_Outcrop (03) | Ember | opaque prop | scale 0.8–1.15, any direction |
+| `brimstone_vent` | Brimstone_Vent (03) | Ember | glowing prop | scale 0.9–1.1, any direction, no shadow (low and flat) |
+| `skull_gateway` | Demon_Skull_Gateway (04) | Ember | glowing landmark | scale 1, ±0.3 rad, footprint 2.3 m |
+
+All scales are uniform and none are resized: the authored meters already sit
+right next to the hero.
+
+- **Placement.** Imported kinds use their own seed per chunk and kind, so they
+  never move the code-built props (a test checks this). Each realm has a
+  `props` density; kinds not listed don't appear.
+- **Landmarks.** At most one per chunk, near its middle, at least 12 m plus
+  their footprint from the start. They hide any code-built prop under them.
+- **Smaller pieces.** They stay inside their chunk by their footprint and never
+  overlap each other. All imported props keep at least 6 m plus their footprint
+  from the start.
+- **No collision.** The world has no obstacles: enemies, bolts and the hero
+  pass through scenery, as they always have. Big pieces are placed sparsely, so
+  they read as landmarks rather than walls.
+- **Occlusion.** When the hero walks behind a landmark, a dithered window
+  opens in it so the hero stays visible (`shaders/kit_landmark.gdshader`;
+  shadows stay whole).
+
+Glow: opaque surfaces never glow, and emissive surfaces glow evenly at UV.x 0.72
+strength. UV.x isn't used, because these exports put non-zero UV.x on most opaque
+vertices too.
+
+```
+# Matched in-game before/after shots, one run per shot (needs a display):
+for r in graveyard frozen ember; do for s in 1_before 1_after 2_behind 3_crowd_late \
+    4_scatter_before 4_scatter_after; do
+  xvfb-run -a -s "-screen 0 1600x900x24" godot --path . --fixed-fps 60 \
+      -s tools/asset_showcase.gd -- shots $r $s; done; done
+```
+
+To turn on a kind in a realm, add it to that realm's `props` in `realm.gd`.
+To add another asset:
+1. Copy its GLB into its pack folder.
+2. Add an entry to `AssetProps.KINDS`.
+3. Append its name to the end of `Models.PROPS`.
+
+The tests check its size against the catalog, its surfaces and glow, and its
+placement.
+
 ## What makes it different
 
 Three systems feed each other: your **army** comes from the horde, **elements**
@@ -586,6 +652,7 @@ scripts/
     skill_tree.gd      Owned nodes and points, allocate / refund rules
     skill_tree_screen.gd  The K screen (built in code)
   visual/
+    asset_props.gd     Imported GLB scenery: loading, materials, placement data
     mesh_kit.gd        Builds one mesh out of colored primitive parts
     models.gd          Every model (hero, enemies, items, bolts, gems, props) + materials
     hero_model.gd      The hero's model and its animation
@@ -597,15 +664,17 @@ scripts/
     atmosphere.gd      Dusk -> moonlight -> blood moon over the run
 shaders/
   kit.gdshader         Vertex-colored models with glow and rim light
+  kit_landmark.gdshader  kit for big imported set pieces, with a see-through window
   enemy.gdshader       Enemies: walk cycle, hit flash, rim light
   ground.gdshader      Procedural grass, dirt and flagstones in world space
   gem / glow / particle / beam / ground_glow / aura / blob_shadow / vignette
+assets/environment/arpg_pack/   Imported Blender scenery (GLBs), see its README
 audio/
   sfx/*.wav, music/*.ogg   Generated by tools/audio/make_audio.py
 tools/
   audio/make_audio.py  Synthesizes every sound effect and music loop
   tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, smoke_test.gd, bench_swarm.gd
-  balance_bot.gd, balance.sh, screenshot.gd
+  balance_bot.gd, balance.sh, screenshot.gd, asset_showcase.gd
 ```
 
 ## Tuning

@@ -31,6 +31,8 @@ func _initialize() -> void:
 	_test_realm_progress()
 	_test_classes_and_settings()
 	_test_sounds()
+	_test_asset_props()
+	_test_asset_placement()
 	# These need nodes in the running tree, which only exists after this returns.
 	_finish.call_deferred()
 
@@ -1053,3 +1055,129 @@ func _test_events() -> void:
 	_near(player.stats.hp, player.stats.max_hp * 0.75, "a health orb heals a quarter of max HP")
 	for n: Node in [events, goblins, grunts, gems, loot, director, player]:
 		n.free()
+
+
+## Godot XYZ size and emissive surface count, from the art pack's ASSET_CATALOG.json.
+const _ASSET_CATALOG := {
+	"rune_gravestone": [Vector3(1.021, 1.28, 1.55), 0], "soul_brazier": [Vector3(0.84, 1.98, 0.84), 1],
+	"mausoleum": [Vector3(3.385, 3.625, 3.985), 0], "snow_boulder": [Vector3(1.826, 1.263, 1.504), 0],
+	"frosted_pine": [Vector3(1.657, 2.498, 1.616), 0], "ice_arch": [Vector3(3.186, 2.36, 0.86), 0],
+	"obsidian_outcrop": [Vector3(2.052, 2.104, 1.804), 0], "brimstone_vent": [Vector3(2.109, 1.129, 1.797), 1],
+	"skull_gateway": [Vector3(4.223, 4.938, 1.543), 1],
+}
+
+
+func _test_asset_props() -> void:
+	print("imported scenery")
+	var listed := Models.PROPS.filter(func(k: String) -> bool: return AssetProps.has(k))
+	_check(listed == AssetProps.KINDS.keys(), "Models.PROPS lists every imported kind, in order (%s)" % [listed])
+	_check(Models.PROPS.slice(0, 15) == ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar",
+			"crystal", "pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree"], "code-built kinds keep their order")
+	for kind: String in AssetProps.KINDS:
+		var d := AssetProps.data(kind)
+		_check(ResourceLoader.exists(AssetProps.ROOT % d["path"]), "%s: the GLB is in the project" % kind)
+		_check(d["realm"] in Realm.ORDER, "%s: chosen for a real realm" % kind)
+		for key in ["scale", "yaw", "landmark", "footprint", "shadow"]:
+			_check(d.has(key), "%s has %s" % [kind, key])
+		var mesh := Models.prop(kind)
+		_check(mesh != null and mesh == Models.prop(kind), "%s: the mesh builds once and is cached" % kind)
+		if mesh == null:
+			continue
+		var aabb := mesh.get_aabb()
+		var want: Vector3 = _ASSET_CATALOG[kind][0]
+		_check(absf(aabb.position.y) < 0.01, "%s: stands on the ground (min y %.3f)" % [kind, aabb.position.y])
+		_check((aabb.size - want).abs().length() < 0.03, "%s: catalog size, no rescale (%s vs %s)" % [kind, aabb.size, want])
+		var glowing := 0
+		for s in mesh.get_surface_count():
+			var m := mesh.surface_get_material(s) as ShaderMaterial
+			_check(m != null, "%s: surface %d has a material" % [kind, s])
+			if m == null:
+				continue
+			var flat: float = m.get_shader_parameter("flat_glow")
+			if flat > 0.0:
+				glowing += 1
+			if not d["landmark"]:
+				_check(is_equal_approx(m.get_shader_parameter("uv_glow"), 0.0), "%s: UV.x never drives glow" % kind)
+			var arrays := mesh.surface_get_arrays(s)
+			_check(arrays[Mesh.ARRAY_COLOR] != null and arrays[Mesh.ARRAY_COLOR].size() == arrays[Mesh.ARRAY_VERTEX].size(),
+					"%s: surface %d keeps its vertex colors" % [kind, s])
+		_check(glowing == _ASSET_CATALOG[kind][1], "%s: %d glowing surface(s), as authored" % [kind, _ASSET_CATALOG[kind][1]])
+		_check(d["footprint"] * 2.0 <= 12.0 * 0.6, "%s: footprint fits a chunk" % kind)
+	for realm: String in AssetProps.PROPOSED:
+		_check(realm in Realm.ORDER, "proposed densities for a real realm")
+		for kind: String in AssetProps.PROPOSED[realm]:
+			_check(AssetProps.has(kind) and AssetProps.data(kind)["realm"] == realm, "%s: proposed for its own realm" % kind)
+	for realm: String in Realm.ORDER:
+		for kind: String in Realm.data(realm)["props"]:
+			_check(not AssetProps.has(kind), "stage 1: %s doesn't scatter imported %s yet" % [realm, kind])
+
+
+func _test_asset_placement() -> void:
+	print("imported scenery placement")
+	for realm: String in Realm.ORDER:
+		var decor := WorldDecor.new()
+		decor.density = Realm.data(realm)["props"]
+		var base: Array = decor.compute(Vector2i(3, -2))
+		var d: Dictionary = Realm.data(realm)["props"].duplicate()
+		var boosted: Dictionary = AssetProps.PROPOSED[realm].duplicate()
+		for kind: String in boosted:
+			boosted[kind] = minf(boosted[kind] * 4.0, 1.0 if AssetProps.data(kind)["landmark"] else 3.0)
+		d.merge(boosted)
+		decor.density = d
+		var with: Array = decor.compute(Vector2i(3, -2))
+		var again: Array = decor.compute(Vector2i(3, -2))
+		_check(with[0] == again[0] and with[1] == again[1], "%s: the same chunks always grow the same scenery" % realm)
+		var assets := []
+		var landmarks := []
+		for kind: String in AssetProps.KINDS:
+			for xf: Transform3D in with[0][kind]:
+				var at := Vector2(xf.origin.x, xf.origin.z)
+				var fp: float = AssetProps.data(kind)["footprint"]
+				assets.append([at, fp])
+				if AssetProps.data(kind)["landmark"]:
+					landmarks.append([at, fp])
+					_check(at.length() >= 2.0 * WorldDecor.ASSET_CLEAR + fp, "%s: landmarks keep away from the start" % realm)
+				else:
+					_check(at.length() >= WorldDecor.ASSET_CLEAR + fp, "%s: imported props keep the start clear" % realm)
+		_check(landmarks.size() > 0 and assets.size() > landmarks.size(), "%s: the boosted densities place props (%d, %d landmarks)" % [realm, assets.size(), landmarks.size()])
+		var overlaps := 0
+		for i in assets.size():
+			for j in range(i + 1, assets.size()):
+				if assets[i][0].distance_to(assets[j][0]) < assets[i][1] + assets[j][1] - 0.001:
+					overlaps += 1
+		_check(overlaps == 0, "%s: imported props never overlap (%d)" % [realm, overlaps])
+		# Code-built props: the same ones in the same places, minus any under a landmark.
+		var moved := 0
+		var hidden := 0
+		for kind: String in Models.PROPS:
+			if AssetProps.has(kind):
+				continue
+			var now: Array = with[0][kind]
+			for xf: Transform3D in base[0][kind]:
+				if xf in now:
+					continue
+				var at := Vector2(xf.origin.x, xf.origin.z)
+				var under := false
+				for l: Array in landmarks:
+					if at.distance_to(l[0]) < l[1]:
+						under = true
+				if under:
+					hidden += 1
+				else:
+					moved += 1
+			for xf: Transform3D in now:
+				for l: Array in landmarks:
+					_check(Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) >= l[1], "%s: nothing grows inside a landmark" % realm)
+		_check(moved == 0, "%s: adding imported scenery moves no existing prop (%d moved, %d under landmarks)" % [realm, moved, hidden])
+		decor.free()
+	# Switching realms (the title preview) leaves nothing of the old one behind.
+	var decor := WorldDecor.new()
+	var d: Dictionary = Realm.data("ember")["props"].duplicate()
+	d.merge(AssetProps.PROPOSED["ember"])
+	decor.density = d
+	decor.compute(Vector2i.ZERO)
+	decor.density = Realm.data("frozen")["props"]
+	var after: Array = decor.compute(Vector2i.ZERO)
+	for kind: String in ["obsidian", "brimstone", "ashtree", "obsidian_outcrop", "brimstone_vent", "skull_gateway"]:
+		_check(after[0][kind].is_empty(), "after switching to frozen, no %s remains" % kind)
+	decor.free()

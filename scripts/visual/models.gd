@@ -550,10 +550,15 @@ static func gem() -> ArrayMesh:
 # Scenery for WorldDecor. Each returns a mesh with feet at y = 0.
 
 const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar", "crystal",
-		"pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree"]
+		"pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree",
+		# Imported GLB scenery (AssetProps). New kinds go last so existing props keep their places.
+		"rune_gravestone", "soul_brazier", "mausoleum", "snow_boulder", "frosted_pine", "ice_arch",
+		"obsidian_outcrop", "brimstone_vent", "skull_gateway"]
 
 
 static func prop(kind: String) -> ArrayMesh:
+	if AssetProps.has(kind):
+		return AssetProps.mesh(kind)
 	return _cached("prop|" + kind, func() -> ArrayMesh:
 		var k := MeshKit.new()
 		var rng := RandomNumberGenerator.new()
