@@ -10,9 +10,14 @@ config_version=5
 
 [application]
 
-config/name="ARPG"
+config/name="Soulbound"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
+; The save folder keeps the project's old name, so progress from earlier
+; versions (and from running in the editor) carries over.
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Godot/app_userdata/ARPG"
+config/icon="res://assets/icon/icon.png"
 
 [display]
 
@@ -117,3 +122,4 @@ reroll={
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

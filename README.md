@@ -11,6 +11,22 @@ is the `GAME_TITLE` constant in `scripts/title_screen.gd`.)
 
 ## Run it
 
+**On a Mac, without Godot:** paste this into Terminal. It installs the latest
+build into Applications and opens it; run it again any time to update.
+
+```bash
+curl -fL -o /tmp/Soulbound.zip https://github.com/MarkJRogers92/ARPG/releases/download/mac-latest/Soulbound.zip && rm -rf /Applications/Soulbound.app && ditto -xk /tmp/Soulbound.zip /Applications && open /Applications/Soulbound.app
+```
+
+After that it's an ordinary app (Launchpad, Spotlight, the Dock). The build
+comes from `.github/workflows/mac-build.yml`: every change to the main branch
+runs the tests, exports the app (`export_presets.cfg`, a universal build,
+ad-hoc signed) and replaces the `mac-latest` release. Saves are shared with
+the editor (`config/custom_user_dir_name` keeps the old folder name). The icon
+is drawn by `tools/make_icon.py`.
+
+**From the editor:**
+
 1. Install [Godot 4.6](https://godotengine.org/download) (the standard build, no .NET needed).
 2. Open `project.godot` in the editor and press **F5**.
 
