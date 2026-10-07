@@ -42,6 +42,7 @@ is drawn by `tools/make_icon.py`.
 | Tab / I / gamepad Y | Open or close the inventory (pauses the game) |
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 | E / gamepad B | Use the set piece in reach (a gold ring marks usable ones) |
+| Q / gamepad LB | Switch the army's stance: Hunt, Guard, Swarm |
 | Esc | Pause: music and sound volume, screen shake, damage numbers, back to the title |
 
 Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
@@ -105,6 +106,15 @@ difficulty). `Realm.apply_gameplay()` runs before the enemy swarms build their
 models; `apply_look()` changes the ground, scenery and light, and the title
 screen uses it to preview each realm behind the menu. To add a realm, add an
 entry to `REALMS` and its id to `ORDER`.
+
+**Soul trails.** Kills send pale wisps rising from the bodies to stream into
+the hero, each leaving a short fading trail (`scripts/visual/wisps.gd`; capped
+at 260 at once, so a huge fight stays cheap).
+
+**Death.** When the hero falls, time slows, the army bursts apart minion by
+minion, the hero's souls scatter up into the dark and the hero crumples; the
+end screen comes up after a few seconds. (The night is settled at the moment
+of death, so the Crypt still gets its veteran.)
 
 ## Heroes
 
@@ -342,6 +352,15 @@ A raised minion keeps a piece of what it was (`Army.role_of`):
 | Tyrant | bound bosses | a crushing slam on a long cooldown |
 
 Damage per second is the same across roles; the rhythm and reach differ.
+
+**Stances** (Q / gamepad LB cycles them; the HUD shows the current one next
+to the army count):
+
+| Stance | Looks for prey | Moves | Takes |
+|---|---|---|---|
+| Hunt (default) | within 11 m, up to 15 m from you | normal | normal damage |
+| Guard | within 6 m, only up to 5.5 m from you; forms up tight | normal | half damage |
+| Swarm | within 18 m, up to 28 m from you; elites and bosses first | 25% faster | 25% more damage |
 
 ## Veterans and the Crypt
 

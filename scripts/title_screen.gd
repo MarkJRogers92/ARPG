@@ -263,7 +263,8 @@ func _refresh_pact_button() -> void:
 	var open := MetaProgress.any_won()
 	var heat := RunModifiers.heat(MetaProgress.pacts)
 	_pact_button.disabled = not open
-	_pact_button.text = ("Pact of Night   ·   heat %d" % heat) if open else "Pact of Night   ·   win a realm"
+	var asc := ("A%d  ·  " % MetaProgress.ascension) if MetaProgress.ascension > 0 else ""
+	_pact_button.text = ("Pact of Night   ·   %sheat %d" % [asc, heat]) if open else "Pact of Night   ·   win a realm"
 
 
 func _fill_pacts() -> void:
@@ -274,6 +275,7 @@ func _fill_pacts() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
 	_pact_box.add_child(title)
+	_pact_box.add_child(_ascension_row())
 	var heat_label := UiStyle.label(17)
 	heat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_pact_box.add_child(heat_label)
@@ -297,6 +299,58 @@ func _fill_pacts() -> void:
 			MetaProgress.set_pacts(list)
 			update.call())
 		_pact_box.add_child(check)
+
+
+## The Ascension picker: ◀ level ▶ and the rules it adds up to.
+func _ascension_row() -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var down := Button.new()
+	down.text = "◀"
+	down.custom_minimum_size = Vector2(44, 38)
+	row.add_child(down)
+	var label := UiStyle.label(22)
+	label.custom_minimum_size.x = 260
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+	row.add_child(label)
+	var up := Button.new()
+	up.text = "▶"
+	up.custom_minimum_size = Vector2(44, 38)
+	row.add_child(up)
+	var rules := UiStyle.label(15)
+	rules.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rules.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rules.custom_minimum_size.x = 560
+	rules.modulate = Color(1, 1, 1, 0.8)
+	box.add_child(rules)
+	var update := func() -> void:
+		var a := MetaProgress.ascension
+		label.text = "ASCENSION %d" % a if a > 0 else "NO ASCENSION"
+		down.disabled = a <= 0
+		up.disabled = a >= MetaProgress.ascension_unlocked
+		if a == 0:
+			rules.text = "Win a realm to climb higher (unlocked: %d of %d)." % [MetaProgress.ascension_unlocked, RunModifiers.ASCENSION_MAX]
+		else:
+			var lines: Array[String] = []
+			for k in a:
+				lines.append("%d. %s" % [k + 1, RunModifiers.ASCENSION[k]])
+			rules.text = "\n".join(lines) + "\n+%d%% Soul Shards  ·  the night pushes back harder  ·  unlocked: %d" % [
+					roundi(100.0 * RunModifiers.ASCENSION_SHARDS * a), MetaProgress.ascension_unlocked]
+	update.call()
+	down.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		MetaProgress.set_ascension(MetaProgress.ascension - 1)
+		update.call())
+	up.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		MetaProgress.set_ascension(MetaProgress.ascension + 1)
+		update.call())
+	return box
 
 
 func _fill_bestiary() -> void:

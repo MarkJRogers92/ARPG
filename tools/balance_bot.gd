@@ -9,6 +9,7 @@ extends SceneTree
 ##   policy     greedy | tank | random
 ##   overrides  realm=<id> plays that realm (see Realm.REALMS; default graveyard)
 ##              class=<id> plays that hero class (see HeroClass; default battlemage)
+##              ascension=<n> plays at that Ascension (see RunModifiers)
 ##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
 ##              base.<stat>=value changes a starting stat (see PlayerStats.BASE),
@@ -76,6 +77,8 @@ func _initialize() -> void:
 			MetaProgress.forced_class = o.substr(6)
 		elif o.begins_with("omen="):
 			RunModifiers.forced_omen = o.substr(5)
+		elif o.begins_with("ascension="):
+			RunModifiers.forced_ascension = int(o.substr(10))
 	MetaProgress.disabled = true # saved upgrades mustn't change results
 	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -121,7 +124,8 @@ func _setup() -> void:
 		_items_found += 1
 		_rarities[item.rarity] += 1)
 	for o in _overrides:
-		if not o.begins_with("base.") and not o.begins_with("realm=") and not o.begins_with("class="):
+		if not o.begins_with("base.") and not o.begins_with("realm=") and not o.begins_with("class=") \
+				and not o.begins_with("omen=") and not o.begins_with("ascension="):
 			_apply_override(o)
 
 
@@ -305,5 +309,6 @@ func _report(tag: String) -> void:
 		best = maxi(best, army._deeds[k])
 	fields += " vets=%d best_minion_kills=%d" % [army.veterans().size(), best]
 	var rival: RivalDirector = _main._rival
+	fields += " pressure=%.2f" % (_main.get_node("WaveDirector") as WaveDirector).pressure
 	fields += " rival=%s stolen=%d" % ["slain" if rival.defeated else ("here" if rival.active() else ("gone" if rival.arrived else "no")), rival.stolen]
 	print("%s %s" % [tag, fields])

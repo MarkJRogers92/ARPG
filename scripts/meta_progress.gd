@@ -58,6 +58,10 @@ static var daily := {}
 ## at the hero's side when a night begins. If it falls, it's gone for good,
 ## remembered among the fallen (newest first).
 static var crypt: Array = []
+## Ascension: the level chosen for the next nights, and the highest unlocked
+## (winning a realm at level N unlocks N + 1; see RunModifiers.ASCENSION).
+static var ascension := 0
+static var ascension_unlocked := 0
 static var fallen: Array = []
 static var crypt_chosen := -1
 const CRYPT_SIZE := 3
@@ -84,6 +88,8 @@ static func load_save() -> void:
 	crypt = []
 	fallen = []
 	crypt_chosen = -1
+	ascension = 0
+	ascension_unlocked = 0
 	if disabled:
 		return
 	var data = _read(save_path)
@@ -122,6 +128,8 @@ static func load_save() -> void:
 		if saved_fallen is Array:
 			fallen = saved_fallen.filter(func(v) -> bool: return v is Dictionary)
 		crypt_chosen = int(data.get("crypt_chosen", -1))
+		ascension_unlocked = clampi(int(data.get("ascension_unlocked", 0)), 0, RunModifiers.ASCENSION_MAX)
+		ascension = clampi(int(data.get("ascension", 0)), 0, ascension_unlocked)
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
@@ -148,7 +156,8 @@ static func save() -> void:
 	file.store_var({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
 			"settings": settings, "classes": classes, "hero_class": hero_class,
 			"bestiary": bestiary, "pacts": pacts, "daily": daily,
-			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen})
+			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
+			"ascension": ascension, "ascension_unlocked": ascension_unlocked})
 	file.close()
 	var dir := DirAccess.open(save_path.get_base_dir())
 	if dir == null:
@@ -208,6 +217,22 @@ static func record_daily(date: String, kills: int) -> bool:
 	if kills <= daily.get(date, -1):
 		return false
 	daily[date] = kills
+	save()
+	return true
+
+
+static func set_ascension(level: int) -> void:
+	_ensure_loaded()
+	ascension = clampi(level, 0, ascension_unlocked)
+	save()
+
+
+## A realm was won at Ascension `level`: the next level opens. True if it did.
+static func record_ascension_win(level: int) -> bool:
+	_ensure_loaded()
+	if disabled or level < ascension_unlocked or ascension_unlocked >= RunModifiers.ASCENSION_MAX:
+		return false
+	ascension_unlocked = level + 1
 	save()
 	return true
 

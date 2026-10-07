@@ -58,6 +58,9 @@ func _finish() -> void:
 	_run(&"_test_veterans", _test_veterans())
 	_run(&"_test_evolutions", _test_evolutions())
 	_run(&"_test_rival", _test_rival())
+	_run(&"_test_ascension", _test_ascension())
+	_run(&"_test_stances", _test_stances())
+	_run(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
 
 	print("")
 	if _failures == 0:
@@ -2267,5 +2270,159 @@ func _test_rival() -> bool:
 					"if not killed in time, it escapes and its thralls fade")
 		main.free()
 		Obstacles.clear()
+	MetaProgress.disabled = was
+	return true
+
+
+func _test_ascension() -> bool:
+	print("ascension and pressure")
+	_near(RunModifiers.shard_mult([], "", 3), 1.3, "each Ascension level adds 10% shards")
+	_check(RunModifiers.ASCENSION.size() == RunModifiers.ASCENSION_MAX, "every Ascension level has a rule")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var director: WaveDirector = main.get_node("WaveDirector")
+	var final: EnemySwarm = main.get_node("FinalBoss")
+	var hero: Player = main.get_node("Player")
+	var hp_scale := director.hp_scale
+	var pmax := director.pressure_max
+	var final_hp := final.max_hp
+	var regen := hero.stats.regen
+	RunModifiers.apply(main, [], "", RunModifiers.ASCENSION_MAX)
+	_check(director.hp_scale > hp_scale * 1.19 and is_equal_approx(final.max_hp, final_hp * 2.0), "Ascension 10 stacks every rule")
+	_near(hero.stats.regen, regen * 0.5, "including half regeneration")
+	_near(director.pressure_max, pmax + RunModifiers.ASCENSION_PRESSURE * RunModifiers.ASCENSION_MAX, "and lets pressure climb higher")
+	RunModifiers.apply(main, [], "", 0)
+	_near(hero.stats.regen, regen, "the stat rules come off again")
+
+	# Pressure builds while the hero dominates and eases when they're hurt.
+	director.pressure = 1.0
+	director.elapsed = 10.0
+	director.update_pressure(5.0, 1.0, 0)
+	_check(director.pressure == 1.0, "no pressure early in the night")
+	director.elapsed = 400.0
+	var hp1 := director.hp_multiplier()
+	director.update_pressure(20.0, 1.0, 0)
+	_check(director.pressure > 1.2 and director.hp_multiplier() > hp1 * 1.2, "a dominant hero raises the pressure (%.2f)" % director.pressure)
+	var p := director.pressure
+	director.update_pressure(5.0, 1.0, 10000)
+	_check(director.pressure == p, "a big crowd holds it steady")
+	director.update_pressure(5.0, 0.3, 0)
+	_check(director.pressure < p, "a hurting hero lowers it")
+	director.update_pressure(9999.0, 1.0, 0)
+	_check(director.pressure == director.pressure_max, "pressure is capped")
+	director.update_pressure(9999.0, 0.1, 0)
+	_check(director.pressure == 1.0, "and never drops below the plain curve")
+	main.free()
+	Obstacles.clear()
+
+	MetaProgress.disabled = false
+	var was_path := MetaProgress.save_path
+	MetaProgress.save_path = "user://test_meta_ascension.save"
+	_wipe_save()
+	MetaProgress.load_save()
+	_check(MetaProgress.ascension_unlocked == 0, "Ascension starts locked")
+	MetaProgress.set_ascension(3)
+	_check(MetaProgress.ascension == 0, "a locked level can't be chosen")
+	_check(MetaProgress.record_ascension_win(0) and MetaProgress.ascension_unlocked == 1, "winning opens the next level")
+	_check(not MetaProgress.record_ascension_win(0), "winning below the top doesn't open more")
+	MetaProgress.set_ascension(1)
+	MetaProgress.load_save()
+	_check(MetaProgress.ascension == 1 and MetaProgress.ascension_unlocked == 1, "the choice is saved")
+	_wipe_save()
+	MetaProgress.save_path = was_path
+	MetaProgress.disabled = was
+	MetaProgress.load_save()
+	return true
+
+
+func _test_stances() -> bool:
+	print("army stances")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 8
+	grunts.move_speed = 0.0
+	root.add_child(grunts)
+	var army := Army.new()
+	root.add_child(army)
+	var army_swarms: Array[EnemySwarm] = [grunts]
+	army.setup(player, army_swarms)
+	var told := []
+	army.stance_changed.connect(func(st: String) -> void: told.append(st))
+	_check(army.stance == "hunt", "the army starts out hunting")
+	army.cycle_stance()
+	_check(army.stance == "guard" and told == ["guard"], "the stance cycles to Guard")
+	army.cycle_stance()
+	army.cycle_stance()
+	_check(army.stance == "hunt", "and around back to Hunt")
+	army._raise(0, false, false)
+	army._pos[0] = player.pos2
+	grunts.spawn(player.pos2 + Vector2(9, 0), 1.0) # 9 m out: Hunt's reach, not Guard's
+	grunts.spawn(player.pos2 + Vector2(-4, 0), 1.0, true) # an elite, nearer the hero
+	grunts.spawn(player.pos2 + Vector2(2.5, 0), 1.0)
+	grunts.step(0.016, player.pos2)
+	army.cycle_stance("guard")
+	army._find_target(0, player.pos2 + Vector2(7, 0), player.pos2)
+	_check(army._target_id[0] < 0 or grunts.pos[army._target_index[0]].distance_to(player.pos2) <= Army.STANCES["guard"]["leash"],
+			"guarding minions only fight what's near the hero")
+	army.cycle_stance("hunt")
+	army._find_target(0, player.pos2 + Vector2(7, 0), player.pos2)
+	_check(army._target_id[0] >= 0 and army._target_index[0] == 0, "hunting minions take the nearest prey")
+	army.cycle_stance("swarm")
+	army._find_target(0, player.pos2 + Vector2(1, 0), player.pos2)
+	_check(army._target_id[0] >= 0 and army._target_index[0] == 1, "swarming minions go for the elite first")
+	for n: Node in [army, grunts, player]:
+		n.free()
+	return true
+
+
+func _test_soul_trails_and_death() -> bool:
+	print("soul trails and the hero's death")
+	var w := Wisps.new()
+	root.add_child(w)
+	w.chance = 1.0
+	for k in 10:
+		w.from_kill(Vector2(8, 0))
+	_check(w.heads == 10, "kills send wisps")
+	var trails := false
+	for f in 240:
+		w.step(1.0 / 60.0, Vector2.ZERO)
+		if w.count > w.heads:
+			trails = true
+	_check(trails, "wisps leave trails")
+	_check(w.heads == 0, "every wisp reaches the hero within a few seconds")
+	w.max_heads = 5
+	for k in 20:
+		w.from_kill(Vector2(8, 0))
+	_check(w.heads == 5, "the number of wisps is capped")
+	w.clear()
+	w.scatter(Vector2.ZERO, 30)
+	_check(w.heads == 30, "a fallen hero's souls scatter")
+	for f in 240:
+		w.step(1.0 / 60.0, Vector2.ZERO)
+	_check(w.count == 0, "and fade away")
+	w.free()
+
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var hud: Hud = main.get_node("Hud")
+	var army: Army = main.get_node("Army")
+	army._raise(0, false, false)
+	main._on_player_died()
+	_check(main._game_over and main._dying > 0.0 and not hud._game_over_root.visible, "the hero's death plays out before the end screen")
+	for f in 400:
+		main._death_frame(1.0 / 60.0)
+		if hud._game_over_root.visible:
+			break
+	_check(hud._game_over_root.visible and main._dying == 0.0, "then the end screen shows")
+	Engine.time_scale = 1.0
+	main.free()
+	Obstacles.clear()
 	MetaProgress.disabled = was
 	return true
