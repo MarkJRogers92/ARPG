@@ -380,6 +380,12 @@ light, so nothing about the run has to be saved and restored.
 
 ## The army's roles
 
+**Soul link.** Minions draw on the hero's power: they hit
+1 + 0.5 × (hero power − 1) times as hard, where hero power is how much the
+weapons in use have grown on average since the start of the night (upgrades,
+gear, evolutions; `PlayerStats.hero_power`). So the army keeps pace with the
+build instead of fading to nothing late in the night.
+
 A raised minion keeps a piece of what it was (`Army.role_of`):
 
 | Role | From | Fights |
@@ -592,9 +598,9 @@ health).
 
 | Reaction | When | Effect |
 |---|---|---|
-| **Shatter** | lightning hits a chilled enemy | an ice burst damages and chills everything around it |
-| **Melt** | fire hits a chilled enemy | that hit deals 2.5x |
-| **Overload** | fire hits a shocked enemy, or lightning a burning one | an explosion |
+| **Shatter** | lightning hits a chilled enemy | an ice burst (as strong as the hit) damages and chills everything around it |
+| **Melt** | fire hits a chilled enemy | that hit deals 1.8x |
+| **Overload** | fire hits a shocked enemy, or lightning a burning one | an explosion (1.3x the hit) |
 
 Chilled enemies are tinted icy blue, shocked ones flicker violet, burning ones
 glow with embers, and elemental bolts take their element's color. All damage
@@ -649,8 +655,11 @@ slams all pass through.
   Step out or dash through. It drops three good items, a big XP gem and 15+ Soul
   Shards. The bosses and their slam are in `boss_director.gd`.
 
-**Soul Shards and the Altar.** Shards come from elites and bosses, plus a bonus
-at the end of each run (2 per minute survived, 1 per 150 kills). On the death
+**Soul Shards and the Altar.** Shards picked up during a night (elites,
+bosses, events; also spent at wells, forges and the Night Market) are banked
+at a quarter when it ends, plus a bonus: 2 per minute survived, a sixth of the
+square root of the kills (so 250,000 kills is 84, not 1,700), and the full
+reward for winning. Pacts, the Midas omen and Ascension multiply it. On the death
 screen, the **Altar of Souls** spends them on permanent upgrades: more HP,
 damage, speed, XP, magic find and regen, and **Insight** (level-up rerolls each
 run). They're saved in `user://meta.save` (`meta_progress.gd`; the costs are
