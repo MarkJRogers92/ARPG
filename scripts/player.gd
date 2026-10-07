@@ -225,7 +225,7 @@ func _update_aim() -> void:
 func afflict(element: int) -> void:
 	match element:
 		Elements.FROST:
-			chilled = maxf(chilled, 1.2)
+			chilled = maxf(chilled, 0.8)
 		Elements.FIRE:
 			burning = maxf(burning, 1.5)
 
