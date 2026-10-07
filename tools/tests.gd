@@ -50,6 +50,7 @@ func _finish() -> void:
 	_run(&"_test_minion_roles", _test_minion_roles())
 	_run(&"_test_specialists", _test_specialists())
 	_run(&"_test_ferryman", _test_ferryman())
+	_run(&"_test_new_tools", _test_new_tools())
 
 	print("")
 	if _failures == 0:
@@ -1756,3 +1757,68 @@ func _test_ferryman() -> bool:
 		n.free()
 	return true
 
+
+
+func _test_new_tools() -> bool:
+	print("scythe, bell, specializations")
+	for hero: String in HeroClass.ORDER:
+		var cards := Specializations.cards(hero)
+		_check(cards.size() == 3, "%s has three paths" % hero)
+		for card: Dictionary in cards:
+			var stats := PlayerStats.new()
+			stats.recalculate()
+			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			_check(Specializations.apply(stats, hero, card["id"].substr(5)), "%s: %s applies" % [hero, card["name"]])
+			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			_check(before != after or stats.ignite_chance > 0.0 or stats.chill_chance > 0.0, "%s: %s changes the build" % [hero, card["name"]])
+			Specializations.apply(stats, hero, card["id"].substr(5))
+			_check(stats.mods_from(Specializations.SOURCE).size() == Specializations.find(hero, card["id"].substr(5))["mods"].size(),
+					"%s: picking twice doesn't stack" % card["name"])
+
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var foes := EnemySwarm.new()
+	foes.capacity = 16
+	foes.move_speed = 0.0
+	root.add_child(foes)
+	var swarms: Array[EnemySwarm] = [foes]
+	Elements.swarms = swarms
+	Elements.player = player
+	player.setup(swarms, null)
+	player.stats.add_mods("test", [{"stat": "scythe_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	player.stats.recalculate()
+	foes.spawn(Vector2(4, 0))
+	foes.hp[0] = 1000.0
+	var hp_log := []
+	for f in 150:
+		foes.step(1.0 / 60.0, Vector2(0, -20))
+		player._scythe.update(1.0 / 60.0)
+		Elements.flush()
+		if hp_log.is_empty() or hp_log[-1] != foes.hp[0]:
+			hp_log.append(foes.hp[0])
+	_check(hp_log.size() == 3, "the scythe cuts an enemy on the way out and again on the way back (%s)" % [hp_log])
+	if hp_log.size() == 3:
+		_check(hp_log[1] - hp_log[2] > (hp_log[0] - hp_log[1]) * 1.3, "and the return cut is harder")
+	player.stats.remove_source("test")
+
+	player.stats.add_mods("test", [{"stat": "bell_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	player.stats.recalculate()
+	var bell: FuneralBell = player.bell
+	for k in player.stats.bell_cost - 1:
+		bell.on_kill(Vector2(2, 0))
+	_check(bell.fraction() > 0.9 and bell.fraction() < 1.0, "kills near the hero charge the bell")
+	bell.on_kill(Vector2(50, 0))
+	_check(bell.charge == player.stats.bell_cost - 1, "kills far away don't")
+	foes.spawn(Vector2(3, 0))
+	foes.step(0.0, Vector2(0, -20))
+	var hp_before := foes.hp[foes.count - 1]
+	bell.on_kill(Vector2(2, 0))
+	_check(bell.charge == 0.0, "a full bell rings")
+	bell.on_kill(Vector2(2, 0))
+	_check(bell.charge == 0.0, "and its own kills, that frame, don't refill it")
+	Elements.flush()
+	_check(foes.hp[foes.count - 1] < hp_before, "the toll hurts what's near")
+	player.stats.remove_source("test")
+	for n: Node in [foes, player]:
+		n.free()
+	return true

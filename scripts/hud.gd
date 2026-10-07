@@ -14,7 +14,7 @@ const CARD_COLORS := {
 	"bolt_damage": "offense", "bolt_rate": "offense", "bolt_count": "offense", "bolt_pierce": "offense",
 	"aura": "aura", "max_hp": "defense", "regen": "defense", "heal": "defense",
 	"move_speed": "utility", "magnet": "utility",
-	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35),
+	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35), "scythe": Color(0.65, 0.95, 0.85), "bell": Color(0.85, 0.8, 1.0),
 	"legion": Color(0.45, 0.8, 1.0), "harvest": Color(0.45, 0.8, 1.0),
 	"ignite": Color(1.0, 0.5, 0.15), "frostbite": Color(0.55, 0.85, 1.0),
 }
@@ -48,6 +48,8 @@ var _marker_items: Array = []
 var _blessing_label: Label
 var _prompt_label: Label
 var _bet_label: Label
+var _upgrade_title: Label
+var _upgrade_subtitle: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
 var _end_title: Label
@@ -204,7 +206,9 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int) -> void
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
-func show_upgrades(choices: Array[Dictionary], rerolls := 0) -> void:
+func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click") -> void:
+	_upgrade_title.text = heading
+	_upgrade_subtitle.text = subheading
 	_reroll_button.visible = rerolls > 0
 	_reroll_button.text = "Reroll  [R]   ·   %d left" % rerolls
 	for child in _upgrade_row.get_children():
@@ -510,6 +514,7 @@ func _build() -> void:
 	var upgrade_box := VBoxContainer.new()
 	upgrade_box.add_theme_constant_override("separation", 6)
 	var title := UiStyle.label(38)
+	_upgrade_title = title
 	title.text = "LEVEL UP"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -517,6 +522,7 @@ func _build() -> void:
 	title.add_theme_constant_override("outline_size", 10)
 	upgrade_box.add_child(title)
 	var subtitle := UiStyle.label(16)
+	_upgrade_subtitle = subtitle
 	subtitle.text = "Choose a power   ·   1 / 2 / 3 or click"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.modulate = Color(1, 1, 1, 0.6)
@@ -591,7 +597,7 @@ func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
 
 func _make_card(index: int, choice: Dictionary) -> Button:
 	var id: String = choice["id"]
-	var tint = CARD_COLORS.get(id, "core")
+	var tint = choice["color"] if choice.has("color") else CARD_COLORS.get(id, "core")
 	var color: Color = tint if tint is Color else SkillData.BRANCHES[tint]
 	var card := Button.new()
 	card.custom_minimum_size = Vector2(220, 310)
@@ -641,7 +647,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	top.add_child(tag)
 
 	var icon := UiIcons.new()
-	icon.icon = id
+	icon.icon = choice.get("icon", id)
 	icon.color = color
 	icon.custom_minimum_size = Vector2(96, 96)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

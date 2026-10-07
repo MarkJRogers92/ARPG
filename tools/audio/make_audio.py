@@ -541,14 +541,43 @@ def sfx():
     s["reroll"] = mix(pluck(note("C5"), 0.5, 0.12) * 0.5, pluck(note("E5"), 0.5, 0.12) * 0.5, fft_filter(noise(len(t)), lo=3000) * np.exp(-t / 0.05) * 0.3)
     s["victory"] = render_victory()
     s["defeat"] = render_defeat()
+    # Added later; they come last so the shared random stream (and so every
+    # sound above) stays exactly as it was.
+    toll = np.zeros(int(4.0 * SR))
+    add(toll, gong(4.0, 70.0) * 0.6, 0.0)
+    add(toll, bell(note("D3"), 3.8, 1.6, 0.6) * 1.0, 0.0)
+    add(toll, bell(note("A3"), 3.0, 1.2, 0.5) * 0.5, 0.02)
+    add(toll, kick(0.8, 90, 35, 1.5) * 0.6, 0.0)
+    s["funeral_bell"] = soft_clip(toll, 1.2)
+    coin = np.zeros(int(1.3 * SR))
+    for i in range(9):
+        tt = t_axis(0.05)
+        add(coin, bell(note("E6") * (1.0 + 0.02 * (i % 2)), 0.05, 0.03) * 0.25 * (1.0 - i / 10.0), i * (0.05 + i * 0.012))
+    add(coin, bell(note("B6"), 0.8, 0.4) * 0.6, 1.05)
+    add(coin, bell(note("E7"), 0.6, 0.3) * 0.3, 1.06)
+    s["coin_spin"] = coin
+    t = t_axis(0.45)
+    s["charge"] = mix(fft_filter(noise(len(t)), lo=300, hi=2500) * env(len(t), 0.05, 0.15, 0.6, 0.2) * 0.6,
+            sweep(180, 90, 0.45) * env(len(t), 0.02, 0.1, 0.5, 0.2) * 0.4)
+    sting = np.zeros(int(2.4 * SR))
+    add(sting, taiko(2.0, 45) * 1.0, 0.0)
+    add(sting, choir(chord("D3", "m"), 2.2, "ah", 0.05, 1.4) * 2.0, 0.05)
+    add(sting, bell(note("D5"), 2.0, 0.9) * 0.4, 0.05)
+    s["boss_title"] = soft_clip(sting, 1.3)
     return s
 
 
 def main():
+    # --only a,b,c writes just those effects (and no music); handy when adding one.
+    only = None
+    if "--only" in sys.argv:
+        only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
     os.makedirs(SFX_DIR, exist_ok=True)
     os.makedirs(MUSIC_DIR, exist_ok=True)
     room = reverb_ir(0.8, 0.18, 7000, seed=9)
     for name, x in sfx().items():
+        if only is not None and name not in only:
+            continue
         x = np.asarray(x, dtype=float)
         if name not in ("victory", "defeat"):
             wet = convolve(x, room)[: len(x) + int(0.3 * SR)]
@@ -558,6 +587,8 @@ def main():
             x[-fade:] *= np.linspace(1, 0, fade)
         write_wav(os.path.join(SFX_DIR, name + ".wav"), normalize(x, 0.85))
         print("sfx", name, "%.2fs" % (len(x) / SR))
+    if only is not None:
+        return 0
 
     realms = {
         "graveyard": ([("D3", "m"), ("A#2", "M"), ("G2", "m"), ("A2", "M")], [note(n) for n in ["D4", "E4", "F4", "A4", "A#4", "C5"]]),

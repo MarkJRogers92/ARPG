@@ -69,6 +69,9 @@ var _lightning: ChainLightning
 var _blades: SpiritBlades
 var _nova: ArcaneNova
 var _obol: Obol
+var _scythe: ReapingScythe
+## The Funeral Bell (main.gd feeds it kills).
+var bell: FuneralBell
 var _volleys := 0
 ## The hero's own statuses (from witch bolts, fireballs and hazards).
 var chilled := 0.0
@@ -152,7 +155,9 @@ func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
 	_blades = SpiritBlades.new()
 	_nova = ArcaneNova.new()
 	_obol = Obol.new()
-	for ability in [_lightning, _blades, _nova, _obol]:
+	_scythe = ReapingScythe.new()
+	bell = FuneralBell.new()
+	for ability in [_lightning, _blades, _nova, _obol, _scythe, bell]:
 		add_child(ability)
 		ability.setup(self, swarms)
 
@@ -288,6 +293,7 @@ func update_weapons(delta: float) -> void:
 		_blades.update(delta)
 		_nova.update(delta)
 		_obol.update(delta)
+		_scythe.update(delta)
 
 
 ## Damage before armor; armor is applied here.

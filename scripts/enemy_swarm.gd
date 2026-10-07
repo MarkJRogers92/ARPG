@@ -340,6 +340,7 @@ func step(delta: float, target: Vector2) -> void:
 					_cstate[i] = 2
 					_ctime[i] = charge_time
 					windups -= 1
+					Sound.play("charge")
 			elif st == 2:
 				chase = _cdir[i]
 				push = Vector2.ZERO

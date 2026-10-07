@@ -58,6 +58,7 @@ var _in_title := false
 var _warned := {}
 var _pause: PauseMenu
 var _landmarks: Landmarks
+var _spec_chosen := false
 var _ferryman: Ferryman
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
@@ -448,6 +449,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		return
 	kills += 1
 	Sound.play("kill_%d" % (kills % 3))
+	_player.bell.on_kill(at)
 	if swarm == _final:
 		_on_final_died(at)
 	if swarm.boss:
@@ -551,6 +553,13 @@ func _on_item_picked(item: Item, result: String) -> void:
 func _try_level_up() -> void:
 	if _choosing_upgrade or _game_over:
 		return
+	if not _spec_chosen and _player.stats.level >= Specializations.LEVEL:
+		# Level 10: choose a path (once a night) before any more cards.
+		_choosing_upgrade = true
+		get_tree().paused = true
+		_hud.show_upgrades(Specializations.cards(MetaProgress.current_class()), 0, "CHOOSE YOUR PATH",
+				"One path for the rest of the night   ·   1 / 2 / 3 or click")
+		return
 	while _player.pending_levels > 0:
 		_player.pending_levels -= 1
 		var choices := Upgrades.roll(_player.stats)
@@ -573,7 +582,14 @@ func _on_reroll() -> void:
 
 
 func _on_upgrade_chosen(id: String) -> void:
-	Upgrades.apply(id, _player.stats)
+	if id.begins_with("spec:"):
+		_spec_chosen = true
+		var path := Specializations.find(MetaProgress.current_class(), id.substr(5))
+		Specializations.apply(_player.stats, MetaProgress.current_class(), id.substr(5))
+		_hud.toast("Your path: %s" % path.get("name", ""), path.get("color", UiStyle.GOLD))
+		Sound.play("shrine_done")
+	else:
+		Upgrades.apply(id, _player.stats)
 	_choosing_upgrade = false
 	get_tree().paused = false
 	_try_level_up() # more than one level can be banked

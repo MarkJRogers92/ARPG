@@ -220,7 +220,7 @@ func _on_chosen(action: String) -> void:
 			var win := rng.randf() < (SECOND_ODDS if second else first_odds())
 			_visit["stage"] = "spinning"
 			_show()
-			Sound.play("reroll", 0.7)
+			Sound.play("coin_spin")
 			var t := create_tween()
 			t.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 			t.tween_interval(1.0)

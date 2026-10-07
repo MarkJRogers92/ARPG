@@ -87,6 +87,18 @@ func _draw() -> void:
 			for k in 8:
 				var dir := Vector2.from_angle(k * TAU / 8.0)
 				draw_line(c + dir * s * 0.62, c + dir * s * 0.82, color, 2.5, true)
+		"scythe":
+			# A crescent blade on a haft, mid-spin.
+			draw_arc(c, s * 0.7, -PI * 0.9, -PI * 0.1, 20, color, s * 0.22, true)
+			draw_line(c + Vector2(-s * 0.1, -s * 0.05), c + Vector2(s * 0.45, s * 0.85), Color(0.6, 0.45, 0.3), 4.0, true)
+			draw_arc(c, s * 0.95, PI * 0.15, PI * 0.6, 12, Color(color, 0.4), 2.0, true)
+		"bell":
+			# A bell with sound rings.
+			draw_colored_polygon([c + Vector2(-s * 0.45, s * 0.45), c + Vector2(-s * 0.3, -s * 0.35), c + Vector2(0, -s * 0.55),
+					c + Vector2(s * 0.3, -s * 0.35), c + Vector2(s * 0.45, s * 0.45)], color)
+			draw_circle(c + Vector2(0, s * 0.55), s * 0.12, color)
+			draw_arc(c, s * 0.9, -PI * 0.25, PI * 0.25, 10, Color(color, 0.5), 2.0, true)
+			draw_arc(c, s * 0.9, PI * 0.75, PI * 1.25, 10, Color(color, 0.5), 2.0, true)
 		"obol":
 			# A coin with a skull stamp, and the arc of a ricochet.
 			draw_arc(c + Vector2(-s * 0.1, s * 0.1), s * 0.85, PI * 1.05, PI * 1.75, 16, Color(color, 0.45), 2.5, true)

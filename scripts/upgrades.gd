@@ -75,6 +75,28 @@ const DEFS := {
 			{"stat": "obol_luck", "op": _ADD, "value": 0.05},
 		],
 	},
+	"scythe": {
+		"name": "Reaping Scythe", "desc": "Throw a scythe that cuts out and back; the return cut hits 50% harder",
+		"desc_next": "+1 scythe, +20% damage, +1 m range", "max": 5,
+		"first_mods": [{"stat": "scythe_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "scythe_level", "op": _ADD, "value": 1.0},
+			{"stat": "scythe_count", "op": _ADD, "value": 1.0},
+			{"stat": "scythe_damage", "op": _MORE, "value": 0.2},
+			{"stat": "scythe_range", "op": _ADD, "value": 1.0},
+		],
+	},
+	"bell": {
+		"name": "Funeral Bell", "desc": "Every 30 kills near you, a bell tolls: a shockwave that hurls the horde back",
+		"desc_next": "-4 kills per toll, +35% damage, +1 m radius", "max": 5,
+		"first_mods": [{"stat": "bell_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "bell_level", "op": _ADD, "value": 1.0},
+			{"stat": "bell_cost", "op": _ADD, "value": -4.0},
+			{"stat": "bell_damage", "op": _MORE, "value": 0.35},
+			{"stat": "bell_radius", "op": _ADD, "value": 1.0},
+		],
+	},
 	"nova": {
 		"name": "Arcane Nova", "desc": "A blast every 4 s damages and throws back nearby enemies",
 		"desc_next": "+30% damage, +12% radius, 12% more often", "max": 5,
