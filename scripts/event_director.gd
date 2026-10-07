@@ -111,7 +111,12 @@ func _start_random() -> void:
 	if _goblins.alive_count() > 0:
 		kinds.erase("goblin")
 	var kind: String = kinds.pick_random()
+	# Somewhere off screen, clear of solid scenery so it can be reached.
 	var at := _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(15.0, 19.0)
+	for attempt in 12:
+		if not Obstacles.blocked(at, shrine_radius + 0.5):
+			break
+		at = _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(15.0, 19.0)
 	match kind:
 		"shrine":
 			_start_shrine(at)
@@ -153,7 +158,9 @@ func _start_chest(at: Vector2) -> void:
 	root.position = Vector3(at.x, 0.0, at.y)
 	add_child(root)
 	var model := MeshInstance3D.new()
-	model.mesh = Models.chest()
+	model.mesh = AssetProps.mesh("treasure_chest")
+	if model.mesh == null:
+		model.mesh = Models.chest()
 	root.add_child(model)
 	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.75, 0.3, 1.0, 0.5), 0.6, 3.0)
 	_events.append({"kind": "chest", "at": at, "node": root, "opened": false, "guards": [],

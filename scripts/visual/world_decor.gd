@@ -6,7 +6,8 @@ extends Node3D
 ## shows the same scenery. Only the chunks around the hero exist, and every
 ## prop kind is one MultiMesh, rebuilt when the hero crosses a chunk border.
 ##
-## Props are decoration only: enemies and the hero walk through them.
+## Most props are decoration that enemies and the hero walk through; imported
+## set pieces with collision circles (AssetProps "solid") block them (Obstacles).
 ##
 ## Imported scenery (AssetProps kinds) is placed separately from the
 ## code-built props, with its own seed per chunk and kind, so adding or
@@ -34,6 +35,9 @@ var fixed: Array = []
 ## No imported prop closer than this to the start (plus its footprint); landmarks
 ## keep twice as far away.
 const ASSET_CLEAR := 6.0
+## Glowing imported props in view: [[Vector3 top, Color]] (see emit()).
+var emitters: Array = []
+var _emit_timer := 0.0
 
 var _layers := {}
 var _center := Vector2i(1 << 30, 0)
@@ -63,6 +67,21 @@ func follow(hero: Vector2) -> void:
 		_rebuild()
 
 
+## Ambient motes drifting up from glowing props near the hero (soul wisps in the
+## graveyard, embers in the rift). Call every frame.
+func emit(delta: float, hero: Vector2, motes: FxSwarm) -> void:
+	if emitters.is_empty():
+		return
+	_emit_timer -= delta
+	while _emit_timer <= 0.0:
+		_emit_timer += 0.06
+		var e: Array = emitters[randi() % emitters.size()]
+		var at: Vector3 = e[0]
+		if Vector2(at.x, at.z).distance_squared_to(hero) < 22.0 * 22.0:
+			var jitter := Vector2(randf_range(-0.3, 0.3), randf_range(-0.3, 0.3))
+			motes.burst(Vector2(at.x, at.z) + jitter, at.y, e[1], 1, 0.3, 0.1, 2.2, 0.9)
+
+
 ## Rebuilds the scenery now (after changing `density`).
 func rebuild_now() -> void:
 	if not _layers.is_empty():
@@ -73,6 +92,9 @@ func _rebuild() -> void:
 	var result := compute(_center)
 	var xforms: Dictionary = result[0]
 	var colors: Dictionary = result[1]
+	Obstacles.set_circles(result[2], Rect2(Vector2(_center - Vector2i.ONE * view_chunks) * chunk_size,
+			Vector2.ONE * (2 * view_chunks + 1) * chunk_size))
+	emitters = result[3]
 	for kind: String in Models.PROPS:
 		var mm: MultiMesh = _layers[kind].multimesh
 		var list: Array = xforms[kind]
@@ -82,11 +104,14 @@ func _rebuild() -> void:
 			mm.set_instance_color(i, colors[kind][i])
 
 
-## Every prop around chunk `center`: [{kind: [Transform3D]}, {kind: [Color]}].
+## Every prop around chunk `center`: [{kind: [Transform3D]}, {kind: [Color]},
+## obstacle circles [[Vector2, radius]], glow emitters [[Vector3, Color]]].
 ## Pure (no nodes or rendering), so tests can check placement.
 func compute(center: Vector2i) -> Array:
 	var xforms := {}
 	var colors := {}
+	var solids := []
+	var glows := []
 	for kind: String in Models.PROPS:
 		xforms[kind] = []
 		colors[kind] = []
@@ -99,7 +124,7 @@ func compute(center: Vector2i) -> Array:
 		for cx in range(center.x - view_chunks, center.x + view_chunks + 1):
 			rng.seed = hash(Vector2i(cx, cy) * 92821 + Vector2i(17, 3))
 			var origin := Vector2(cx, cy) * chunk_size
-			var placed := _place_assets(Vector2i(cx, cy), xforms, colors)
+			var placed := _place_assets(Vector2i(cx, cy), xforms, colors, solids, glows)
 			for kind: String in Models.PROPS:
 				if AssetProps.has(kind):
 					continue
@@ -124,13 +149,16 @@ func compute(center: Vector2i) -> Array:
 		var c := Vector2i(floori(at.x / chunk_size), floori(at.y / chunk_size))
 		if xforms.has(f["kind"]) and absi(c.x - center.x) <= view_chunks and absi(c.y - center.y) <= view_chunks:
 			var basis := Basis(Vector3.UP, f.get("yaw", 0.0)).scaled(Vector3.ONE * f.get("scale", 1.0))
-			xforms[f["kind"]].append(Transform3D(basis, Vector3(at.x, 0.0, at.y)))
+			var xf := Transform3D(basis, Vector3(at.x, 0.0, at.y))
+			xforms[f["kind"]].append(xf)
 			colors[f["kind"]].append(Color.WHITE)
-	return [xforms, colors]
+			if AssetProps.has(f["kind"]):
+				_extras(f["kind"], xf, solids, glows)
+	return [xforms, colors, solids, glows]
 
 
 ## Imported props for one chunk; returns what it placed as [[at, footprint, landmark]].
-func _place_assets(chunk: Vector2i, xforms: Dictionary, colors: Dictionary) -> Array:
+func _place_assets(chunk: Vector2i, xforms: Dictionary, colors: Dictionary, solids: Array, glows: Array) -> Array:
 	var placed := []
 	var origin := Vector2(chunk) * chunk_size
 	var rng := RandomNumberGenerator.new()
@@ -147,7 +175,7 @@ func _place_assets(chunk: Vector2i, xforms: Dictionary, colors: Dictionary) -> A
 			var slack := maxf(chunk_size * 0.5 - fp, 0.0)
 			var p := origin + Vector2.ONE * chunk_size * 0.5 + Vector2(rng.randf_range(-slack, slack), rng.randf_range(-slack, slack))
 			if p.length() >= 2.0 * ASSET_CLEAR + fp:
-				_add_asset(kind, p, rng, xforms, colors)
+				_add_asset(kind, p, rng, xforms, colors, solids, glows)
 				placed.append([p, fp, true])
 			break
 	for kind: String in AssetProps.KINDS:
@@ -162,20 +190,36 @@ func _place_assets(chunk: Vector2i, xforms: Dictionary, colors: Dictionary) -> A
 			var p := origin + Vector2(rng.randf_range(fp, chunk_size - fp), rng.randf_range(fp, chunk_size - fp))
 			if p.length() < ASSET_CLEAR + fp or _overlaps(p, fp, placed):
 				continue
-			_add_asset(kind, p, rng, xforms, colors)
+			_add_asset(kind, p, rng, xforms, colors, solids, glows)
 			placed.append([p, fp, false])
 	return placed
 
 
-func _add_asset(kind: String, p: Vector2, rng: RandomNumberGenerator, xforms: Dictionary, colors: Dictionary) -> void:
+func _add_asset(kind: String, p: Vector2, rng: RandomNumberGenerator, xforms: Dictionary, colors: Dictionary,
+		solids: Array, glows: Array) -> void:
 	var d := AssetProps.data(kind)
 	var yaw: float = d["yaw"]
 	# The art's front faces +Z, toward the camera; big pieces only turn a little.
 	var angle := rng.randf() * TAU if yaw >= TAU else rng.randf_range(-yaw, yaw)
 	var s := rng.randf_range(d["scale"][0], d["scale"][1])
-	xforms[kind].append(Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * s), Vector3(p.x, 0.0, p.y)))
+	var xf := Transform3D(Basis(Vector3.UP, angle).scaled(Vector3.ONE * s), Vector3(p.x, 0.0, p.y))
+	xforms[kind].append(xf)
 	var shade := rng.randf_range(0.9, 1.1)
 	colors[kind].append(Color(shade, shade, shade))
+	_extras(kind, xf, solids, glows)
+
+
+## A placed asset's collision circles and glow emitter, in world space.
+static func _extras(kind: String, xf: Transform3D, solids: Array, glows: Array) -> void:
+	var d := AssetProps.data(kind)
+	var s := xf.basis.get_scale().x
+	for c: Array in d["solid"]:
+		var w := xf * Vector3(c[0], 0.0, c[1])
+		solids.append([Vector2(w.x, w.z), c[2] * s])
+	if d["fx"] != null:
+		var mesh := AssetProps.mesh(kind)
+		var top := mesh.get_aabb().size.y * 0.6 * s if mesh else 1.0
+		glows.append([xf.origin + Vector3(0.0, top, 0.0), d["fx"]])
 
 
 static func _overlaps(p: Vector2, fp: float, placed: Array) -> bool:

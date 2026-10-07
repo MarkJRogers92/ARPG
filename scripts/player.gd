@@ -198,6 +198,10 @@ func tick(delta: float) -> void:
 	else:
 		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed * (CHILL_SLOW if chilled > 0.0 else 1.0)
 	move_and_slide()
+	# Solid scenery: slide around it (dashing included).
+	if Obstacles.near(pos2):
+		var q := Obstacles.resolve(pos2, RADIUS)
+		global_position = Vector3(q.x, global_position.y, q.y)
 	_update_aim()
 	# Face the aim when aiming by hand, otherwise the way you walk.
 	var look := aim_dir if aim_mode != Aim.AUTO else input

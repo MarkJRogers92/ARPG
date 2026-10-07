@@ -44,6 +44,7 @@ func _finish() -> void:
 	_test_army()
 	_test_heroes()
 	_test_events()
+	_test_obstacles()
 
 	print("")
 	if _failures == 0:
@@ -1059,28 +1060,77 @@ func _test_events() -> void:
 
 ## Godot XYZ size and emissive surface count, from the art pack's ASSET_CATALOG.json.
 const _ASSET_CATALOG := {
-	"rune_gravestone": [Vector3(1.021, 1.28, 1.55), 0], "soul_brazier": [Vector3(0.84, 1.98, 0.84), 1],
-	"mausoleum": [Vector3(3.385, 3.625, 3.985), 0], "snow_boulder": [Vector3(1.826, 1.263, 1.504), 0],
-	"frosted_pine": [Vector3(1.657, 2.498, 1.616), 0], "ice_arch": [Vector3(3.186, 2.36, 0.86), 0],
-	"obsidian_outcrop": [Vector3(2.052, 2.104, 1.804), 0], "brimstone_vent": [Vector3(2.109, 1.129, 1.797), 1],
+	"rune_gravestone": [Vector3(1.021, 1.28, 1.55), 0],
+	"soul_brazier": [Vector3(0.84, 1.98, 0.84), 1],
+	"ruined_pillar": [Vector3(1.482, 2.105, 1.214), 0],
+	"crystal_cluster": [Vector3(1.331, 1.601, 1.179), 1],
+	"tome_pedestal": [Vector3(1.145, 1.492, 0.85), 1],
+	"barrel": [Vector3(0.858, 1.014, 0.816), 0],
+	"crate_stack": [Vector3(1.729, 1.474, 0.948), 0],
+	"weapon_rack": [Vector3(1.54, 2.105, 0.71), 0],
+	"offering_bowl": [Vector3(2.124, 0.782, 1.5), 0],
+	"sarcophagus": [Vector3(1.236, 1.116, 2.04), 0],
+	"prison_cage": [Vector3(1.35, 1.663, 1.17), 0],
+	"gravedigger_bench": [Vector3(2.995, 2.32, 1.095), 0],
+	"lantern_post": [Vector3(2.162, 3.45, 1.3), 1],
+	"mausoleum": [Vector3(3.385, 3.625, 3.985), 0],
+	"soul_altar": [Vector3(2.12, 1.875, 2.12), 1],
+	"broken_archway": [Vector3(3.579, 3.365, 1.028), 0],
+	"ruined_wall": [Vector3(2.742, 2.084, 0.844), 0],
+	"ruin_corner": [Vector3(2.055, 1.668, 2.06), 0],
+	"portcullis": [Vector3(2.85, 2.66, 0.96), 0],
+	"guardian_statue": [Vector3(1.978, 1.945, 1.286), 0],
+	"soul_obelisk": [Vector3(1.215, 2.72, 0.88), 1],
+	"stone_well": [Vector3(1.99, 1.515, 1.523), 0],
+	"ritual_door": [Vector3(2.03, 2.32, 0.808), 1],
+	"iron_fence": [Vector3(3.96, 2.24, 0.47), 0],
+	"bell_gibbet": [Vector3(2.655, 3.115, 1.079), 0],
+	"funeral_wagon": [Vector3(2.635, 1.236, 3.556), 0],
+	"ossuary_wall": [Vector3(3.5, 2.73, 1.135), 0],
+	"winged_memorial": [Vector3(3.24, 2.91, 1.3), 0],
+	"snow_boulder": [Vector3(1.826, 1.263, 1.504), 0],
+	"frosted_pine": [Vector3(1.657, 2.498, 1.616), 0],
+	"ice_stalagmites": [Vector3(1.653, 2.197, 1.329), 0],
+	"supply_tripod": [Vector3(2.469, 2.963, 2.198), 0],
+	"wind_chime": [Vector3(2.598, 2.82, 1.1), 0],
+	"ice_arch": [Vector3(3.186, 2.36, 0.86), 0],
+	"watchtower": [Vector3(3.556, 3.945, 2.998), 0],
+	"sled": [Vector3(2.306, 1.617, 3.547), 0],
+	"ribcage": [Vector3(3.182, 2.137, 4.611), 0],
+	"frozen_pond": [Vector3(4.646, 0.767, 3.884), 0],
+	"fishing_hut": [Vector3(3.038, 2.859, 2.875), 0],
+	"whale_skull": [Vector3(1.93, 1.389, 3.246), 0],
+	"obsidian_outcrop": [Vector3(2.052, 2.104, 1.804), 0],
+	"brimstone_vent": [Vector3(2.109, 1.129, 1.797), 1],
+	"ashen_tree": [Vector3(1.883, 2.929, 1.168), 1],
+	"basalt_columns": [Vector3(1.77, 2.06, 0.98), 0],
+	"scorched_banner": [Vector3(2.22, 3.44, 1.14), 0],
 	"skull_gateway": [Vector3(4.223, 4.938, 1.543), 1],
+	"forge": [Vector3(3.659, 3.59, 2.263), 1],
+	"cauldron": [Vector3(2.727, 3.336, 2.481), 1],
+	"siege_barricade": [Vector3(4.056, 2.564, 1.751), 1],
+	"minecart": [Vector3(3.005, 1.522, 2.02), 1],
+	"furnace": [Vector3(2.094, 3.22, 2.0), 1],
+	"chained_gong": [Vector3(2.76, 3.031, 0.94), 1],
+	"treasure_chest": [Vector3(1.667, 1.232, 1.133), 0],
 }
 
 
 func _test_asset_props() -> void:
 	print("imported scenery")
 	var listed := Models.PROPS.filter(func(k: String) -> bool: return AssetProps.has(k))
-	_check(listed == AssetProps.KINDS.keys(), "Models.PROPS lists every imported kind, in order (%s)" % [listed])
+	_check(listed == AssetProps.KINDS.keys(), "Models.PROPS lists every imported kind, in order")
 	_check(Models.PROPS.slice(0, 15) == ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar",
 			"crystal", "pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree"], "code-built kinds keep their order")
-	for kind: String in AssetProps.KINDS:
+	var used := {}
+	for realm: String in Realm.ORDER:
+		for kind: String in Realm.data(realm)["props"]:
+			used[kind] = true
+	for kind: String in AssetProps.KINDS.keys() + AssetProps.EVENT_KINDS.keys():
 		var d := AssetProps.data(kind)
 		_check(ResourceLoader.exists(AssetProps.ROOT % d["path"]), "%s: the GLB is in the project" % kind)
-		_check(d["realm"] in Realm.ORDER, "%s: chosen for a real realm" % kind)
-		for key in ["scale", "yaw", "landmark", "footprint", "shadow"]:
-			_check(d.has(key), "%s has %s" % [kind, key])
-		var mesh := Models.prop(kind)
-		_check(mesh != null and mesh == Models.prop(kind), "%s: the mesh builds once and is cached" % kind)
+		var mesh := AssetProps.mesh(kind)
+		_check(mesh != null and mesh == AssetProps.mesh(kind), "%s: the mesh builds once and is cached" % kind)
 		if mesh == null:
 			continue
 		var aabb := mesh.get_aabb()
@@ -1093,8 +1143,7 @@ func _test_asset_props() -> void:
 			_check(m != null, "%s: surface %d has a material" % [kind, s])
 			if m == null:
 				continue
-			var flat: float = m.get_shader_parameter("flat_glow")
-			if flat > 0.0:
+			if m.get_shader_parameter("flat_glow") > 0.0:
 				glowing += 1
 			if not d["landmark"]:
 				_check(is_equal_approx(m.get_shader_parameter("uv_glow"), 0.0), "%s: UV.x never drives glow" % kind)
@@ -1102,31 +1151,57 @@ func _test_asset_props() -> void:
 			_check(arrays[Mesh.ARRAY_COLOR] != null and arrays[Mesh.ARRAY_COLOR].size() == arrays[Mesh.ARRAY_VERTEX].size(),
 					"%s: surface %d keeps its vertex colors" % [kind, s])
 		_check(glowing == _ASSET_CATALOG[kind][1], "%s: %d glowing surface(s), as authored" % [kind, _ASSET_CATALOG[kind][1]])
+		if not AssetProps.has(kind):
+			continue
+		for key in ["realm", "scale", "yaw", "landmark", "footprint", "shadow", "solid", "fx"]:
+			_check(d.has(key), "%s has %s" % [kind, key])
+		_check(d["realm"] in Realm.ORDER, "%s: chosen for a real realm" % kind)
+		_check(used.has(kind) and Realm.data(d["realm"])["props"].has(kind), "%s: its realm scatters it" % kind)
 		_check(d["footprint"] * 2.0 <= 12.0 * 0.6, "%s: footprint fits a chunk" % kind)
-	for realm: String in AssetProps.PROPOSED:
-		_check(realm in Realm.ORDER, "proposed densities for a real realm")
-		for kind: String in AssetProps.PROPOSED[realm]:
-			_check(AssetProps.has(kind) and AssetProps.data(kind)["realm"] == realm, "%s: proposed for its own realm" % kind)
+		_check((d["fx"] != null) == (glowing > 0), "%s: glowing props (only) give off motes" % kind)
+		_check(d["solid"].is_empty() or d["landmark"], "%s: only set pieces are solid" % kind)
+		for c: Array in d["solid"]:
+			_check(c[2] > 0.2 and Vector2(c[0], c[1]).length() + c[2] <= d["footprint"] + 0.6,
+					"%s: collision sits inside the footprint (%s)" % [kind, c])
+			# Inside the mesh's ground outline, more or less.
+			_check(c[0] - c[2] > aabb.position.x - 0.3 and c[0] + c[2] < aabb.end.x + 0.3 and c[1] - c[2] > aabb.position.z - 0.3 \
+					and c[1] + c[2] < aabb.end.z + 0.3, "%s: collision within the model's bounds (%s)" % [kind, c])
+	# Arches keep their openings: nothing solid in the middle.
+	for kind in ["broken_archway", "ice_arch", "skull_gateway"]:
+		_check(not _solid_at(kind, Vector2.ZERO, 0.5), "%s: the opening is passable" % kind)
 	for realm: String in Realm.ORDER:
 		for kind: String in Realm.data(realm)["props"]:
-			_check(not AssetProps.has(kind), "stage 1: %s doesn't scatter imported %s yet" % [realm, kind])
+			_check(kind in Models.PROPS, "%s: %s is a real prop" % [realm, kind])
+			if AssetProps.has(kind):
+				_check(AssetProps.data(kind)["realm"] == realm, "%s: %s belongs to it" % [realm, kind])
+		var landmark_share := 0.0
+		for kind: String in Realm.data(realm)["props"]:
+			if AssetProps.has(kind) and AssetProps.data(kind)["landmark"]:
+				landmark_share += Realm.data(realm)["props"][kind]
+		_check(landmark_share > 0.2 and landmark_share <= 0.5, "%s: set pieces in about a third of the chunks (%.2f)" % [realm, landmark_share])
+
+
+func _solid_at(kind: String, p: Vector2, radius: float) -> bool:
+	for c: Array in AssetProps.data(kind)["solid"]:
+		if p.distance_to(Vector2(c[0], c[1])) < c[2] + radius:
+			return true
+	return false
 
 
 func _test_asset_placement() -> void:
 	print("imported scenery placement")
 	for realm: String in Realm.ORDER:
 		var decor := WorldDecor.new()
-		decor.density = Realm.data(realm)["props"]
+		var code_only := {}
+		for kind: String in Realm.data(realm)["props"]:
+			if not AssetProps.has(kind):
+				code_only[kind] = Realm.data(realm)["props"][kind]
+		decor.density = code_only
 		var base: Array = decor.compute(Vector2i(3, -2))
-		var d: Dictionary = Realm.data(realm)["props"].duplicate()
-		var boosted: Dictionary = AssetProps.PROPOSED[realm].duplicate()
-		for kind: String in boosted:
-			boosted[kind] = minf(boosted[kind] * 4.0, 1.0 if AssetProps.data(kind)["landmark"] else 3.0)
-		d.merge(boosted)
-		decor.density = d
+		decor.density = Realm.data(realm)["props"]
 		var with: Array = decor.compute(Vector2i(3, -2))
 		var again: Array = decor.compute(Vector2i(3, -2))
-		_check(with[0] == again[0] and with[1] == again[1], "%s: the same chunks always grow the same scenery" % realm)
+		_check(with[0] == again[0] and with[1] == again[1] and with[2] == again[2], "%s: the same chunks always grow the same scenery" % realm)
 		var assets := []
 		var landmarks := []
 		for kind: String in AssetProps.KINDS:
@@ -1136,48 +1211,75 @@ func _test_asset_placement() -> void:
 				assets.append([at, fp])
 				if AssetProps.data(kind)["landmark"]:
 					landmarks.append([at, fp])
-					_check(at.length() >= 2.0 * WorldDecor.ASSET_CLEAR + fp, "%s: landmarks keep away from the start" % realm)
+					_check(at.length() >= 2.0 * WorldDecor.ASSET_CLEAR + fp, "%s: set pieces keep away from the start" % realm)
 				else:
 					_check(at.length() >= WorldDecor.ASSET_CLEAR + fp, "%s: imported props keep the start clear" % realm)
-		_check(landmarks.size() > 0 and assets.size() > landmarks.size(), "%s: the boosted densities place props (%d, %d landmarks)" % [realm, assets.size(), landmarks.size()])
+		_check(landmarks.size() >= 5 and assets.size() > 2 * landmarks.size(), "%s: scenery is placed (%d, %d set pieces)" % [realm, assets.size(), landmarks.size()])
 		var overlaps := 0
 		for i in assets.size():
 			for j in range(i + 1, assets.size()):
 				if assets[i][0].distance_to(assets[j][0]) < assets[i][1] + assets[j][1] - 0.001:
 					overlaps += 1
 		_check(overlaps == 0, "%s: imported props never overlap (%d)" % [realm, overlaps])
-		# Code-built props: the same ones in the same places, minus any under a landmark.
+		_check(with[2].size() > 0, "%s: some set pieces are solid (%d circles)" % [realm, with[2].size()])
+		var clear_start := true
+		for c: Array in with[2]:
+			if c[0].length() < c[1] + 8.0:
+				clear_start = false
+		_check(clear_start, "%s: nothing solid near the start" % realm)
+		if realm != "frozen":
+			_check(with[3].size() > 0, "%s: glowing props give off motes (%d)" % [realm, with[3].size()])
 		var moved := 0
-		var hidden := 0
-		for kind: String in Models.PROPS:
-			if AssetProps.has(kind):
-				continue
+		for kind: String in code_only:
 			var now: Array = with[0][kind]
 			for xf: Transform3D in base[0][kind]:
 				if xf in now:
 					continue
-				var at := Vector2(xf.origin.x, xf.origin.z)
 				var under := false
 				for l: Array in landmarks:
-					if at.distance_to(l[0]) < l[1]:
+					if Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) < l[1]:
 						under = true
-				if under:
-					hidden += 1
-				else:
+				if not under:
 					moved += 1
 			for xf: Transform3D in now:
 				for l: Array in landmarks:
-					_check(Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) >= l[1], "%s: nothing grows inside a landmark" % realm)
-		_check(moved == 0, "%s: adding imported scenery moves no existing prop (%d moved, %d under landmarks)" % [realm, moved, hidden])
+					_check(Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) >= l[1], "%s: nothing grows inside a set piece" % realm)
+		_check(moved == 0, "%s: imported scenery moves no code-built prop (%d moved)" % [realm, moved])
 		decor.free()
 	# Switching realms (the title preview) leaves nothing of the old one behind.
 	var decor := WorldDecor.new()
-	var d: Dictionary = Realm.data("ember")["props"].duplicate()
-	d.merge(AssetProps.PROPOSED["ember"])
-	decor.density = d
+	decor.density = Realm.data("ember")["props"]
 	decor.compute(Vector2i.ZERO)
 	decor.density = Realm.data("frozen")["props"]
 	var after: Array = decor.compute(Vector2i.ZERO)
-	for kind: String in ["obsidian", "brimstone", "ashtree", "obsidian_outcrop", "brimstone_vent", "skull_gateway"]:
-		_check(after[0][kind].is_empty(), "after switching to frozen, no %s remains" % kind)
+	for kind: String in Realm.data("ember")["props"]:
+		if not Realm.data("frozen")["props"].has(kind):
+			_check(after[0][kind].is_empty(), "after switching to frozen, no %s remains" % kind)
 	decor.free()
+
+
+func _test_obstacles() -> void:
+	print("solid scenery")
+	Obstacles.set_circles([[Vector2(5, 0), 1.0], [Vector2(5, 2.4), 1.0]], Rect2(-20, -20, 40, 40))
+	_check(Obstacles.near(Vector2(4.5, 0)) and not Obstacles.near(Vector2(-15, -15)), "the flag grid marks the area near obstacles")
+	var p := Obstacles.resolve(Vector2(4.6, 0.1), 0.5)
+	_near(p.distance_to(Vector2(5, 0)), 1.5, "a body inside is pushed to the edge", 0.01)
+	_check(Obstacles.resolve(Vector2(0, 0), 0.5) == Vector2(0, 0), "a body in the open isn't moved")
+	var wedged := Obstacles.resolve(Vector2(5.0, 1.2), 0.4)
+	_check(not Obstacles.blocked(wedged, 0.39), "a body wedged between two circles gets out (%s)" % wedged)
+	# A swarm walking at an obstacle slides around it and never ends up inside.
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 8
+	swarm.move_speed = 4.0
+	root.add_child(swarm)
+	swarm.spawn(Vector2(0, 0.05))
+	var inside := 0
+	for k in 120:
+		swarm.step(1.0 / 60.0, Vector2(10, 0))
+		if Obstacles.blocked(swarm.pos[0], swarm.radius - 0.01):
+			inside += 1
+	_check(inside == 0, "enemies never stand inside solid scenery (%d frames)" % inside)
+	_check(swarm.pos[0].x > 6.0, "and get past it to their target (x=%.2f)" % swarm.pos[0].x)
+	swarm.free()
+	Obstacles.clear()
+	_check(not Obstacles.near(Vector2(5, 0)) and Obstacles.resolve(Vector2(5, 0), 0.5) == Vector2(5, 0), "cleared, nothing blocks")

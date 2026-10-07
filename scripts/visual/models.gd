@@ -552,8 +552,14 @@ static func gem() -> ArrayMesh:
 const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "pillar", "crystal",
 		"pine", "ice", "snowrock", "obsidian", "brimstone", "ashtree",
 		# Imported GLB scenery (AssetProps). New kinds go last so existing props keep their places.
-		"rune_gravestone", "soul_brazier", "mausoleum", "snow_boulder", "frosted_pine", "ice_arch",
-		"obsidian_outcrop", "brimstone_vent", "skull_gateway"]
+		"rune_gravestone", "soul_brazier", "ruined_pillar", "crystal_cluster", "tome_pedestal", "barrel", "crate_stack",
+		"weapon_rack", "offering_bowl", "sarcophagus", "prison_cage", "gravedigger_bench", "lantern_post", "mausoleum",
+		"soul_altar", "broken_archway", "ruined_wall", "ruin_corner", "portcullis", "guardian_statue", "soul_obelisk",
+		"stone_well", "ritual_door", "iron_fence", "bell_gibbet", "funeral_wagon", "ossuary_wall", "winged_memorial",
+		"snow_boulder", "frosted_pine", "ice_stalagmites", "supply_tripod", "wind_chime", "ice_arch", "watchtower",
+		"sled", "ribcage", "frozen_pond", "fishing_hut", "whale_skull", "obsidian_outcrop", "brimstone_vent",
+		"ashen_tree", "basalt_columns", "scorched_banner", "skull_gateway", "forge", "cauldron", "siege_barricade",
+		"minecart", "furnace", "chained_gong"]
 
 
 static func prop(kind: String) -> ArrayMesh:

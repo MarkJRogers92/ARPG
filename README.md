@@ -136,71 +136,125 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
-## Imported scenery (stage 1)
+## Imported scenery
 
-Hand-made Blender props (`assets/environment/arpg_pack/`) can join the
-code-built scenery. `AssetProps` (`scripts/visual/asset_props.gd`) loads each
-GLB once and finds its mesh. It bakes in any node transform and copies the
-surfaces into an ArrayMesh with kit-shader materials, so the props share the
-world's lighting, rim light and fog. `WorldDecor` then draws them with one
-MultiMesh per kind, like every other prop.
+52 hand-made Blender props (`assets/environment/arpg_pack/`) share the world
+with the code-built scenery, about 17 per realm. A 53rd, the Treasure Chest,
+is the cursed-chest event's model. `AssetProps` (`scripts/visual/asset_props.gd`)
+loads each GLB once and finds its mesh. It bakes in any node transform and
+copies the surfaces into an ArrayMesh with kit-shader materials, so the props
+share the world's lighting, rim light and fog. `WorldDecor` draws them with one
+MultiMesh per kind, like every other prop. Sizes are as authored (1 unit = 1 m),
+and fronts face the camera.
 
-**Stage 1 status:** nine assets are imported and wired in, but no realm
-scatters them yet. Every realm looks exactly as before; a pixel diff against
-the previous version shows no change outside the hero's idle animation. To see
-them in the real game, use `tools/asset_showcase.gd` (below), which also
-previews the proposed densities in `AssetProps.PROPOSED`.
-
-| Kind | Asset (pack) | Realm | Role | Placement |
-|---|---|---|---|---|
-| `rune_gravestone` | Rune_Gravestone (01) | Graveyard | opaque prop | scale 0.9–1.1, turns ±0.5 rad from facing the camera |
-| `soul_brazier` | Soul_Lantern_Brazier (01) | Graveyard | glowing prop | scale 0.95–1.05, any direction |
-| `mausoleum` | Graveyard_Mausoleum (04) | Graveyard | landmark | scale 1, ±0.35 rad, footprint 2.6 m |
-| `snow_boulder` | Snowbound_Boulder (03) | Frozen | opaque prop | scale 0.8–1.15, any direction |
-| `frosted_pine` | Frosted_Pine (03) | Frozen | opaque prop | scale 0.9–1.25, any direction |
-| `ice_arch` | Glacial_Ice_Arch (03) | Frozen | landmark | scale 1, ±0.35 rad, footprint 1.8 m |
-| `obsidian_outcrop` | Obsidian_Outcrop (03) | Ember | opaque prop | scale 0.8–1.15, any direction |
-| `brimstone_vent` | Brimstone_Vent (03) | Ember | glowing prop | scale 0.9–1.1, any direction, no shadow (low and flat) |
-| `skull_gateway` | Demon_Skull_Gateway (04) | Ember | glowing landmark | scale 1, ±0.3 rad, footprint 2.3 m |
-
-All scales are uniform and none are resized: the authored meters already sit
-right next to the hero.
-
-- **Placement.** Imported kinds use their own seed per chunk and kind, so they
-  never move the code-built props (a test checks this). Each realm has a
-  `props` density; kinds not listed don't appear.
-- **Landmarks.** At most one per chunk, near its middle, at least 12 m plus
-  their footprint from the start. They hide any code-built prop under them.
-- **Smaller pieces.** They stay inside their chunk by their footprint and never
-  overlap each other. All imported props keep at least 6 m plus their footprint
-  from the start.
-- **No collision.** The world has no obstacles: enemies, bolts and the hero
-  pass through scenery, as they always have. Big pieces are placed sparsely, so
-  they read as landmarks rather than walls.
-- **Occlusion.** When the hero walks behind a landmark, a dithered window
+- **Glow.** Opaque surfaces never glow. Emissive surfaces glow evenly at UV.x
+  0.72 strength. UV.x isn't used, because these exports put non-zero UV.x on most
+  opaque vertices too.
+- **Placement.** Each realm's `props` density chooses the kinds. Imported
+  kinds use their own seed per chunk and kind, so they never move the
+  code-built props, and the same chunk always grows the same scenery.
+- **Set pieces.** At most one per chunk, near its middle, in roughly a third
+  of the chunks. They keep at least 12 m plus their footprint from the start,
+  and code-built props never grow inside one.
+- **Smaller pieces.** They stay inside their chunk by their footprint, never
+  overlap, and keep the start clear.
+- **Collision** (`scripts/obstacles.gd`). Walls, gates and big set pieces are
+  solid: a few circles fitted to their ground footprint (see the table). The
+  hero and every enemy are pushed out of them and slide around, toward their
+  goal and away from the rest of the piece, so a horde flows around a wall
+  instead of piling up behind it. Arches and the skull gateway keep their
+  openings walkable. Bolts, enemy shots, loot, gems and the spectral army pass
+  through. Events spawn clear of solid scenery.
+- **Cost.** A flag grid with 1 m cells means most enemies pay one array read.
+  Hordes of 3,000+ check on alternate frames per enemy. Measured enemy step,
+  with and without the obstacles of a busy view: +0–1 ms at 1,000–2,000 enemies,
+  about +3 ms at 8,000.
+- **Occlusion.** When the hero walks behind a set piece, a dithered window
   opens in it so the hero stays visible (`shaders/kit_landmark.gdshader`;
   shadows stay whole).
+- **Ambient effects.** Glowing pieces give off motes near the hero: soul
+  wisps in the graveyard (violet from the crystals), embers in the rift.
 
-Glow: opaque surfaces never glow, and emissive surfaces glow evenly at UV.x 0.72
-strength. UV.x isn't used, because these exports put non-zero UV.x on most opaque
-vertices too.
+Not imported:
+- Stone_Bridge_Span and Stone_Stairs look walkable, but the world has no height.
+- Coin_Cache looks like loot you can't pick up.
+
+The code-built pillar, crystal, grave and ash tree are thinner where an
+imported counterpart shares the job.
+
+| Kind | Asset (pack) | Realm | Role | Collision | Glow motes |
+|---|---|---|---|---|---|
+| `rune_gravestone` | Rune Gravestone (01) | Graveyard | prop | walk-through |  |
+| `soul_brazier` | Soul Lantern Brazier (01) | Graveyard | prop | walk-through | yes |
+| `ruined_pillar` | Ruined Pillar (01) | Graveyard | prop | walk-through |  |
+| `crystal_cluster` | Violet Crystal Cluster (01) | Graveyard | prop | walk-through | yes |
+| `tome_pedestal` | Ancient Tome Pedestal (02) | Graveyard | prop | walk-through | yes |
+| `barrel` | Barrel (02) | Graveyard | prop | walk-through |  |
+| `crate_stack` | Crate Stack (02) | Graveyard | prop | walk-through |  |
+| `weapon_rack` | Weapon Rack (02) | Graveyard | prop | walk-through |  |
+| `offering_bowl` | Offering Bowl (02) | Graveyard | prop | walk-through |  |
+| `sarcophagus` | Sealed Sarcophagus (03) | Graveyard | prop | walk-through |  |
+| `prison_cage` | Iron Prison Cage (03) | Graveyard | prop | walk-through |  |
+| `gravedigger_bench` | Gravedigger Bench (05) | Graveyard | prop | walk-through |  |
+| `lantern_post` | Procession Lantern Post (05) | Graveyard | prop | walk-through | yes |
+| `mausoleum` | Graveyard Mausoleum (04) | Graveyard | set piece | 5 circles |  |
+| `soul_altar` | Soul Altar (01) | Graveyard | set piece | 1 circle | yes |
+| `broken_archway` | Broken Archway (02) | Graveyard | set piece | 2 circles |  |
+| `ruined_wall` | Ruined Wall (02) | Graveyard | set piece | 3 circles |  |
+| `ruin_corner` | Ruin Corner (02) | Graveyard | set piece | 5 circles |  |
+| `portcullis` | Portcullis (02) | Graveyard | set piece | 3 circles |  |
+| `guardian_statue` | Broken Guardian Statue (02) | Graveyard | set piece | 1 circle |  |
+| `soul_obelisk` | Soul Obelisk (02) | Graveyard | set piece | 1 circle | yes |
+| `stone_well` | Abandoned Stone Well (03) | Graveyard | set piece | 1 circle |  |
+| `ritual_door` | Sealed Ritual Door (03) | Graveyard | set piece | 3 circles | yes |
+| `iron_fence` | Crooked Iron Fence (04) | Graveyard | set piece | 5 circles |  |
+| `bell_gibbet` | Hanging Bell Gibbet (04) | Graveyard | set piece | 3 circles |  |
+| `funeral_wagon` | Fallen Funeral Wagon (04) | Graveyard | set piece | 2 circles |  |
+| `ossuary_wall` | Ossuary Niche Wall (05) | Graveyard | set piece | 3 circles |  |
+| `winged_memorial` | Winged Memorial (05) | Graveyard | set piece | 1 circle |  |
+| `snow_boulder` | Snowbound Boulder (03) | Frozen | prop | walk-through |  |
+| `frosted_pine` | Frosted Pine (03) | Frozen | prop | walk-through |  |
+| `ice_stalagmites` | Ice Stalagmite Fan (03) | Frozen | prop | walk-through |  |
+| `supply_tripod` | Suspended Supply Tripod (05) | Frozen | prop | walk-through |  |
+| `wind_chime` | Icy Wind Chime (05) | Frozen | prop | walk-through |  |
+| `ice_arch` | Glacial Ice Arch (03) | Frozen | set piece | 2 circles |  |
+| `watchtower` | Frozen Watchtower Ruin (04) | Frozen | set piece | 4 circles |  |
+| `sled` | Abandoned Sled (04) | Frozen | set piece | 2 circles |  |
+| `ribcage` | Giant Ribcage Half Buried Snow (04) | Frozen | set piece | walk-through |  |
+| `frozen_pond` | Frozen Pond Rim (04) | Frozen | set piece | walk-through |  |
+| `fishing_hut` | Ice Fishing Hut (05) | Frozen | set piece | 2 circles |  |
+| `whale_skull` | Whale Skull (05) | Frozen | set piece | walk-through |  |
+| `obsidian_outcrop` | Obsidian Outcrop (03) | Ember | prop | walk-through |  |
+| `brimstone_vent` | Brimstone Vent (03) | Ember | prop | walk-through | yes |
+| `ashen_tree` | Ashen Tree (03) | Ember | prop | walk-through | yes |
+| `basalt_columns` | Basalt Organ Columns (03) | Ember | prop | walk-through |  |
+| `scorched_banner` | Scorched Banner (05) | Ember | prop | walk-through |  |
+| `skull_gateway` | Demon Skull Gateway (04) | Ember | set piece | 2 circles | yes |
+| `forge` | Forge Anvil Station (04) | Ember | set piece | 3 circles | yes |
+| `cauldron` | Suspended Cauldron (04) | Ember | set piece | 1 circle | yes |
+| `siege_barricade` | Charred Siege Barricade (04) | Ember | set piece | 4 circles | yes |
+| `minecart` | Ore Minecart (05) | Ember | set piece | 2 circles | yes |
+| `furnace` | Cracked Furnace (05) | Ember | set piece | 1 circle | yes |
+| `chained_gong` | Chained Gong (05) | Ember | set piece | 3 circles | yes |
 
 ```
-# Matched in-game before/after shots, one run per shot (needs a display):
-for r in graveyard frozen ember; do for s in 1_before 1_after 2_behind 3_crowd_late \
-    4_scatter_before 4_scatter_after; do
+# In-game shots (needs a display): before/after at a set piece, the start, a
+# late-night horde, the hero behind a set piece, and a gallery of every kind.
+for r in graveyard frozen ember; do for s in 1_before 1_after 2_start 3_crowd_late \
+    4_behind 5_gallery_a 5_gallery_b; do
   xvfb-run -a -s "-screen 0 1600x900x24" godot --path . --fixed-fps 60 \
       -s tools/asset_showcase.gd -- shots $r $s; done; done
 ```
 
-To turn on a kind in a realm, add it to that realm's `props` in `realm.gd`.
 To add another asset:
 1. Copy its GLB into its pack folder.
-2. Add an entry to `AssetProps.KINDS`.
+2. Add an entry to `AssetProps.KINDS` (scale, yaw, set piece or not,
+   footprint, shadow, collision circles, mote color).
 3. Append its name to the end of `Models.PROPS`.
+4. Give it a density in its realm.
 
-The tests check its size against the catalog, its surfaces and glow, and its
-placement.
+The tests check its size against the catalog, its surfaces and glow, its
+collision against its bounds, and its placement.
 
 ## What makes it different
 
@@ -627,6 +681,7 @@ scripts/
   elements.gd          Elemental hits, statuses and reactions
   realm.gd             The realms: look, enemies, bosses, hazards, difficulty
   hazard_director.gd   Each realm's telegraphed hazard
+  obstacles.gd         Solid scenery as circles: push-out and sliding for hero and enemies
   title_screen.gd      Hero and realm select (previews each realm behind the menu)
   hero_class.gd        The playable heroes: looks, weapons, stats, powers
   event_director.gd    Shrines, treasure goblins, cursed chests, health orbs
