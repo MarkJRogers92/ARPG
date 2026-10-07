@@ -177,6 +177,7 @@ func apply_settings() -> void:
 
 
 func _exit_tree() -> void:
+	Obstacles.clear()
 	Juice.reset()
 	Elements.reset()
 
@@ -189,6 +190,7 @@ func _process(delta: float) -> void:
 	if _in_title:
 		# Only the scenery lives behind the title screen.
 		_spawn_motes(delta, _player.pos2)
+		_decor.emit(delta, _player.pos2, _motes)
 		_motes.step(delta)
 		_decor.follow(_player.pos2)
 		_atmosphere.tick(delta, 0.0, false)
@@ -248,6 +250,7 @@ func _process(delta: float) -> void:
 		_director.elapsed += delta
 	_fx.step(delta)
 	_spawn_motes(delta, origin)
+	_decor.emit(delta, origin, _motes)
 	_motes.step(delta)
 	_decor.follow(origin)
 	_atmosphere.tick(delta, elapsed, _bosses.boss_alive() or _bosses.final_alive())

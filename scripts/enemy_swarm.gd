@@ -249,6 +249,15 @@ func step(delta: float, target: Vector2) -> void:
 	var fire_sq := (attack_range + 2.0) * (attack_range + 2.0)
 	var buf := _buffer
 	var fade := delta * 9.0
+	# Solid scenery (Obstacles): a flag grid read inline, circles only when flagged.
+	var ob_w := Obstacles.width
+	var ob_flags := Obstacles.flags
+	var ob_origin := Obstacles.origin
+	var ob_cells := Obstacles.cells
+	var ob_centers := Obstacles.centers
+	var ob_radii := Obstacles.radii
+	# Huge hordes check every other frame per enemy (a step is a few cm).
+	var ob_stride := 1 if count < 3000 else 2
 	for i in count:
 		var p := pos[i]
 		var to := target - p
@@ -265,7 +274,21 @@ func step(delta: float, target: Vector2) -> void:
 			chase = to / sqrt(d2)
 		# Chilled enemies move at half speed (bosses at three quarters).
 		var sl := step_len if chill[i] <= 0.0 else step_len * (0.75 if boss else 0.5)
-		p += (chase * _advance[i] + _push[i]) * sl
+		var move := (chase * _advance[i] + _push[i]) * sl
+		p += move
+		if ob_w > 0 and (boss or ob_stride == 1 or (i + _frame) & 1 == 0):
+			var gx := floori(p.x - ob_origin.x) # Obstacles.CELL is 1 m
+			var gy := floori(p.y - ob_origin.y)
+			if boss:
+				p = Obstacles.resolve_slide(p, radius * _scale[i], move)
+			elif gx >= 0 and gy >= 0 and gx < ob_w and gy < ob_w and ob_flags[gy * ob_w + gx] == 1:
+				# Only a real overlap pays for the full resolve.
+				var body := radius * _scale[i]
+				for j: int in ob_cells[gy * ob_w + gx]:
+					var reach := ob_radii[j] + body
+					if p.distance_squared_to(ob_centers[j]) < reach * reach:
+						p = Obstacles.resolve_slide(p, body, move)
+						break
 		pos[i] = p
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
 		buf[o + MultiMeshUtil.OFFSET_X] = p.x
