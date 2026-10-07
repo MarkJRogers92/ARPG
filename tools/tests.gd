@@ -47,6 +47,7 @@ func _finish() -> void:
 	_test_obstacles()
 	_test_fixes()
 	_test_landmarks()
+	_test_minion_roles()
 
 	print("")
 	if _failures == 0:
@@ -1455,3 +1456,44 @@ func _test_landmarks() -> void:
 	for n: Node in [marks, events, army, grunts, goblins, gems, loot, director, player]:
 		n.free()
 	decor.free()
+
+
+func _test_minion_roles() -> void:
+	print("minion roles")
+	var scene: Node = load("res://scenes/main.tscn").instantiate()
+	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
+			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler"}
+	for swarm_name: String in want:
+		_check(Army.role_of(scene.get_node(swarm_name)) == want[swarm_name], "%s rise as %ss" % [swarm_name, want[swarm_name]])
+	scene.free()
+	# A caster minion fights from range.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var foes := EnemySwarm.new()
+	foes.capacity = 4
+	foes.move_speed = 0.0
+	foes.max_hp = 1000.0
+	root.add_child(foes)
+	var witches := EnemySwarm.new()
+	witches.capacity = 4
+	witches.attack_range = 9.0
+	root.add_child(witches)
+	var swarms: Array[EnemySwarm] = [foes, witches]
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	Elements.swarms = swarms
+	Elements.player = player
+	army._raise(1, false, false)
+	_check(army.role(0) == "caster", "a witch's soul raises a caster")
+	army._pos[0] = Vector2.ZERO
+	foes.spawn(Vector2(6, 0))
+	for k in 90:
+		foes.step(1.0 / 60.0, Vector2(6, 0))
+		witches.step(1.0 / 60.0, Vector2(6, 0))
+		army.step(1.0 / 60.0)
+		Elements.flush()
+	_check(foes.hp[0] < 1000.0, "the caster hurts its target")
+	_check(army._pos[0].distance_to(foes.pos[0]) > 3.0, "from a distance (%.1f m)" % army._pos[0].distance_to(foes.pos[0]))
+	for n: Node in [army, witches, foes, player]:
+		n.free()
