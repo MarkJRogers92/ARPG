@@ -89,7 +89,7 @@ const REALMS := {
 		"name": "The Ember Rift",
 		"tagline": "The ground itself is burning.",
 		"rule": "Meteors rain down and burn everything they hit, you and the horde alike. Fireballs set you alight.",
-		"difficulty": 1.4, "rate": 1.1, "soul_bonus": 0.0, "chill_scale": 1.0,
+		"difficulty": 1.25, "rate": 1.05, "soul_bonus": 0.0, "chill_scale": 1.0,
 		"accent": Color(1.0, 0.55, 0.2),
 		"background": Color(0.08, 0.02, 0.01),
 		"ground": {"grass_dark": Color(0.1, 0.08, 0.08), "grass_light": Color(0.17, 0.13, 0.11),

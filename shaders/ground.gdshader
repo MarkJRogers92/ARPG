@@ -112,11 +112,11 @@ void fragment() {
 	}
 	if (lava > 0.0) {
 		vec2 cv = voronoi(p * 0.32 + vec2(11.0, 4.0));
-		float region = smoothstep(0.42, 0.58, fbm(p * 0.05 + vec2(3.0, 9.0)));
+		float region = smoothstep(0.48, 0.62, fbm(p * 0.05 + vec2(3.0, 9.0)));
 		float crack = (1.0 - smoothstep(0.0, 0.07, cv.x)) * region * lava;
 		float pulse = 0.75 + 0.25 * sin(TIME * 1.7 + cv.y * 6.28);
 		col = mix(col, vec3(0.05, 0.015, 0.01), crack);
-		EMISSION = vec3(1.0, 0.32, 0.05) * crack * pulse * 2.2
+		EMISSION = vec3(1.0, 0.32, 0.05) * crack * pulse * 1.4
 				+ vec3(0.6, 0.12, 0.02) * region * lava * (1.0 - smoothstep(0.0, 0.2, cv.x)) * 0.25;
 	}
 

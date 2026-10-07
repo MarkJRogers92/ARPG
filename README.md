@@ -372,6 +372,21 @@ time than these numbers suggest:
 | greedy (damage-first build, plus Soul Legion) | 5 of 6 reached 10:00 (one died at the first boss, 4.0 min) | ~70 | ~30 |
 | random upgrades and nodes | 5 of 6 reached 10:00 (one died at 7.4 min) | ~70 | ~30 |
 
+**Whole nights** (19 minutes of game time, 4 seeds, the bot dodging telegraphs):
+
+| Realm | Damage-first bot | Random picks |
+|---|---|---|
+| The Hollow Graveyard | wins 4 of 4 (final boss falls 50-70 s after dawn) | survives 10 min in 3 of 6 |
+| The Frozen Wastes | wins 2 of 4 | dies at 4-5 min |
+| The Ember Rift | survives 10 min in 2 of 4 | survives 10 min in 1 of 4 |
+
+The later realms are meant to be a step up: by the time you reach them you'll
+have Altar upgrades, which the bots don't. (The Frozen and Ember numbers come
+from slightly earlier tuning: the Frozen run before the hero's chill from witch
+bolts was shortened, and the Ember run at 10 minutes.) The first version of the
+hazards aimed half of all ice shards and meteors at where you were heading,
+and with no dodging the bot died at 2-5 minutes in both realms.
+
 Before the Soul Army and elements, greedy survived 6 of 6 and random 3 of 6, so
 mixed builds got noticeably stronger. The first cut of the army was too fragile
 (minions died in seconds at the front and the army rarely passed 2): minions now

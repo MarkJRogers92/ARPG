@@ -112,9 +112,9 @@ func _land(at: Vector2, r: float) -> void:
 			if near:
 				Juice.shake(0.12)
 		"meteors":
-			Elements.hit_area(at, r, 30.0 * _director.hp_multiplier(), Elements.FIRE)
+			Elements.hit_area(at, r, 40.0 * _director.hp_multiplier(), Elements.FIRE)
 			if hero_hit:
-				_player.take_damage(9.0 + t / 70.0)
+				_player.take_damage(7.0 + t / 90.0)
 				_player.afflict(Elements.FIRE)
 			Juice.burst(at, 0.6, Color(1.0, 0.5, 0.15), 30, 8.0, 0.55, 0.6, 6.0)
 			Juice.burst(at, 0.4, Color(0.25, 0.2, 0.2), 14, 4.0, 0.6, 1.0, 3.0)
