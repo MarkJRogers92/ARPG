@@ -230,7 +230,9 @@ func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 			Sound.play("chest")
 			Sound.play("boss_roar", 1.4, -6.0)
 			var n := 5 + Realm.index(Realm.current)
-			var types := _swarms.filter(func(s: EnemySwarm) -> bool: return not s.boss and not s.flee)
+			# Guardians come from the horde's own kinds (not the rival, its
+			# thralls, Debt Collectors or phylacteries, which never spawn on their own).
+			var types := _swarms.filter(func(s: EnemySwarm) -> bool: return not s.boss and not s.flee and s.spawn_share > 0.0)
 			for k in n:
 				var swarm: EnemySwarm = types.pick_random()
 				var at: Vector2 = e["at"] + Vector2.from_angle(TAU * k / n) * 7.0
