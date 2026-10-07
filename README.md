@@ -204,9 +204,9 @@ which the pause menu's sliders control.
   pushes back against a hero walking through it. While the hero is above 90%
   health, pressure climbs (3% a second, twice that if fewer enemies are alive
   than the time of night calls for, 85% of `crowd_target()`); below 45%
-  health it falls three times as fast. Its cap grows with the night: +1.2 a
-  minute from 6:00 (about ×8 by 12:00, ×12 at most), 10% faster per
-  Ascension level. Enemy health is
+  health it falls three times as fast. Its cap grows with the night: +2 a
+  minute from 6:00 (×13 by 12:00, ×20 at most), 10% faster per Ascension
+  level. Enemy health is
   multiplied by pressure and the spawn rate by its square root (at most
   ×1.6).
 - **Bestiary** (title screen): kills of each enemy kind across every night.

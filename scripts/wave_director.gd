@@ -43,8 +43,8 @@ var pressure := 1.0
 ## grow faster), up to `pressure_max`. Early on there's none: a hero is
 ## untouched then just because the horde is thin.
 @export var pressure_rate := 0.03
-@export var pressure_ramp := 1.2
-@export var pressure_max := 12.0
+@export var pressure_ramp := 2.0
+@export var pressure_max := 20.0
 @export var pressure_start := 360.0
 
 var _swarms: Array[EnemySwarm] = []
