@@ -271,6 +271,19 @@ of the shared slams, shot rings and summons:
 - **The Ashen Tyrant:** four cinder seals take 75% of his damage. He calls
   meteors down on you; stand by a seal so a meteor breaks it.
 
+**Mid-bosses** (`scripts/mid_mechanics.gd`) each have a move of their own on
+top of the shared ground slam, and come harder each time (shorter gaps, +35%
+damage per boss):
+
+- **The Ogre Warlord:** every 11 s he stamps and a shockwave rolls out 17 m.
+  It hits whoever it reaches; dash through it.
+- **The Troll Chieftain:** every 18 s he grows a rime armor for 7 s (he takes
+  65% less damage). Chill him to crack it; he's then brittle for 4 s and takes
+  50% more.
+- **The Magma Lord:** leaves pools of lava where he walks (and from the third
+  boss on, drops some near you). They erupt after a warning, then burn you
+  and the horde for 9 s.
+
 **Feel:**
 - Elite kills and bell tolls land a tiny hit-stop, and the final kill drops
   into slow motion.
@@ -985,6 +998,7 @@ scripts/
   abilities/           Chain Lightning, Spirit Blades, Arcane Nova
   enemy_shots.gd       Fireballs from ranged enemies
   boss_director.gd     When bosses come, and their telegraphed slam
+  mid_mechanics.gd     Each realm's mid-boss move: shockwave, rime armor, lava pools
   meta_progress.gd     Soul Shards and the Altar's permanent upgrades (saved)
   juice.gd             One place to trigger particles, numbers, flashes, shake
   army.gd              The Soul Army: souls, raising minions, minion AI
