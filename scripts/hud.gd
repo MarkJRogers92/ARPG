@@ -62,6 +62,7 @@ var _end_title: Label
 var _endless_button: Button
 var _restart_button: Button
 var _clock_text := ""
+var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
@@ -181,6 +182,16 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> v
 ## The Frenzy tier next to the kill count (0 hides it).
 func set_frenzy(tier: int) -> void:
 	_frenzy_label.text = "FRENZY %s" % "I".repeat(tier) if tier > 0 else ""
+
+
+## The night's progress under the clock: 0 at dusk, 1 at dawn. `glow` is
+## First Light (the moon becoming the sun). Hidden when `on` is false.
+func set_night(progress: float, glow: float, on := true) -> void:
+	_night.visible = on
+	if on and (absf(_night.progress - progress) > 0.0005 or absf(_night.glow - glow) > 0.005):
+		_night.progress = progress
+		_night.glow = glow
+		_night.queue_redraw()
 
 
 ## The Ferryman's side bet countdown ("" hides it).
@@ -420,6 +431,15 @@ func _build() -> void:
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
 	root.add_child(_time_label)
+	# Under it, the night's arc: the moon crossing toward dawn.
+	_night = _NightArc.new()
+	_night.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_night.offset_left = -130
+	_night.offset_right = 130
+	_night.offset_top = 58
+	_night.offset_bottom = 74
+	_night.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_night)
 
 	# Top right: kills.
 	var kills_row := HBoxContainer.new()
@@ -490,7 +510,7 @@ func _build() -> void:
 	var boss_column := VBoxContainer.new()
 	boss_column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	boss_column.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	boss_column.offset_top = 62
+	boss_column.offset_top = 76
 	boss_column.offset_left = -260
 	boss_column.offset_right = 260
 	boss_column.add_theme_constant_override("separation", 2)
@@ -511,7 +531,7 @@ func _build() -> void:
 	_blessing_label = UiStyle.label(18)
 	_blessing_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_blessing_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_blessing_label.offset_top = 112
+	_blessing_label.offset_top = 126
 	_blessing_label.offset_left = -260
 	_blessing_label.offset_right = 260
 	_blessing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -551,7 +571,7 @@ func _build() -> void:
 	_bet_label = UiStyle.label(18)
 	_bet_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_bet_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_bet_label.offset_top = 138
+	_bet_label.offset_top = 152
 	_bet_label.offset_left = -260
 	_bet_label.offset_right = 260
 	_bet_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -816,6 +836,39 @@ func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
 func _format_time(seconds: float) -> String:
 	var total := floori(seconds)
 	return "%d:%02d" % [total / 60, total % 60]
+
+
+## A shallow arc with the moon riding it toward the horizon; it warms into
+## the sun over First Light.
+class _NightArc extends Control:
+	var progress := 0.0
+	var glow := 0.0
+	const NIGHT := Color(0.55, 0.62, 0.95)
+	const SUN := Color(1.0, 0.78, 0.4)
+
+	func _point(t: float) -> Vector2:
+		return Vector2(lerpf(8.0, size.x - 8.0, t), size.y - 3.0 - sin(t * PI) * (size.y - 7.0))
+
+	func _draw() -> void:
+		var steps := 32
+		for k in steps:
+			var t0 := float(k) / steps
+			var t1 := float(k + 1) / steps
+			var c := NIGHT.lerp(SUN, smoothstep(0.55, 1.0, t1))
+			c.a = 0.75 if t1 <= progress else 0.22
+			draw_line(_point(t0), _point(t1), c, 2.0, true)
+		# Dawn waits at the right-hand end.
+		draw_circle(_point(1.0), 3.0, Color(SUN, 0.35 + 0.65 * glow))
+		var at := _point(clampf(progress, 0.0, 1.0))
+		var body := Color(0.85, 0.88, 1.0).lerp(SUN, glow)
+		if glow > 0.05:
+			for r in 8:
+				var dir := Vector2.from_angle(TAU * r / 8.0)
+				draw_line(at + dir * 7.0, at + dir * (7.0 + 4.0 * glow), Color(SUN, glow), 1.5, true)
+		draw_circle(at, 5.5, body)
+		if glow < 0.95:
+			# The crescent: a dark disc slides off the moon as it becomes the sun.
+			draw_circle(at + Vector2(2.5 + 6.0 * glow, -1.5), 4.6, Color(0.05, 0.05, 0.1, 1.0 - glow))
 
 
 ## The Soul Shard gem next to the shard count.

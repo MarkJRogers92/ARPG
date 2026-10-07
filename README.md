@@ -56,6 +56,15 @@ in **Endless** mode (the night returns, the mid-bosses keep coming, and your
 time past dawn is recorded). Winning a realm unlocks the next one; progress is
 saved with the Soul Shards (`MetaProgress`).
 
+**The coming dawn.** A thin arc under the clock shows the moon crossing the
+night. For the last 2½ minutes (**First Light**) the moon turns into the sun,
+the sun sinks toward the horizon so shadows stretch out long, the light warms
+to rose-gold, and a glow with slow light rays builds from the corner the sun
+shines from (`scripts/visual/dawn_glow.gd`, `shaders/dawn_glow.gdshader`).
+When the final boss falls, a wall of sunlight spreads out from where it died
+and turns the horde to ash as it passes (no rewards for those), the sun
+climbs, and the sunrise chord plays.
+
 | | The Hollow Graveyard | The Frozen Wastes | The Ember Rift |
 |---|---|---|---|
 | Look | mossy graves, flagstones, drifting embers, dusk to blood moon | snow, ice spikes, dead pines, falling snow, blizzard by the end | cracked ground glowing with lava, obsidian, rising embers and ash |

@@ -564,6 +564,12 @@ def sfx():
     add(sting, choir(chord("D3", "m"), 2.2, "ah", 0.05, 1.4) * 2.0, 0.05)
     add(sting, bell(note("D5"), 2.0, 0.9) * 0.4, 0.05)
     s["boss_title"] = soft_clip(sting, 1.3)
+    rise = np.zeros(int(4.5 * SR))
+    add(rise, tone_pad(chord("D3", "M") + [note("A3")], 4.0, bright=2400, attack=1.4, release=1.6) * 1.2, 0.0)
+    add(rise, choir(chord("D4", "M"), 3.2, "ah", attack=1.2, release=1.4) * 1.6, 0.4)
+    for i, nm in enumerate(["A5", "D6", "F#6", "A6"]):
+        add(rise, bell(note(nm), 2.0, 1.0) * 0.35, 1.3 + i * 0.12)
+    s["sunrise"] = soft_clip(rise, 1.1)
     return s
 
 
