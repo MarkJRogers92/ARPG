@@ -10,6 +10,13 @@ extends Node3D
 ## binds the boss itself; when the army is full, the newest common minion
 ## makes way for them.
 ##
+## Each minion keeps a piece of what it was (its "role", from its enemy type):
+##   brawler     cleaves around its target (most enemies)
+##   caster      fights from range with soul bolts (ranged enemies)
+##   bulwark     every few seconds slams the ground, hurling the horde back (big enemies)
+##   skirmisher  darts in and strikes fast (fast enemies)
+##   tyrant      a bound boss: a crushing slam on a long cooldown
+##
 ## Minions are few (a dozen or two), so they're simple arrays and per-type
 ## MultiMeshes rebuilt every frame. They hunt the enemy nearest to them (within
 ## reach of the hero), cleave what's around their target, take contact damage
@@ -22,6 +29,16 @@ const SIGHT := 11.0 # how far a minion looks for prey
 const LEASH := 15.0 # targets must be this close to the hero
 const ATTACK_INTERVAL := 0.4
 const RETARGET := 0.35
+const ROLES := {
+	"brawler": {"label": "Brawler", "interval": 0.4, "range": 0.6, "speed": 1.0},
+	"caster": {"label": "Caster", "interval": 0.9, "range": 7.0, "speed": 0.9},
+	"bulwark": {"label": "Bulwark", "interval": 0.5, "range": 0.6, "speed": 0.9},
+	"skirmisher": {"label": "Skirmisher", "interval": 0.22, "range": 0.5, "speed": 1.4},
+	"tyrant": {"label": "Tyrant", "interval": 0.5, "range": 0.8, "speed": 1.0},
+}
+## Seconds between a bulwark's / tyrant's slams.
+const SLAM_INTERVAL := 3.0
+const TYRANT_INTERVAL := 4.5
 
 ## How the hero's stats scale for each enemy type: tougher types make tougher
 ## minions. Built in setup() from each EnemySwarm's own stats.
@@ -37,12 +54,13 @@ var _type := PackedInt32Array()
 var _pos := PackedVector2Array()
 var _hp := PackedFloat32Array()
 var _max_hp := PackedFloat32Array()
-var _elite := PackedByteArray()
+var _elite := PackedByteArray() # rank: 0 common, 1 elite, 2 boss
 var _attack := PackedFloat32Array()
 var _retarget := PackedFloat32Array()
 var _hurt := PackedFloat32Array()
 var _facing := PackedVector2Array()
 var _phase := PackedFloat32Array()
+var _slam := PackedFloat32Array()
 ## Current target per minion: swarm index and enemy id (-1 = none).
 var _target_swarm := PackedInt32Array()
 var _target_id := PackedInt32Array()
@@ -66,6 +84,7 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_retarget.resize(CAPACITY)
 	_hurt.resize(CAPACITY)
 	_phase.resize(CAPACITY)
+	_slam.resize(CAPACITY)
 	_pos.resize(CAPACITY)
 	_facing.resize(CAPACITY)
 	_elite.resize(CAPACITY)
@@ -76,6 +95,7 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 			"damage": 5.0 if s.boss else clampf(s.contact_dps / 5.0, 0.6, 2.5),
 			"speed": maxf(s.move_speed * 1.3, 4.5),
 			"radius": s.radius,
+			"role": role_of(s),
 		}
 		var mmi := MultiMeshInstance3D.new()
 		var mat := Models.material("enemy", {
@@ -89,6 +109,25 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 		t["mmi"] = mmi
 		_type_of[s] = _types.size()
 		_types.append(t)
+
+
+## What a raised enemy of this type does (see ROLES).
+static func role_of(s: EnemySwarm) -> String:
+	if s.boss:
+		return "tyrant"
+	if s.attack_range > 0.0 or s.hold_range > 0.0:
+		return "caster"
+	if s.charger:
+		return "skirmisher"
+	if s.max_hp >= 60.0:
+		return "bulwark"
+	if s.move_speed >= 4.5 and not s.flee:
+		return "skirmisher"
+	return "brawler"
+
+
+func role(k: int) -> String:
+	return _types[_type[k]]["role"]
 
 
 func type_index(swarm: EnemySwarm) -> int:
@@ -150,7 +189,8 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	count += 1
 	_type[k] = type
 	_pos[k] = _player.pos2 + Vector2.from_angle(randf() * TAU) * 1.5
-	_elite[k] = 1 if elite and not boss else 0
+	# Rank: 0 common, 1 elite champion, 2 bound boss. Only commons make way.
+	_elite[k] = 2 if boss else (1 if elite else 0)
 	_max_hp[k] = stats.minion_hp * t["hp"] * (2.0 if elite else 1.0)
 	_hp[k] = _max_hp[k]
 	_attack[k] = 0.0
@@ -163,7 +203,22 @@ func _raise(type: int, elite: bool, boss: bool) -> void:
 	Juice.burst(_pos[k], 0.3, Color(0.6, 0.9, 1.0), 18, 1.5, 0.45, 0.9, 6.0)
 	Juice.flash(_pos[k], Color(0.45, 0.8, 1.0), 3.0, 6.0, 0.4)
 	Sound.play("minion_raise")
-	raised.emit(t["name"])
+	_slam[k] = randf_range(0.5, 1.5)
+	raised.emit("%s %s" % [t["name"], "(%s)" % ROLES[t["role"]]["label"]])
+
+
+## Gives up one minion (a common one if there is one; the Soul Altar).
+func sacrifice() -> bool:
+	if count == 0:
+		return false
+	var victim := count - 1
+	for k in range(count - 1, -1, -1):
+		if _elite[k] == 0:
+			victim = k
+			break
+	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 20, 3.0, 0.4, 0.8, 5.0)
+	_remove(victim, false, false)
+	return true
 
 
 func _count_type(type: int) -> int:
@@ -189,8 +244,9 @@ func step(delta: float) -> void:
 			_retarget[k] = RETARGET
 			_find_target(k, p, hero)
 
+		var r: Dictionary = ROLES[t["role"]]
 		var goal := p
-		var reach: float = t["radius"] + 0.6
+		var reach: float = t["radius"] + r["range"]
 		var fighting := false
 		if _target_alive(k):
 			var swarm := _swarms[_target_swarm[k]]
@@ -207,7 +263,7 @@ func step(delta: float) -> void:
 		var to := goal - p
 		var d := to.length()
 		if d > reach:
-			var speed: float = t["speed"]
+			var speed: float = t["speed"] * r["speed"]
 			if not fighting and p.distance_to(hero) > 8.0:
 				speed = maxf(speed, stats.move_speed * 1.2)
 			p += to / d * minf(speed * delta, d - reach * 0.9)
@@ -224,10 +280,26 @@ func step(delta: float) -> void:
 		_pos[k] = p
 
 		_attack[k] -= delta
+		_slam[k] -= delta
 		if fighting and _attack[k] <= 0.0:
-			_attack[k] = ATTACK_INTERVAL
-			var dmg: float = stats.minion_damage * t["damage"] * ATTACK_INTERVAL * (2.0 if _elite[k] == 1 else 1.0)
-			_cleave(_swarms[_target_swarm[k]].pos[_target_index[k]], dmg)
+			var interval: float = r["interval"]
+			_attack[k] = interval
+			# Damage per second matches across roles; the rhythm differs.
+			var dmg: float = stats.minion_damage * t["damage"] * interval * (2.0 if _elite[k] == 1 else 1.0)
+			var target := _swarms[_target_swarm[k]].pos[_target_index[k]]
+			match t["role"]:
+				"caster":
+					_soul_bolt(p, target, dmg)
+				"skirmisher":
+					_cleave(target, dmg, 0.6)
+					p += (target - p).normalized() * 0.4 # darting in
+					_pos[k] = p
+				_:
+					_cleave(target, dmg)
+		if fighting and _slam[k] <= 0.0 and (t["role"] == "bulwark" or t["role"] == "tyrant"):
+			var tyrant: bool = t["role"] == "tyrant"
+			_slam[k] = TYRANT_INTERVAL if tyrant else SLAM_INTERVAL
+			_ground_slam(p, 4.5 if tyrant else 3.0, stats.minion_damage * t["damage"] * (3.0 if tyrant else 1.5), tyrant)
 
 		_hurt[k] -= delta
 		if _hurt[k] <= 0.0:
@@ -270,9 +342,30 @@ func _find_target(k: int, p: Vector2, hero: Vector2) -> void:
 
 
 ## A minion's swing hits everything right around its target.
-func _cleave(at: Vector2, dmg: float) -> void:
-	Elements.hit_area(at, 1.0, dmg, Elements.NONE, _player.stats.crit_chance, _player.stats.crit_mult)
+func _cleave(at: Vector2, dmg: float, radius := 1.0) -> void:
+	Elements.hit_area(at, radius, dmg, Elements.NONE, _player.stats.crit_chance, _player.stats.crit_mult)
 	Juice.burst(at, 0.9, Color(0.5, 0.85, 1.0), 2, 2.5, 0.3, 0.25, 1.5)
+
+
+## A caster's soul bolt: it lands on the target (and a little around it).
+func _soul_bolt(from: Vector2, at: Vector2, dmg: float) -> void:
+	Elements.hit_area(at, 0.7, dmg, Elements.NONE, _player.stats.crit_chance, _player.stats.crit_mult)
+	var d := at - from
+	for i in 5:
+		Juice.burst(from + d * (i / 5.0), 1.0, Color(0.55, 0.85, 1.0), 1, 0.3, 0.22, 0.25, 0.0)
+	Juice.burst(at, 0.8, Color(0.6, 0.9, 1.0), 4, 3.0, 0.3, 0.3, 1.5)
+
+
+## A bulwark's (or tyrant's) slam: damage around it, and the horde hurled back.
+func _ground_slam(at: Vector2, radius: float, dmg: float, big: bool) -> void:
+	Elements.hit_area(at, radius, dmg, Elements.NONE, _player.stats.crit_chance, _player.stats.crit_mult)
+	for swarm in _swarms:
+		if not swarm.boss:
+			swarm.knockback(at, radius, 5.0 if big else 3.5)
+	Juice.ring(at, Color(0.5, 0.85, 1.0), 28 if big else 18, radius * 2.2, 0.45, 0.4)
+	if big:
+		Juice.shake(0.2)
+	Sound.play("slam", 1.6 if not big else 1.1, -10.0 if not big else -5.0)
 
 
 ## Contact damage per second from enemies touching a minion (capped, like the
@@ -305,6 +398,7 @@ func _remove(k: int, died: bool, refill := true) -> void:
 		_hurt[k] = _hurt[last]
 		_facing[k] = _facing[last]
 		_phase[k] = _phase[last]
+		_slam[k] = _slam[last]
 		_target_swarm[k] = _target_swarm[last]
 		_target_id[k] = _target_id[last]
 		_target_index[k] = _target_index[last]

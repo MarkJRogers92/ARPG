@@ -154,11 +154,21 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 			"level": lvl + 1,
 			"max": def["max"],
 			"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
-			"desc": def["desc_next"] if lvl > 0 and def.has("desc_next") else def["desc"],
+			"desc": def["desc_next"] if (lvl > 0 or already_active(id, stats)) and def.has("desc_next") else def["desc"],
 		})
 	if out.is_empty():
 		out.append(HEAL)
 	return out
+
+
+## True if an ability card's ability is already on from another source (a
+## class, an item or the skill tree) before the first card is taken.
+static func already_active(id: String, stats: PlayerStats) -> bool:
+	var def: Dictionary = DEFS.get(id, {})
+	if not def.has("first_mods") or level_of(id, stats) > 0:
+		return false
+	var stat: String = def["first_mods"][0]["stat"]
+	return stat.ends_with("_level") and float(stats.get(stat)) >= 1.0
 
 
 ## True when roll() had nothing left to offer but the heal fallback.
@@ -172,8 +182,14 @@ static func apply(id: String, stats: PlayerStats) -> void:
 		return
 	var def: Dictionary = DEFS[id]
 	var lvl := level_of(id, stats)
+	var active := already_active(id, stats)
 	stats.upgrade_levels[id] = lvl + 1
 	var mods: Array = def["first_mods"] if lvl == 0 and def.has("first_mods") else def["mods"]
+	if lvl == 0 and active:
+		# Granted by a class or an item already: the card still unlocks it for
+		# the run (so it stays if the item goes), and improves it right away.
+		mods = def["first_mods"] + def["mods"].filter(func(m: Dictionary) -> bool:
+			return m["stat"] != def["first_mods"][0]["stat"])
 	stats.add_mods(SOURCE, mods)
 	stats.recalculate()
 	if def.has("heal"):

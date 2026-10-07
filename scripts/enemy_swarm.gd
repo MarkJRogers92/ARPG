@@ -15,6 +15,10 @@ extends MultiMeshInstance3D
 signal enemy_died(position: Vector2, xp: int)
 ## Emitted alongside enemy_died when the one that died was an elite.
 signal elite_died(position: Vector2)
+## A charger's charge ran into the hero (see `charger`).
+signal charged_hero(damage: float)
+## A raiser calls up the dead around `position` (see `raise_interval`).
+signal raise_called(position: Vector2)
 
 ## Every swarm joins this group, which is how main.gd finds them.
 const GROUP := "enemy_swarms"
@@ -47,6 +51,21 @@ static var _next_id := 1
 ## Where shots go. main.gd sets it.
 var shots: EnemyShots
 
+@export_group("Specialists")
+## Lancers: stop, show a line on the ground along their path, then charge
+## straight down it, then recover. Sidestep the line, punish the recovery.
+@export var charger := false
+@export var charge_range := 9.0
+@export var charge_windup := 0.8
+@export var charge_speed := 15.0
+@export var charge_time := 0.55
+@export var charge_recover := 1.1
+@export var charge_damage := 14.0
+## Gravediggers: every `raise_interval` seconds (0 = never) call up the dead.
+@export var raise_interval := 0.0
+## Hang back this far from the hero (0 = close in).
+@export var hold_range := 0.0
+
 @export_group("Elites")
 ## Elites are rare, bigger, glowing versions with more HP, more XP and a
 ## guaranteed item. The wave director decides how often they appear.
@@ -71,7 +90,7 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger") var model := "grunt"
 ## Runs away from the hero instead of chasing (treasure goblins).
 @export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
@@ -122,6 +141,15 @@ var _fire := PackedFloat32Array()
 var _buffer := PackedFloat32Array()
 var _shadow: MultiMeshInstance3D
 var _frame := 0
+## Chargers: state (0 stalk, 1 wind up, 2 charge, 3 recover), its timer, the
+## locked direction, and whether this charge already hit the hero.
+var _cstate := PackedByteArray()
+var _ctime := PackedFloat32Array()
+var _cdir := PackedVector2Array()
+var _chit := PackedByteArray()
+## At most this many chargers wind up at once (each shows a ground line).
+const MAX_WINDUPS := 6
+var _telegraph: MultiMeshInstance3D
 
 
 func _ready() -> void:
@@ -141,6 +169,12 @@ func _ready() -> void:
 	_afflicted.resize(capacity)
 	_scale.resize(capacity)
 	_fire.resize(capacity)
+	if charger:
+		_cstate.resize(capacity)
+		_ctime.resize(capacity)
+		_cdir.resize(capacity)
+		_chit.resize(capacity)
+		_make_telegraph()
 	grid = SpatialHash.new(radius * 2.0, 4096, capacity)
 
 	# Look: a model per type, animated in the shader (see enemy.gdshader), plus
@@ -193,7 +227,11 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	hp[count] = max_hp * hp_mult * (elite_hp_mult if elite else 1.0)
 	_elite[count] = 1 if elite else 0
 	_scale[count] = elite_scale if elite else 1.0
-	_fire[count] = randf_range(0.5, 1.0) * fire_interval
+	_fire[count] = randf_range(0.5, 1.0) * (raise_interval if raise_interval > 0.0 else fire_interval)
+	if charger:
+		_cstate[count] = 0
+		_ctime[count] = randf_range(0.5, 1.5)
+		_chit[count] = 0
 	chill[count] = 0.0
 	shock[count] = 0.0
 	burn[count] = 0.0
@@ -243,7 +281,7 @@ func step(delta: float, target: Vector2) -> void:
 	var recycle_sq := recycle_distance * recycle_distance
 	# Stop just inside touching range so the horde rings the player instead of
 	# piling onto one point. Ranged enemies stop at their attack range.
-	var stop := maxf(radius + 0.35, attack_range)
+	var stop := maxf(maxf(radius + 0.35, attack_range), hold_range)
 	var stop_sq := stop * stop
 	var ranged := attack_range > 0.0 and shots != null
 	var fire_sq := (attack_range + 2.0) * (attack_range + 2.0)
@@ -258,6 +296,11 @@ func step(delta: float, target: Vector2) -> void:
 	var ob_radii := Obstacles.radii
 	# Huge hordes check every other frame per enemy (a step is a few cm).
 	var ob_stride := 1 if count < 3000 else 2
+	var windups := 0
+	if charger:
+		for i in count:
+			if _cstate[i] == 1:
+				windups += 1
 	for i in count:
 		var p := pos[i]
 		var to := target - p
@@ -274,7 +317,47 @@ func step(delta: float, target: Vector2) -> void:
 			chase = to / sqrt(d2)
 		# Chilled enemies move at half speed (bosses at three quarters).
 		var sl := step_len if chill[i] <= 0.0 else step_len * (0.75 if boss else 0.5)
-		var move := (chase * _advance[i] + _push[i]) * sl
+		var push := _push[i]
+		if charger:
+			var st := _cstate[i]
+			_ctime[i] -= delta
+			if st == 0:
+				if _ctime[i] <= 0.0 and d2 < charge_range * charge_range and d2 > 4.0 and windups < MAX_WINDUPS:
+					_cstate[i] = 1
+					_ctime[i] = charge_windup
+					_cdir[i] = to / sqrt(d2)
+					_chit[i] = 0
+					windups += 1
+			elif st == 1:
+				chase = Vector2.ZERO
+				push = Vector2.ZERO
+				_flash[i] = maxf(_flash[i], 0.35 + 0.35 * sin(_ctime[i] * 30.0))
+				if _ctime[i] <= 0.0:
+					_cstate[i] = 2
+					_ctime[i] = charge_time
+					windups -= 1
+			elif st == 2:
+				chase = _cdir[i]
+				push = Vector2.ZERO
+				sl = charge_speed * delta * (1.0 if chill[i] <= 0.0 else 0.5)
+				if _chit[i] == 0 and d2 < (radius + 0.6) * (radius + 0.6):
+					_chit[i] = 1
+					charged_hero.emit(charge_damage)
+				if _ctime[i] <= 0.0:
+					_cstate[i] = 3
+					_ctime[i] = charge_recover
+			else:
+				chase = Vector2.ZERO
+				if _ctime[i] <= 0.0:
+					_cstate[i] = 0
+					_ctime[i] = randf_range(0.8, 2.0)
+		if raise_interval > 0.0:
+			_fire[i] -= delta
+			if _fire[i] <= 0.0:
+				_fire[i] = raise_interval * randf_range(0.8, 1.2)
+				if d2 < 22.0 * 22.0:
+					raise_called.emit(p)
+		var move := (chase * _advance[i] + push) * sl
 		p += move
 		if ob_w > 0 and (boss or ob_stride == 1 or (i + _frame) & 1 == 0):
 			var gx := floori(p.x - ob_origin.x) # Obstacles.CELL is 1 m
@@ -288,6 +371,10 @@ func step(delta: float, target: Vector2) -> void:
 					var reach := ob_radii[j] + body
 					if p.distance_squared_to(ob_centers[j]) < reach * reach:
 						p = Obstacles.resolve_slide(p, body, move)
+						if charger and _cstate[i] == 2:
+							# Slammed into a wall: stunned for a moment.
+							_cstate[i] = 3
+							_ctime[i] = charge_recover * 1.5
 						break
 		pos[i] = p
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
@@ -297,6 +384,8 @@ func step(delta: float, target: Vector2) -> void:
 		# (inlined MultiMeshUtil.set_facing: this loop is the hot path).
 		if (i + _frame) & 3 == 0:
 			var face := chase
+			if charger and _cstate[i] == 1:
+				face = _cdir[i]
 			if face == Vector2.ZERO and ranged and d2 > 0.0:
 				face = to / sqrt(d2) # ranged: keep facing the hero while shooting
 			if face != Vector2.ZERO:
@@ -320,6 +409,8 @@ func step(delta: float, target: Vector2) -> void:
 			_flash[i] = f
 			buf[o + MultiMeshUtil.OFFSET_CUSTOM] = f
 
+	if charger:
+		_draw_telegraphs()
 	var mm := multimesh
 	mm.visible_instance_count = count
 	_shadow.multimesh.visible_instance_count = count
@@ -348,6 +439,47 @@ func despawn_all() -> void:
 		if hp[i] > 0.0:
 			hp[i] = 0.0
 			_dead.append(i)
+
+
+## The ground lines for chargers winding up: one flat strip per charger along
+## its charge, its own small MultiMesh (the swarm's buffer is per enemy).
+func _make_telegraph() -> void:
+	var strip := PlaneMesh.new()
+	strip.size = Vector2(1.0, 1.0)
+	strip.center_offset = Vector3(0, 0, -0.5)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 0.25, 0.12, 0.42)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = false
+	strip.material = mat
+	_telegraph = MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = strip
+	mm.instance_count = MAX_WINDUPS
+	mm.visible_instance_count = 0
+	_telegraph.multimesh = mm
+	_telegraph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_telegraph.top_level = true
+	add_child(_telegraph)
+
+
+func _draw_telegraphs() -> void:
+	var mm := _telegraph.multimesh
+	var n := 0
+	var length := charge_speed * charge_time + 1.0
+	for i in count:
+		if _cstate[i] != 1 or n >= MAX_WINDUPS:
+			continue
+		var d := _cdir[i]
+		# The strip grows as the wind-up runs out, so the timing reads too.
+		var grow := 1.0 - clampf(_ctime[i] / charge_windup, 0.0, 1.0)
+		var basis := Basis(Vector3(-d.y, 0, d.x) * radius * 2.2, Vector3.UP, Vector3(-d.x, 0, -d.y) * length * (0.35 + 0.65 * grow))
+		mm.set_instance_transform(n, Transform3D(basis, Vector3(pos[i].x, 0.04, pos[i].y)))
+		n += 1
+	mm.visible_instance_count = n
 
 
 func mark_afflicted(i: int) -> void:
@@ -461,6 +593,11 @@ func _flush_dead() -> void:
 			_elite[i] = _elite[last]
 			_scale[i] = _scale[last]
 			_fire[i] = _fire[last]
+			if charger:
+				_cstate[i] = _cstate[last]
+				_ctime[i] = _ctime[last]
+				_cdir[i] = _cdir[last]
+				_chit[i] = _chit[last]
 			chill[i] = chill[last]
 			shock[i] = shock[last]
 			burn[i] = burn[last]

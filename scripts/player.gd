@@ -197,10 +197,12 @@ func tick(delta: float) -> void:
 			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
 		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed * (CHILL_SLOW if chilled > 0.0 else 1.0)
+	var before := pos2
 	move_and_slide()
-	# Solid scenery: slide around it (dashing included).
-	if Obstacles.near(pos2):
-		var q := Obstacles.resolve(pos2, RADIUS)
+	# Solid scenery: slide around it. The move is walked in short steps, so a
+	# fast dash (or a long frame) can't pass through a thin obstacle.
+	var q := slide_scenery(before, pos2)
+	if q != pos2:
 		global_position = Vector3(q.x, global_position.y, q.y)
 	_update_aim()
 	# Face the aim when aiming by hand, otherwise the way you walk.
@@ -248,6 +250,22 @@ func afflict(element: int) -> void:
 			burning = maxf(burning, 1.5)
 
 
+## Where a move from `from` to `to` really ends with solid scenery in the way.
+static func slide_scenery(from: Vector2, to: Vector2) -> Vector2:
+	var moved := to - from
+	if Obstacles.width == 0 or not (Obstacles.near(from) or Obstacles.near(to) or Obstacles.near(from + moved * 0.5)):
+		return to
+	var steps := maxi(1, ceili(moved.length() / 0.3))
+	var q := from
+	for k in steps:
+		q = Obstacles.resolve_slide(q + moved / steps, RADIUS, moved / steps)
+	return q
+
+
+## Set by main once the night is won: nothing can kill the hero during dawn.
+var invulnerable := false
+
+
 func heal(amount: float) -> void:
 	if not dead:
 		stats.hp = minf(stats.max_hp, stats.hp + amount)
@@ -271,7 +289,7 @@ func update_weapons(delta: float) -> void:
 
 ## Damage before armor; armor is applied here.
 func take_damage(amount: float) -> void:
-	if dead or is_dashing():
+	if dead or invulnerable or is_dashing():
 		return
 	stats.hp -= amount * stats.damage_taken_factor()
 	if stats.hp <= 0.0:

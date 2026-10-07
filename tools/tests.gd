@@ -45,6 +45,10 @@ func _finish() -> void:
 	_test_heroes()
 	_test_events()
 	_test_obstacles()
+	_test_fixes()
+	_test_landmarks()
+	_test_minion_roles()
+	_test_specialists()
 
 	print("")
 	if _failures == 0:
@@ -882,7 +886,7 @@ func _test_realms() -> void:
 	print("realms")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var models: Array = []
-	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant"]:
+	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger"]:
 		models.append(m)
 	_check(Realm.ORDER.size() == Realm.REALMS.size(), "every realm is in the play order")
 	for id: String in Realm.ORDER:
@@ -1283,3 +1287,274 @@ func _test_obstacles() -> void:
 	swarm.free()
 	Obstacles.clear()
 	_check(not Obstacles.near(Vector2(5, 0)) and Obstacles.resolve(Vector2(5, 0), 0.5) == Vector2(5, 0), "cleared, nothing blocks")
+
+
+func _test_fixes() -> void:
+	print("fixes")
+	# Swept bolts: a fast bolt crossing an enemy in one long step still hits it.
+	var near := EnemySwarm.new()
+	near.capacity = 4
+	root.add_child(near)
+	var far := EnemySwarm.new()
+	far.capacity = 4
+	root.add_child(far)
+	near.spawn(Vector2(1.5, 0))
+	far.spawn(Vector2(2.5, 0))
+	near.step(0.0, Vector2(0, -20))
+	far.step(0.0, Vector2(0, -20))
+	var bolts := ProjectileSwarm.new()
+	root.add_child(bolts)
+	var swarms: Array[EnemySwarm] = [far, near]
+	bolts.spawn(Vector2.ZERO, Vector2.RIGHT, 80.0, 5.0, 0, 1.0)
+	bolts.step(0.05, swarms)
+	_check(near.hp[0] < near.max_hp and far.hp[0] == far.max_hp,
+			"a fast bolt hits the enemy it passed over, the nearest first, across enemy types")
+	_check(bolts.count == 0, "and with no pierce it's spent on that first hit")
+	for n: Node in [bolts, near, far]:
+		n.free()
+
+	# A dash can't pass through a thin obstacle in one long step.
+	Obstacles.set_circles([[Vector2.ZERO, 0.35]], Rect2(-10, -10, 20, 20))
+	var end := Player.slide_scenery(Vector2(-0.86, 0), Vector2(0.16, 0))
+	_check(not Obstacles.blocked(end, Player.RADIUS - 0.01) and (end.x < -0.8 or absf(end.y) > 0.5),
+			"a dash goes around a thin post, never through it (%s)" % end)
+	var slid := Vector2(-1.5, 0.3)
+	var stuck := false
+	for k in 20: # walking right at 6 m/s, a frame at a time
+		slid = Player.slide_scenery(slid, slid + Vector2(0.1, 0.0))
+		stuck = stuck or Obstacles.blocked(slid, Player.RADIUS - 0.01)
+	_check(slid.x > 0.4 and not stuck, "walking into it slides around without entering (%s)" % slid)
+	Obstacles.clear()
+
+	# A first ability card for an ability you already have improves it.
+	var stats := PlayerStats.new()
+	stats.add_mods("class", [{"stat": "lightning_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	stats.recalculate()
+	var chains := stats.lightning_chains
+	var dmg := stats.lightning_damage
+	_check(Upgrades.already_active("lightning", stats), "Stormcaller's lightning counts as already active")
+	Upgrades.apply("lightning", stats)
+	_check(stats.lightning_chains > chains and stats.lightning_damage > dmg, "so the first Lightning card upgrades it right away")
+	stats.remove_source("class")
+	stats.recalculate()
+	_check(stats.lightning_level >= 1, "and still owns it without the class source")
+
+	# A bound boss isn't pushed out of a full army by an elite.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 4
+	root.add_child(grunts)
+	var army := Army.new()
+	root.add_child(army)
+	var army_swarms: Array[EnemySwarm] = [grunts]
+	army.setup(player, army_swarms)
+	army.collect_soul(Army.soul_value(0, false, true))
+	while army.count < player.stats.minion_max:
+		army._raise(0, false, false)
+	army.collect_soul(Army.soul_value(0, true, false))
+	_check(army._elite.slice(0, army.count).has(2), "the bound boss survives an elite joining a full army")
+	_check(army._elite.slice(0, army.count).has(1), "and the elite replaced a common minion")
+	for n: Node in [army, grunts, player]:
+		n.free()
+
+	# The night is won: the dawn sweep can't kill the hero too.
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var hero: Player = main.get_node("Player")
+	main._on_final_died(Vector2.ZERO)
+	hero.take_damage(1.0e9)
+	main._on_player_died()
+	_check(main.won and not hero.dead and not main._game_over, "after the final boss falls, the hero can't die")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = was
+
+
+func _test_landmarks() -> void:
+	print("landmarks")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var loot := LootManager.new()
+	root.add_child(loot)
+	var gems := GemSwarm.new()
+	root.add_child(gems)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 64
+	root.add_child(grunts)
+	var goblins := EnemySwarm.new()
+	goblins.capacity = 2
+	goblins.flee = true
+	goblins.spawn_share = 0.0
+	root.add_child(goblins)
+	var swarms: Array[EnemySwarm] = [grunts, goblins]
+	director.setup(swarms)
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	var events := EventDirector.new()
+	root.add_child(events)
+	events.setup(director, player, loot, gems, goblins, swarms)
+	var decor := WorldDecor.new()
+	var bank := [20]
+	var spend := func(n: int) -> Variant:
+		if n == 0:
+			return bank[0]
+		if bank[0] < n:
+			return false
+		bank[0] -= n
+		return true
+	var marks := Landmarks.new()
+	root.add_child(marks)
+	marks.setup(decor, player, director, loot, army, events, swarms, spend)
+	var spots := {"bell_gibbet": Vector2(20, 0), "soul_altar": Vector2(40, 0), "stone_well": Vector2(60, 0),
+			"forge": Vector2(80, 0), "cauldron": Vector2(100, 0), "fishing_hut": Vector2(120, 0), "tome_pedestal": Vector2(140, 0)}
+	for kind: String in spots:
+		decor.placed[kind] = [Transform3D(Basis.IDENTITY, Vector3(spots[kind].x, 0, spots[kind].y))]
+	var go := func(kind: String) -> bool:
+		player.global_position = Vector3(spots[kind].x, 0, spots[kind].y + AssetProps.data(kind)["footprint"] + 0.8)
+		marks._rescan()
+		return marks.prompt != "" and marks.use_nearest()
+
+	_check(go.call("bell_gibbet"), "ringing a bell works")
+	_check(marks.markers().size() == 1 and grunts.alive_count() >= 4, "and summons champions (%d)" % grunts.alive_count())
+	_check(not go.call("bell_gibbet") and marks.is_used("bell_gibbet", spots["bell_gibbet"]), "a bell rings once")
+	var drops := loot.drops.size()
+	for i in grunts.count:
+		grunts.damage(i, 1.0e9)
+	marks._update_bells()
+	_check(marks.shards == 6 and loot.drops.size() == drops + 2 and marks.markers().is_empty(), "slaying them pays out")
+
+	_check(not go.call("soul_altar"), "the altar needs a minion")
+	army._raise(0, false, false)
+	var dmg := player.stats.bolt_damage
+	_check(go.call("soul_altar") and army.count == 0 and player.stats.bolt_damage > dmg * 1.1, "sacrificing one raises damage")
+
+	_check(go.call("stone_well") and bank[0] == 15, "the well takes 5 shards")
+
+	var weapon := ItemGenerator.generate_with(5, ItemData.Rarity.MAGIC, "weapon")
+	player.inventory.pickup(weapon)
+	_check(go.call("forge") and bank[0] == 7, "the forge takes 8 shards")
+	var reforged: Item = player.inventory.equipped.get("weapon")
+	_check(reforged != weapon and reforged.rarity == ItemData.Rarity.MAGIC, "and reforges the weapon at the same rarity")
+
+	_check(not go.call("cauldron"), "the cauldron needs souls")
+	army.souls = 6
+	_check(go.call("cauldron") and events.blessing != "" and is_equal_approx(events.blessing_left, 45.0) and army.souls == 0,
+			"6 souls brew a 45 s blessing")
+
+	player.stats.hp = 10.0
+	_check(go.call("fishing_hut") and is_equal_approx(player.stats.hp, player.stats.max_hp), "resting heals to full")
+
+	var hp := player.stats.max_hp
+	var points := player.skills.points
+	_check(go.call("tome_pedestal") and player.skills.points == points + 1 and player.stats.max_hp < hp, "the tome trades health for a skill point")
+	for n: Node in [marks, events, army, grunts, goblins, gems, loot, director, player]:
+		n.free()
+	decor.free()
+
+
+func _test_minion_roles() -> void:
+	print("minion roles")
+	var scene: Node = load("res://scenes/main.tscn").instantiate()
+	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
+			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster"}
+	for swarm_name: String in want:
+		_check(Army.role_of(scene.get_node(swarm_name)) == want[swarm_name], "%s rise as %ss" % [swarm_name, want[swarm_name]])
+	scene.free()
+	# A caster minion fights from range.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var foes := EnemySwarm.new()
+	foes.capacity = 4
+	foes.move_speed = 0.0
+	foes.max_hp = 1000.0
+	root.add_child(foes)
+	var witches := EnemySwarm.new()
+	witches.capacity = 4
+	witches.attack_range = 9.0
+	root.add_child(witches)
+	var swarms: Array[EnemySwarm] = [foes, witches]
+	var army := Army.new()
+	root.add_child(army)
+	army.setup(player, swarms)
+	Elements.swarms = swarms
+	Elements.player = player
+	army._raise(1, false, false)
+	_check(army.role(0) == "caster", "a witch's soul raises a caster")
+	army._pos[0] = Vector2.ZERO
+	foes.spawn(Vector2(6, 0))
+	for k in 90:
+		foes.step(1.0 / 60.0, Vector2(6, 0))
+		witches.step(1.0 / 60.0, Vector2(6, 0))
+		army.step(1.0 / 60.0)
+		Elements.flush()
+	_check(foes.hp[0] < 1000.0, "the caster hurts its target")
+	_check(army._pos[0].distance_to(foes.pos[0]) > 3.0, "from a distance (%.1f m)" % army._pos[0].distance_to(foes.pos[0]))
+	for n: Node in [army, witches, foes, player]:
+		n.free()
+
+
+func _test_specialists() -> void:
+	print("lancers and gravediggers")
+	var lancers := EnemySwarm.new()
+	lancers.capacity = 8
+	lancers.charger = true
+	lancers.model = "lancer"
+	root.add_child(lancers)
+	var hits := [0.0]
+	lancers.charged_hero.connect(func(dmg: float) -> void: hits[0] += dmg)
+	lancers.spawn(Vector2(0, 7))
+	lancers._ctime[0] = 0.0
+	var hero := Vector2.ZERO
+	lancers.step(1.0 / 60.0, hero)
+	_check(lancers._cstate[0] == 1 and lancers._telegraph.multimesh.visible_instance_count == 1,
+			"a lancer in range winds up and shows its line")
+	var start := lancers.pos[0]
+	for k in int(lancers.charge_windup * 60.0) - 2:
+		lancers.step(1.0 / 60.0, hero)
+	_check(lancers.pos[0].distance_to(start) < 0.05, "it holds still while winding up")
+	for k in 40:
+		lancers.step(1.0 / 60.0, hero)
+	_check(lancers._cstate[0] >= 2 and lancers.pos[0].y < 0.0, "then charges straight through where the hero was (y=%.1f)" % lancers.pos[0].y)
+	_check(hits[0] == lancers.charge_damage, "and hits a hero who stays in the line, once")
+	# Sidestepping: the line is locked when the wind-up starts.
+	lancers.free()
+	lancers = EnemySwarm.new()
+	lancers.capacity = 8
+	lancers.charger = true
+	root.add_child(lancers)
+	var dodged := [0.0]
+	lancers.charged_hero.connect(func(dmg: float) -> void: dodged[0] += dmg)
+	lancers.spawn(Vector2(0, 7))
+	lancers._ctime[0] = 0.0
+	lancers.step(1.0 / 60.0, hero)
+	for k in 120:
+		lancers.step(1.0 / 60.0, Vector2(3.0, 0.0)) # the hero stepped aside
+	_check(dodged[0] == 0.0, "a hero who sidesteps the line isn't hit")
+	lancers.free()
+
+	var diggers := EnemySwarm.new()
+	diggers.capacity = 4
+	diggers.raise_interval = 1.0
+	diggers.hold_range = 8.0
+	root.add_child(diggers)
+	var calls := [0]
+	diggers.raise_called.connect(func(_at: Vector2) -> void: calls[0] += 1)
+	diggers.spawn(Vector2(0, 15))
+	for k in 240:
+		diggers.step(1.0 / 60.0, Vector2.ZERO)
+	_check(calls[0] >= 2, "a gravedigger keeps raising the dead (%d)" % calls[0])
+	_check(diggers.pos[0].length() > 7.0, "from a distance (%.1f m)" % diggers.pos[0].length())
+	diggers.free()
+	var souls := GemSwarm.new()
+	root.add_child(souls)
+	souls.drop(Vector2(1, 0), 1)
+	souls.drop(Vector2(20, 0), 1)
+	_check(souls.take_near(Vector2.ZERO, 7.0) == 1 and souls.count == 1, "and eats the souls near it")
+	souls.free()
