@@ -79,6 +79,7 @@ var frenzy := 0.0
 var frenzy_tier := 0
 const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
+var _rival: RivalDirector
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
 var _gem_streak := 0
@@ -156,6 +157,10 @@ func _ready() -> void:
 	if collectors:
 		collectors.seized_hero.connect(_ferryman.seize)
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
+	_rival = RivalDirector.new()
+	add_child(_rival)
+	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
+	_rival.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_rift = RiftDirector.new()
 	add_child(_rift)
 	_rift.setup(self, _player, _loot, _army, _events, _decor, ($WorldEnvironment as WorldEnvironment).environment, _swarms,
@@ -289,6 +294,7 @@ func _process(delta: float) -> void:
 		_landmarks.tick(delta)
 		_ferryman.tick(delta)
 		_rift.tick(delta)
+		_rival.tick(delta)
 	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
@@ -296,7 +302,7 @@ func _process(delta: float) -> void:
 	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
-	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else _final_mech.hint)
+	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else (_rival.hint if _rival.hint != "" else _final_mech.hint))
 	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
@@ -495,7 +501,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers() + _rival.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue

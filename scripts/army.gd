@@ -206,7 +206,8 @@ func _try_raise() -> void:
 	_raise(best, false, false)
 
 
-func _raise(type: int, elite: bool, boss: bool) -> bool:
+## `beyond`: room or not, it joins (claimed from a rival), up to CAPACITY.
+func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	if type < 0 or type >= _types.size():
 		return false
 	var stats := _player.stats
@@ -214,7 +215,9 @@ func _raise(type: int, elite: bool, boss: bool) -> bool:
 		boss = false
 		elite = true
 		type = 0
-	if count >= maxi(stats.minion_max, 1) or count >= CAPACITY:
+	if beyond and count >= CAPACITY:
+		return false
+	if not beyond and (count >= maxi(stats.minion_max, 1) or count >= CAPACITY):
 		if not (elite or boss):
 			return false
 		# Champions push out the newest common minion (sparing veterans).
@@ -300,6 +303,20 @@ func _update_away(delta: float) -> void:
 					_hp[k] = _max_hp[k] * clampf(r["hp_frac"], 0.2, 1.0)
 					away.remove_at(i)
 		i -= 1
+
+
+## Raises `n` minions of the kind `swarm` is made of, even past the army's
+## size (a defeated rival's thralls). `elite` makes them champions. Returns
+## how many rose.
+func claim(swarm: EnemySwarm, n: int, elite := false) -> int:
+	var type := type_index(swarm)
+	if not _type_of.has(swarm):
+		return 0
+	var risen := 0
+	for k in n:
+		if _raise(type, elite, false, true):
+			risen += 1
+	return risen
 
 
 ## Brings every minion to `at` (the hero stepped through a rift).

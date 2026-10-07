@@ -264,6 +264,26 @@ choose (the spinning coin is just for show), and pays out once.
 enemy. It ricochets between enemies, 4 hits at first. Each hit has a 20% chance
 to land heads: a gold flash, double damage and one more bounce.
 
+## The rival necromancer
+
+Once a night, around 9:00 (not while a boss is up), another necromancer comes
+for your souls (`scripts/rival.gd`): a robed figure with a horned crown and a
+red ring under it, announced with a title card and tracked by an edge arrow
+and a line under the timer.
+
+- It keeps its distance and casts soul bolts, and **blinks away** when you get
+  within a few meters.
+- It **steals souls**: any lying within 9 m of it, and 3 of your banked souls
+  every 7 s while you're within 14 m (a red stream shows the theft).
+- It raises **red thralls**: one per 4 stolen souls and one every 5 s anyway
+  (up to 24).
+- After 100 s it escapes with what it took, and its thralls fade.
+
+Kill it in time and **its army is yours**: up to 6 of its thralls (at least
+2) and its own shade, as a champion caster, join the Soul Army, past your
+army's usual size. It also drops a Legendary and 15 Soul Shards. No rift
+opens while it's about.
+
 ## Landmarks you can use
 
 Some set pieces do something (`scripts/landmarks.gd`). Usable ones near the

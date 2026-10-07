@@ -57,6 +57,7 @@ func _finish() -> void:
 	_run(&"_test_dawn", _test_dawn())
 	_run(&"_test_veterans", _test_veterans())
 	_run(&"_test_evolutions", _test_evolutions())
+	_run(&"_test_rival", _test_rival())
 
 	print("")
 	if _failures == 0:
@@ -2213,4 +2214,58 @@ func _test_evolutions() -> bool:
 	_check(stats.scythe_count == count + 2 and stats.scythe_damage > dmg * 1.7, "evolving makes the weapon much stronger")
 	_check(Evolutions.ready(stats).is_empty() and not Upgrades.roll(stats).any(func(c: Dictionary) -> bool: return c["id"].begins_with("evo:")),
 			"each evolution happens once")
+	return true
+
+
+func _test_rival() -> bool:
+	print("rival necromancer")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	for ending in ["slain", "escaped"]:
+		var main: Node = load("res://scenes/main.tscn").instantiate()
+		root.add_child(main)
+		var rival: RivalDirector = main._rival
+		var swarm: EnemySwarm = main.get_node("Rival")
+		var thralls: EnemySwarm = main.get_node("Thralls")
+		var hero: Player = main.get_node("Player")
+		var army: Army = main.get_node("Army")
+		var souls: GemSwarm = main.get_node("Souls")
+		rival.arrive()
+		_check(swarm.alive_count() == 1 and thralls.alive_count() == 3 and rival.active() and rival.rival_name != "",
+				"the rival arrives with a few thralls (%s)" % ending)
+		var at := swarm.pos[0]
+		for k in 5:
+			souls.drop(at + Vector2(1, 0), 1)
+		rival.tick(0.016)
+		_check(rival.stolen == 5, "it steals the souls lying near it")
+		_check(thralls.alive_count() >= 4, "stolen souls raise more thralls")
+		army.souls = 5
+		hero.global_position = Vector3(at.x + 3.0, 0, at.y)
+		hero.pos2 = at + Vector2(3, 0)
+		rival._drain = 0.0
+		rival._blink = 99.0
+		rival.tick(0.016)
+		_check(army.souls == 5 - RivalDirector.DRAIN_AMOUNT and rival.stolen == 5 + RivalDirector.DRAIN_AMOUNT, "and drains the hero's banked souls when close")
+		rival._blink = 0.0
+		rival.tick(0.016)
+		_check(swarm.pos[0].distance_to(hero.pos2) >= 9.0, "it blinks away when the hero closes in")
+		_check(rival.hint.contains(rival.rival_name.to_upper()) and rival.markers().size() == 1, "the HUD tracks it")
+		if ending == "slain":
+			var before := army.count
+			var loot: LootManager = main.get_node("Loot")
+			var drops := loot.get_child_count()
+			swarm.damage(0, 1.0e12)
+			_check(rival.defeated and not rival.active() and rival.hint == "", "killing the rival ends its hunt")
+			_check(army.count >= before + 3, "its thralls and shade join the army, past its size (%d -> %d)" % [before, army.count])
+			_check(thralls.alive_count() == 0, "the rest of its thralls fade")
+			_check(loot.get_child_count() > drops, "and it leaves loot")
+		else:
+			rival._left = 0.01
+			rival.tick(0.05)
+			_check(swarm.alive_count() == 0 and thralls.alive_count() == 0 and not rival.defeated and not rival.active(),
+					"if not killed in time, it escapes and its thralls fade")
+		main.free()
+		Obstacles.clear()
+	MetaProgress.disabled = was
 	return true

@@ -68,6 +68,8 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_gravedigger(kit, skin)
 		"collector":
 			_collector(kit, skin)
+		"rival":
+			_rival(kit, skin)
 		"phylactery":
 			_phylactery(kit, skin)
 		"goblin":
@@ -250,6 +252,40 @@ static func _collector(k: MeshKit, skin: Color) -> void:
 	k.capsule(0.035, 0.38, MeshKit.at(Vector3(0.2, 0.7, -0.05), Vector3(15, 0, -12)), coat, 0.0, 5)
 	for i in 6:
 		k.sphere(0.035, MeshKit.at(Vector3(0.24 + 0.02 * sin(i), 0.5 - i * 0.07, -0.08)), gold, 1.4, 5, 2)
+
+
+## The rival necromancer: long robes, a horned iron crown over a skull face,
+## and a staff topped with a stolen soul burning red.
+static func _rival(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.5)
+	var trim := Color(0.75, 0.6, 0.3)
+	var bone := Color(0.85, 0.82, 0.74)
+	var iron := Color(0.16, 0.15, 0.17)
+	var soul := Color(1.0, 0.25, 0.3)
+	k.cylinder(0.13, 0.34, 0.66, MeshKit.at(Vector3(0, 0.33, 0)), skin, 0.0, 8)
+	k.cylinder(0.35, 0.36, 0.05, MeshKit.at(Vector3(0, 0.03, 0)), trim, 0.4, 8)
+	k.cylinder(0.18, 0.14, 0.24, MeshKit.at(Vector3(0, 0.76, 0)), skin, 0.0, 8)
+	# A high collar and a mantle over the shoulders.
+	k.sphere(0.22, MeshKit.at(Vector3(0, 0.86, 0.02), Vector3.ZERO, Vector3(1.35, 0.45, 1.05)), dark)
+	k.cylinder(0.2, 0.15, 0.14, MeshKit.at(Vector3(0, 0.95, 0.04)), dark, 0.0, 8)
+	k.sphere(0.11, MeshKit.at(Vector3(0, 1.02, -0.01), Vector3.ZERO, Vector3(0.9, 1.1, 0.95)), bone, 0.0, 7, 4)
+	k.sphere(0.025, MeshKit.at(Vector3(-0.04, 1.04, -0.1)), soul, 3.0, 4, 2)
+	k.sphere(0.025, MeshKit.at(Vector3(0.04, 1.04, -0.1)), soul, 3.0, 4, 2)
+	# The crown: an iron band with four horns.
+	k.cylinder(0.12, 0.12, 0.05, MeshKit.at(Vector3(0, 1.11, 0)), iron, 0.0, 8)
+	for h in 4:
+		var a := -0.9 + h * 0.6
+		k.cylinder(0.0, 0.025, 0.16, MeshKit.at(Vector3(sin(a) * 0.1, 1.19, -cos(a) * 0.1 + 0.02), Vector3(-15, 0, -a * 20.0)), iron, 0.0, 5)
+	# The staff in the right hand, the soul at its head; the left hand raised.
+	k.cylinder(0.022, 0.022, 1.2, MeshKit.at(Vector3(0.28, 0.6, -0.1)), Color(0.22, 0.14, 0.1), 0.0, 6)
+	k.capsule(0.04, 0.32, MeshKit.at(Vector3(0.2, 0.74, -0.06), Vector3(30, 0, -25)), skin, 0.0, 5)
+	k.sphere(0.07, MeshKit.at(Vector3(0.28, 1.25, -0.1)), soul, 3.0, 6, 3)
+	k.sphere(0.11, MeshKit.at(Vector3(0.28, 1.25, -0.1)), Color(soul, 0.6), 1.2, 6, 3)
+	for c in 3:
+		var ca := c * TAU / 3.0
+		k.capsule(0.012, 0.12, MeshKit.at(Vector3(0.28 + cos(ca) * 0.07, 1.2, -0.1 + sin(ca) * 0.07), Vector3(cos(ca) * 25.0, 0, sin(ca) * 25.0)), bone, 0.0, 4)
+	k.capsule(0.04, 0.34, MeshKit.at(Vector3(-0.2, 0.86, -0.1), Vector3(60, 0, 30)), skin, 0.0, 5)
+	k.sphere(0.035, MeshKit.at(Vector3(-0.26, 1.0, -0.24)), bone, 0.0, 5, 2)
 
 
 ## A phylactery: a soul crystal in a bone cradle (the Lich King's ward).
