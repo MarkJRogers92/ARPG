@@ -58,6 +58,7 @@ func update(delta: float) -> void:
 		return
 	_timer = stats.lightning_cooldown
 
+	Elements.source = "Chain Lightning"
 	var points := PackedVector3Array([Vector3(origin.x, 2.3, origin.y)])
 	var hit := {}
 	var damage := stats.lightning_damage

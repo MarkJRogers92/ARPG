@@ -137,6 +137,65 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
+## Every night is different
+
+- **Omens** (`scripts/run_modifiers.gd`): every run rolls one rule, shown at
+  the start and under the army bar. The eight are Blood Moon, Soul Tide, Glass
+  Cannon, Midas Night, Swift Night, Restless Dead, Ferryman's Favor and Quiet
+  Night. Each has an upside and a cost.
+- **Pact of Night** (title screen, once you've conquered a realm): stack
+  opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
+  heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to
+  the Soul Shards earned.
+- **Bestiary** (title screen): kills of each enemy kind across every night.
+  100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
+  good.
+- **Daily Night** (title screen): today's realm, omen and seed are the same
+  for every run today. Your best kill count is kept.
+- **Run report** on the end screen: the share of damage dealt by each weapon,
+  the army, reactions and burning, plus the omen and heat.
+
+The permanent save is written to a temporary file and swapped in, with the
+previous save kept as a backup; a broken save falls back to it.
+
+## Weapons, paths and finales
+
+**Reaping Scythe** (level-up card): thrown toward the nearest enemy (or your
+aim), it spins out about 8 m and flies back to wherever you are. It cuts each
+enemy once on the way out and once on the way back, and the return cut does
+1.5x. Walking reshapes the second cut.
+
+**Funeral Bell** (level-up card): every kill within 11 m adds a toll. At 30
+tolls (fewer with ranks) it rings: a shockwave around you that hurts
+everything in reach and hurls the horde back. Its own kills don't refill it.
+
+**Paths:** at level 10 each hero chooses one of three paths for the night,
+shown as cards (`scripts/specializations.gd`):
+
+| Hero | Paths |
+|---|---|
+| Battlemage | Arcane Sniper (pierce and range, one bolt fewer) · Artillery (+2 bolts, weaker) · Spellblade (Frost Aura, speed, weaker bolts) |
+| Necromancer | Lord of Champions (stronger, fewer minions) · Endless Legion (+4 army, frailer) · Grim Reaper (the Scythe, smaller army) |
+| Pyromancer | Wildfire (ignite and burn) · Detonator (Nova and reactions, less health) · Frostfire (chill and melt) |
+| Stormcaller | Arc Master (+4 jumps) · Thunderstrike (heavy lightning and the Funeral Bell) · Tempest (dash, speed) |
+
+**Final bosses** (`scripts/final_mechanics.gd`) each pose one problem, on top
+of the shared slams, shot rings and summons:
+
+- **The Lich King:** at 66% and 33% health he wards himself and raises three
+  phylacteries around you. He takes no damage until they're shattered.
+- **The Frost Colossus:** every 12 s, four lines of ice race out from him
+  (step off them). Then he's exposed for 3 s and takes double damage.
+- **The Ashen Tyrant:** four cinder seals take 75% of his damage. He calls
+  meteors down on you; stand by a seal so a meteor breaks it.
+
+**Feel:**
+- Elite kills and bell tolls land a tiny hit-stop, and the final kill drops
+  into slow motion.
+- Bosses arrive with a title card.
+- Killing fast builds **Frenzy** (shown by the kill count): three tiers of
+  faster bolts and movement that drain away when you stop.
+
 ## The Ferryman's bargains
 
 A spectral boatman who trades in souls and risk (`scripts/ferryman.gd`,
@@ -180,6 +239,34 @@ its kind and position, so walking away and back doesn't reset it.
 | Cauldron | 6 souls: brew a 45 s blessing |
 | Fishing hut | Rest: heal to full |
 | Forbidden tome | +1 skill point, -8% max HP for the night |
+
+## Rifts
+
+Tears in the night that lead somewhere else for a while (`scripts/rift_director.gd`).
+The first opens around 4:00, then one every 3 to 4 minutes, alternating
+between the two kinds. None opens while a boss is up or within two minutes of
+dawn. A portal lasts a minute, and an arrow points to it.
+
+- **The Night Market** (violet portal, or a graveyard's ritual door). Step in
+  and the realm holds still: no spawns, no clock, the horde frozen where it
+  stands. Four stalls take this run's Soul Shards, once each:
+
+  | Stall | Price | You get |
+  |---|---|---|
+  | Bone Merchant | 8 | a Rare item |
+  | Soul Broker | 6 | a champion spirit (an elite minion) |
+  | Apothecary | 5 | a full heal and a blessing |
+  | Fortune Teller | 5 | +2 rerolls |
+
+  Leave by the exit portal, or the market fades after 75 s. You come back
+  exactly where you left, with 1.5 s of grace.
+- **The Glitch** (green portal). Touch it and for 30 s the world plays like an
+  old game: chunky pixels, a small palette, scanlines
+  (`shaders/glitch.gdshader`). XP and souls are doubled while it lasts. Survive
+  it for two items.
+
+The market is just a far-off spot in the same scene with its own props and
+light, so nothing about the run has to be saved and restored.
 
 ## The army's roles
 

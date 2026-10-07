@@ -55,6 +55,15 @@ static var BASE := {
 	"obol_bounces": 3.0, # ricochets after the first hit
 	"obol_rate": 0.5, # coins per second
 	"obol_luck": 0.2, # chance a hit lands heads: double damage, +1 bounce
+	"scythe_level": 0.0, # 0 = locked
+	"scythe_damage": 16.0, # per cut; the return cut does 1.5x
+	"scythe_count": 1.0, # scythes in the air at once
+	"scythe_rate": 0.6, # throws per second
+	"scythe_range": 8.0,
+	"bell_level": 0.0, # 0 = locked
+	"bell_damage": 70.0,
+	"bell_radius": 7.0,
+	"bell_cost": 30.0, # kills near the hero per ring
 	"dash_cooldown": 3.0, # seconds
 	"minion_max": 2.0, # Soul Army size
 	"minion_damage": 12.0, # per second, per minion (scaled by the enemy type)
@@ -105,6 +114,15 @@ var obol_damage := 20.0
 var obol_bounces := 3
 var obol_cooldown := 2.0
 var obol_luck := 0.2
+var scythe_level := 0
+var scythe_damage := 16.0
+var scythe_count := 1
+var scythe_cooldown := 1.7
+var scythe_range := 8.0
+var bell_level := 0
+var bell_damage := 70.0
+var bell_radius := 7.0
+var bell_cost := 30
 var dash_cooldown := 3.0
 var minion_max := 2
 var minion_damage := 12.0
@@ -151,6 +169,11 @@ func add_mod(source: String, stat: String, op: Op, value: float) -> void:
 func add_mods(source: String, mods: Array) -> void:
 	for m: Dictionary in mods:
 		add_mod(source, m["stat"], m["op"], m["value"])
+
+
+## The modifiers added under `source` (copies).
+func mods_from(source: String) -> Array[Dictionary]:
+	return _mods.filter(func(m: Dictionary) -> bool: return m["source"] == source)
 
 
 ## Removes every modifier added under `source`. Returns how many were removed.
@@ -215,6 +238,15 @@ func recalculate() -> void:
 	obol_bounces = maxi(0, roundi(values["obol_bounces"]))
 	obol_cooldown = 1.0 / maxf(0.05, values["obol_rate"])
 	obol_luck = clampf(values["obol_luck"], 0.0, 0.9)
+	scythe_level = maxi(0, roundi(values["scythe_level"]))
+	scythe_damage = values["scythe_damage"] * damage_mult
+	scythe_count = clampi(roundi(values["scythe_count"]), 1, 6)
+	scythe_cooldown = 1.0 / maxf(0.05, values["scythe_rate"])
+	scythe_range = values["scythe_range"]
+	bell_level = maxi(0, roundi(values["bell_level"]))
+	bell_damage = values["bell_damage"] * damage_mult
+	bell_radius = values["bell_radius"]
+	bell_cost = maxi(6, roundi(values["bell_cost"]))
 	dash_cooldown = maxf(0.3, values["dash_cooldown"])
 	minion_max = maxi(0, roundi(values["minion_max"]))
 	minion_damage = values["minion_damage"] * damage_mult

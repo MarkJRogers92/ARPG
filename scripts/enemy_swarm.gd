@@ -94,7 +94,7 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector", "phylactery") var model := "grunt"
 ## Runs away from the hero instead of chasing (treasure goblins).
 @export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
@@ -154,6 +154,8 @@ var _chit := PackedByteArray()
 ## At most this many chargers wind up at once (each shows a ground line).
 const MAX_WINDUPS := 6
 var _telegraph: MultiMeshInstance3D
+## Scales all damage this type takes (a warded or exposed final boss).
+var damage_taken := 1.0
 
 
 func _ready() -> void:
@@ -340,6 +342,7 @@ func step(delta: float, target: Vector2) -> void:
 					_cstate[i] = 2
 					_ctime[i] = charge_time
 					windups -= 1
+					Sound.play("charge")
 			elif st == 2:
 				chase = _cdir[i]
 				push = Vector2.ZERO
@@ -434,7 +437,7 @@ func step(delta: float, target: Vector2) -> void:
 func damage(i: int, amount: float) -> bool:
 	if hp[i] <= 0.0:
 		return false
-	hp[i] -= amount
+	hp[i] -= amount * damage_taken
 	_flash[i] = 1.0
 	if hp[i] <= 0.0:
 		_die(i)
@@ -516,7 +519,9 @@ func _update_status(i: int, o: int, delta: float) -> void:
 	shock[i] = s
 	burn[i] = b
 	if b > 0.0 and hp[i] > 0.0:
-		hp[i] -= burn_dps[i] * delta
+		var burnt := minf(burn_dps[i] * delta * damage_taken, hp[i])
+		hp[i] -= burnt
+		Elements.record(burnt, "Burning")
 		if hp[i] <= 0.0:
 			_die(i)
 	var tint := elite_tint if _elite[i] == 1 else Color.WHITE

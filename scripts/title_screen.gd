@@ -15,6 +15,11 @@ var _altar_overlay: Control
 var _altar: AltarPanel
 var _first: Button
 var _class_desc: Label
+var _pact_overlay: Control
+var _pact_box: VBoxContainer
+var _pact_button: Button
+var _bestiary_overlay: Control
+var _bestiary_label: Label
 
 
 func _ready() -> void:
@@ -38,9 +43,14 @@ func is_open() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if is_open() and _altar_overlay.visible and event.is_action_pressed("ui_cancel"):
-		_altar_overlay.hide()
-		get_viewport().set_input_as_handled()
+	if not is_open() or not event.is_action_pressed("ui_cancel"):
+		return
+	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay]:
+		if overlay and overlay.visible:
+			overlay.hide()
+			_refresh_pact_button()
+			get_viewport().set_input_as_handled()
+			return
 
 
 func _build() -> void:
@@ -120,11 +130,49 @@ func _build() -> void:
 		_altar.refresh()
 		_altar_overlay.show())
 	bottom.add_child(altar_button)
+	_pact_button = Button.new()
+	_pact_button.custom_minimum_size = Vector2(250, 46)
+	_pact_button.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+	_pact_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		_fill_pacts()
+		_pact_overlay.show())
+	bottom.add_child(_pact_button)
+	var bestiary_button := Button.new()
+	bestiary_button.text = "Bestiary   ·   %d ★" % MetaProgress.total_stars()
+	bestiary_button.custom_minimum_size = Vector2(200, 46)
+	bestiary_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		_fill_bestiary()
+		_bestiary_overlay.show())
+	bottom.add_child(bestiary_button)
+	var daily_button := Button.new()
+	daily_button.text = "Daily Night"
+	daily_button.tooltip_text = "Today's realm, omen and seed are the same for every run today. Beat your best kill count."
+	daily_button.custom_minimum_size = Vector2(170, 46)
+	daily_button.add_theme_color_override("font_color", UiStyle.GOLD)
+	daily_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		var unlocked := Realm.ORDER.filter(func(id: String) -> bool: return MetaProgress.is_unlocked(id))
+		Realm.daily = true
+		chosen.emit(Realm.daily_pick(unlocked)["realm"]))
+	bottom.add_child(daily_button)
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.custom_minimum_size = Vector2(140, 46)
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	bottom.add_child(quit)
+
+	_pact_overlay = _overlay()
+	_pact_box = VBoxContainer.new()
+	_pact_box.add_theme_constant_override("separation", 10)
+	_pact_box.custom_minimum_size.x = 560
+	(_pact_overlay.get_meta("box") as VBoxContainer).add_child(_pact_box)
+	_bestiary_overlay = _overlay()
+	_bestiary_label = UiStyle.label(16)
+	_bestiary_label.custom_minimum_size = Vector2(520, 0)
+	(_bestiary_overlay.get_meta("box") as VBoxContainer).add_child(_bestiary_label)
+	_refresh_pact_button()
 
 	# The Altar, over everything.
 	_altar_overlay = ColorRect.new()
@@ -155,6 +203,100 @@ func _build() -> void:
 		_altar_overlay.hide()
 		altar_button.text = "Altar of Souls   ·   %d ◆" % MetaProgress.shards)
 	altar_box.add_child(back)
+
+
+## A dimmed full-screen overlay with a panel; its content box is meta "box".
+func _overlay() -> Control:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0.02, 0.75)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.hide()
+	_root.add_child(overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiStyle.panel())
+	center.add_child(panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 28)
+	panel.add_child(margin)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	margin.add_child(box)
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(160, 44)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(func() -> void:
+		overlay.hide()
+		_refresh_pact_button())
+	box.add_child(back)
+	box.move_child(back, 0)
+	overlay.set_meta("box", box)
+	# Content goes above the Back button.
+	box.child_order_changed.connect(func() -> void:
+		if back.get_index() != box.get_child_count() - 1:
+			box.move_child(back, box.get_child_count() - 1))
+	return overlay
+
+
+func _refresh_pact_button() -> void:
+	var open := MetaProgress.any_won()
+	var heat := RunModifiers.heat(MetaProgress.pacts)
+	_pact_button.disabled = not open
+	_pact_button.text = ("Pact of Night   ·   heat %d" % heat) if open else "Pact of Night   ·   win a realm"
+
+
+func _fill_pacts() -> void:
+	for child in _pact_box.get_children():
+		child.queue_free()
+	var title := UiStyle.label(30)
+	title.text = "PACT OF NIGHT"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+	_pact_box.add_child(title)
+	var heat_label := UiStyle.label(17)
+	heat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pact_box.add_child(heat_label)
+	var update := func() -> void:
+		var h := RunModifiers.heat(MetaProgress.pacts)
+		heat_label.text = "Heat %d   ·   +%d%% Soul Shards" % [h, roundi(100.0 * RunModifiers.HEAT_BONUS * h)]
+	update.call()
+	for id: String in RunModifiers.PACT_ORDER:
+		var p: Dictionary = RunModifiers.PACTS[id]
+		var check := CheckButton.new()
+		check.text = "%s  (heat %d):  %s" % [p["name"], p["heat"], p["desc"]]
+		check.button_pressed = id in MetaProgress.pacts
+		check.add_theme_font_size_override("font_size", 16)
+		check.toggled.connect(func(on: bool) -> void:
+			Sound.play("ui_click")
+			var list := MetaProgress.pacts.duplicate()
+			if on and not id in list:
+				list.append(id)
+			elif not on:
+				list.erase(id)
+			MetaProgress.set_pacts(list)
+			update.call())
+		_pact_box.add_child(check)
+
+
+func _fill_bestiary() -> void:
+	var lines := ["BESTIARY   ·   %d ★  (+%d%% damage, for good)" % [MetaProgress.total_stars(), MetaProgress.total_stars()], ""]
+	var kinds := MetaProgress.bestiary.keys()
+	kinds.sort_custom(func(a, b) -> bool: return MetaProgress.bestiary[a] > MetaProgress.bestiary[b])
+	if kinds.is_empty():
+		lines.append("Nothing slain yet. Every 100, 1,000 and 5,000 kills of a kind earn a star.")
+	for kind: String in kinds.slice(0, 22):
+		var stars := MetaProgress.stars(kind)
+		var next := ""
+		for step: int in MetaProgress.BESTIARY_STEPS:
+			if MetaProgress.bestiary[kind] < step:
+				next = "   (next star at %d)" % step
+				break
+		lines.append("%s   %s   %d slain%s" % ["★".repeat(stars) + "☆".repeat(3 - stars), kind, MetaProgress.bestiary[kind], next])
+	_bestiary_label.text = "\n".join(lines)
 
 
 func _class_button(id: String) -> Button:
@@ -208,6 +350,7 @@ func _realm_card(id: String) -> Button:
 	card.add_theme_stylebox_override("disabled", locked)
 	card.pressed.connect(func() -> void:
 		Sound.play("ui_click")
+		Realm.daily = false
 		chosen.emit(id))
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		card.connect(signal_name, func() -> void:

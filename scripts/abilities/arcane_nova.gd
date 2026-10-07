@@ -54,6 +54,7 @@ func fire() -> void:
 	var stats := _player.stats
 	var center := _player.pos2
 	var r := stats.nova_radius
+	Elements.source = "Arcane Nova"
 	Elements.hit_area(center, r, stats.nova_damage, Elements.NONE, stats.crit_chance, stats.crit_mult)
 	Sound.play("nova")
 	for swarm in _swarms:

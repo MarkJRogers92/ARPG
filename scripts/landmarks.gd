@@ -21,6 +21,7 @@ const USES := {
 	"bell_gibbet": "bell", "wind_chime": "bell", "chained_gong": "bell",
 	"soul_altar": "altar", "stone_well": "well", "frozen_pond": "well",
 	"forge": "forge", "cauldron": "cauldron", "fishing_hut": "hut", "tome_pedestal": "tome",
+	"ritual_door": "rift",
 }
 const INFO := {
 	"bell": {"verb": "Ring the bell", "hint": "champions rise; slay them for treasure", "color": Color(1.0, 0.8, 0.35)},
@@ -30,6 +31,7 @@ const INFO := {
 	"cauldron": {"verb": "Brew from 6 souls", "hint": "a 45 s blessing", "color": Color(0.6, 1.0, 0.5)},
 	"hut": {"verb": "Rest", "hint": "heal to full", "color": Color(0.8, 0.9, 1.0)},
 	"tome": {"verb": "Read the forbidden tome", "hint": "+1 skill point, -8% max HP for the night", "color": Color(0.8, 0.5, 1.0)},
+	"rift": {"verb": "Open the ritual door", "hint": "it leads to the Night Market", "color": Color(0.75, 0.55, 1.0)},
 }
 const ALTAR_SOURCE := "altar"
 const TOME_SOURCE := "tome"
@@ -61,6 +63,8 @@ var _scan := 0.0
 var _bells: Array[Dictionary] = []
 var _rings: Array[MeshInstance3D] = []
 var _altar_stacks := 0
+## Set by main.gd: where the ritual door leads.
+var rift: RiftDirector
 
 
 func setup(decor: WorldDecor, player: Player, director: WaveDirector, loot: LootManager, army: Army,
@@ -176,6 +180,9 @@ func _unavailable(use: String) -> String:
 		"hut":
 			if _player.stats.hp >= _player.stats.max_hp - 0.5:
 				return "you're already rested"
+		"rift":
+			if rift == null or not rift.can_open():
+				return "it won't open with a boss so near"
 	return ""
 
 
@@ -199,6 +206,9 @@ func use_nearest() -> bool:
 		"cauldron": ok = _brew(at)
 		"hut": ok = _rest(at)
 		"tome": ok = _read(at)
+		"rift":
+			rift.enter_market()
+			ok = true
 	if ok:
 		_used[_near_key] = true
 		uses_made[use] = uses_made.get(use, 0) + 1

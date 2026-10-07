@@ -69,6 +69,9 @@ var _lightning: ChainLightning
 var _blades: SpiritBlades
 var _nova: ArcaneNova
 var _obol: Obol
+var _scythe: ReapingScythe
+## The Funeral Bell (main.gd feeds it kills).
+var bell: FuneralBell
 var _volleys := 0
 ## The hero's own statuses (from witch bolts, fireballs and hazards).
 var chilled := 0.0
@@ -152,7 +155,9 @@ func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
 	_blades = SpiritBlades.new()
 	_nova = ArcaneNova.new()
 	_obol = Obol.new()
-	for ability in [_lightning, _blades, _nova, _obol]:
+	_scythe = ReapingScythe.new()
+	bell = FuneralBell.new()
+	for ability in [_lightning, _blades, _nova, _obol, _scythe, bell]:
 		add_child(ability)
 		ability.setup(self, swarms)
 
@@ -195,6 +200,7 @@ func tick(delta: float) -> void:
 		if stats.powers.has("stormstride") and _storm_tick <= 0.0:
 			# Stormstride: the dash path crackles with lightning.
 			_storm_tick = 0.05
+			Elements.source = "Stormstride"
 			Elements.hit_area(pos2, 1.8, stats.lightning_damage * 0.5, Elements.LIGHTNING)
 			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
@@ -288,6 +294,7 @@ func update_weapons(delta: float) -> void:
 		_blades.update(delta)
 		_nova.update(delta)
 		_obol.update(delta)
+		_scythe.update(delta)
 
 
 ## Damage before armor; armor is applied here.
@@ -394,4 +401,5 @@ func _update_aura(delta: float) -> void:
 	_aura_pulse = 1.0
 	aura_ticked.emit()
 	# Frost Aura chills what it touches (see Elements).
+	Elements.source = "Frost Aura"
 	Elements.hit_area(pos2, stats.aura_radius, stats.aura_damage, Elements.FROST)

@@ -259,6 +259,12 @@ func _update_away(delta: float) -> void:
 		i -= 1
 
 
+## Brings every minion to `at` (the hero stepped through a rift).
+func gather(at: Vector2) -> void:
+	for k in count:
+		_pos[k] = at + Vector2.from_angle(TAU * k / maxf(count, 1.0)) * 2.0
+
+
 ## Gives up one minion (a common one if there is one; the Soul Altar).
 func sacrifice() -> bool:
 	if count == 0:
@@ -282,6 +288,7 @@ func _count_type(type: int) -> int:
 
 
 func step(delta: float) -> void:
+	Elements.source = "Soul Army"
 	if not away.is_empty():
 		_update_away(delta)
 	var hero := _player.pos2
@@ -467,6 +474,7 @@ func _queue_soulfire(at: Vector2) -> void:
 
 ## Soulfire bursts run after all minions have stepped (they query the hash).
 func flush() -> void:
+	Elements.source = "Soul Army"
 	for at in _soulfire:
 		Elements.hit_area(at, 3.0, _player.stats.minion_damage * 4.0)
 		Juice.ring(at, Color(0.45, 0.8, 1.0), 24, 8.0, 0.5, 0.4)

@@ -58,6 +58,17 @@ var _in_title := false
 var _warned := {}
 var _pause: PauseMenu
 var _landmarks: Landmarks
+var _spec_chosen := false
+var _final_mech: FinalMechanics
+var _rift: RiftDirector
+## Frenzy: kills pile it up, it drains away; each tier speeds you up.
+## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
+var pacts: Array = []
+var omen := ""
+var _kills_by := {}
+var frenzy := 0.0
+var frenzy_tier := 0
+const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
@@ -78,6 +89,7 @@ func _ready() -> void:
 	Juice.flashes = $LightFlashes
 	Juice.camera = $CameraRig
 	apply_settings()
+	Juice.time_effects = true
 	MetaProgress.load_save()
 	MetaProgress.apply(_player.stats)
 	HeroClass.apply(_player, MetaProgress.current_class())
@@ -126,9 +138,22 @@ func _ready() -> void:
 	if collectors:
 		collectors.seized_hero.connect(_ferryman.seize)
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
+	_rift = RiftDirector.new()
+	add_child(_rift)
+	_rift.setup(self, _player, _loot, _army, _events, _decor, ($WorldEnvironment as WorldEnvironment).environment, _swarms,
+			_spend_shards, func(n: int) -> void: _rerolls += n)
+	_rift.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_landmarks.rift = _rift
+	_final_mech = FinalMechanics.new()
+	add_child(_final_mech)
+	_final_mech.setup(_final, get_node("Phylacteries") as EnemySwarm, _player, _director)
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
+		_hud.title_card(boss_name, "Dawn is near. The master of this realm rises.", Color(1.0, 0.35, 0.3))
+		Sound.play("boss_title")
 		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
+		_hud.title_card(boss_name, "A champion of the night approaches", Color(1.0, 0.55, 0.35))
+		Sound.play("boss_title", 1.1, -3.0)
 		_hud.toast("%s approaches!" % boss_name, Color(1.0, 0.4, 0.3)))
 	_projectiles.hit.connect(func(at: Vector2, crit: bool, damage: float) -> void:
 		Sound.play("bolt_hit")
@@ -186,6 +211,8 @@ func _ready() -> void:
 		get_tree().reload_current_scene())
 	_sound.play_realm(Realm.current)
 	_in_title = Realm.in_title
+	if not _in_title:
+		_begin_night()
 	if _in_title:
 		_hud.hide()
 		_title.open()
@@ -219,6 +246,9 @@ func _process(delta: float) -> void:
 		_decor.follow(_player.pos2)
 		_atmosphere.tick(delta, 0.0, false)
 		return
+	if _rift.in_market():
+		_market_frame(delta)
+		return
 	elapsed += delta
 
 	_player.tick(delta)
@@ -233,18 +263,23 @@ func _process(delta: float) -> void:
 	Elements.flush()
 	_army.flush()
 	_bosses.tick(delta)
+	if _bosses.final_arrived:
+		_final_mech.tick(delta)
 	if not won or _endless:
 		_hazards.tick(delta)
 		_events.tick(delta)
 		_landmarks.tick(delta)
 		_ferryman.tick(delta)
+		_rift.tick(delta)
 	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
 	_ferryman.shards = 0
-	var prompt := _ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt
-	_hud.set_prompt(prompt if not won or _endless else "", Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
-	_hud.set_bet(_ferryman.bet_text)
+	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
+	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
+	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else _final_mech.hint)
+	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
 
@@ -305,6 +340,81 @@ func _process(delta: float) -> void:
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
 
 
+## A frame in the Night Market: the realm (horde, clock, spawns, events)
+## holds still; the hero, the army, loot and the market run.
+func _market_frame(delta: float) -> void:
+	_player.tick(delta)
+	_army.step(delta)
+	_rift.market_tick(delta)
+	if not _rift.in_market():
+		return
+	var origin := _player.pos2
+	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
+	_fx.step(delta)
+	_motes.step(delta)
+	_decor.follow(origin)
+	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
+			snappedf(_player.global_position.z, GROUND_SNAP))
+	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
+	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
+	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D)
+	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
+
+
+## Pacts and this night's Omen (and the Daily Night's fixed seed).
+func _begin_night() -> void:
+	pacts = MetaProgress.pacts.duplicate() if MetaProgress.any_won() and not Realm.daily else []
+	if Realm.daily:
+		var pick := Realm.daily_pick([Realm.current])
+		seed(pick["seed"])
+		omen = RunModifiers.roll_omen(pick["omen"])
+	elif MetaProgress.disabled:
+		omen = RunModifiers.forced_omen
+	else:
+		omen = RunModifiers.roll_omen()
+	RunModifiers.apply(self, pacts, omen)
+	if omen == "":
+		return
+	var o: Dictionary = RunModifiers.OMENS[omen]
+	_hud.set_omen("%s%s" % ["DAILY NIGHT  ·  " if Realm.daily else "", o["name"]], o["desc"], o["color"],
+			RunModifiers.heat(pacts))
+	_hud.toast("Omen: %s. %s" % [o["name"], o["desc"]], o["color"])
+
+
+## Shards for the end screen, the Bestiary and the Daily record.
+func _settle_run(seconds: float) -> int:
+	var shards := roundi((_run_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen))
+	MetaProgress.add_shards(shards)
+	for kind: String in MetaProgress.record_kills(_kills_by):
+		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
+	if Realm.daily:
+		if MetaProgress.record_daily(Realm.today(), kills):
+			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen)
+	return shards
+
+
+## Frenzy decays by half every ~1.4 s; tiers add attack and move speed.
+func _update_frenzy(delta: float) -> void:
+	frenzy = maxf(frenzy - frenzy * delta * 0.5, 0.0)
+	var tier := 0
+	for threshold: float in FRENZY_TIERS:
+		if frenzy >= threshold:
+			tier += 1
+	if tier != frenzy_tier:
+		if tier > frenzy_tier:
+			Sound.play("ignite", 1.4 + 0.15 * tier, 4.0)
+		frenzy_tier = tier
+		_player.stats.remove_source("frenzy")
+		if tier > 0:
+			_player.stats.add_mods("frenzy", [
+				{"stat": "bolt_rate", "op": PlayerStats.Op.INCREASED, "value": 0.12 * tier},
+				{"stat": "move_speed", "op": PlayerStats.Op.INCREASED, "value": 0.05 * tier}])
+		_player.stats.recalculate()
+		_hud.set_frenzy(tier)
+
+
 ## A Lancer's charge ran into the hero.
 func _on_charged(dmg: float) -> void:
 	if _player.is_dashing():
@@ -347,7 +457,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers()
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue
@@ -432,6 +542,7 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 		return
 	_run_shards += 2
 	Sound.play("elite_kill")
+	Juice.hitstop(0.04)
 	if randf() < 0.5:
 		_events.drop_orb(at + Vector2(-0.6, 0.0))
 	_souls.drop(at + Vector2(0.6, 0.0), Army.soul_value(_army.type_index(swarm), true, false))
@@ -447,18 +558,22 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
+	_kills_by[kind] = _kills_by.get(kind, 0) + 1
 	Sound.play("kill_%d" % (kills % 3))
+	_player.bell.on_kill(at)
+	frenzy += 1.0
 	if swarm == _final:
 		_on_final_died(at)
 	if swarm.boss:
 		_on_boss_died(at, swarm)
 		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
-	elif randf() < _player.stats.soul_chance:
+	elif randf() < _player.stats.soul_chance * (2.0 if _rift.glitching() else 1.0):
 		_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
 	var big := swarm.body_height > 2.0
 	_fx.burst(at, swarm.body_height * 0.5, swarm.color.lightened(0.25), 12 if big else 5,
 			5.0 if big else 3.5, 0.55 if big else 0.4, 0.55, 3.0)
-	var overflow := _gems.drop(at, xp)
+	var overflow := _gems.drop(at, xp * (2 if _rift.glitching() else 1))
 	if overflow > 0:
 		_player.add_xp(overflow)
 	if randf() < 0.002 and not swarm.boss:
@@ -473,6 +588,7 @@ func _on_final_died(at: Vector2) -> void:
 	if won:
 		return
 	won = true
+	Juice.slow_motion(0.3, 1.6)
 	# The night is settled: the dawn sweep can't also kill the hero.
 	_player.invulnerable = true
 	_player.burning = 0.0
@@ -496,8 +612,7 @@ func _sweep_horde(delta: float) -> void:
 				swarm.damage(i, 1.0e12)
 	if _dawn_sweep <= 0.0:
 		_dawn_sweep = 0.0
-		var shards := _run_shards + MetaProgress.run_bonus(elapsed, kills)
-		MetaProgress.add_shards(shards)
+		var shards := _settle_run(elapsed)
 		get_tree().paused = true
 		_sound.stop_music(0.5)
 		Sound.play("victory")
@@ -551,6 +666,13 @@ func _on_item_picked(item: Item, result: String) -> void:
 func _try_level_up() -> void:
 	if _choosing_upgrade or _game_over:
 		return
+	if not _spec_chosen and _player.stats.level >= Specializations.LEVEL:
+		# Level 10: choose a path (once a night) before any more cards.
+		_choosing_upgrade = true
+		get_tree().paused = true
+		_hud.show_upgrades(Specializations.cards(MetaProgress.current_class()), 0, "CHOOSE YOUR PATH",
+				"One path for the rest of the night   ·   1 / 2 / 3 or click")
+		return
 	while _player.pending_levels > 0:
 		_player.pending_levels -= 1
 		var choices := Upgrades.roll(_player.stats)
@@ -573,7 +695,14 @@ func _on_reroll() -> void:
 
 
 func _on_upgrade_chosen(id: String) -> void:
-	Upgrades.apply(id, _player.stats)
+	if id.begins_with("spec:"):
+		_spec_chosen = true
+		var path := Specializations.find(MetaProgress.current_class(), id.substr(5))
+		Specializations.apply(_player.stats, MetaProgress.current_class(), id.substr(5))
+		_hud.toast("Your path: %s" % path.get("name", ""), path.get("color", UiStyle.GOLD))
+		Sound.play("shrine_done")
+	else:
+		Upgrades.apply(id, _player.stats)
 	_choosing_upgrade = false
 	get_tree().paused = false
 	_try_level_up() # more than one level can be banked
@@ -587,6 +716,5 @@ func _on_player_died() -> void:
 	Sound.play("defeat")
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
-	var shards := _run_shards + MetaProgress.run_bonus(elapsed - _endless_start, kills)
-	MetaProgress.add_shards(shards)
+	var shards := _settle_run(elapsed - _endless_start)
 	_hud.show_game_over(elapsed, kills, _player.stats.level, shards)

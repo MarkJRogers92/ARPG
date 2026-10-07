@@ -57,6 +57,8 @@ var _loan_left := 0.0
 var _collector_in := -1.0
 var _bet_left := 0.0
 var _spin_pending := ""
+## Added to his first wager's odds (the Ferryman's Favor omen).
+var odds_bonus := 0.0
 
 
 func setup(player: Player, army: Army, loot: LootManager, director: WaveDirector, collectors: EnemySwarm,
@@ -193,7 +195,12 @@ func _show(result := "", result_color := UiStyle.GOLD) -> void:
 
 ## The first wager's odds, with a pledge.
 func first_odds() -> float:
-	return FIRST_ODDS + (PLEDGE_BONUS if not _visit.is_empty() and _visit["pledged"] else 0.0)
+	return FIRST_ODDS + odds_bonus + (PLEDGE_BONUS if not _visit.is_empty() and _visit["pledged"] else 0.0)
+
+
+## One more visit this night, around 11:00 (the Ferryman's Favor omen).
+func extra_visit() -> void:
+	_schedule.append(660.0)
 
 
 func _on_chosen(action: String) -> void:
@@ -220,7 +227,7 @@ func _on_chosen(action: String) -> void:
 			var win := rng.randf() < (SECOND_ODDS if second else first_odds())
 			_visit["stage"] = "spinning"
 			_show()
-			Sound.play("reroll", 0.7)
+			Sound.play("coin_spin")
 			var t := create_tween()
 			t.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 			t.tween_interval(1.0)

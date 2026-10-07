@@ -14,7 +14,7 @@ const CARD_COLORS := {
 	"bolt_damage": "offense", "bolt_rate": "offense", "bolt_count": "offense", "bolt_pierce": "offense",
 	"aura": "aura", "max_hp": "defense", "regen": "defense", "heal": "defense",
 	"move_speed": "utility", "magnet": "utility",
-	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35),
+	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35), "scythe": Color(0.65, 0.95, 0.85), "bell": Color(0.85, 0.8, 1.0),
 	"legion": Color(0.45, 0.8, 1.0), "harvest": Color(0.45, 0.8, 1.0),
 	"ignite": Color(1.0, 0.5, 0.15), "frostbite": Color(0.55, 0.85, 1.0),
 }
@@ -48,6 +48,14 @@ var _marker_items: Array = []
 var _blessing_label: Label
 var _prompt_label: Label
 var _bet_label: Label
+var _upgrade_title: Label
+var _frenzy_label: Label
+var _omen_label: Label
+var _report: Label
+var _title_card: VBoxContainer
+var _title_main: Label
+var _title_sub: Label
+var _upgrade_subtitle: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
 var _end_title: Label
@@ -129,6 +137,52 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
 
 
+## A boss arrives: its name across the screen for a moment.
+func title_card(boss_name: String, subtitle: String, color: Color) -> void:
+	_title_main.text = boss_name.to_upper()
+	_title_main.add_theme_color_override("font_color", color)
+	_title_sub.text = subtitle
+	var t := _title_card.create_tween()
+	_title_card.scale = Vector2(1.15, 1.15)
+	_title_card.pivot_offset = _title_card.size * 0.5
+	t.set_parallel()
+	t.tween_property(_title_card, "modulate:a", 1.0, 0.35)
+	t.tween_property(_title_card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.chain().tween_interval(1.8)
+	t.chain().tween_property(_title_card, "modulate:a", 0.0, 0.7)
+
+
+func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
+	_omen_label.text = "OMEN: %s%s" % [omen_name.to_upper(), ("   ·   HEAT %d" % heat) if heat > 0 else ""]
+	_omen_label.tooltip_text = desc
+	_omen_label.add_theme_color_override("font_color", color)
+
+
+## The run report on the end screen: damage by source, best first.
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> void:
+	var total := 0.0
+	for k: String in damage_by:
+		total += damage_by[k]
+	var keys := damage_by.keys()
+	keys.sort_custom(func(a, b) -> bool: return damage_by[a] > damage_by[b])
+	var parts := []
+	for k: String in keys.slice(0, 6):
+		if total > 0.0:
+			parts.append("%s %d%%" % [k, roundi(100.0 * damage_by[k] / total)])
+	var line := "DAMAGE:  " + "   ·   ".join(parts) if not parts.is_empty() else ""
+	var extras := []
+	if omen != "":
+		extras.append("Omen: %s" % RunModifiers.OMENS[omen]["name"])
+	if heat > 0:
+		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
+	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
+
+
+## The Frenzy tier next to the kill count (0 hides it).
+func set_frenzy(tier: int) -> void:
+	_frenzy_label.text = "FRENZY %s" % "I".repeat(tier) if tier > 0 else ""
+
+
 ## The Ferryman's side bet countdown ("" hides it).
 func set_bet(text: String) -> void:
 	_bet_label.text = text
@@ -204,7 +258,9 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int) -> void
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
-func show_upgrades(choices: Array[Dictionary], rerolls := 0) -> void:
+func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click") -> void:
+	_upgrade_title.text = heading
+	_upgrade_subtitle.text = subheading
 	_reroll_button.visible = rerolls > 0
 	_reroll_button.text = "Reroll  [R]   ·   %d left" % rerolls
 	for child in _upgrade_row.get_children():
@@ -381,6 +437,11 @@ func _build() -> void:
 	kills_row.add_child(skull)
 	_kills_label = UiStyle.label(24)
 	kills_row.add_child(_kills_label)
+	_frenzy_label = UiStyle.label(18)
+	_frenzy_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.25))
+	_frenzy_label.add_theme_constant_override("outline_size", 6)
+	_frenzy_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kills_row.add_child(_frenzy_label)
 	var gem := _ShardIcon.new()
 	gem.custom_minimum_size = Vector2(22, 26)
 	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -458,6 +519,34 @@ func _build() -> void:
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
 
+	# Under the army bar: this night's omen (and pact heat).
+	_omen_label = UiStyle.label(14)
+	_omen_label.position = Vector2(100, 116)
+	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(_omen_label)
+
+	# A boss's name, big, when it arrives.
+	_title_card = VBoxContainer.new()
+	_title_card.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_title_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_title_card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_title_card.offset_top = -300
+	_title_card.offset_bottom = -190
+	_title_card.offset_left = -600
+	_title_card.offset_right = 600
+	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_card.modulate.a = 0.0
+	root.add_child(_title_card)
+	_title_sub = UiStyle.label(18)
+	_title_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_sub.modulate = Color(1, 1, 1, 0.75)
+	_title_card.add_child(_title_sub)
+	_title_main = UiStyle.label(56)
+	_title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_main.add_theme_constant_override("outline_size", 14)
+	_title_main.add_theme_color_override("font_outline_color", Color(0.1, 0.0, 0.0, 0.95))
+	_title_card.add_child(_title_main)
+
 	# Under the blessing: the Ferryman's side bet.
 	_bet_label = UiStyle.label(18)
 	_bet_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -510,6 +599,7 @@ func _build() -> void:
 	var upgrade_box := VBoxContainer.new()
 	upgrade_box.add_theme_constant_override("separation", 6)
 	var title := UiStyle.label(38)
+	_upgrade_title = title
 	title.text = "LEVEL UP"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -517,6 +607,7 @@ func _build() -> void:
 	title.add_theme_constant_override("outline_size", 10)
 	upgrade_box.add_child(title)
 	var subtitle := UiStyle.label(16)
+	_upgrade_subtitle = subtitle
 	subtitle.text = "Choose a power   ·   1 / 2 / 3 or click"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.modulate = Color(1, 1, 1, 0.6)
@@ -553,6 +644,12 @@ func _build() -> void:
 	_game_over_label = UiStyle.label(22)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
+	_report = UiStyle.label(16)
+	_report.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_report.custom_minimum_size.x = 820
+	_report.modulate = Color(1, 1, 1, 0.85)
+	over_box.add_child(_report)
 	_shards_earned_label = UiStyle.label(20)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
@@ -591,7 +688,7 @@ func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
 
 func _make_card(index: int, choice: Dictionary) -> Button:
 	var id: String = choice["id"]
-	var tint = CARD_COLORS.get(id, "core")
+	var tint = choice["color"] if choice.has("color") else CARD_COLORS.get(id, "core")
 	var color: Color = tint if tint is Color else SkillData.BRANCHES[tint]
 	var card := Button.new()
 	card.custom_minimum_size = Vector2(220, 310)
@@ -641,7 +738,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	top.add_child(tag)
 
 	var icon := UiIcons.new()
-	icon.icon = id
+	icon.icon = choice.get("icon", id)
 	icon.color = color
 	icon.custom_minimum_size = Vector2(96, 96)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

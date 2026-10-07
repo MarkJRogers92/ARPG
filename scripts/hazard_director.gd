@@ -105,6 +105,7 @@ func _land(at: Vector2, r: float) -> void:
 			Juice.ring(at, Color(0.6, 0.4, 1.0), 20, 5.0, 0.45, 0.4)
 			Juice.flash(at, Color(0.6, 0.4, 1.0), 3.0, 6.0, 0.3)
 		"ice":
+			Elements.source = "Hazards"
 			Elements.hit_area(at, r, 20.0 * _director.hp_multiplier(), Elements.FROST)
 			if hero_hit:
 				_player.take_damage(7.0 + t / 90.0)
@@ -115,6 +116,7 @@ func _land(at: Vector2, r: float) -> void:
 			if near:
 				Juice.shake(0.12)
 		"meteors":
+			Elements.source = "Hazards"
 			Elements.hit_area(at, r, 40.0 * _director.hp_multiplier(), Elements.FIRE)
 			if hero_hit:
 				_player.take_damage(7.0 + t / 90.0)

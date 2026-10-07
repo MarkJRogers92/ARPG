@@ -50,6 +50,10 @@ func _finish() -> void:
 	_run(&"_test_minion_roles", _test_minion_roles())
 	_run(&"_test_specialists", _test_specialists())
 	_run(&"_test_ferryman", _test_ferryman())
+	_run(&"_test_new_tools", _test_new_tools())
+	_run(&"_test_final_mechanics", _test_final_mechanics())
+	_run(&"_test_replayability", _test_replayability())
+	_run(&"_test_rifts", _test_rifts())
 
 	print("")
 	if _failures == 0:
@@ -66,6 +70,12 @@ func _run(test_name: StringName, finished) -> void:
 	if finished != true:
 		_failures += 1
 		print("  FAIL: %s stopped early (script error above)" % test_name)
+
+
+## Deletes the test save and its backup and temp files.
+func _wipe_save() -> void:
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + suffix))
 
 
 func _check(condition: bool, message: String) -> void:
@@ -707,7 +717,7 @@ func _test_meta_progress() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(MetaProgress.shards == 0 and MetaProgress.rank("vigor") == 0, "no save means a fresh start")
 	MetaProgress.add_shards(30)
@@ -729,7 +739,7 @@ func _test_meta_progress() -> bool:
 	_check(MetaProgress.rank("insight") == 3 and MetaProgress.cost("insight") == -1, "upgrades stop at their max rank")
 	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
 	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + 1 per 150 kills")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -962,7 +972,7 @@ func _test_realm_progress() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta_realms.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(MetaProgress.is_unlocked("graveyard"), "the first realm is open")
 	_check(not MetaProgress.is_unlocked("frozen") and not MetaProgress.is_unlocked("ember"), "later realms start locked")
@@ -974,7 +984,7 @@ func _test_realm_progress() -> bool:
 	_near(MetaProgress.endless_best("graveyard"), 95.0, "Endless keeps the best time")
 	MetaProgress.load_save()
 	_check(MetaProgress.is_won("graveyard") and MetaProgress.endless_best("graveyard") == 95.0, "realm progress survives a reload")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -987,7 +997,7 @@ func _test_classes_and_settings() -> bool:
 	var was_disabled := MetaProgress.disabled
 	MetaProgress.disabled = false
 	MetaProgress.save_path = "user://test_meta_classes.save"
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.load_save()
 	_check(HeroClass.ORDER.size() == HeroClass.CLASSES.size(), "every class is on the picker")
 	for id: String in HeroClass.ORDER:
@@ -1008,7 +1018,7 @@ func _test_classes_and_settings() -> bool:
 	MetaProgress.load_save()
 	_check(MetaProgress.current_class() == "necromancer" and MetaProgress.class_unlocked("necromancer"), "classes survive a reload")
 	_check(is_equal_approx(MetaProgress.setting("music_volume"), 0.25) and MetaProgress.setting("shake") == false, "settings survive a reload")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path))
+	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
@@ -1756,3 +1766,258 @@ func _test_ferryman() -> bool:
 		n.free()
 	return true
 
+
+
+func _test_new_tools() -> bool:
+	print("scythe, bell, specializations")
+	for hero: String in HeroClass.ORDER:
+		var cards := Specializations.cards(hero)
+		_check(cards.size() == 3, "%s has three paths" % hero)
+		for card: Dictionary in cards:
+			var stats := PlayerStats.new()
+			stats.recalculate()
+			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			_check(Specializations.apply(stats, hero, card["id"].substr(5)), "%s: %s applies" % [hero, card["name"]])
+			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			_check(before != after or stats.ignite_chance > 0.0 or stats.chill_chance > 0.0, "%s: %s changes the build" % [hero, card["name"]])
+			Specializations.apply(stats, hero, card["id"].substr(5))
+			_check(stats.mods_from(Specializations.SOURCE).size() == Specializations.find(hero, card["id"].substr(5))["mods"].size(),
+					"%s: picking twice doesn't stack" % card["name"])
+
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var foes := EnemySwarm.new()
+	foes.capacity = 16
+	foes.move_speed = 0.0
+	root.add_child(foes)
+	var swarms: Array[EnemySwarm] = [foes]
+	Elements.swarms = swarms
+	Elements.player = player
+	player.setup(swarms, null)
+	player.stats.add_mods("test", [{"stat": "scythe_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	player.stats.recalculate()
+	foes.spawn(Vector2(4, 0))
+	foes.hp[0] = 1000.0
+	var hp_log := []
+	for f in 150:
+		foes.step(1.0 / 60.0, Vector2(0, -20))
+		player._scythe.update(1.0 / 60.0)
+		Elements.flush()
+		if hp_log.is_empty() or hp_log[-1] != foes.hp[0]:
+			hp_log.append(foes.hp[0])
+	_check(hp_log.size() == 3, "the scythe cuts an enemy on the way out and again on the way back (%s)" % [hp_log])
+	if hp_log.size() == 3:
+		_check(hp_log[1] - hp_log[2] > (hp_log[0] - hp_log[1]) * 1.3, "and the return cut is harder")
+	player.stats.remove_source("test")
+
+	player.stats.add_mods("test", [{"stat": "bell_level", "op": PlayerStats.Op.ADD, "value": 1.0}])
+	player.stats.recalculate()
+	var bell: FuneralBell = player.bell
+	for k in player.stats.bell_cost - 1:
+		bell.on_kill(Vector2(2, 0))
+	_check(bell.fraction() > 0.9 and bell.fraction() < 1.0, "kills near the hero charge the bell")
+	bell.on_kill(Vector2(50, 0))
+	_check(bell.charge == player.stats.bell_cost - 1, "kills far away don't")
+	foes.spawn(Vector2(3, 0))
+	foes.step(0.0, Vector2(0, -20))
+	var hp_before := foes.hp[foes.count - 1]
+	bell.on_kill(Vector2(2, 0))
+	_check(bell.charge == 0.0, "a full bell rings")
+	bell.on_kill(Vector2(2, 0))
+	_check(bell.charge == 0.0, "and its own kills, that frame, don't refill it")
+	Elements.flush()
+	_check(foes.hp[foes.count - 1] < hp_before, "the toll hurts what's near")
+	player.stats.remove_source("test")
+	for n: Node in [foes, player]:
+		n.free()
+	return true
+
+
+func _test_final_mechanics() -> bool:
+	print("final boss mechanics")
+	var was := Realm.current
+	for realm: String in ["graveyard", "frozen", "ember"]:
+		Realm.current = realm
+		var player: Player = load("res://scenes/player.tscn").instantiate()
+		root.add_child(player)
+		var director := WaveDirector.new()
+		root.add_child(director)
+		var final := EnemySwarm.new()
+		final.capacity = 2
+		final.boss = true
+		final.max_hp = 1000.0
+		final.move_speed = 0.0
+		root.add_child(final)
+		var wards := EnemySwarm.new()
+		wards.capacity = 4
+		wards.move_speed = 0.0
+		wards.recycle_distance = 400.0
+		root.add_child(wards)
+		director.setup([final, wards] as Array[EnemySwarm])
+		var mech := FinalMechanics.new()
+		root.add_child(mech)
+		mech.setup(final, wards, player, director)
+		final.spawn(Vector2(0, -8))
+		mech.tick(0.016)
+		match realm:
+			"graveyard":
+				final.damage(0, 400.0)
+				mech.tick(0.016)
+				_check(wards.alive_count() == 3 and final.damage_taken == 0.0, "the Lich King wards himself with three phylacteries")
+				var hp := final.hp[0]
+				final.damage(0, 100.0)
+				_check(final.hp[0] == hp, "and takes no damage while they stand")
+				for k in wards.count:
+					wards.damage(k, 1.0e9)
+				wards.step(0.0, Vector2.ZERO)
+				mech.tick(0.016)
+				_check(final.damage_taken == 1.0, "shattering them breaks the ward")
+			"frozen":
+				mech._timer = 0.0
+				mech.tick(0.016)
+				_check(mech._lines.size() == 4, "the Colossus cracks four lines of ice")
+				player.global_position = Vector3(30, 0, 30)
+				for f in 90:
+					mech.tick(1.0 / 60.0)
+				_check(final.damage_taken == 2.0, "then he's exposed: double damage")
+				for f in int(FinalMechanics.EXPOSED_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(final.damage_taken == 1.0, "for a few seconds")
+			"ember":
+				_check(mech.seals_left() == 4 and is_equal_approx(final.damage_taken, 0.25), "four cinder seals shield the Tyrant")
+				var seal: Vector2 = mech._seals[0]["at"]
+				player.global_position = Vector3(seal.x, 0, seal.y)
+				mech._timer = 0.0
+				for f in 100:
+					mech.tick(1.0 / 60.0)
+				_check(mech.seals_left() == 3, "a meteor lured onto a seal breaks it")
+		final.damage(0, 1.0e9)
+		final.step(0.0, Vector2.ZERO)
+		mech.tick(0.016)
+		_check(mech.hint == "" and wards.alive_count() == 0 and mech.seals_left() == 0, "%s: everything clears when he dies" % realm)
+		for n: Node in [mech, wards, final, director, player]:
+			n.free()
+	Realm.current = was
+	return true
+
+
+func _test_replayability() -> bool:
+	print("pacts, omens, bestiary, daily, report")
+	_near(RunModifiers.shard_mult([], ""), 1.0, "no pacts, no omen: normal shards")
+	_near(RunModifiers.shard_mult(["swarm", "bleak"], "midas"), (1.0 + 0.25 * 3) * 1.5, "heat 3 and Midas stack")
+	_check(RunModifiers.OMEN_ORDER.size() == RunModifiers.OMENS.size() and RunModifiers.PACT_ORDER.size() == RunModifiers.PACTS.size(), "every omen and pact is listed")
+	_check(RunModifiers.roll_omen(0.0) == RunModifiers.OMEN_ORDER[0] and RunModifiers.roll_omen(0.9999) == RunModifiers.OMEN_ORDER[-1], "omen picks cover the list")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	for omen: String in RunModifiers.OMEN_ORDER:
+		var main: Node = load("res://scenes/main.tscn").instantiate()
+		root.add_child(main)
+		var director: WaveDirector = main.get_node("WaveDirector")
+		var rate := director.rate_scale
+		RunModifiers.apply(main, RunModifiers.PACT_ORDER, omen)
+		var hero: Player = main.get_node("Player")
+		_check(director.rate_scale >= rate * 1.1 and hero.stats.regen <= 0.0 and is_equal_approx(hero.stats.hp, hero.stats.max_hp),
+				"%s with every pact applies" % omen)
+		main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_replay.save"
+	for f in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + f))
+	MetaProgress.load_save()
+	_check(not MetaProgress.any_won(), "pacts start locked")
+	var starred := MetaProgress.record_kills({"Ghoul": 120, "Ogre": 5})
+	_check(starred == ["Ghoul"] and MetaProgress.stars("Ghoul") == 1 and MetaProgress.total_stars() == 1, "100 kills of a kind earn a star")
+	var stats := PlayerStats.new()
+	var base := stats.bolt_damage
+	MetaProgress.apply(stats)
+	_check(stats.bolt_damage > base, "and each star is a little permanent damage")
+	MetaProgress.set_pacts(["hide", "wrath"])
+	_check(MetaProgress.record_daily("2026-10-08", 500) and not MetaProgress.record_daily("2026-10-08", 300), "the daily keeps the best")
+	MetaProgress.load_save()
+	_check(MetaProgress.bestiary.get("Ghoul", 0) == 120 and MetaProgress.pacts == ["hide", "wrath"] and MetaProgress.daily.get("2026-10-08") == 500,
+			"bestiary, pacts and daily bests survive a reload")
+	MetaProgress.save()
+	# A corrupted save falls back to the backup.
+	var f := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	f.store_string("garbage")
+	f.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.bestiary.get("Ghoul", 0) == 120, "a broken save falls back to the backup")
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(MetaProgress.save_path + suffix))
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was
+	MetaProgress.load_save()
+	var pick := Realm.daily_pick(["graveyard", "frozen"])
+	_check(pick == Realm.daily_pick(["graveyard", "frozen"]), "the daily pick is the same all day")
+
+	# Damage is credited to whoever dealt it, and never more than the enemy had.
+	var foes := EnemySwarm.new()
+	foes.capacity = 4
+	root.add_child(foes)
+	foes.spawn(Vector2.ZERO)
+	foes.hp[0] = 50.0
+	Elements.damage_by.clear()
+	Elements.source = "Obol"
+	Elements.hit(foes, 0, 30.0)
+	Elements.source = "Magic Bolt"
+	Elements.hit(foes, 0, 999.0)
+	_check(is_equal_approx(Elements.damage_by.get("Obol", 0.0), 30.0) and is_equal_approx(Elements.damage_by.get("Magic Bolt", 0.0), 20.0),
+			"the run report credits real damage by source (%s)" % [Elements.damage_by])
+	foes.free()
+	return true
+
+
+func _test_rifts() -> bool:
+	print("rifts")
+	var was := MetaProgress.disabled
+	MetaProgress.disabled = true
+	Realm.in_title = false
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	var rift: RiftDirector = main._rift
+	var hero: Player = main.get_node("Player")
+	var grunts: EnemySwarm = main.get_node("Grunts")
+	for f in 5:
+		main._process(1.0 / 60.0)
+	hero.global_position = Vector3(12, 0, 7)
+	grunts.spawn(Vector2(15, 7))
+	var foe_at := grunts.pos[grunts.count - 1]
+	var hp := hero.stats.hp
+	var clock: float = main.elapsed
+	_check(rift.can_open(), "a rift can open early in the night")
+	rift.enter_market()
+	_check(rift.in_market() and hero.pos2.distance_to(RiftDirector.MARKET_AT) < 1.0, "the market takes the hero far away")
+	_check(not grunts.visible, "and hides the horde")
+	for f in 120:
+		main._process(1.0 / 60.0)
+	_check(main.elapsed == clock and grunts.pos[grunts.count - 1] == foe_at, "the realm holds still (clock and horde)")
+	main._run_shards = 20
+	_check(rift.buy("rare") and main._run_shards == 12, "the Bone Merchant sells a Rare for 8 shards")
+	_check(not rift.buy("rare"), "once per visit")
+	var rerolls: int = main._rerolls
+	_check(rift.buy("rerolls") and main._rerolls == rerolls + 2, "the Fortune Teller sells rerolls")
+	_check(not rift.buy("elixir") or main._run_shards >= 0, "can't spend shards you don't have")
+	rift.leave_market()
+	_check(not rift.in_market() and hero.pos2.distance_to(Vector2(12, 7)) < 1.0 and grunts.visible, "leaving puts the hero back where they were")
+	_check(hero.invulnerable, "with a moment's grace")
+	_near(hero.stats.hp, hp, "and nothing else changed", 5.0)
+	for f in 120:
+		main._process(1.0 / 60.0)
+	_check(not hero.invulnerable and main.elapsed > clock, "then the night goes on")
+	rift.enter_market()
+	rift._market["left"] = 0.01
+	main._process(1.0 / 60.0)
+	_check(not rift.in_market(), "the market fades on its own")
+	rift.start_glitch()
+	_check(rift.glitching(), "the glitch starts")
+	var drops := (main.get_node("Loot") as LootManager).drops.size()
+	rift.glitch_left = 0.01
+	rift.tick(0.02)
+	_check(not rift.glitching() and (main.get_node("Loot") as LootManager).drops.size() == drops + 2, "and surviving it leaves a gift")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.disabled = was
+	return true
