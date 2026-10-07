@@ -379,7 +379,7 @@ func start_glitch() -> void:
 	glitch_left = GLITCH_TIME
 	_overlay.visible = true
 	Sound.play("overload", 0.5)
-	announced.emit("GLITCH!  The world remembers an older game. Double XP and souls for %d s!" % int(GLITCH_TIME), GLITCH_COLOR)
+	announced.emit("GLITCH!  The world remembers an older game. Double XP and souls for %d s, then it goes back to normal." % int(GLITCH_TIME), GLITCH_COLOR)
 
 
 func _end_glitch() -> void:

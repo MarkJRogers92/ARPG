@@ -316,7 +316,12 @@ func _process(delta: float) -> void:
 	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
-	_hud.set_bet(_ferryman.bet_text if _ferryman.bet_text != "" else (_rival.hint if _rival.hint != "" else _final_mech.hint))
+	var hint := _ferryman.bet_text
+	if hint == "" and _rift.glitch_left > 0.0:
+		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
+	if hint == "":
+		hint = _rival.hint if _rival.hint != "" else _final_mech.hint
+	_hud.set_bet(hint)
 	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
