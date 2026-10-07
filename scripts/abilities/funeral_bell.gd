@@ -56,6 +56,7 @@ func ring() -> void:
 	Juice.ring(at, Color(0.6, 0.55, 1.0), 40, stats.bell_radius * 1.4, 0.5, 0.5)
 	Juice.flash(at, COLOR, 6.0, stats.bell_radius * 2.0, 0.4)
 	Juice.shake(0.3)
+	Juice.hitstop(0.06)
 	Sound.play("funeral_bell")
 
 

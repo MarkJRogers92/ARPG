@@ -68,6 +68,8 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_gravedigger(kit, skin)
 		"collector":
 			_collector(kit, skin)
+		"phylactery":
+			_phylactery(kit, skin)
 		"goblin":
 			_goblin(kit, skin)
 		_:
@@ -248,6 +250,17 @@ static func _collector(k: MeshKit, skin: Color) -> void:
 	k.capsule(0.035, 0.38, MeshKit.at(Vector3(0.2, 0.7, -0.05), Vector3(15, 0, -12)), coat, 0.0, 5)
 	for i in 6:
 		k.sphere(0.035, MeshKit.at(Vector3(0.24 + 0.02 * sin(i), 0.5 - i * 0.07, -0.08)), gold, 1.4, 5, 2)
+
+
+## A phylactery: a soul crystal in a bone cradle (the Lich King's ward).
+static func _phylactery(k: MeshKit, skin: Color) -> void:
+	var bone := Color(0.82, 0.8, 0.7)
+	k.cylinder(0.32, 0.36, 0.12, MeshKit.at(Vector3(0, 0.06, 0)), Color(0.25, 0.25, 0.28), 0.0, 8)
+	for a in 4:
+		var ang := a * TAU / 4.0
+		k.capsule(0.035, 0.5, MeshKit.at(Vector3(cos(ang) * 0.22, 0.35, sin(ang) * 0.22), Vector3(sin(ang) * 18.0, 0, -cos(ang) * 18.0)), bone, 0.0, 5)
+	k.sphere(0.2, MeshKit.at(Vector3(0, 0.62, 0), Vector3(0, 45, 0), Vector3(0.8, 1.6, 0.8)), skin, 2.2, 6, 3, true)
+	k.sphere(0.12, MeshKit.at(Vector3(0, 0.62, 0)), Color(0.85, 0.95, 1.0), 3.0, 6, 3)
 
 
 ## The Ogre Warlord: a brute in a crown and iron plate with a great hammer.

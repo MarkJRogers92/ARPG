@@ -137,6 +137,44 @@ pitch variation, how many at once) so a thousand kills a second makes a crunchy
 patter, not a wall of noise. Music and effects go through their own buses,
 which the pause menu's sliders control.
 
+## Weapons, paths and finales
+
+**Reaping Scythe** (level-up card): thrown toward the nearest enemy (or your
+aim), it spins out about 8 m and flies back to wherever you are. It cuts each
+enemy once on the way out and once on the way back, and the return cut does
+1.5x. Walking reshapes the second cut.
+
+**Funeral Bell** (level-up card): every kill within 11 m adds a toll. At 30
+tolls (fewer with ranks) it rings: a shockwave around you that hurts
+everything in reach and hurls the horde back. Its own kills don't refill it.
+
+**Paths:** at level 10 each hero chooses one of three paths for the night,
+shown as cards (`scripts/specializations.gd`):
+
+| Hero | Paths |
+|---|---|
+| Battlemage | Arcane Sniper (pierce and range, one bolt fewer) · Artillery (+2 bolts, weaker) · Spellblade (Frost Aura, speed, weaker bolts) |
+| Necromancer | Lord of Champions (stronger, fewer minions) · Endless Legion (+4 army, frailer) · Grim Reaper (the Scythe, smaller army) |
+| Pyromancer | Wildfire (ignite and burn) · Detonator (Nova and reactions, less health) · Frostfire (chill and melt) |
+| Stormcaller | Arc Master (+4 jumps) · Thunderstrike (heavy lightning and the Funeral Bell) · Tempest (dash, speed) |
+
+**Final bosses** (`scripts/final_mechanics.gd`) each pose one problem, on top
+of the shared slams, shot rings and summons:
+
+- **The Lich King:** at 66% and 33% health he wards himself and raises three
+  phylacteries around you. He takes no damage until they're shattered.
+- **The Frost Colossus:** every 12 s, four lines of ice race out from him
+  (step off them). Then he's exposed for 3 s and takes double damage.
+- **The Ashen Tyrant:** four cinder seals take 75% of his damage. He calls
+  meteors down on you; stand by a seal so a meteor breaks it.
+
+**Feel:**
+- Elite kills and bell tolls land a tiny hit-stop, and the final kill drops
+  into slow motion.
+- Bosses arrive with a title card.
+- Killing fast builds **Frenzy** (shown by the kill count): three tiers of
+  faster bolts and movement that drain away when you stop.
+
 ## The Ferryman's bargains
 
 A spectral boatman who trades in souls and risk (`scripts/ferryman.gd`,

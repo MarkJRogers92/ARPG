@@ -22,6 +22,7 @@ var _pending := ""
 var _menu_frame := -10
 var _title_only := false
 var _ferry := false
+var _finale := false
 const _WALK := ["move_right", "move_down", "move_left", "move_up"]
 
 
@@ -35,6 +36,7 @@ func _initialize() -> void:
 	var crowd := args.size() > 2 and args[2] == "crowd"
 	_title_only = args.size() > 2 and args[2] == "title"
 	_ferry = args.size() > 2 and args[2] == "ferryman"
+	_finale = args.size() > 2 and args[2] == "finale"
 	if args.size() > 3:
 		Realm.current = args[3]
 	seed(7)
@@ -64,6 +66,27 @@ func _process(_delta: float) -> bool:
 		return false
 	var hud: Hud = _main.get_node("Hud")
 	var player: Player = _main.get_node("Player")
+	if _finale:
+		player.stats.hp = player.stats.max_hp
+		var bosses: BossDirector = _main.get_node("BossDirector")
+		var final: EnemySwarm = _main.get_node("FinalBoss")
+		if _frame == 2:
+			(_main.get_node("WaveDirector") as WaveDirector).elapsed = bosses.run_length - 0.5
+			(_main.get_node("WaveDirector") as WaveDirector).rate_scale = 0.3
+		if _frame == 70:
+			_save("finale_title")
+		if _frame == 72 and final.count > 0:
+			var mech: FinalMechanics = _main._final_mech
+			match mech.kind():
+				"lich": final.hp[0] = mech._max_hp * 0.6
+				"colossus": mech._timer = 0.0
+				"tyrant": mech._timer = 0.0
+			final.pos[0] = player.pos2 + Vector2(0, -7)
+		if _frame == 130:
+			_save("finale_mechanic")
+			quit(0)
+			return true
+		return false
 	if _ferry:
 		var f: Ferryman = _main._ferryman
 		if _frame == 2:

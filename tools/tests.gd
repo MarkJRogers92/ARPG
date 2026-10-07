@@ -51,6 +51,7 @@ func _finish() -> void:
 	_run(&"_test_specialists", _test_specialists())
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
+	_run(&"_test_final_mechanics", _test_final_mechanics())
 
 	print("")
 	if _failures == 0:
@@ -1821,4 +1822,72 @@ func _test_new_tools() -> bool:
 	player.stats.remove_source("test")
 	for n: Node in [foes, player]:
 		n.free()
+	return true
+
+
+func _test_final_mechanics() -> bool:
+	print("final boss mechanics")
+	var was := Realm.current
+	for realm: String in ["graveyard", "frozen", "ember"]:
+		Realm.current = realm
+		var player: Player = load("res://scenes/player.tscn").instantiate()
+		root.add_child(player)
+		var director := WaveDirector.new()
+		root.add_child(director)
+		var final := EnemySwarm.new()
+		final.capacity = 2
+		final.boss = true
+		final.max_hp = 1000.0
+		final.move_speed = 0.0
+		root.add_child(final)
+		var wards := EnemySwarm.new()
+		wards.capacity = 4
+		wards.move_speed = 0.0
+		wards.recycle_distance = 400.0
+		root.add_child(wards)
+		director.setup([final, wards] as Array[EnemySwarm])
+		var mech := FinalMechanics.new()
+		root.add_child(mech)
+		mech.setup(final, wards, player, director)
+		final.spawn(Vector2(0, -8))
+		mech.tick(0.016)
+		match realm:
+			"graveyard":
+				final.damage(0, 400.0)
+				mech.tick(0.016)
+				_check(wards.alive_count() == 3 and final.damage_taken == 0.0, "the Lich King wards himself with three phylacteries")
+				var hp := final.hp[0]
+				final.damage(0, 100.0)
+				_check(final.hp[0] == hp, "and takes no damage while they stand")
+				for k in wards.count:
+					wards.damage(k, 1.0e9)
+				wards.step(0.0, Vector2.ZERO)
+				mech.tick(0.016)
+				_check(final.damage_taken == 1.0, "shattering them breaks the ward")
+			"frozen":
+				mech._timer = 0.0
+				mech.tick(0.016)
+				_check(mech._lines.size() == 4, "the Colossus cracks four lines of ice")
+				player.global_position = Vector3(30, 0, 30)
+				for f in 90:
+					mech.tick(1.0 / 60.0)
+				_check(final.damage_taken == 2.0, "then he's exposed: double damage")
+				for f in int(FinalMechanics.EXPOSED_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(final.damage_taken == 1.0, "for a few seconds")
+			"ember":
+				_check(mech.seals_left() == 4 and is_equal_approx(final.damage_taken, 0.25), "four cinder seals shield the Tyrant")
+				var seal: Vector2 = mech._seals[0]["at"]
+				player.global_position = Vector3(seal.x, 0, seal.y)
+				mech._timer = 0.0
+				for f in 100:
+					mech.tick(1.0 / 60.0)
+				_check(mech.seals_left() == 3, "a meteor lured onto a seal breaks it")
+		final.damage(0, 1.0e9)
+		final.step(0.0, Vector2.ZERO)
+		mech.tick(0.016)
+		_check(mech.hint == "" and wards.alive_count() == 0 and mech.seals_left() == 0, "%s: everything clears when he dies" % realm)
+		for n: Node in [mech, wards, final, director, player]:
+			n.free()
+	Realm.current = was
 	return true

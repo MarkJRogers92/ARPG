@@ -49,6 +49,10 @@ var _blessing_label: Label
 var _prompt_label: Label
 var _bet_label: Label
 var _upgrade_title: Label
+var _frenzy_label: Label
+var _title_card: VBoxContainer
+var _title_main: Label
+var _title_sub: Label
 var _upgrade_subtitle: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
@@ -129,6 +133,26 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 		_blessing_label.text = "✦ Blessing of %s   %d s" % [blessing_name, ceili(seconds)]
 		_blessing_label.add_theme_color_override("font_color", color)
 		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
+
+
+## A boss arrives: its name across the screen for a moment.
+func title_card(boss_name: String, subtitle: String, color: Color) -> void:
+	_title_main.text = boss_name.to_upper()
+	_title_main.add_theme_color_override("font_color", color)
+	_title_sub.text = subtitle
+	var t := _title_card.create_tween()
+	_title_card.scale = Vector2(1.15, 1.15)
+	_title_card.pivot_offset = _title_card.size * 0.5
+	t.set_parallel()
+	t.tween_property(_title_card, "modulate:a", 1.0, 0.35)
+	t.tween_property(_title_card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.chain().tween_interval(1.8)
+	t.chain().tween_property(_title_card, "modulate:a", 0.0, 0.7)
+
+
+## The Frenzy tier next to the kill count (0 hides it).
+func set_frenzy(tier: int) -> void:
+	_frenzy_label.text = "FRENZY %s" % "I".repeat(tier) if tier > 0 else ""
 
 
 ## The Ferryman's side bet countdown ("" hides it).
@@ -385,6 +409,11 @@ func _build() -> void:
 	kills_row.add_child(skull)
 	_kills_label = UiStyle.label(24)
 	kills_row.add_child(_kills_label)
+	_frenzy_label = UiStyle.label(18)
+	_frenzy_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.25))
+	_frenzy_label.add_theme_constant_override("outline_size", 6)
+	_frenzy_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kills_row.add_child(_frenzy_label)
 	var gem := _ShardIcon.new()
 	gem.custom_minimum_size = Vector2(22, 26)
 	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -461,6 +490,28 @@ func _build() -> void:
 	_blessing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
+
+	# A boss's name, big, when it arrives.
+	_title_card = VBoxContainer.new()
+	_title_card.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_title_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_title_card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_title_card.offset_top = -300
+	_title_card.offset_bottom = -190
+	_title_card.offset_left = -600
+	_title_card.offset_right = 600
+	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_card.modulate.a = 0.0
+	root.add_child(_title_card)
+	_title_sub = UiStyle.label(18)
+	_title_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_sub.modulate = Color(1, 1, 1, 0.75)
+	_title_card.add_child(_title_sub)
+	_title_main = UiStyle.label(56)
+	_title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_main.add_theme_constant_override("outline_size", 14)
+	_title_main.add_theme_color_override("font_outline_color", Color(0.1, 0.0, 0.0, 0.95))
+	_title_card.add_child(_title_main)
 
 	# Under the blessing: the Ferryman's side bet.
 	_bet_label = UiStyle.label(18)
