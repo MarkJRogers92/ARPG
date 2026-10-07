@@ -355,6 +355,11 @@ func _ascension_row() -> Control:
 
 func _fill_bestiary() -> void:
 	var lines := ["BESTIARY   ·   %d ★  (+%d%% damage, for good)" % [MetaProgress.total_stars(), MetaProgress.total_stars()], ""]
+	if not MetaProgress.nemesis.is_empty():
+		var n := MetaProgress.nemesis
+		lines.insert(1, "YOUR NEMESIS:  %s   ·   rank %d   ·   %d of your souls stolen" % [n["name"], n["rank"], n["stolen"]])
+	if MetaProgress.nemeses_slain > 0:
+		lines.insert(1, "Nemeses destroyed: %d" % MetaProgress.nemeses_slain)
 	var kinds := MetaProgress.bestiary.keys()
 	kinds.sort_custom(func(a, b) -> bool: return MetaProgress.bestiary[a] > MetaProgress.bestiary[b])
 	if kinds.is_empty():

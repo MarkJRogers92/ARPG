@@ -838,6 +838,7 @@ func _on_player_died() -> void:
 	Sound.play("defeat")
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
+	_rival.hero_fell()
 	# The night is settled now (the Crypt gets its veteran before the army falls).
 	_death_shards = _settle_run(elapsed - _endless_start)
 	# The fall: time slows, the army bursts apart, the hero's souls scatter.

@@ -61,6 +61,12 @@ static var crypt: Array = []
 ## Ascension: the level chosen for the next nights, and the highest unlocked
 ## (winning a realm at level N unlocks N + 1; see RunModifiers.ASCENSION).
 static var ascension := 0
+## The nemesis: a rival necromancer that escaped (or saw the hero fall) and
+## will return, stronger: {"name", "rank", "stolen", "escapes"}, or {}.
+## nemeses_slain counts the ones put down for good.
+static var nemesis := {}
+static var nemeses_slain := 0
+const NEMESIS_MAX_RANK := 5
 static var ascension_unlocked := 0
 static var fallen: Array = []
 static var crypt_chosen := -1
@@ -90,6 +96,8 @@ static func load_save() -> void:
 	crypt_chosen = -1
 	ascension = 0
 	ascension_unlocked = 0
+	nemesis = {}
+	nemeses_slain = 0
 	if disabled:
 		return
 	var data = _read(save_path)
@@ -130,6 +138,10 @@ static func load_save() -> void:
 		crypt_chosen = int(data.get("crypt_chosen", -1))
 		ascension_unlocked = clampi(int(data.get("ascension_unlocked", 0)), 0, RunModifiers.ASCENSION_MAX)
 		ascension = clampi(int(data.get("ascension", 0)), 0, ascension_unlocked)
+		var saved_nemesis = data.get("nemesis", {})
+		if saved_nemesis is Dictionary and saved_nemesis.has("name"):
+			nemesis = saved_nemesis
+		nemeses_slain = int(data.get("nemeses_slain", 0))
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
@@ -157,7 +169,8 @@ static func save() -> void:
 			"settings": settings, "classes": classes, "hero_class": hero_class,
 			"bestiary": bestiary, "pacts": pacts, "daily": daily,
 			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
-			"ascension": ascension, "ascension_unlocked": ascension_unlocked})
+			"ascension": ascension, "ascension_unlocked": ascension_unlocked,
+			"nemesis": nemesis, "nemeses_slain": nemeses_slain})
 	file.close()
 	var dir := DirAccess.open(save_path.get_base_dir())
 	if dir == null:
@@ -235,6 +248,29 @@ static func record_ascension_win(level: int) -> bool:
 	ascension_unlocked = level + 1
 	save()
 	return true
+
+
+## A rival got away (or outlived the hero): it will be back, a rank stronger.
+static func nemesis_escaped(rival_name: String, stolen: int) -> void:
+	_ensure_loaded()
+	if disabled:
+		return
+	if nemesis.get("name", "") != rival_name:
+		nemesis = {"name": rival_name, "rank": 0, "stolen": 0, "escapes": 0}
+	nemesis["rank"] = mini(int(nemesis["rank"]) + 1, NEMESIS_MAX_RANK)
+	nemesis["stolen"] = int(nemesis["stolen"]) + stolen
+	nemesis["escapes"] = int(nemesis["escapes"]) + 1
+	save()
+
+
+## The nemesis is destroyed for good.
+static func nemesis_slain() -> void:
+	_ensure_loaded()
+	if disabled:
+		return
+	nemesis = {}
+	nemeses_slain += 1
+	save()
 
 
 ## Lays a veteran to rest (or brings one back to rest, with its new deeds).

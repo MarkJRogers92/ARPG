@@ -294,6 +294,14 @@ Kill it in time and **its army is yours**: up to 6 of its thralls (at least
 army's usual size. It also drops a Legendary and 15 Soul Shards. No rift
 opens while it's about.
 
+**The nemesis.** A rival that escapes, or is still about when you fall,
+comes back the next night under the same name, one rank stronger (up to 5),
+and taunts you with what it took. Each rank adds 40% health, 10 s before it
+flees, an extra thrall at the start and 4 more at most, quicker blinks and a
+greedier drain. Putting a nemesis down pays a Legendary and the 15 shards
+once more per rank, and clears it; the Bestiary shows your current nemesis
+(`MetaProgress.nemesis`).
+
 ## Landmarks you can use
 
 Some set pieces do something (`scripts/landmarks.gd`). Usable ones near the

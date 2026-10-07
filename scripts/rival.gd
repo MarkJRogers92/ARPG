@@ -13,6 +13,11 @@ extends Node3D
 ## Kill it in time and its army is yours: up to CLAIM of its thralls (and its
 ## own shade, as a champion) join the Soul Army, past the army's usual size,
 ## plus a Legendary and run shards.
+##
+## A nemesis: a rival that escapes, or is still about when the hero falls,
+## comes back next night under the same name, a rank stronger (up to 5):
+## tougher, more thralls, quicker blinks, greedier drains, and it remembers.
+## Putting a nemesis down pays a Legendary and the shards again per rank.
 
 signal announced(text: String, color: Color)
 
@@ -30,6 +35,11 @@ const MAX_THRALLS := 24
 const CLAIM := 6
 const SHARDS := 15
 const COLOR := Color(1.0, 0.35, 0.42)
+const TAUNTS := [
+	"%s returns. \"Your %d souls served me well. I've come for the rest.\"",
+	"%s is back. \"You let me go %d times... no, I let YOU live.\"",
+	"%s rises again. \"Every soul you lose makes me stronger.\"",
+]
 const NAMES := ["Vael the Usurper", "Morgana Ashveil", "Calder the Hollow", "Isra of the Black Choir", "Thessaly Graverend", "Oren the Unquiet"]
 
 ## What the HUD shows under the timer while the rival is about ("" otherwise).
@@ -39,6 +49,8 @@ var rival_name := ""
 var stolen := 0
 var arrived := false
 var defeated := false
+## The nemesis rank this rival came back at (0: a new rival).
+var rank := 0
 
 var _main: Node
 var _rival: EnemySwarm
@@ -88,13 +100,14 @@ func tick(delta: float) -> void:
 	if i < 0:
 		return
 	_left -= delta
+	var blink_cooldown := BLINK_COOLDOWN * maxf(1.0 - 0.12 * rank, 0.4)
 	var at := _rival.pos[i]
 	if _ring:
 		_ring.position = Vector3(at.x, 0.07, at.y)
 	# Blink away from the hero.
 	_blink -= delta
 	if _blink <= 0.0 and at.distance_to(_player.pos2) < BLINK_RANGE:
-		_blink = BLINK_COOLDOWN
+		_blink = blink_cooldown
 		var to := at
 		for attempt in 12:
 			var p := _player.pos2 + Vector2.from_angle(randf() * TAU) * randf_range(10.0, 13.0)
@@ -116,7 +129,7 @@ func tick(delta: float) -> void:
 	if _drain <= 0.0:
 		_drain = DRAIN_INTERVAL
 		if at.distance_to(_player.pos2) < DRAIN_RANGE and _army.souls > 0:
-			var n := mini(DRAIN_AMOUNT, _army.souls)
+			var n := mini(DRAIN_AMOUNT + rank, _army.souls)
 			_army.souls -= n
 			_beam(_player.pos2, at)
 			_steal(n, at)
@@ -134,23 +147,37 @@ func tick(delta: float) -> void:
 ## The rival appears (also used by tests and screenshots).
 func arrive() -> void:
 	arrived = true
-	rival_name = NAMES.pick_random()
+	var nem := MetaProgress.nemesis
+	rank = int(nem.get("rank", 0))
+	rival_name = nem.get("name", NAMES.pick_random())
 	_rival.display_name = rival_name
 	var at := EnemySwarm.random_ring_point(_player.pos2, 14.0, 16.0)
-	if not _rival.spawn(at, _director.hp_multiplier()):
+	if not _rival.spawn(at, _director.hp_multiplier() * (1.0 + 0.4 * rank)):
 		return
-	_left = LINGER
+	_left = LINGER + 10.0 * rank
 	_blink = 1.5
 	_ring = HazardDirector.make_decal(self, at, Color(COLOR, 0.7), 1.0, 3.2)
-	for k in 3:
+	for k in 3 + rank:
 		_raise_thrall(at)
 	Juice.ring(at, COLOR, 40, 10.0, 0.6, 0.7)
 	Juice.flash(at, COLOR, 6.0, 12.0, 0.6)
 	Sound.play("boss_title", 0.9, -3.0)
-	announced.emit("%s, a rival necromancer, has come for your souls! Kill them before they escape." % rival_name, COLOR)
 	var hud := _main.get_node_or_null("Hud") as Hud
-	if hud:
-		hud.title_card(rival_name, "A RIVAL NECROMANCER", COLOR)
+	if rank > 0:
+		announced.emit(_taunt(nem), COLOR)
+		if hud:
+			hud.title_card(rival_name, "YOUR NEMESIS RETURNS  ·  RANK %d" % rank, COLOR)
+	else:
+		announced.emit("%s, a rival necromancer, has come for your souls! Kill them before they escape." % rival_name, COLOR)
+		if hud:
+			hud.title_card(rival_name, "A RIVAL NECROMANCER", COLOR)
+
+
+func _taunt(nem: Dictionary) -> String:
+	match rank % TAUNTS.size():
+		0: return TAUNTS[0] % [rival_name, int(nem.get("stolen", 0))]
+		1: return TAUNTS[1] % [rival_name, int(nem.get("escapes", 1))]
+		_: return TAUNTS[2] % rival_name
 
 
 func _index() -> int:
@@ -170,7 +197,7 @@ func _steal(n: int, at: Vector2) -> void:
 
 
 func _raise_thrall(at: Vector2) -> void:
-	if _thralls.alive_count() >= MAX_THRALLS:
+	if _thralls.alive_count() >= MAX_THRALLS + 4 * rank:
 		return
 	var p := at + Vector2.from_angle(randf() * TAU) * randf_range(1.5, 3.0)
 	if Obstacles.blocked(p, 0.5):
@@ -206,7 +233,14 @@ func _escape(i: int) -> void:
 	_fade_thralls()
 	_drop_ring()
 	hint = ""
-	announced.emit("%s escapes into the night with %d stolen souls." % [rival_name, stolen], Color(0.8, 0.7, 0.75))
+	MetaProgress.nemesis_escaped(rival_name, stolen)
+	announced.emit("%s escapes into the night with %d stolen souls. They will return, stronger." % [rival_name, stolen], Color(0.8, 0.7, 0.75))
+
+
+## The hero fell while the rival was about: it will remember that.
+func hero_fell() -> void:
+	if active():
+		MetaProgress.nemesis_escaped(rival_name, stolen)
 
 
 func _fade_thralls() -> void:
@@ -235,14 +269,19 @@ func _on_rival_died(at: Vector2, _xp: int) -> void:
 	_fade_thralls()
 	var claimed := _army.claim(_thralls, maxi(turned, 2))
 	var shade := _army.claim(_rival, 1, true)
-	_loot.drop(ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level), ItemData.Rarity.LEGENDARY,
-			ItemData.SLOTS.pick_random()), at + Vector2(0, 1.5))
-	_main.set("_run_shards", int(_main.get("_run_shards")) + SHARDS)
+	for k in 1 + rank:
+		_loot.drop(ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level), ItemData.Rarity.LEGENDARY,
+				ItemData.SLOTS.pick_random()), at + Vector2.from_angle(TAU * k / (1.0 + rank)) * 1.5)
+	var shards := SHARDS * (1 + rank)
+	_main.set("_run_shards", int(_main.get("_run_shards")) + shards)
+	if rank > 0:
+		MetaProgress.nemesis_slain()
 	Juice.ring(at, Color(0.5, 0.85, 1.0), 48, 12.0, 0.7, 0.8)
 	Juice.flash(at, Color(0.5, 0.85, 1.0), 6.0, 12.0, 0.6)
 	Sound.play("shrine_done")
-	announced.emit("%s is destroyed! %d thralls%s join your army. +%d Soul Shards" % [rival_name, claimed,
-			" and their shade" if shade > 0 else "", SHARDS], UiStyle.GOLD)
+	announced.emit("%s%s is destroyed%s! %d thralls%s join your army. +%d Soul Shards" % [
+			"Your nemesis " if rank > 0 else "", rival_name, " for good" if rank > 0 else "", claimed,
+			" and their shade" if shade > 0 else "", shards], UiStyle.GOLD)
 
 
 func _drop_ring() -> void:

@@ -61,6 +61,7 @@ func _finish() -> void:
 	_run(&"_test_ascension", _test_ascension())
 	_run(&"_test_stances", _test_stances())
 	_run(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
+	_run(&"_test_nemesis", _test_nemesis())
 
 	print("")
 	if _failures == 0:
@@ -2425,4 +2426,71 @@ func _test_soul_trails_and_death() -> bool:
 	main.free()
 	Obstacles.clear()
 	MetaProgress.disabled = was
+	return true
+
+
+func _test_nemesis() -> bool:
+	print("the nemesis")
+	var was := MetaProgress.disabled
+	var was_path := MetaProgress.save_path
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_nemesis.save"
+	_wipe_save()
+	MetaProgress.load_save()
+	Realm.in_title = false
+	# Night one: a new rival escapes.
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	MetaProgress.disabled = false # (main's setup leaves it as it found it)
+	var rival: RivalDirector = main._rival
+	var swarm: EnemySwarm = main.get_node("Rival")
+	var thralls: EnemySwarm = main.get_node("Thralls")
+	rival.arrive()
+	var first_hp := swarm.hp[0]
+	var first_name := rival.rival_name
+	_check(rival.rank == 0, "the first rival is no one's nemesis yet")
+	rival.stolen = 12
+	rival._left = 0.01
+	rival.tick(0.05)
+	_check(MetaProgress.nemesis.get("name", "") == first_name and MetaProgress.nemesis["rank"] == 1 and MetaProgress.nemesis["stolen"] == 12,
+			"an escaped rival becomes a nemesis")
+	main.free()
+	Obstacles.clear()
+	MetaProgress.load_save()
+	_check(MetaProgress.nemesis.get("rank", 0) == 1, "the nemesis is saved")
+
+	# Night two: it returns stronger, and the hero falls while it's about.
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	rival = main._rival
+	swarm = main.get_node("Rival")
+	thralls = main.get_node("Thralls")
+	rival.arrive()
+	_check(rival.rival_name == first_name and rival.rank == 1, "the nemesis returns by name")
+	_check(swarm.hp[0] > first_hp * 1.3 and thralls.alive_count() == 4, "a rank tougher, with more thralls")
+	rival.hero_fell()
+	_check(MetaProgress.nemesis["rank"] == 2 and MetaProgress.nemesis["escapes"] == 2, "outliving the hero ranks it up too")
+	main.free()
+	Obstacles.clear()
+
+	# Night three: put down for good.
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	rival = main._rival
+	swarm = main.get_node("Rival")
+	var loot: LootManager = main.get_node("Loot")
+	rival.arrive()
+	_check(rival.rank == 2, "it keeps climbing")
+	var drops := loot.get_child_count()
+	var shards: int = main._run_shards
+	swarm.damage(0, 1.0e12)
+	_check(main._run_shards - shards == RivalDirector.SHARDS * 3, "a nemesis pays shards per rank")
+	_check(loot.get_child_count() - drops >= 3, "and a Legendary per rank")
+	_check(MetaProgress.nemesis.is_empty() and MetaProgress.nemeses_slain == 1, "and is gone for good")
+	main.free()
+	Obstacles.clear()
+	_wipe_save()
+	MetaProgress.save_path = was_path
+	MetaProgress.disabled = was
+	MetaProgress.load_save()
 	return true
