@@ -11,7 +11,7 @@ extends RefCounted
 ##   Ascension       levels 1..10, unlocked one at a time by winning at the
 ##                   level below. Each adds one lasting rule on top of the
 ##                   ones before, lets the night's pressure (WaveDirector)
-##                   climb higher, and adds 10% to the Soul Shards you earn.
+##                   climb 10% faster, and adds 10% to the Soul Shards you earn.
 ##
 ## Applied by main.gd once the realm is set up (apply()), as stat modifiers
 ## under "pact" / "omen" / "ascension" and tweaks to the wave and boss directors.
@@ -52,7 +52,7 @@ const ASCENSION := [
 ]
 const ASCENSION_MAX := 10
 const ASCENSION_SHARDS := 0.1
-const ASCENSION_PRESSURE := 0.25
+const ASCENSION_PRESSURE := 0.1
 ## Bots and tests play with no omen (MetaProgress.disabled) unless this names one.
 static var forced_omen := ""
 ## Bots and tests: play at this Ascension (-1: the saved choice).
@@ -133,7 +133,7 @@ static func apply(main: Node, pacts: Array, omen: String, ascension := 0) -> voi
 			director.rate_scale *= 0.85
 			omen_mods.append({"stat": "xp_gain", "op": PlayerStats.Op.MORE, "value": -0.25})
 	var asc_mods := []
-	director.pressure_max += ASCENSION_PRESSURE * ascension
+	director.pressure_ramp *= 1.0 + ASCENSION_PRESSURE * ascension
 	for level in range(1, mini(ascension, ASCENSION_MAX) + 1):
 		match level:
 			1: director.hp_scale *= 1.2

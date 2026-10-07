@@ -2288,13 +2288,14 @@ func _test_ascension() -> bool:
 	var final: EnemySwarm = main.get_node("FinalBoss")
 	var hero: Player = main.get_node("Player")
 	var hp_scale := director.hp_scale
-	var pmax := director.pressure_max
+	var ramp := director.pressure_ramp
 	var final_hp := final.max_hp
 	var regen := hero.stats.regen
 	RunModifiers.apply(main, [], "", RunModifiers.ASCENSION_MAX)
 	_check(director.hp_scale > hp_scale * 1.19 and is_equal_approx(final.max_hp, final_hp * 2.0), "Ascension 10 stacks every rule")
 	_near(hero.stats.regen, regen * 0.5, "including half regeneration")
-	_near(director.pressure_max, pmax + RunModifiers.ASCENSION_PRESSURE * RunModifiers.ASCENSION_MAX, "and lets pressure climb higher")
+	_near(director.pressure_ramp, ramp * (1.0 + RunModifiers.ASCENSION_PRESSURE * RunModifiers.ASCENSION_MAX), "and lets pressure climb faster")
+	director.pressure_ramp = ramp
 	RunModifiers.apply(main, [], "", 0)
 	_near(hero.stats.regen, regen, "the stat rules come off again")
 
@@ -2303,7 +2304,7 @@ func _test_ascension() -> bool:
 	director.elapsed = 10.0
 	director.update_pressure(5.0, 1.0, 0)
 	_check(director.pressure == 1.0, "no pressure early in the night")
-	director.elapsed = 400.0
+	director.elapsed = director.pressure_start + 600.0
 	var hp1 := director.hp_multiplier()
 	director.update_pressure(20.0, 1.0, 0)
 	_check(director.pressure > 1.2 and director.hp_multiplier() > hp1 * 1.2, "a dominant hero raises the pressure (%.2f)" % director.pressure)
@@ -2319,7 +2320,10 @@ func _test_ascension() -> bool:
 	director.update_pressure(5.0, 0.3, 0)
 	_check(director.pressure < p, "a hurting hero lowers it")
 	director.update_pressure(9999.0, 1.0, 0)
-	_check(director.pressure == director.pressure_max, "pressure is capped")
+	_check(director.pressure == director.pressure_cap() and director.pressure_cap() > 5.0, "pressure is capped (%.1f)" % director.pressure_cap())
+	director.elapsed = director.pressure_start + 60.0
+	director.update_pressure(9999.0, 1.0, 0)
+	_check(director.pressure <= 1.0 + director.pressure_ramp + 0.001, "and the cap grows with the night")
 	director.update_pressure(9999.0, 0.1, 0)
 	_check(director.pressure == 1.0, "and never drops below the plain curve")
 	main.free()

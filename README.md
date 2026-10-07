@@ -184,7 +184,7 @@ which the pause menu's sliders control.
   the Soul Shards earned.
 - **Ascension** (in the Pact of Night screen): winning a realm at level N
   opens level N + 1, up to 10. Each level keeps the rules below it and adds
-  one, raises how far the night's pressure can climb (+0.25), and adds 10%
+  one, makes the night's pressure climb 10% faster, and adds 10%
   to the Soul Shards earned:
 
   | | Adds |
@@ -200,11 +200,13 @@ which the pause menu's sliders control.
   | 9 | Enemies move 10% faster |
   | 10 | The final boss has double health |
 
-- **Pressure** (`WaveDirector.update_pressure`): from 2:30 on, the night
+- **Pressure** (`WaveDirector.update_pressure`): from 6:00 on, the night
   pushes back against a hero walking through it. While the hero is above 90%
   health, pressure climbs (3% a second, twice that if fewer enemies are alive
-  than the time of night calls for, 85% of `crowd_target()`), up to ×5 plus
-  Ascension; below 45% health it falls three times as fast. Enemy health is
+  than the time of night calls for, 85% of `crowd_target()`); below 45%
+  health it falls three times as fast. Its cap grows with the night: +1.2 a
+  minute from 6:00 (about ×8 by 12:00, ×12 at most), 10% faster per
+  Ascension level. Enemy health is
   multiplied by pressure and the spawn rate by its square root (at most
   ×1.6).
 - **Bestiary** (title screen): kills of each enemy kind across every night.
