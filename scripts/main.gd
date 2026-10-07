@@ -76,6 +76,7 @@ var _pause: PauseMenu
 var _landmarks: Landmarks
 var _spec_chosen := false
 var _final_mech: FinalMechanics
+var _mid_mech: MidMechanics
 var _rift: RiftDirector
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
@@ -183,6 +184,9 @@ func _ready() -> void:
 	_final_mech = FinalMechanics.new()
 	add_child(_final_mech)
 	_final_mech.setup(_final, get_node("Phylacteries") as EnemySwarm, _player, _director)
+	_mid_mech = MidMechanics.new()
+	add_child(_mid_mech)
+	_mid_mech.setup($Bosses, _player, _director, _bosses)
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.title_card(boss_name, "Dawn is near. The master of this realm rises.", Color(1.0, 0.35, 0.3))
 		Sound.play("boss_title")
@@ -302,6 +306,7 @@ func _process(delta: float) -> void:
 	Elements.flush()
 	_army.flush()
 	_bosses.tick(delta)
+	_mid_mech.tick(delta)
 	if _bosses.final_arrived:
 		_final_mech.tick(delta)
 	if not won or _endless:
@@ -322,7 +327,7 @@ func _process(delta: float) -> void:
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
-		hint = _rival.hint if _rival.hint != "" else _final_mech.hint
+		hint = _rival.hint if _rival.hint != "" else (_final_mech.hint if _final_mech.hint != "" else _mid_mech.hint)
 	_hud.set_bet(hint)
 	_update_frenzy(delta)
 	if _dawn_sweep > 0.0:

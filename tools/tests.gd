@@ -52,6 +52,7 @@ func _finish() -> void:
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
+	_run(&"_test_mid_mechanics", _test_mid_mechanics())
 	_run(&"_test_replayability", _test_replayability())
 	_run(&"_test_rifts", _test_rifts())
 	_run(&"_test_dawn", _test_dawn())
@@ -1911,6 +1912,115 @@ func _test_final_mechanics() -> bool:
 		mech.tick(0.016)
 		_check(mech.hint == "" and wards.alive_count() == 0 and mech.seals_left() == 0, "%s: everything clears when he dies" % realm)
 		for n: Node in [mech, wards, final, director, player]:
+			n.free()
+	Realm.current = was
+	return true
+
+
+func _test_mid_mechanics() -> bool:
+	print("mid-boss moves")
+	var was := Realm.current
+	for realm: String in ["graveyard", "frozen", "ember"]:
+		Realm.current = realm
+		var player: Player = load("res://scenes/player.tscn").instantiate()
+		root.add_child(player)
+		var director := WaveDirector.new()
+		root.add_child(director)
+		var boss := EnemySwarm.new()
+		boss.capacity = 4
+		boss.boss = true
+		boss.max_hp = 100000.0
+		boss.move_speed = 0.0
+		root.add_child(boss)
+		var bosses := BossDirector.new()
+		bosses.spawned = 1
+		root.add_child(bosses)
+		var mech := MidMechanics.new()
+		root.add_child(mech)
+		mech.setup(boss, player, director, bosses)
+		Elements.player = player
+		Elements.swarms = [boss] as Array[EnemySwarm]
+		boss.spawn(Vector2(0, -8))
+		boss.step(0.0, Vector2.ZERO) # builds the spatial hash
+		mech.tick(0.016)
+		var st: Dictionary = mech._state[boss.ids[0]]
+		match realm:
+			"graveyard":
+				_check(mech.kind() == "warlord", "the graveyard's mid-boss is the Warlord")
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.waves() == 1, "the Warlord stamps and a shockwave starts")
+				var hp := player.stats.hp
+				for f in 30:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp, "it winds up before it moves")
+				for f in 200:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp < hp, "a hero who stays put is hit as it rolls over")
+				_check(mech.waves() == 0, "and it dies out at its full reach")
+				# Dashing through is safe.
+				player.stats.hp = player.stats.max_hp
+				hp = player.stats.hp
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				for f in 200:
+					player._dash_time = 1.0
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp, "a dash through the wave takes nothing")
+				# A hero out of its reach isn't bothered at all.
+				player.global_position = Vector3(60, 0, 60)
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.waves() == 0, "the Warlord doesn't stamp at a hero far away")
+			"frozen":
+				_check(mech.kind() == "chieftain", "the frozen mid-boss is the Chieftain")
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.RIME_TAKEN) and mech.hint != "",
+						"the Chieftain grows rime armor: he takes far less")
+				boss.chill[0] = 3.0
+				mech.tick(0.016)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.RIME_TAKEN), "chill in the first instant doesn't crack it")
+				for f in int(MidMechanics.RIME_GRACE * 60.0) + 2:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.CRACK_TAKEN), "chilling him cracks it: he's brittle (%s)" % boss.damage_taken)
+				boss.chill[0] = 0.0
+				for f in int(MidMechanics.CRACK_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, 1.0), "then he's back to normal")
+				# Unchilled, the armor just runs out.
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				for f in int(MidMechanics.RIME_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, 1.0) and st["timer"] > 0.0, "an armor nobody cracked wears off")
+			"ember":
+				_check(mech.kind() == "magma", "the ember mid-boss is the Magma Lord")
+				player.global_position = Vector3(0, 0, -8)
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.pools() == 1, "the Magma Lord leaves a pool of lava")
+				var hp2 := player.stats.hp
+				for f in 30:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp2, "it only erupts after a warning")
+				for f in 90:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp < hp2, "then it burns a hero standing in it")
+				for f in int(MidMechanics.POOL_LIFE * 60.0):
+					mech.tick(1.0 / 60.0)
+				_check(mech.pools() <= 3, "and pools burn out in time (%d left)" % mech.pools())
+				bosses.spawned = 3
+				st["timer"] = 0.0
+				var before := mech.pools()
+				mech.tick(0.016)
+				_check(mech.pools() >= before + 2, "from the third boss on, some land near the hero too")
+		boss.damage(0, 1.0e9)
+		boss.step(0.0, Vector2.ZERO)
+		mech.tick(0.016)
+		_check(is_equal_approx(boss.damage_taken, 1.0), "%s: nothing lingers when he dies" % realm)
+		Elements.swarms = [] as Array[EnemySwarm]
+		for n: Node in [mech, bosses, boss, director, player]:
 			n.free()
 	Realm.current = was
 	return true
