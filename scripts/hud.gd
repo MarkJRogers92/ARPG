@@ -755,6 +755,16 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	var level: int = choice.get("level", 0)
 	tag.text = "NEW" if level == 1 else ("" if level == 0 else "RANK %d" % level)
 	tag.add_theme_color_override("font_color", UiStyle.GOLD if level == 1 else Color(color, 0.85))
+	if choice.has("tag"):
+		tag.text = choice["tag"]
+		tag.add_theme_color_override("font_color", UiStyle.GOLD)
+		normal.border_color = UiStyle.GOLD
+		normal.border_width_left = 3
+		normal.border_width_right = 3
+		normal.border_width_top = 3
+		normal.border_width_bottom = 3
+		normal.shadow_color = Color(UiStyle.GOLD, 0.45)
+		normal.shadow_size = 18
 	top.add_child(tag)
 
 	var icon := UiIcons.new()

@@ -19,6 +19,8 @@ var _pact_overlay: Control
 var _pact_box: VBoxContainer
 var _pact_button: Button
 var _bestiary_overlay: Control
+var _crypt_overlay: Control
+var _crypt_box: VBoxContainer
 var _bestiary_label: Label
 
 
@@ -45,7 +47,7 @@ func is_open() -> bool:
 func _input(event: InputEvent) -> void:
 	if not is_open() or not event.is_action_pressed("ui_cancel"):
 		return
-	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay]:
+	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay]:
 		if overlay and overlay.visible:
 			overlay.hide()
 			_refresh_pact_button()
@@ -120,18 +122,18 @@ func _build() -> void:
 	column.add_child(gap2)
 	var bottom := HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom.add_theme_constant_override("separation", 14)
+	bottom.add_theme_constant_override("separation", 10)
 	column.add_child(bottom)
 	var altar_button := Button.new()
 	altar_button.text = "Altar of Souls   ·   %d ◆" % MetaProgress.shards
-	altar_button.custom_minimum_size = Vector2(280, 46)
+	altar_button.custom_minimum_size = Vector2(250, 46)
 	altar_button.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
 	altar_button.pressed.connect(func() -> void:
 		_altar.refresh()
 		_altar_overlay.show())
 	bottom.add_child(altar_button)
 	_pact_button = Button.new()
-	_pact_button.custom_minimum_size = Vector2(250, 46)
+	_pact_button.custom_minimum_size = Vector2(235, 46)
 	_pact_button.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
 	_pact_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
@@ -140,16 +142,26 @@ func _build() -> void:
 	bottom.add_child(_pact_button)
 	var bestiary_button := Button.new()
 	bestiary_button.text = "Bestiary   ·   %d ★" % MetaProgress.total_stars()
-	bestiary_button.custom_minimum_size = Vector2(200, 46)
+	bestiary_button.custom_minimum_size = Vector2(180, 46)
 	bestiary_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_bestiary()
 		_bestiary_overlay.show())
 	bottom.add_child(bestiary_button)
+	var crypt_button := Button.new()
+	crypt_button.text = "The Crypt   ·   %d" % MetaProgress.crypt.size()
+	crypt_button.tooltip_text = "Veterans of past nights. Choose one to rise beside you."
+	crypt_button.custom_minimum_size = Vector2(170, 46)
+	crypt_button.add_theme_color_override("font_color", Army.VETERAN_COLOR)
+	crypt_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		_fill_crypt()
+		_crypt_overlay.show())
+	bottom.add_child(crypt_button)
 	var daily_button := Button.new()
 	daily_button.text = "Daily Night"
 	daily_button.tooltip_text = "Today's realm, omen and seed are the same for every run today. Beat your best kill count."
-	daily_button.custom_minimum_size = Vector2(170, 46)
+	daily_button.custom_minimum_size = Vector2(150, 46)
 	daily_button.add_theme_color_override("font_color", UiStyle.GOLD)
 	daily_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
@@ -159,7 +171,7 @@ func _build() -> void:
 	bottom.add_child(daily_button)
 	var quit := Button.new()
 	quit.text = "Quit"
-	quit.custom_minimum_size = Vector2(140, 46)
+	quit.custom_minimum_size = Vector2(100, 46)
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	bottom.add_child(quit)
 
@@ -172,6 +184,11 @@ func _build() -> void:
 	_bestiary_label = UiStyle.label(16)
 	_bestiary_label.custom_minimum_size = Vector2(520, 0)
 	(_bestiary_overlay.get_meta("box") as VBoxContainer).add_child(_bestiary_label)
+	_crypt_overlay = _overlay()
+	_crypt_box = VBoxContainer.new()
+	_crypt_box.add_theme_constant_override("separation", 10)
+	_crypt_box.custom_minimum_size.x = 620
+	(_crypt_overlay.get_meta("box") as VBoxContainer).add_child(_crypt_box)
 	_refresh_pact_button()
 
 	# The Altar, over everything.
@@ -414,3 +431,53 @@ func _realm_card(id: String) -> Button:
 		status.add_theme_color_override("font_color", accent)
 	col.add_child(status)
 	return card
+
+
+func _fill_crypt() -> void:
+	for child in _crypt_box.get_children():
+		child.queue_free()
+	var title := UiStyle.label(30)
+	title.text = "THE CRYPT"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Army.VETERAN_COLOR)
+	_crypt_box.add_child(title)
+	var hint := UiStyle.label(15)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.modulate = Color(1, 1, 1, 0.75)
+	hint.text = "Minions that kill enough earn a name. After a night, your greatest veteran rests here.\nThe one you choose rises beside you when the next night begins. If it falls, it's gone for good."
+	_crypt_box.add_child(hint)
+	if MetaProgress.crypt.is_empty():
+		var empty := UiStyle.label(17)
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.text = "\nThe Crypt is empty. A minion needs %d kills to earn a name." % Army.RANKS[1]["kills"]
+		_crypt_box.add_child(empty)
+	var group := ButtonGroup.new()
+	group.allow_unpress = true
+	for v: Dictionary in MetaProgress.crypt:
+		var b := CheckBox.new()
+		b.button_group = group
+		var rank: int = clampi(int(v["rank"]), 0, Army.RANKS.size() - 1)
+		b.text = "%s  %s   ·   %s %s, %s   ·   %d kills   ·   %d night%s" % ["★".repeat(rank), v["name"], v["label"],
+				Army.ROLES.get(v["role"], {"label": ""})["label"], Army.RANKS[rank]["label"], v["deeds"], v.get("nights", 1),
+				"" if v.get("nights", 1) == 1 else "s"]
+		b.add_theme_font_size_override("font_size", 17)
+		b.add_theme_color_override("font_color", Army.VETERAN_COLOR)
+		b.button_pressed = v["id"] == MetaProgress.crypt_chosen
+		var id: int = v["id"]
+		b.toggled.connect(func(on: bool) -> void:
+			Sound.play("ui_click")
+			if on:
+				MetaProgress.choose_veteran(id)
+			elif MetaProgress.crypt_chosen == id:
+				MetaProgress.choose_veteran(-1))
+		_crypt_box.add_child(b)
+	if not MetaProgress.fallen.is_empty():
+		var lines := ["", "THE FALLEN"]
+		for v: Dictionary in MetaProgress.fallen.slice(0, 6):
+			lines.append("%s   ·   %s   ·   %d kills" % [v["name"], v["label"], v["deeds"]])
+		var fallen := UiStyle.label(15)
+		fallen.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallen.modulate = Color(0.75, 0.75, 0.85)
+		fallen.text = "\n".join(lines)
+		_crypt_box.add_child(fallen)

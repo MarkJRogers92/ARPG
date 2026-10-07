@@ -194,6 +194,22 @@ enemy once on the way out and once on the way back, and the return cut does
 tolls (fewer with ranks) it rings: a shockwave around you that hurts
 everything in reach and hurls the horde back. Its own kills don't refill it.
 
+**Evolutions** (`scripts/evolutions.gd`): max out a weapon and take its
+catalyst card (any rank), and the next level-up offers a golden **EVOLUTION**
+card for it. Each happens once a night; a weapon's card names its pair from
+two ranks before max.
+
+| Weapon (max) | + Catalyst | Evolves into |
+|---|---|---|
+| Sharper Bolts | Piercing Bolts | **Soul Lance**: bolts pierce everything, faster, farther, +50% damage |
+| Frost Aura | Frostbite | **Absolute Zero**: +50% radius, ×2 damage, pulses 30% faster |
+| Chain Lightning | Kindling | **Storm Lord**: +6 jumps, 50% faster, +60% damage |
+| Spirit Blades | Swift Boots | **Blade Cyclone**: +3 blades, +80% damage, wider orbit |
+| Ferryman's Obol | Magnetism | **Charon's Hoard**: +5 ricochets, +25% luck, 50% more coins |
+| Reaping Scythe | Soul Harvest | **Death's Harvest**: +2 scythes, +80% damage, +4 m, +30% souls |
+| Funeral Bell | Soul Legion | **Requiem**: tolls 10 kills sooner, ×2 damage, +4 m |
+| Arcane Nova | Vitality | **Supernova**: +60% radius, ×2 damage, 30% more often |
+
 **Paths:** at level 10 each hero chooses one of three paths for the night,
 shown as cards (`scripts/specializations.gd`):
 
@@ -306,6 +322,31 @@ A raised minion keeps a piece of what it was (`Army.role_of`):
 | Tyrant | bound bosses | a crushing slam on a long cooldown |
 
 Damage per second is the same across roles; the rhythm and reach differ.
+
+## Veterans and the Crypt
+
+Minions count their kills (every enemy death during a minion's swing or slam
+is credited to it). Enough of them and it earns a name, like *Morwen the
+Butcher* (the epithet comes from its role), and a rank. A veteran wears its
+name and stars over its head, glows gold, stands a little larger, and has a
+gold ring under it.
+
+| Rank | Kills | Damage and life |
+|---|---|---|
+| Veteran | 60 | ×1.3 |
+| Hero | 300 | ×1.7 |
+| Legend | 1000 | ×2.3 |
+
+Champions joining a full army push out common minions, never veterans.
+Pledged or seized veterans come back as themselves.
+
+When a night ends (won or lost), the greatest living veteran is laid to rest
+in **the Crypt** (up to 3; a full Crypt keeps the greatest). On the title
+screen, **The Crypt** shows them: tick one and it rises at your side when the
+next night begins, keeping its name, rank and kills, and goes back to rest
+afterwards with whatever it earned. If a veteran from the Crypt falls in
+battle, it's gone for good, and listed among **the Fallen**
+(`Army` veterans, `MetaProgress.entomb` / `crypt_fell`).
 
 ## Specialist enemies
 

@@ -12,6 +12,9 @@ extends MultiMeshInstance3D
 
 ## Emitted the moment an enemy's HP hits zero. The row is removed at the start
 ## of the next step(), so don't hold indices across frames.
+## Every enemy death so far, in every swarm (the Soul Army counts its kills by it).
+static var deaths := 0
+
 signal enemy_died(position: Vector2, xp: int)
 ## Emitted alongside enemy_died when the one that died was an elite.
 signal elite_died(position: Vector2)
@@ -500,6 +503,7 @@ func mark_afflicted(i: int) -> void:
 
 func _die(i: int) -> void:
 	_dead.append(i)
+	deaths += 1
 	var elite := _elite[i] == 1
 	enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
 	if elite:

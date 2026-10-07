@@ -55,6 +55,8 @@ func _finish() -> void:
 	_run(&"_test_replayability", _test_replayability())
 	_run(&"_test_rifts", _test_rifts())
 	_run(&"_test_dawn", _test_dawn())
+	_run(&"_test_veterans", _test_veterans())
+	_run(&"_test_evolutions", _test_evolutions())
 
 	print("")
 	if _failures == 0:
@@ -198,6 +200,10 @@ func _test_upgrades() -> bool:
 	# Max everything out: the pool should fall back to the heal.
 	for id: String in Upgrades.DEFS:
 		m.upgrade_levels[id] = Upgrades.DEFS[id]["max"]
+	# (Every weapon is maxed with its catalyst, so the evolutions come first.)
+	_check(Upgrades.roll(m)[0]["id"].begins_with(Evolutions.PREFIX), "with everything maxed, an evolution is offered")
+	for id: String in Evolutions.DEFS:
+		m.upgrade_levels[Evolutions.PREFIX + id] = 1
 	var fallback := Upgrades.roll(m)
 	_check(fallback.size() == 1 and fallback[0]["id"] == "heal", "empty pool falls back to heal")
 	_check(Upgrades.is_exhausted(fallback), "a heal-only roll counts as exhausted")
@@ -2064,4 +2070,147 @@ func _test_dawn() -> bool:
 	main.free()
 	Obstacles.clear()
 	MetaProgress.disabled = was
+	return true
+
+
+func _test_veterans() -> bool:
+	print("veterans and the Crypt")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 16
+	grunts.max_hp = 10.0
+	root.add_child(grunts)
+	var brutes := EnemySwarm.new()
+	brutes.capacity = 4
+	brutes.max_hp = 80.0
+	root.add_child(brutes)
+	var army := Army.new()
+	root.add_child(army)
+	var army_swarms: Array[EnemySwarm] = [grunts, brutes]
+	army.setup(player, army_swarms)
+	Elements.swarms = army_swarms
+	var said := []
+	army.promoted.connect(func(text: String) -> void: said.append(text))
+	var fell := []
+	army.veteran_fell.connect(func(n: String, c: int) -> void: fell.append([n, c]))
+
+	army._raise(0, false, false)
+	var hp0 := army._max_hp[0]
+	army.credit(0, Army.RANKS[1]["kills"] - 1)
+	_check(army._rank[0] == 0 and said.is_empty(), "no name before enough kills")
+	army.credit(0, 1)
+	_check(army._rank[0] == 1 and army._vname[0] != "" and said.size() == 1, "enough kills earn a name and the Veteran rank")
+	_near(army._max_hp[0], hp0 * Army.RANKS[1]["power"], "a veteran can take more")
+	_check(army._tag[0] != null and (army._tag[0] as Label3D).text.contains(army._vname[0]), "and wears its name over its head")
+	army.credit(0, Army.RANKS[3]["kills"])
+	_check(army._rank[0] == 3 and said.size() == 3, "kills keep promoting it, up to Legend")
+	_near(army._max_hp[0], hp0 * Army.RANKS[3]["power"], "each rank's toughness replaces the last")
+
+	# Kills in a fight are credited to the minion that made them.
+	var deaths := EnemySwarm.deaths
+	army._raise(0, false, false)
+	var k := army.count - 1
+	army._pos[k] = player.pos2 + Vector2(1, 0)
+	for i in 6:
+		grunts.spawn(player.pos2 + Vector2(1.6, 0), 1.0)
+	for i in grunts.count:
+		grunts.hp[i] = 0.5
+	var before := army._deeds[k]
+	for f in 60:
+		grunts.step(1.0 / 60.0, player.pos2)
+		brutes.step(1.0 / 60.0, player.pos2)
+		army.step(1.0 / 60.0)
+	_check(EnemySwarm.deaths > deaths and army._deeds[0] + army._deeds[k] - before - Army.RANKS[3]["kills"] > 0,
+			"kills in a fight count toward the minions' deeds")
+
+	# A champion pushing out a common spares the veteran.
+	while army.count > 0:
+		army._remove(0, false, false)
+	player.stats.minion_max = 2
+	army._raise(0, false, false)
+	army.credit(0, Army.RANKS[1]["kills"])
+	var vet_name := army._vname[0]
+	army._raise(0, false, false)
+	army._raise(0, true, false)
+	_check(army.count == 2 and army._vname.slice(0, 2).has(vet_name), "a champion takes a common minion's place, not a veteran's")
+
+	# The record round-trips through the Crypt and back into the army.
+	var rec := army.veterans()[0]
+	_check(rec["name"] == vet_name and rec["swarm"] == String(grunts.name) and rec["rank"] == 1, "a veteran's record keeps who it is")
+	var vet_slot: int = rec["slot"]
+	army._remove(vet_slot, true)
+	_check(fell.size() == 1 and fell[0][0] == vet_name and fell[0][1] == -1, "a named veteran's death is announced")
+	var was := MetaProgress.disabled
+	var was_path := MetaProgress.save_path
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_crypt.save"
+	_wipe_save()
+	MetaProgress.load_save()
+	var id := MetaProgress.entomb(rec)
+	_check(id > 0 and MetaProgress.crypt.size() == 1 and MetaProgress.crypt_chosen == id, "the first veteran laid to rest is chosen to rise")
+	MetaProgress.load_save()
+	_check(MetaProgress.chosen_veteran().get("name", "") == vet_name, "the Crypt is saved")
+	_check(army.raise_veteran(MetaProgress.chosen_veteran()), "a veteran rises from the Crypt")
+	var j := army.count - 1
+	_check(army._vname[j] == vet_name and army._rank[j] == 1 and army._crypt[j] == id, "as itself, with its rank and Crypt id")
+	var back: Dictionary = army.veterans().filter(func(v: Dictionary) -> bool: return v["crypt"] == id)[0]
+	back["deeds"] += 10
+	_check(MetaProgress.entomb(back) == id and MetaProgress.crypt.size() == 1 and MetaProgress.crypt[0]["nights"] == 2,
+			"it goes back to rest with its new deeds, not as a copy")
+	for n in 3:
+		var other := rec.duplicate()
+		other["crypt"] = -1
+		other["name"] = "Other %d" % n
+		other["deeds"] = 1000 + n
+		MetaProgress.entomb(other)
+	_check(MetaProgress.crypt.size() == MetaProgress.CRYPT_SIZE and MetaProgress.crypt.all(func(v: Dictionary) -> bool: return v["name"] != vet_name),
+			"a full Crypt keeps the greatest")
+	var keep: int = MetaProgress.crypt[0]["id"]
+	MetaProgress.choose_veteran(keep)
+	MetaProgress.crypt_fell(keep)
+	_check(MetaProgress.crypt.size() == MetaProgress.CRYPT_SIZE - 1 and MetaProgress.fallen[0]["id"] == keep and MetaProgress.crypt_chosen == -1,
+			"a Crypt veteran that falls is gone, and remembered")
+	_wipe_save()
+	MetaProgress.save_path = was_path
+	MetaProgress.disabled = was
+	MetaProgress.load_save()
+	Elements.swarms = []
+	for n: Node in [army, brutes, grunts, player]:
+		n.free()
+	return true
+
+
+func _test_evolutions() -> bool:
+	print("weapon evolutions")
+	for id: String in Evolutions.DEFS:
+		var d: Dictionary = Evolutions.DEFS[id]
+		_check(Upgrades.DEFS.has(d["weapon"]) and Upgrades.DEFS.has(d["catalyst"]), "%s names real upgrades" % id)
+		for m: Dictionary in d["mods"]:
+			_check(PlayerStats.BASE.has(m["stat"]), "%s changes a real stat (%s)" % [id, m["stat"]])
+	var stats := PlayerStats.new()
+	_check(Evolutions.ready(stats).is_empty(), "nothing evolves at the start")
+	for n in Upgrades.DEFS["scythe"]["max"]:
+		Upgrades.apply("scythe", stats)
+	_check(Evolutions.ready(stats).is_empty(), "a maxed weapon needs its catalyst")
+	var seen_hint := false
+	var s2 := PlayerStats.new()
+	for n in Upgrades.DEFS["scythe"]["max"] - 2:
+		Upgrades.apply("scythe", s2)
+	for k in 40:
+		for c: Dictionary in Upgrades.roll(s2, 20):
+			if c["id"] == "scythe" and String(c["desc"]).contains("Death's Harvest"):
+				seen_hint = true
+	_check(seen_hint, "a weapon card near max names its evolution")
+	Upgrades.apply("harvest", stats)
+	_check(Evolutions.ready(stats) == ["deaths_harvest"], "max weapon + catalyst: ready to evolve")
+	var cards := Upgrades.roll(stats)
+	_check(cards[0]["id"] == "evo:deaths_harvest" and cards[0].get("tag", "") == "EVOLUTION" and cards.size() == 3,
+			"the evolution takes the first card")
+	var dmg := stats.scythe_damage
+	var count := stats.scythe_count
+	Upgrades.apply("evo:deaths_harvest", stats)
+	_check(stats.scythe_count == count + 2 and stats.scythe_damage > dmg * 1.7, "evolving makes the weapon much stronger")
+	_check(Evolutions.ready(stats).is_empty() and not Upgrades.roll(stats).any(func(c: Dictionary) -> bool: return c["id"].begins_with("evo:")),
+			"each evolution happens once")
 	return true

@@ -234,6 +234,10 @@ func _spawn_crowd() -> void:
 	var stats := player.stats
 	for id in ["lightning", "lightning", "orbit", "orbit", "nova", "aura", "legion", "legion", "ignite", "frostbite"]:
 		Upgrades.apply(id, stats)
+	# Spirit Blades maxed with its catalyst, so the level-up shows an evolution.
+	while Upgrades.level_of("orbit", stats) < Upgrades.DEFS["orbit"]["max"]:
+		Upgrades.apply("orbit", stats)
+	Upgrades.apply("move_speed", stats)
 	# A legendary weapon and a Soul Army already raised.
 	var hydra := ItemGenerator.generate_with(10, ItemData.Rarity.LEGENDARY, "weapon")
 	hydra.power = "splitting"
@@ -243,6 +247,9 @@ func _spawn_crowd() -> void:
 	for t in [0, 0, 1, 2]:
 		army._raise(t, false, false)
 	army._raise(1, true, false)
+	# Two of them veterans, to see the names and the glow.
+	army.credit(0, Army.RANKS[1]["kills"])
+	army.credit(2, Army.RANKS[3]["kills"])
 
 
 func _save(name: String) -> void:
