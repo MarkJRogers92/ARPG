@@ -7,11 +7,15 @@ extends MultiMeshInstance3D
 @export var height := 0.4
 ## Gem color by XP value: the first entry whose value is at least the gem's.
 @export var tiers: Array[Color] = [Color(0.3, 1.0, 0.55), Color(0.35, 0.7, 1.0), Color(0.85, 0.4, 1.0), Color(1.0, 0.8, 0.3)]
-const TIER_VALUES: Array[int] = [2, 8, 30, 1000000]
+## ...where tier k holds values up to tier_values[k].
+@export var tier_values: Array[int] = [2, 8, 30, 1000000]
 @export var magnet_accel := 40.0
 @export var collect_radius := 0.7
 
 var count := 0
+## Values of the gems picked up in the last step() (the Soul Army reads which
+## souls came in).
+var collected := PackedInt32Array()
 
 var _pos := PackedVector2Array()
 var _value := PackedInt32Array()
@@ -37,7 +41,7 @@ func drop(at: Vector2, value: int) -> int:
 	if count >= capacity:
 		return value
 	var tier := 0
-	while value > TIER_VALUES[tier]:
+	while tier < tier_values.size() - 1 and value > tier_values[tier]:
 		tier += 1
 	var o := count * MultiMeshUtil.FLOATS_PER_INSTANCE
 	var c := tiers[mini(tier, tiers.size() - 1)].srgb_to_linear()
@@ -56,6 +60,7 @@ func drop(at: Vector2, value: int) -> int:
 ## Moves gems and returns the XP collected this frame.
 func step(delta: float, target: Vector2, pickup_radius: float) -> int:
 	var gained := 0
+	collected.clear()
 	var pickup_sq := pickup_radius * pickup_radius
 	var collect_sq := collect_radius * collect_radius
 	var i := count - 1
@@ -65,6 +70,7 @@ func step(delta: float, target: Vector2, pickup_radius: float) -> int:
 		var d2 := to.length_squared()
 		if d2 <= collect_sq:
 			gained += _value[i]
+			collected.append(_value[i])
 			_remove_at(i)
 			i -= 1
 			continue

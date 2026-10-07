@@ -75,6 +75,39 @@ const DEFS := {
 			{"stat": "nova_rate", "op": _MORE, "value": 0.12},
 		],
 	},
+	"legion": {
+		"name": "Soul Legion", "desc": "+1 minion in your army, minions +25% damage and life", "max": 6,
+		"mods": [
+			{"stat": "minion_max", "op": _ADD, "value": 1.0},
+			{"stat": "minion_damage", "op": _MORE, "value": 0.25},
+			{"stat": "minion_hp", "op": _MORE, "value": 0.25},
+		],
+	},
+	"harvest": {
+		"name": "Soul Harvest", "desc": "+40% souls from kills, minions rise 1 soul sooner", "max": 4,
+		"mods": [
+			{"stat": "soul_chance", "op": _MORE, "value": 0.4},
+			{"stat": "soul_cost", "op": _ADD, "value": -1.0},
+		],
+	},
+	"ignite": {
+		"name": "Kindling", "desc": "Bolts have a 20% chance to set enemies on fire",
+		"desc_next": "+10% ignite chance, +35% burn damage", "max": 5,
+		"first_mods": [{"stat": "ignite_chance", "op": _ADD, "value": 0.2}],
+		"mods": [
+			{"stat": "ignite_chance", "op": _ADD, "value": 0.1},
+			{"stat": "burn_dps", "op": _MORE, "value": 0.35},
+		],
+	},
+	"frostbite": {
+		"name": "Frostbite", "desc": "Bolts have a 20% chance to chill (slow) enemies",
+		"desc_next": "+10% chill chance, reactions +20% damage", "max": 4,
+		"first_mods": [{"stat": "chill_chance", "op": _ADD, "value": 0.2}],
+		"mods": [
+			{"stat": "chill_chance", "op": _ADD, "value": 0.1},
+			{"stat": "reaction_damage", "op": _MORE, "value": 0.2},
+		],
+	},
 	"move_speed": {
 		"name": "Swift Boots", "desc": "+10% move speed", "max": 5,
 		"mods": [{"stat": "move_speed", "op": _MORE, "value": 0.10}],

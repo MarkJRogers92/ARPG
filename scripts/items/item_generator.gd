@@ -30,6 +30,10 @@ static func generate_with(ilvl: int, rarity: int, slot: String) -> Item:
 	var rules: Dictionary = ItemData.RARITIES[rarity]
 	var count: int = randi_range(rules["affixes"][0], rules["affixes"][1])
 	item.affixes = _roll_affixes(item, count, rules["luck"])
+	if rarity == ItemData.Rarity.LEGENDARY:
+		var powers := ItemData.powers_for(slot)
+		if not powers.is_empty():
+			item.power = powers.pick_random()
 	item.name = _make_name(item)
 	return item
 
@@ -93,6 +97,9 @@ static func _round_like(value: float, unscaled: float) -> float:
 
 
 static func _make_name(item: Item) -> String:
+	if item.power != "":
+		var pattern: String = ItemData.POWERS[item.power]["name"]
+		return pattern % item.base_name if pattern.contains("%s") else pattern
 	match item.rarity:
 		ItemData.Rarity.NORMAL:
 			return item.base_name

@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://scripts/visual/damage_numbers.gd" id="17_numbers"]
 [ext_resource type="Script" path="res://scripts/visual/light_flashes.gd" id="18_flashes"]
 [ext_resource type="Script" path="res://scripts/visual/atmosphere.gd" id="19_atmo"]
+[ext_resource type="Script" path="res://scripts/army.gd" id="20_army"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -161,6 +162,16 @@ script = ExtResource("5_proj")
 
 [node name="Gems" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("6_gems")
+
+[node name="Souls" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("6_gems")
+capacity = 600
+height = 0.55
+tiers = Array[Color]([Color(0.55, 0.85, 1, 1), Color(0.85, 0.95, 1, 1), Color(0.6, 0.55, 1, 1)])
+tier_values = Array[int]([99, 199, 1000000])
+
+[node name="Army" type="Node3D" parent="."]
+script = ExtResource("20_army")
 
 [node name="EnemyShots" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("15_shots")

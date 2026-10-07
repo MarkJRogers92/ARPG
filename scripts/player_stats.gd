@@ -51,6 +51,15 @@ static var BASE := {
 	"nova_radius": 5.5,
 	"nova_rate": 0.25, # novas per second
 	"dash_cooldown": 3.0, # seconds
+	"minion_max": 2.0, # Soul Army size
+	"minion_damage": 12.0, # per second, per minion (scaled by the enemy type)
+	"minion_hp": 90.0,
+	"soul_chance": 0.06, # chance that a kill leaves a soul
+	"soul_cost": 12.0, # souls per raised minion
+	"ignite_chance": 0.0, # chance a bolt sets what it hits on fire
+	"burn_dps": 6.0,
+	"chill_chance": 0.0, # chance a bolt chills (slows) what it hits
+	"reaction_damage": 1.0, # multiplier for Shatter / Melt / Overload
 }
 
 # Effective values, refreshed by recalculate(). Read these; don't write them.
@@ -87,6 +96,19 @@ var nova_damage := 24.0
 var nova_radius := 5.5
 var nova_cooldown := 4.0
 var dash_cooldown := 3.0
+var minion_max := 2
+var minion_damage := 12.0
+var minion_hp := 90.0
+var soul_chance := 0.06
+var soul_cost := 12
+var ignite_chance := 0.0
+var burn_dps := 6.0
+var chill_chance := 0.0
+var reaction_damage := 1.0
+
+## Legendary powers in effect: power id -> how many equipped items grant it.
+## Inventory keeps this up to date.
+var powers := {}
 
 ## Every effective stat by id (after recalculate()), for UI and tooltips.
 var values := {}
@@ -177,6 +199,15 @@ func recalculate() -> void:
 	nova_radius = values["nova_radius"]
 	nova_cooldown = 1.0 / maxf(0.05, values["nova_rate"])
 	dash_cooldown = maxf(0.3, values["dash_cooldown"])
+	minion_max = maxi(0, roundi(values["minion_max"]))
+	minion_damage = values["minion_damage"] * damage_mult
+	minion_hp = maxf(1.0, values["minion_hp"])
+	soul_chance = clampf(values["soul_chance"], 0.0, 1.0)
+	soul_cost = maxi(3, roundi(values["soul_cost"]))
+	ignite_chance = clampf(values["ignite_chance"], 0.0, 1.0)
+	burn_dps = values["burn_dps"] * damage_mult
+	chill_chance = clampf(values["chill_chance"], 0.0, 1.0)
+	reaction_damage = values["reaction_damage"] * damage_mult
 	hp = minf(hp, max_hp)
 
 

@@ -17,6 +17,8 @@ var ilvl := 1
 var implicit: Array[Dictionary] = []
 ## Random modifiers, as [{id, stat, op, value}].
 var affixes: Array[Dictionary] = []
+## A legendary power id (see ItemData.POWERS), or "" for none.
+var power := ""
 
 
 func _init() -> void:
@@ -33,14 +35,24 @@ func modifiers() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.append_array(implicit)
 	out.append_array(affixes)
+	if power != "":
+		for mod: Dictionary in ItemData.POWERS[power].get("mods", []):
+			out.append(mod)
 	return out
+
+
+func power_text() -> String:
+	return ItemData.POWERS[power]["desc"] if power != "" else ""
 
 
 ## Rough total power, used for "likely upgrade" hints and bot decisions.
 func score() -> float:
 	var total := 0.0
-	for mod in modifiers():
+	for mod in implicit + affixes:
 		total += ItemData.mod_score(mod)
+	# A power is worth a lot more than its numbers say.
+	if power != "":
+		total += 2.0
 	return total
 
 
@@ -62,7 +74,7 @@ func description_lines() -> Array[String]:
 func to_dict() -> Dictionary:
 	return {
 		"slot": slot, "base_name": base_name, "name": name, "rarity": rarity,
-		"ilvl": ilvl, "implicit": implicit, "affixes": affixes,
+		"ilvl": ilvl, "implicit": implicit, "affixes": affixes, "power": power,
 	}
 
 
@@ -75,4 +87,5 @@ static func from_dict(d: Dictionary) -> Item:
 	item.ilvl = d["ilvl"]
 	item.implicit.assign(d["implicit"])
 	item.affixes.assign(d["affixes"])
+	item.power = d.get("power", "")
 	return item

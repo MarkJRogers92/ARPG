@@ -2,7 +2,8 @@ class_name ChainLightning
 extends MeshInstance3D
 ## Chain Lightning: every so often, a bolt of lightning strikes the nearest
 ## enemy and jumps from it to the next closest one, `lightning_chains` times,
-## losing a little damage on each jump. The arcs are drawn as flickering,
+## losing a little damage on each jump. It shocks what it hits, and shatters
+## chilled enemies (see Elements). The arcs are drawn as flickering,
 ## camera-facing ribbons in an ImmediateMesh, so they cost no nodes.
 ##
 ## Unlocked and improved by the "lightning" upgrade (see Upgrades.DEFS).
@@ -67,9 +68,7 @@ func update(delta: float) -> void:
 		var at := swarm.pos[i]
 		hit[swarm.ids[i]] = true
 		var crit := randf() < stats.crit_chance
-		var amount := damage * (stats.crit_mult if crit else 1.0)
-		swarm.damage(i, amount)
-		Juice.number(at, amount, crit, COLOR.lightened(0.3))
+		Elements.hit(swarm, i, damage * (stats.crit_mult if crit else 1.0), Elements.LIGHTNING, crit)
 		Juice.burst(at, swarm.body_height * 0.6, COLOR, 4, 4.0, 0.35, 0.3, 2.0)
 		points.append(Vector3(at.x, swarm.body_height * 0.6, at.y))
 		damage *= FALLOFF

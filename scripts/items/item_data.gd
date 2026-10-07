@@ -80,6 +80,15 @@ const STAT_INFO := {
 	"nova_radius": {"label": "Nova Radius", "w_add": 0.05, "w_inc": 0.2},
 	"nova_rate": {"label": "Nova Speed", "w_add": 0.8, "w_inc": 0.4},
 	"dash_cooldown": {"label": "Dash Cooldown", "w_add": -0.1, "w_inc": -0.2},
+	"minion_max": {"label": "Army Size", "w_add": 0.6, "w_inc": 0.6},
+	"minion_damage": {"label": "Minion Damage", "w_add": 0.05, "w_inc": 0.4},
+	"minion_hp": {"label": "Minion Life", "w_add": 0.005, "w_inc": 0.2},
+	"soul_chance": {"label": "Soul Chance", "frac": true, "w_add": 2.0, "w_inc": 0.3},
+	"soul_cost": {"label": "Souls per Minion", "w_add": -0.1, "w_inc": -0.3},
+	"ignite_chance": {"label": "Ignite Chance", "frac": true, "w_add": 0.8, "w_inc": 0.4},
+	"burn_dps": {"label": "Burn Damage", "w_add": 0.04, "w_inc": 0.3},
+	"chill_chance": {"label": "Chill Chance", "frac": true, "w_add": 0.6, "w_inc": 0.3},
+	"reaction_damage": {"label": "Reaction Damage", "w_add": 0.5, "w_inc": 0.5},
 }
 
 ## Base item types. `implicit` always comes with the item, scaled by item level.
@@ -164,6 +173,49 @@ const AFFIXES := [
 		"min": 0.05, "max": 0.15, "step": 0.01, "weight": 40, "prefix": "Gilded", "suffix": "of Fortune"},
 ]
 
+## Legendary powers. Every Legendary item gets one that fits its slot, and its
+## own name. A power can carry stat modifiers (applied like affixes) and/or a
+## flag the game checks with Player.has_power() (see Elements, Army, Player,
+## ProjectileSwarm). `name` takes the base item's name.
+const POWERS := {
+	"splitting": {"slot": "weapon", "name": "Hydra %s",
+		"desc": "Bolts split into three when they kill"},
+	"stormcaller": {"slot": "weapon", "name": "Stormcaller's %s",
+		"desc": "Bolts shock what they hit (+1 lightning jump)",
+		"mods": [{"stat": "lightning_chains", "op": _ADD, "value": 1.0}]},
+	"winter_crown": {"slot": "helm", "name": "%s of Endless Winter",
+		"desc": "Grants Frost Aura (or +1 level) with 30% more radius; bolts chill 20% of the time",
+		"mods": [{"stat": "aura_level", "op": _ADD, "value": 1.0}, {"stat": "aura_radius", "op": _INC, "value": 0.3},
+			{"stat": "chill_chance", "op": _ADD, "value": 0.2}]},
+	"storm_eye": {"slot": "helm", "name": "Eye of the Storm",
+		"desc": "Grants Chain Lightning (or +1 level), +2 jumps, strikes 30% more often",
+		"mods": [{"stat": "lightning_level", "op": _ADD, "value": 1.0}, {"stat": "lightning_chains", "op": _ADD, "value": 2.0},
+			{"stat": "lightning_rate", "op": _INC, "value": 0.3}]},
+	"lich_shroud": {"slot": "chest", "name": "Shroud of the Lich",
+		"desc": "+1 minion; minions explode in soulfire when they fall",
+		"mods": [{"stat": "minion_max", "op": _ADD, "value": 1.0}]},
+	"dragonscale": {"slot": "chest", "name": "Dragonscale %s",
+		"desc": "Bolts ignite 25% of the time; +50% burn damage",
+		"mods": [{"stat": "ignite_chance", "op": _ADD, "value": 0.25}, {"stat": "burn_dps", "op": _INC, "value": 0.5}]},
+	"stormstride": {"slot": "boots", "name": "Stormstride %s",
+		"desc": "Dashing leaves lightning that shocks and damages everything you pass",
+		"mods": [{"stat": "dash_cooldown", "op": _INC, "value": -0.2}]},
+	"blinkfire": {"slot": "boots", "name": "Blinkfire %s",
+		"desc": "Dash 40% more often; every dash releases an Arcane Nova",
+		"mods": [{"stat": "dash_cooldown", "op": _INC, "value": -0.4}]},
+	"heart_of_storms": {"slot": "amulet", "name": "Heart of Storms",
+		"desc": "Every 6th volley of bolts releases a free Arcane Nova"},
+	"soul_lantern": {"slot": "amulet", "name": "Soul Lantern",
+		"desc": "Twice the souls; minions rise after 4 fewer souls",
+		"mods": [{"stat": "soul_chance", "op": _MORE, "value": 1.0}, {"stat": "soul_cost", "op": _ADD, "value": -4.0}]},
+	"ember_ring": {"slot": "ring", "name": "Ring of Embers",
+		"desc": "Every hit has a 15% chance to ignite; reactions deal 50% more",
+		"mods": [{"stat": "reaction_damage", "op": _INC, "value": 0.5}]},
+	"blood_seal": {"slot": "ring", "name": "Bloodseal",
+		"desc": "Critical hits heal 1 HP; +5% crit chance",
+		"mods": [{"stat": "crit_chance", "op": _ADD, "value": 0.05}]},
+}
+
 const RARE_ADJECTIVES: Array[String] = [
 	"Grim", "Storm", "Dread", "Ember", "Void", "Gloom", "Rune", "Ashen",
 	"Frost", "Cinder", "Hollow", "Wicked", "Fell", "Pale", "Obsidian", "Crimson",
@@ -231,6 +283,15 @@ static func mod_text(mod: Dictionary) -> String:
 			if absf(v - roundf(v)) < 0.05:
 				return "%+d %s" % [roundi(v), label]
 			return "%+.1f %s" % [v, label]
+
+
+## The ids of the legendary powers that can roll on `slot`.
+static func powers_for(slot: String) -> Array[String]:
+	var out: Array[String] = []
+	for id: String in POWERS:
+		if POWERS[id]["slot"] == slot:
+			out.append(id)
+	return out
 
 
 ## Rough power of a modifier, for "likely upgrade" hints. See STAT_INFO.

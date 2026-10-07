@@ -97,3 +97,7 @@ func _sync(slot: String) -> void:
 	if equipped.has(slot):
 		_stats.add_mods(source, equipped[slot].modifiers())
 	_stats.recalculate()
+	_stats.powers.clear()
+	for worn: Item in equipped.values():
+		if worn.power != "":
+			_stats.powers[worn.power] = _stats.powers.get(worn.power, 0) + 1

@@ -103,6 +103,14 @@ var _dead := PackedInt32Array()
 ## Hit flash per enemy, 1 on a hit and fading to 0 (drawn by enemy.gdshader).
 var _flash := PackedFloat32Array()
 var _elite := PackedByteArray()
+## Elemental statuses (seconds left) and burn damage per second; see Elements.
+var chill := PackedFloat32Array()
+var shock := PackedFloat32Array()
+var burn := PackedFloat32Array()
+var burn_dps := PackedFloat32Array()
+## 1 while an enemy has (or just lost) a status, so step() only does status
+## work for those.
+var _afflicted := PackedByteArray()
 var _scale := PackedFloat32Array()
 var _fire := PackedFloat32Array()
 var _buffer := PackedFloat32Array()
@@ -120,6 +128,11 @@ func _ready() -> void:
 	_advance.resize(capacity)
 	_flash.resize(capacity)
 	_elite.resize(capacity)
+	chill.resize(capacity)
+	shock.resize(capacity)
+	burn.resize(capacity)
+	burn_dps.resize(capacity)
+	_afflicted.resize(capacity)
 	_scale.resize(capacity)
 	_fire.resize(capacity)
 	grid = SpatialHash.new(radius * 2.0, 4096, capacity)
@@ -175,6 +188,11 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	_elite[count] = 1 if elite else 0
 	_scale[count] = elite_scale if elite else 1.0
 	_fire[count] = randf_range(0.5, 1.0) * fire_interval
+	chill[count] = 0.0
+	shock[count] = 0.0
+	burn[count] = 0.0
+	burn_dps[count] = 0.0
+	_afflicted[count] = 0
 	ids[count] = _next_id
 	_next_id += 1
 	_push[count] = Vector2.ZERO
@@ -236,7 +254,9 @@ func step(delta: float, target: Vector2) -> void:
 		var chase := Vector2.ZERO
 		if d2 > stop_sq:
 			chase = to / sqrt(d2)
-		p += (chase * _advance[i] + _push[i]) * step_len
+		# Chilled enemies move at half speed (bosses at three quarters).
+		var sl := step_len if chill[i] <= 0.0 else step_len * (0.75 if boss else 0.5)
+		p += (chase * _advance[i] + _push[i]) * sl
 		pos[i] = p
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
 		buf[o + MultiMeshUtil.OFFSET_X] = p.x
@@ -260,6 +280,8 @@ func step(delta: float, target: Vector2) -> void:
 				if d2 < fire_sq:
 					var dir := (target - p).normalized()
 					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage)
+		if _afflicted[i] == 1:
+			_update_status(i, o, delta)
 		var f := _flash[i]
 		if f > 0.0:
 			f = maxf(f - fade, 0.0)
@@ -275,17 +297,57 @@ func step(delta: float, target: Vector2) -> void:
 
 
 ## Applies damage to enemy `i`. Safe to call while iterating query results.
-func damage(i: int, amount: float) -> void:
+## Weapons should go through Elements.hit(), which adds statuses, reactions and
+## damage numbers on top of this. Returns true if this killed the enemy.
+func damage(i: int, amount: float) -> bool:
 	if hp[i] <= 0.0:
-		return
+		return false
 	hp[i] -= amount
 	_flash[i] = 1.0
 	if hp[i] <= 0.0:
-		_dead.append(i)
-		var elite := _elite[i] == 1
-		enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
-		if elite:
-			elite_died.emit(pos[i])
+		_die(i)
+		return true
+	return false
+
+
+func mark_afflicted(i: int) -> void:
+	_afflicted[i] = 1
+
+
+func _die(i: int) -> void:
+	_dead.append(i)
+	var elite := _elite[i] == 1
+	enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
+	if elite:
+		elite_died.emit(pos[i])
+	if burn[i] > 0.0:
+		Elements.queue_spread(pos[i], burn_dps[i])
+
+
+## Ticks enemy `i`'s statuses (burn damage too) and tints it to show them:
+## icy blue when chilled, flickering violet when shocked, glowing embers
+## (custom w, see enemy.gdshader) when burning.
+func _update_status(i: int, o: int, delta: float) -> void:
+	var c := maxf(chill[i] - delta, 0.0)
+	var s := maxf(shock[i] - delta, 0.0)
+	var b := maxf(burn[i] - delta, 0.0)
+	chill[i] = c
+	shock[i] = s
+	burn[i] = b
+	if b > 0.0 and hp[i] > 0.0:
+		hp[i] -= burn_dps[i] * delta
+		if hp[i] <= 0.0:
+			_die(i)
+	var tint := elite_tint if _elite[i] == 1 else Color.WHITE
+	if c > 0.0:
+		tint = tint.lerp(Color(0.5, 0.78, 1.15), 0.6)
+	if s > 0.0:
+		tint = tint.lerp(Color(1.3, 0.9, 1.7), 0.35 + 0.25 * sin(float(_frame) * 0.9 + i))
+	for k in 3:
+		_buffer[o + MultiMeshUtil.OFFSET_COLOR + k] = tint[k]
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 3] = 1.0 if b > 0.0 else 0.0
+	if c <= 0.0 and s <= 0.0 and b <= 0.0:
+		_afflicted[i] = 0
 
 
 ## Shoves every enemy within `r` of `center` straight away from it, up to
@@ -359,6 +421,11 @@ func _flush_dead() -> void:
 			_elite[i] = _elite[last]
 			_scale[i] = _scale[last]
 			_fire[i] = _fire[last]
+			chill[i] = chill[last]
+			shock[i] = shock[last]
+			burn[i] = burn[last]
+			burn_dps[i] = burn_dps[last]
+			_afflicted[i] = _afflicted[last]
 			MultiMeshUtil.copy_instance(_buffer, i, last)
 		count = last
 	_dead.clear()

@@ -35,6 +35,8 @@ var _mote_timer := 0.0
 @onready var _shots: EnemyShots = $EnemyShots
 @onready var _bosses: BossDirector = $BossDirector
 @onready var _atmosphere: Atmosphere = $Atmosphere
+@onready var _souls: GemSwarm = $Souls
+@onready var _army: Army = $Army
 
 
 func _ready() -> void:
@@ -50,6 +52,12 @@ func _ready() -> void:
 	_swarms.assign(get_tree().get_nodes_in_group(EnemySwarm.GROUP))
 	_player.setup(_swarms, _projectiles)
 	_director.setup(_swarms)
+	Elements.player = _player
+	Elements.swarms = _swarms
+	_army.setup(_player, _swarms)
+	_army.raised.connect(func(kind: String) -> void:
+		var who := _bosses.boss_name if kind == "Bosses" else kind.trim_suffix("s")
+		_hud.toast("A spectral %s rises to serve you" % who, Color(0.55, 0.85, 1.0)))
 	for swarm in _swarms:
 		swarm.shots = _shots
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
@@ -91,6 +99,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Juice.reset()
+	Elements.reset()
 
 
 func _process(delta: float) -> void:
@@ -108,6 +117,9 @@ func _process(delta: float) -> void:
 	_player.update_weapons(delta)
 	_projectiles.step(delta, _swarms)
 	_shots.step(delta, _player)
+	_army.step(delta)
+	Elements.flush()
+	_army.flush()
 	_bosses.tick(delta)
 
 	var contact_dps := 0.0
@@ -121,6 +133,9 @@ func _process(delta: float) -> void:
 	if xp > 0:
 		_player.add_xp(xp)
 
+	_souls.step(delta, origin, _player.stats.pickup_radius)
+	for value in _souls.collected:
+		_army.collect_soul(value)
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 
 	_director.tick(delta, origin)
@@ -139,6 +154,7 @@ func _process(delta: float) -> void:
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
 			_bosses.boss_name, _bosses.boss_health())
+	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -176,6 +192,7 @@ func _spawn_motes(delta: float, origin: Vector2) -> void:
 
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	_run_shards += 2
+	_souls.drop(at + Vector2(0.6, 0.0), Army.soul_value(_army.type_index(swarm), true, false))
 	_loot.drop(ItemGenerator.generate(ItemData.ilvl_for_player_level(_player.stats.level),
 			1.0 + swarm.loot_quality + _player.stats.magic_find), at)
 	_fx.burst(at, 1.0, Color(1.0, 0.8, 0.35), 20, 6.0, 0.55, 0.6, 5.0)
@@ -186,6 +203,9 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	kills += 1
 	if swarm.boss:
 		_on_boss_died(at, swarm)
+		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
+	elif randf() < _player.stats.soul_chance:
+		_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
 	var big := swarm.body_height > 2.0
 	_fx.burst(at, swarm.body_height * 0.5, swarm.color.lightened(0.25), 12 if big else 5,
 			5.0 if big else 3.5, 0.55 if big else 0.4, 0.55, 3.0)
@@ -213,6 +233,10 @@ func _on_item_picked(item: Item, result: String) -> void:
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
 	_hud.toast("%s: %s" % [verb, item.name], item.color())
+	if item.power != "":
+		_hud.toast("★ " + item.power_text(), item.color())
+		Juice.flash(_player.pos2, item.color(), 5.0, 10.0, 0.5)
+		_fx.ring(_player.pos2, item.color(), 40, 8.0, 0.6, 0.6)
 
 
 func _try_level_up() -> void:
