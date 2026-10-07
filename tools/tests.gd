@@ -62,6 +62,7 @@ func _finish() -> void:
 	_run(&"_test_stances", _test_stances())
 	_run(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
 	_run(&"_test_nemesis", _test_nemesis())
+	_run(&"_test_slow_motion_ends", _test_slow_motion_ends())
 
 	print("")
 	if _failures == 0:
@@ -2503,4 +2504,28 @@ func _test_nemesis() -> bool:
 	MetaProgress.save_path = was_path
 	MetaProgress.disabled = was
 	MetaProgress.load_save()
+	return true
+
+
+func _test_slow_motion_ends() -> bool:
+	print("slow motion always ends")
+	var was := Juice.time_effects
+	Juice.time_effects = true
+	Juice.slow_motion(0.3, 0.2)
+	_near(Engine.time_scale, 0.3, "slow motion slows the game")
+	Juice.hitstop(0.05)
+	_near(Engine.time_scale, 0.05, "a hit-stop inside it freezes for a moment")
+	OS.delay_msec(70)
+	Juice.tick()
+	_near(Engine.time_scale, 0.3, "then the slow motion carries on, not stuck at the hit-stop")
+	OS.delay_msec(160)
+	Juice.tick()
+	_near(Engine.time_scale, 1.0, "and the game returns to full speed when it ends")
+	for k in 50:
+		Juice.hitstop(0.001 * k)
+	OS.delay_msec(60)
+	Juice.tick()
+	_near(Engine.time_scale, 1.0, "even after a flurry of overlapping hit-stops")
+	Juice.time_effects = was
+	Juice.tick()
 	return true

@@ -75,6 +75,12 @@ func _ready() -> void:
 	_build()
 
 
+## The HUD keeps running while the game is paused (menus), so game speed
+## effects end on time there too (see Juice.tick()).
+func _process(_delta: float) -> void:
+	Juice.tick()
+
+
 ## Refresh the always-on display. Cheap enough to call every frame.
 func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill_points := 0) -> void:
 	_hp_bar.max_value = stats.max_hp
