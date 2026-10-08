@@ -83,7 +83,7 @@ func _build() -> void:
 	var divider := HSeparator.new()
 	add_child(divider)
 	_details = UiStyle.label(16)
-	_details.custom_minimum_size = Vector2(0, 56)
+	_details.custom_minimum_size = Vector2(0, 84)
 	_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_details.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -202,21 +202,34 @@ func _update_preview() -> void:
 	var danger := str(contract_record.get("danger", "Elite encounter" if bool(node.get("elite", false)) else "Standard encounter"))
 	if bool(node.get("elite", false)) and contract != "elite_hunt":
 		danger = "Elite variant · " + danger
-	var reward := str(node.get("reward_slot", node.get("reward", contract_record.get("reward", "campaign gear"))))
+	var reward_copy := _clear_reward_copy(node, contract_record, contract, biome)
 	var event_id := str(node.get("event", ""))
 	var event_record: Dictionary = CampaignCatalog.EVENTS.get(event_id, {})
 	var event_text := " · Event: " + str(event_record.get("name", event_id.replace("_", " ").capitalize())) if has_details and not event_id.is_empty() else ""
 	if int(node.get("depth", 0)) == 4:
 		if has_details:
-			_details.text = "%s · %s\n%s · Reward: %s%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), danger, reward.replace("_", " "), event_text, _route_status_copy()]
+			_details.text = "%s · %s\n%s%s\n%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), danger, event_text, reward_copy, _route_status_copy()]
 		else:
 			_details.text = "%s · BIOME FINALE · PREVIEW ONLY\n15:00 survival before the final boss; full danger and reward details remain veiled until revealed. %s" % [biome_names[biome].to_upper(), _route_status_copy()]
 	elif not has_details:
 		_details.text = "%s · preview only\n%s  ·  duration %s  ·  full danger and reward details remain veiled until revealed. %s" % [biome_names[biome].to_upper(), contract_name.to_upper(), _duration(contract), _route_status_copy()]
 	else:
-		_details.text = "%s · %s\n%s · %s · Reward: %s%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), contract_name.to_upper(), danger, reward.replace("_", " "), event_text, _route_status_copy()]
+		_details.text = "%s · %s\n%s · %s%s\n%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), contract_name.to_upper(), danger, event_text, reward_copy, _route_status_copy()]
 	_confirm.text = "Route committed" if _committed else "Choose this route"
 	_confirm.disabled = _committed or not _is_available(_selected_id)
+
+
+func _clear_reward_copy(node: Dictionary, contract_record: Dictionary, contract: String, biome: int) -> String:
+	var is_finale := contract == "finale"
+	var gold := int(contract_record.get("gold", 0)) * (biome + 1)
+	var talent_points := 3 if is_finale and biome < 2 else (0 if is_finale else 1)
+	var slot := str(node.get("reward_slot", "weapon"))
+	var slot_name := str(ItemData.SLOT_NAMES.get(slot, slot.replace("_", " ").capitalize()))
+	var prize := "Legendary %s prize banked" % slot_name if is_finale else "upper-tier Rare %s prize reserved at the Ferryman" % slot_name
+	var gold_note := "Base Gold: %d (before event adjustments or shard conversion)." % gold
+	if contract == "cursed_cache":
+		gold_note += " Claiming its optional cache adds %d Gold." % (50 * (biome + 1))
+	return "CLEAR REWARDS · %s · +%d Talent Point%s\n%s" % [gold_note, talent_points, "s" if talent_points != 1 else "", prize]
 
 
 func _is_available(id: String) -> bool:

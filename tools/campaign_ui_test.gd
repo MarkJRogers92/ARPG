@@ -136,7 +136,7 @@ func _run() -> void:
 	var controller := FixtureController.new()
 	capture_viewport.add_child(controller)
 	town.setup(controller)
-	if screen != "route":
+	if screen != "route" and screen != "route-rewards":
 		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("pack" if screen == "comparison" else screen)
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
@@ -174,6 +174,11 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	await process_frame
+	if screen == "route-rewards":
+		var route_scroll := town._content.get_parent() as ScrollContainer
+		route_scroll.scroll_vertical = int(route_scroll.get_v_scroll_bar().max_value)
+		await process_frame
+		await process_frame
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var image := capture_viewport.get_texture().get_image()
@@ -380,6 +385,7 @@ func _run_behavior_test() -> void:
 						if controller.state["phase"] != "ABANDONED" or abandon_events.size() != 1:
 							failures.append("confirmed abandon commits through the controller before returning to title")
 	await _test_event_and_retryable_abandon(failures)
+	await _test_route_reward_preview(failures)
 	await _test_route_preparation_panel(failures)
 	await _test_result_report_and_comparison(failures)
 
@@ -391,6 +397,84 @@ func _run_behavior_test() -> void:
 	town.free()
 	print("CAMPAIGN_UI_BEHAVIOR %s" % ["FAILED" if not failures.is_empty() else "PASSED"])
 	quit(1 if not failures.is_empty() else 0)
+
+
+func _test_route_reward_preview(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	var route_view := CampaignRouteView.new()
+	root.add_child(route_view)
+	var preview_state := fixture.snapshot()
+	var preview_state_before := preview_state.duplicate(true)
+	var available: Array = fixture.available_routes()
+	route_view.present(preview_state, available)
+	await process_frame
+	var short_route: Dictionary = fixture.state["graph"]["nodes"]["g-1-b"]
+	route_view._preview("g-1-b")
+	var short_copy := route_view._details.text
+	if not short_copy.contains("Base Gold: 140") or not short_copy.contains("before event adjustments or shard conversion"):
+		failures.append("short-route preview shows scaled base gold and explains excluded adjustments")
+	if not short_copy.contains("+1 Talent Point") or not short_copy.contains("upper-tier Rare Armor prize reserved at the Ferryman"):
+		failures.append("short-route preview distinguishes its talent award and reserved Ferryman prize")
+	if short_route.get("reward_slot") != "armor":
+		failures.append("reward preview reads the node's existing reward slot")
+	var cache_state := fixture.snapshot()
+	cache_state["biome_index"] = 2
+	var cache_state_before := cache_state.duplicate(true)
+	var cache_view := CampaignRouteView.new()
+	root.add_child(cache_view)
+	cache_view.present(cache_state, [fixture.state["graph"]["nodes"]["g-2-b"]])
+	cache_view._preview("g-2-b")
+	if not cache_view._details.text.contains("Base Gold: 300") or not cache_view._details.text.contains("optional cache adds 150 Gold"):
+		failures.append("Cursed Cache preview separates scaled base gold from its optional scaled bonus")
+	if cache_state != cache_state_before:
+		failures.append("Cursed Cache preview leaves its supplied state unchanged")
+	cache_view.free()
+
+	var hidden_route_view := CampaignRouteView.new()
+	root.add_child(hidden_route_view)
+	var veiled_state := fixture.snapshot()
+	var veiled_state_before := veiled_state.duplicate(true)
+	hidden_route_view.present(veiled_state, [])
+	hidden_route_view._preview("g-1-a")
+	if not hidden_route_view._confirm.disabled or hidden_route_view._details.text.contains("CLEAR REWARDS") or hidden_route_view._details.text.contains("Quiet Bell"):
+		failures.append("unavailable unrevealed route keeps rewards and event details veiled and cannot commit")
+	if veiled_state != veiled_state_before:
+		failures.append("veiled-route preview leaves its supplied state unchanged")
+	var revealed_state := fixture.snapshot()
+	revealed_state["graph"]["nodes"]["g-1-a"]["revealed"] = true
+	var revealed_state_before := revealed_state.duplicate(true)
+	hidden_route_view.present(revealed_state, [])
+	hidden_route_view._preview("g-1-a")
+	if not hidden_route_view._confirm.disabled or not hidden_route_view._details.text.contains("CLEAR REWARDS") or not hidden_route_view._details.text.contains("Quiet Bell"):
+		failures.append("revealed route shows existing preview details while remaining unavailable for commitment")
+	if revealed_state != revealed_state_before:
+		failures.append("revealed-route preview leaves its supplied state unchanged")
+
+	var finale: Dictionary = fixture.state["graph"]["nodes"]["g-4-boss"]
+	for biome in 3:
+		var finale_state := fixture.snapshot()
+		finale_state["biome_index"] = biome
+		var finale_state_before := finale_state.duplicate(true)
+		var finale_view := CampaignRouteView.new()
+		root.add_child(finale_view)
+		finale_view.present(finale_state, [finale])
+		finale_view._preview("g-4-boss")
+		var copy := finale_view._details.text
+		var expected_gold := 250 * (biome + 1)
+		var expected_talents := 3 if biome < 2 else 0
+		if not copy.contains("Base Gold: %d" % expected_gold) or not copy.contains("+%d Talent Point" % expected_talents):
+			failures.append("finale preview uses biome-scaled gold and the correct talent award for biome %d" % biome)
+		if not copy.contains("Legendary Weapon prize banked"):
+			failures.append("finale preview identifies its banked Legendary weapon prize")
+		if finale_state != finale_state_before:
+			failures.append("finale preview leaves its supplied biome-%d state unchanged" % biome)
+		finale_view.free()
+	if preview_state != preview_state_before:
+		failures.append("short-route preview leaves its supplied state unchanged")
+	route_view.free()
+	hidden_route_view.free()
+	fixture.free()
 
 
 func _test_event_and_retryable_abandon(failures: Array[String]) -> void:
