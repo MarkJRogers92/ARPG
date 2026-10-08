@@ -112,3 +112,29 @@ func refresh_powers() -> void:
 	for worn: Item in equipped.values():
 		if worn.power != "":
 			_stats.powers[worn.power] = _stats.powers.get(worn.power, 0) + 1
+
+
+## Exact rolled data, independent of runtime uid or backpack indices.
+func to_dict() -> Dictionary:
+	var worn := {}
+	for slot: String in equipped:
+		worn[slot] = (equipped[slot] as Item).to_dict().duplicate(true)
+	var bag := []
+	for item: Item in backpack:
+		bag.append(item.to_dict().duplicate(true))
+	return {"equipped": worn, "backpack": bag}
+
+
+## Reconstruct gear sources once on a fresh combat inventory.
+func restore(data: Dictionary) -> void:
+	for slot: String in equipped.keys():
+		_stats.remove_source("gear:" + slot)
+	equipped.clear()
+	backpack.clear()
+	for slot: String in data.get("equipped", {}):
+		_wear(Item.from_dict(data["equipped"][slot]))
+	for record: Dictionary in data.get("backpack", []):
+		backpack.append(Item.from_dict(record))
+	refresh_powers()
+	_stats.recalculate()
+	changed.emit()

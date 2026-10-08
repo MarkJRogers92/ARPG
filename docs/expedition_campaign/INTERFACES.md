@@ -4,7 +4,7 @@ Task ID: task_00000001. Content version: `expedition-v1`.
 
 ## Ownership
 
-Core owns `scripts/campaign/{campaign_catalog,campaign_state,campaign_save,campaign_controller,campaign_shell}.gd`, `scenes/campaign.tscn`, `scripts/meta_progress.gd`, `scripts/items/{item,item_generator}.gd`, title entry and pause presentation. UI owns additive `scripts/campaign/campaign_town.gd` and its visual assets. Combat owns `scripts/campaign/expedition_director.gd`, `scripts/main.gd` and the required combat collaborators. Coordinate shared-file changes before editing. The parent owns Git checkpoints and acceptance.
+Core owns `scripts/campaign/{campaign_catalog,campaign_state,campaign_save,campaign_controller,campaign_shell}.gd`, `scenes/campaign.tscn`, `scripts/meta_progress.gd`, `scripts/items/{item,item_generator,inventory}.gd`, title entry and pause presentation. UI `CampaignTown.setup(controller)` emits `expedition_requested(spec)` after controller departure commits, and `quit_requested`; shell binds both. UI owns additive `scripts/campaign/campaign_town.gd` and its visual assets. Combat owns `scripts/campaign/expedition_director.gd`, `scripts/main.gd` and the required combat collaborators. Coordinate shared-file changes before editing. The parent owns Git checkpoints and acceptance.
 
 ## Shell and combat boundary
 
@@ -24,7 +24,7 @@ The shell settles through `controller.settle(result)` and then mounts town. On a
 
 - `create(hero_class: String = "", campaign_seed: int = 0)`; refuses replacement until outstanding profile rewards deliver.
 - `load_campaign()`, `snapshot()`, `available_routes() -> Array`, `resume_spec() -> Dictionary`.
-- `choose_route(node_id, operation_id="")`, `resolve_event(choice_id, operation_id="")`.
+- `choose_route(node_id, operation_id="")`, `resolve_event(choice_id, operation_id="", selection: Dictionary={})`.
 - `depart(operation_id="")`, `settle(result: Dictionary)`, `acknowledge_result(operation_id="")`.
 - `buy_item(stock_id, operation_id="")`, `sell_items(item_ids: Array, marked_only=false, operation_id="")`.
 - `equip_item(item_id, operation_id="")`, `unequip_item(slot, operation_id="")`.
@@ -70,3 +70,12 @@ Required identity fields echo spec. `{campaign_id, node_id, attempt_id, outcome:
 ## Deterministic generation and save behavior
 
 `ItemGenerator.generate(ilvl, quality=0, rng: RandomNumberGenerator=null)` and `generate_with(ilvl, rarity, slot, rng=null)` preserve Classic default global RNG and permit independent campaign streams. Generated graph/stock/offers/wager outcomes persist as actual facts. `CampaignSave.path` is a test-overridable `user://campaign.save`, with `.bak`; `CampaignSave.fail_stage` supports write/replace failure injection. Variant saves never deserialize objects. Validation runs before save and load. Profile reward IDs persist in `MetaProgress.campaign_receipts` with shards/kills/completion data atomically; controller outbox replay is exact-once.
+
+
+## Presentation payloads
+
+`event={id,name,text,choices:[{id,name,cost?}],resolved,offers:{choice_slot_or_input_id:item_record},node_id,choice?,selection?}`. Coffins slots are weapon/chest/ring. Toll uses offers.prize. Dead Man's Inventory requires `resolve_event("trade", "", {item_id: stable_backpack_id})`; its offered replacement is keyed by that ID. Ash Map writes `graph.nodes[next_id].revealed=true`.
+
+`wager={node_id,stage:0|1|2,status:"open"|"won"|"lost"|"taken",prizes:[item_record],chance,outcome:{won,chance,stage}}`. Taking ends the opportunity and transfers held prizes once; a won stage2 cannot wager again. `reforge={item_id,old:item_record,new:item_record,cost,biome}`. Keeping either consumes the fee and biome use. `result={outcome,elapsed,gold,shard_conversion,talent_points,biome_complete,campaign_complete,items:[ids],reserved_prize?,report}`. `veteran_candidate` is the complete veteran record or {}.
+
+`PauseMenu.campaign_mode` changes existing save/quit and retreat labels, not signals. Main routes save_and_quit to expedition_quit_requested, and quit_to_title to a retreat terminal result. Save and quit explicitly warns that the expedition restarts from departure.

@@ -6,6 +6,8 @@ extends RefCounted
 static var _next_uid := 1
 
 var uid := 0
+## Stable campaign copy identity; empty for legacy Classic gear.
+var campaign_id := ""
 var slot := "weapon"
 var base_name := ""
 ## Display name. Normal items use the base name; Magic and above get a
@@ -73,13 +75,14 @@ func description_lines() -> Array[String]:
 
 func to_dict() -> Dictionary:
 	return {
-		"slot": slot, "base_name": base_name, "name": name, "rarity": rarity,
+		"slot": slot, "base_name": base_name, "name": name, "rarity": rarity, "campaign_id": campaign_id,
 		"ilvl": ilvl, "implicit": implicit, "affixes": affixes, "power": power,
 	}
 
 
 static func from_dict(d: Dictionary) -> Item:
 	var item := Item.new()
+	item.campaign_id = str(d.get("campaign_id", ""))
 	item.slot = d["slot"]
 	item.base_name = d["base_name"]
 	item.name = d["name"]
