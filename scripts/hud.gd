@@ -72,6 +72,7 @@ var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
+var _expedition_label: Label
 
 
 func _ready() -> void:
@@ -230,6 +231,16 @@ func set_night(progress: float, glow: float, on := true) -> void:
 ## The Ferryman's side bet countdown ("" hides it).
 func set_bet(text: String) -> void:
 	_bet_label.text = text
+
+
+## Campaign objective and contract/finale clock.
+func set_expedition(objective: String, clock: String) -> void:
+	_clock_text = clock
+	_clock_color = UiStyle.GOLD
+	_time_label.text = clock
+	_expedition_label.text = objective
+	_expedition_label.visible = objective != ""
+	_night.visible = false
 
 
 ## The interact prompt at the bottom ("" hides it).
@@ -465,6 +476,14 @@ func _build() -> void:
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
 	root.add_child(_time_label)
+	_expedition_label = UiStyle.label(15)
+	_expedition_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_expedition_label.offset_top = 58
+	_expedition_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_expedition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_expedition_label.add_theme_color_override("font_color", Color(0.58, 0.88, 1.0))
+	_expedition_label.visible = false
+	root.add_child(_expedition_label)
 	# Under it, the night's arc: the moon crossing toward dawn.
 	_night = _NightArc.new()
 	_night.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)

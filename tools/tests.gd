@@ -10,6 +10,9 @@ var _checks := 0
 
 
 func _initialize() -> void:
+	# Only persistence tests explicitly enable writes to their disposable paths.
+	# In particular, the controls reset at teardown must never save the player profile.
+	MetaProgress.disabled = true
 	seed(12345) # tests that touch randomness are deterministic
 	_run(&"_test_stat_math", _test_stat_math())
 	_run(&"_test_remove_source", _test_remove_source())
@@ -222,6 +225,18 @@ func _test_upgrades() -> bool:
 	_check(fallback.size() == 1 and fallback[0]["id"] == "heal", "empty pool falls back to heal")
 	_check(Upgrades.is_exhausted(fallback), "a heal-only roll counts as exhausted")
 	_check(not Upgrades.is_exhausted(Upgrades.roll(PlayerStats.new())), "a normal roll is not exhausted")
+	var locked_card := ""
+	for id: String in Upgrades.DEFS:
+		if Upgrades.DEFS[id].has("unlock"):
+			locked_card = id
+			break
+	if locked_card != "":
+		var saved_cards := MetaProgress.cards.duplicate(true)
+		MetaProgress.cards = {}
+		var fresh_stats := PlayerStats.new()
+		_check(not Upgrades.offered(locked_card, fresh_stats), "classic locked-card gating still reads the live profile")
+		_check(Upgrades.offered(locked_card, fresh_stats, {locked_card: true}), "campaign card availability can use its captured profile snapshot")
+		MetaProgress.cards = saved_cards
 
 
 # --- items -------------------------------------------------------------------
@@ -1004,6 +1019,13 @@ func _test_army() -> bool:
 	_check(army.count == player.stats.minion_max and army._elite.slice(0, army.count).has(1), "an elite soul rises at once, replacing a common minion")
 	army._remove(0, true)
 	_check(army.count == player.stats.minion_max, "when a minion falls, banked souls raise the next")
+	var borrowed_start := army.count
+	var borrowed_raised := 0
+	for i in 3:
+		if army._raise(0, false, false, true):
+			borrowed_raised += 1
+	_check(borrowed_raised == 3 and army.count == borrowed_start + 3,
+		"three temporary borrowed soldiers can join beyond the ordinary minion limit")
 
 	var gems := GemSwarm.new()
 	root.add_child(gems)
@@ -2839,6 +2861,23 @@ func _test_veterans() -> bool:
 	back["deeds"] += 10
 	_check(MetaProgress.entomb(back) == id and MetaProgress.crypt.size() == 1 and MetaProgress.crypt[0]["nights"] == 2,
 			"it goes back to rest with its new deeds, not as a copy")
+	# Campaign copies keep a stable roster ID without touching the Crypt, and
+	# retained deeds cannot promote past the destination biome's rank ceiling.
+	while army.count > 0:
+		army._remove(0, false, false)
+	player.stats.minion_max = 10
+	army.campaign_rank_cap = 1
+	var campaign_copy := back.duplicate(true)
+	campaign_copy["id"] = -1
+	campaign_copy["crypt"] = -1
+	campaign_copy["campaign_id"] = "campaign:veteran:stable"
+	campaign_copy["deeds"] = 100000
+	_check(army.raise_veteran(campaign_copy), "a campaign veteran copy can be deployed")
+	var campaign_slot := army.count - 1
+	_check(army._crypt[campaign_slot] == -1 and army.veterans().any(func(v: Dictionary) -> bool: return v.get("campaign_id", "") == "campaign:veteran:stable"),
+			"campaign veteran identity stays separate from the Crypt ID")
+	army.credit(campaign_slot, 100000)
+	_check(army._rank[campaign_slot] == 1, "campaign veteran growth respects its biome rank ceiling")
 	for n in 3:
 		var other := rec.duplicate()
 		other["crypt"] = -1

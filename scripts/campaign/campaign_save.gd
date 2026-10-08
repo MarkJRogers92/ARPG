@@ -49,9 +49,10 @@ static func read_variant(file_path: String) -> Variant:
 	file.close()
 	return data if error == OK else null
 
-static func atomic_write(file_path: String, data: Dictionary, injected_failure := "") -> bool:
+static func atomic_write(file_path: String, data: Dictionary, injected_failure := "", validator: Callable = Callable()) -> bool:
+	var campaign_data := data.has("campaign_id")
+	if not _valid_candidate(data, campaign_data, validator): return false
 	var temp := file_path + ".tmp"
-	var previous := file_path + ".rollback"
 	var file := FileAccess.open(temp, FileAccess.WRITE)
 	if file == null: return false
 	file.store_var(data, false)
@@ -59,26 +60,54 @@ static func atomic_write(file_path: String, data: Dictionary, injected_failure :
 	var write_error := file.get_error()
 	file.close()
 	if write_error != OK or read_variant(temp) != data: return false
-	var absolute := ProjectSettings.globalize_path(file_path)
-	var abs_previous := ProjectSettings.globalize_path(previous)
-	var had_primary := FileAccess.file_exists(file_path)
-	# Preserve a recovery candidate from a prior interrupted replacement.
-	if had_primary:
-		if FileAccess.file_exists(previous):
-			# Never destroy the sole valid recovery candidate before commit.
-			var preserved := previous + ".preserved-%d" % Time.get_ticks_usec()
-			if DirAccess.rename_absolute(abs_previous, ProjectSettings.globalize_path(preserved)) != OK: return false
-		if DirAccess.rename_absolute(absolute, abs_previous) != OK: return false
-	if injected_failure == "replace" or DirAccess.rename_absolute(ProjectSettings.globalize_path(temp), absolute) != OK:
-		if had_primary: DirAccess.rename_absolute(abs_previous, absolute)
-		return false
-	# Primary is now verified and committed. A corrupt old primary must never
-	# replace a good backup (campaign loader validates the old candidate).
-	if had_primary:
-		var old = read_variant(previous)
-		var campaign_data := data.has("campaign_id")
-		if old is Dictionary and (not campaign_data or CampaignState.validate(old) == ""):
-			var backup := ProjectSettings.globalize_path(file_path + ".bak")
-			if FileAccess.file_exists(file_path + ".bak"): DirAccess.remove_absolute(backup)
-			DirAccess.rename_absolute(abs_previous, backup)
+
+	# Copy a valid prior checkpoint to the backup without moving or deleting
+	# any committed/recovery candidate. A crash at every step still leaves
+	# the prior state at a path understood by both campaign and profile load.
+	var backup_source := ""
+	var prior: Variant = null
+	for suffix in ["", ".rollback", ".previous", ".bak"]:
+		var candidate = read_variant(file_path + suffix)
+		if _valid_candidate(candidate, campaign_data, validator):
+			backup_source = file_path + suffix
+			prior = candidate
+			break
+	var backup := file_path + ".bak"
+	if backup_source != "" and backup_source != backup:
+		var staged_backup := backup + ".tmp"
+		if DirAccess.copy_absolute(ProjectSettings.globalize_path(backup_source), ProjectSettings.globalize_path(staged_backup)) != OK: return false
+		if read_variant(staged_backup) != prior: return false
+		if not _preserve_invalid_target(backup, campaign_data, validator): return false
+		if DirAccess.rename_absolute(ProjectSettings.globalize_path(staged_backup), ProjectSettings.globalize_path(backup)) != OK: return false
+
+	# Same-directory rename replaces the destination atomically. Never move
+	# the primary out of the loader's reach before its replacement commits.
+	if injected_failure == "replace": return false
+	if not _preserve_invalid_target(file_path, campaign_data, validator): return false
+	if DirAccess.rename_absolute(ProjectSettings.globalize_path(temp), ProjectSettings.globalize_path(file_path)) != OK: return false
+
+	# A valid backup and new primary now exist. Remove only redundant valid
+	# legacy recovery copies, so a later load prefers the current backup.
+	# Damaged/unsupported files stay intact for inspection and recovery.
+	if backup_source != "":
+		for suffix in [".rollback", ".previous"]:
+			if _valid_candidate(read_variant(file_path + suffix), campaign_data, validator):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(file_path + suffix))
 	return true
+
+static func _valid_candidate(candidate: Variant, campaign_data: bool, validator: Callable) -> bool:
+	if not candidate is Dictionary: return false
+	if validator.is_valid(): return validator.call(candidate) == true
+	return CampaignState.validate(candidate) == "" if campaign_data else true
+
+
+## Preserve exact bytes of a damaged or unsupported file before overwriting
+## its fixed path. A preservation failure aborts the entire replacement.
+static func _preserve_invalid_target(file_path: String, campaign_data: bool, validator: Callable) -> bool:
+	if not FileAccess.file_exists(file_path) or _valid_candidate(read_variant(file_path), campaign_data, validator): return true
+	var original_hash := FileAccess.get_sha256(file_path)
+	if original_hash == "": return false
+	var preserved := file_path + ".corrupt-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	while FileAccess.file_exists(preserved): preserved += "-next"
+	if DirAccess.copy_absolute(ProjectSettings.globalize_path(file_path), ProjectSettings.globalize_path(preserved)) != OK: return false
+	return FileAccess.get_sha256(preserved) == original_hash and FileAccess.get_sha256(file_path) == original_hash

@@ -12,6 +12,24 @@ extends Node3D
 
 const GROUND_SNAP := 4.0
 
+signal expedition_finished(result: Dictionary)
+signal expedition_quit_requested
+
+## Assigned by CampaignShell before this scene enters the tree. An empty spec
+## keeps the original Classic Night path unchanged.
+var expedition_spec: Dictionary = {}
+var _campaign := false
+var _expedition: ExpeditionDirector
+var _expedition_terminal := false
+var _expedition_signal_sent := false
+var _expedition_result: Dictionary = {}
+var _return_ritual_left := 0.0
+var _drop_serial := 0
+var _expedition_loot_rng := RandomNumberGenerator.new()
+var _deployed_veteran_id := ""
+var _campaign_cards: Dictionary = {}
+var _campaign_final_boss_dead := false
+
 var elapsed := 0.0
 var kills := 0
 
@@ -109,12 +127,21 @@ var _hurt_sound := 0.0
 
 
 func _enter_tree() -> void:
+	_campaign = not expedition_spec.is_empty()
+	if _campaign:
+		Realm.current = String(expedition_spec.get("biome_id", Realm.current))
+		Realm.daily = false
+		Realm.in_title = false
 	# Before the swarms' _ready(), so they build the realm's models.
 	Realm.apply_gameplay(self)
 	# And so they draw their warnings the way the settings say.
 	MetaProgress.load_save()
 	Juice.calm = MetaProgress.setting("calm")
 	Juice.bold_telegraphs = MetaProgress.setting("bold_telegraphs")
+	if _campaign:
+		var loadout: Dictionary = expedition_spec.get("starting_loadout", {})
+		_hero_class = String(loadout.get("hero_class", MetaProgress.current_class()))
+		_apply_expedition_loadout_before_tree(loadout)
 
 
 func _ready() -> void:
@@ -126,18 +153,24 @@ func _ready() -> void:
 	apply_settings()
 	Juice.time_effects = true
 	MetaProgress.load_save()
-	MetaProgress.apply(_player.stats)
-	_resume = RunSave.pending if not Realm.in_title else {}
-	RunSave.pending = {}
-	_hero_class = _resume.get("hero_class", MetaProgress.current_class())
-	var relic: String = _resume.get("relic", MetaProgress.current_relic())
+	_resume = RunSave.pending if not _campaign and not Realm.in_title else {}
+	if not _campaign:
+		RunSave.pending = {}
+	var starting_loadout: Dictionary = expedition_spec.get("starting_loadout", {}) if _campaign else {}
+	var profile_snapshot: Dictionary = starting_loadout.get("profile_snapshot", {})
+	_hero_class = String(starting_loadout.get("hero_class", MetaProgress.current_class())) if _campaign else String(_resume.get("hero_class", MetaProgress.current_class()))
+	var relic: String = String(profile_snapshot.get("relic", MetaProgress.current_relic())) if _campaign else String(_resume.get("relic", MetaProgress.current_relic()))
 	_relic = relic
-	HeroClass.apply(_player, _hero_class)
-	# A resumed night's starting weapon is already among its saved upgrades.
-	Relics.apply(_player, relic, "" if not _resume.is_empty() else MetaProgress.current_start_weapon())
-	_rerolls = MetaProgress.rerolls() + Relics.extra_rerolls(relic)
+	if not _campaign:
+		MetaProgress.apply(_player.stats)
+	var start_weapon := String(profile_snapshot.get("start_weapon", "")) if _campaign else ("" if not _resume.is_empty() else MetaProgress.current_start_weapon())
+	if not _campaign:
+		HeroClass.apply(_player, _hero_class)
+		# A resumed night's starting weapon is already among its saved upgrades.
+		Relics.apply(_player, relic, start_weapon)
+	_rerolls = int(profile_snapshot.get("rerolls", 0)) if _campaign else MetaProgress.rerolls() + Relics.extra_rerolls(relic)
 	var realm := Realm.data()
-	if realm["soul_bonus"] > 0.0:
+	if realm["soul_bonus"] > 0.0 and not _campaign:
 		_player.stats.add_mod("realm", "soul_chance", PlayerStats.Op.INCREASED, realm["soul_bonus"])
 		_player.stats.recalculate()
 	Realm.apply_look(self)
@@ -145,10 +178,17 @@ func _ready() -> void:
 
 	_swarms.assign(get_tree().get_nodes_in_group(EnemySwarm.GROUP))
 	_player.setup(_swarms, _projectiles)
+	if _campaign:
+		var class_data := HeroClass.data(_hero_class)
+		_player.set_class_look(class_data["look"], class_data["weapon"], class_data["accent"])
 	_director.setup(_swarms)
 	Elements.player = _player
 	Elements.swarms = _swarms
 	_army.setup(_player, _swarms)
+	if _campaign:
+		_army.campaign_rank_cap = mini(int(expedition_spec.get("biome_index", 0)) + 1, Army.RANKS.size() - 1)
+		_raise_expedition_veteran(starting_loadout)
+		_raise_borrowed_battalion()
 	_army.stance_changed.connect(func(stance: String) -> void:
 		var st: Dictionary = Army.STANCES[stance]
 		_hud.toast("%s: %s" % [st["label"], st["desc"]], st["color"]))
@@ -157,7 +197,7 @@ func _ready() -> void:
 		if won and not _endless:
 			return
 		_hud.toast("%s has fallen%s." % [vet_name, ", gone from the Crypt forever" if crypt >= 0 else ""], Color(0.75, 0.75, 0.85))
-		if crypt >= 0:
+		if crypt >= 0 and not _campaign:
 			MetaProgress.crypt_fell(crypt))
 	_army.raised.connect(func(kind: String) -> void:
 		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
@@ -179,6 +219,9 @@ func _ready() -> void:
 	_landmarks = Landmarks.new()
 	add_child(_landmarks)
 	_landmarks.setup(_decor, _player, _director, _loot, _army, _events, _swarms, _spend_shards)
+	_landmarks.campaign_mode = _campaign
+	_landmarks.campaign_item_level = int(expedition_spec.get("item_level", -1)) if _campaign else -1
+	_landmarks.campaign_rng = _expedition_loot_rng if _campaign else null
 	_landmarks.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_wager_panel = WagerPanel.new()
 	add_child(_wager_panel)
@@ -192,8 +235,11 @@ func _ready() -> void:
 	_ferryman.setup(_player, _army, _loot, _director, collectors, _wager_panel)
 	_ferryman.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	if collectors:
-		collectors.seized_hero.connect(_ferryman.seize)
-	_bosses.boss_spawned.connect(func(boss_name: String) -> void: _ferryman.start_bet(boss_name))
+		if not _campaign:
+			collectors.seized_hero.connect(_ferryman.seize)
+	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
+		if not _campaign:
+			_ferryman.start_bet(boss_name))
 	_rival = RivalDirector.new()
 	add_child(_rival)
 	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
@@ -219,9 +265,9 @@ func _ready() -> void:
 	_power_ups.setup(_player, _director, [_gems, _souls] as Array[GemSwarm])
 	_power_ups.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
-		_hud.title_card(boss_name, "Dawn is near. The master of this realm rises.", Color(1.0, 0.35, 0.3))
+		_hud.title_card(boss_name, "The biome's master has arrived. Slay it to claim the route.", Color(1.0, 0.35, 0.3) if _campaign else Color(1.0, 0.35, 0.3))
 		Sound.play("boss_title")
-		_hud.toast("Dawn is near... %s rises!" % boss_name, Color(1.0, 0.35, 0.3)))
+		_hud.toast(("The final guardian rises: %s!" if _campaign else "Dawn is near... %s rises!") % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
 		_hud.title_card(boss_name, "A champion of the night approaches", Color(1.0, 0.55, 0.35))
 		Sound.play("boss_title", 1.1, -3.0)
@@ -248,9 +294,10 @@ func _ready() -> void:
 	_player.leveled_up.connect(_try_level_up)
 	_player.died.connect(_on_player_died)
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
-	_inventory_screen.setup(_player)
+	_inventory_screen.setup(_player, _campaign)
 	_inventory_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_skill_screen.setup(_player)
+	_skill_screen.read_only = _campaign
 	_skill_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_player.skill_points_gained.connect(func(n: int) -> void:
 		_hud.toast("+%d skill point%s  %s" % [n, "" if n == 1 else "s", Controls.tag("skill_tree")], Color(1.0, 0.85, 0.3)))
@@ -265,11 +312,15 @@ func _ready() -> void:
 		get_tree().reload_current_scene())
 	_hud.endless_pressed.connect(_start_endless)
 	_pause = PauseMenu.new()
+	_pause.campaign_mode = _campaign
 	add_child(_pause)
 	_pause.resumed.connect(func() -> void: get_tree().paused = false)
 	_pause.settings_changed.connect(apply_settings)
-	_pause.save_and_quit.connect(_suspend)
+	_pause.save_and_quit.connect(_on_pause_save_and_quit)
 	_pause.quit_to_title.connect(func() -> void:
+		if _campaign:
+			_request_expedition_result("retreat")
+			return
 		Realm.in_title = true
 		get_tree().paused = false
 		get_tree().reload_current_scene())
@@ -292,14 +343,162 @@ func _ready() -> void:
 	_sound.play_realm(Realm.current)
 	_in_title = Realm.in_title
 	if not _in_title:
-		_begin_night()
-		if not _resume.is_empty():
-			_restore(_resume)
+		if _campaign:
+			_setup_expedition()
+		else:
+			_begin_night()
+			if not _resume.is_empty():
+				_restore(_resume)
 	if _in_title:
 		_hud.hide()
 		_title.open()
 	else:
 		_title.close()
+
+
+func _apply_expedition_loadout_before_tree(loadout: Dictionary) -> void:
+	var player := get_node("Player") as Player
+	var profile_snapshot: Dictionary = loadout.get("profile_snapshot", {})
+	_campaign_cards = profile_snapshot.get("cards", {}).duplicate(true)
+	player.stats.add_mods("meta", profile_snapshot.get("mods", []))
+	HeroClass.apply(player, _hero_class)
+	_relic = String(profile_snapshot.get("relic", ""))
+	Relics.apply(player, _relic, String(profile_snapshot.get("start_weapon", "")))
+	player.skill_point_every_levels = 0
+	player.stats.level = 1
+	player.stats.xp = 0
+	player.pending_levels = 0
+	var inventory_data: Dictionary = loadout.get("inventory", {})
+	if not inventory_data.is_empty():
+		player.inventory.restore(inventory_data)
+	var talent_data: Dictionary = loadout.get("talents", {"points": 0, "allocated": []})
+	player.skills.restore(talent_data)
+	var specialization := String(loadout.get("specialization", ""))
+	_spec_chosen = specialization != ""
+	if specialization != "":
+		Specializations.apply(player.stats, _hero_class, specialization)
+	for effect in expedition_spec.get("effects", []):
+		if effect is Dictionary and effect.get("mods", []) is Array:
+			player.stats.add_mods("campaign_effects", effect.get("mods", []))
+	player.stats.recalculate()
+	player.stats.hp = player.stats.max_hp
+	player.dead = false
+
+
+func _raise_expedition_veteran(loadout: Dictionary) -> void:
+	var veteran: Dictionary = loadout.get("veteran", {})
+	if veteran.is_empty():
+		return
+	var copy := veteran.duplicate(true)
+	copy["id"] = -1
+	copy["crypt"] = -1
+	copy["campaign_id"] = String(veteran.get("id", ""))
+	var max_rank := mini(int(expedition_spec.get("biome_index", 0)) + 1, Army.RANKS.size() - 1)
+	copy["rank"] = clampi(int(copy.get("rank", 0)), 0, max_rank)
+	if _army.raise_veteran(copy):
+		_deployed_veteran_id = String(veteran.get("id", ""))
+
+
+func _raise_borrowed_battalion() -> void:
+	for effect in expedition_spec.get("effects", []):
+		if effect is Dictionary and String(effect.get("id", "")) == "borrowed_battalion":
+			var count := clampi(int(effect.get("minions", 3)), 0, 3)
+			var type := _army.type_index(_grunts)
+			for i in count:
+				# The Ledger's three borrowed soldiers are temporary mission
+				# reinforcements; they join even when the hero's permanent army is
+				# smaller. Keep the explicit three-unit contract cap above.
+				_army._raise(type, false, false, true)
+
+
+func _setup_expedition() -> void:
+	elapsed = 0.0
+	kills = 0
+	_run_shards = 0
+	_win_shards = 0
+	_kills_by.clear()
+	_director.elapsed = 0.0
+	_director.pressure = 1.0
+	_bosses.final_enabled = bool(expedition_spec.get("final_boss", false))
+	_expedition = ExpeditionDirector.new()
+	_expedition.name = "ExpeditionDirector"
+	add_child(_expedition)
+	_expedition.configure(expedition_spec, self, _player, _director, _bosses, _swarms)
+	_expedition_loot_rng.seed = int(expedition_spec.get("mission_seed", 1)) ^ 0x51A7
+	_loot.set_campaign_rng(_expedition_loot_rng)
+	_hud.set_omen("EXPEDITION  ·  %s" % String(expedition_spec.get("profile_id", "ROUTE")).replace("_", " ").to_upper(),
+		String(expedition_spec.get("contract_id", "hunt")).replace("_", " ").to_upper(), UiStyle.GOLD, 0)
+
+
+func _on_pause_save_and_quit() -> void:
+	if _campaign:
+		expedition_quit_requested.emit()
+		return
+	_suspend()
+
+
+func _request_expedition_result(outcome: String) -> void:
+	if not _campaign or _expedition_terminal or _expedition == null:
+		return
+	get_tree().paused = false
+	_expedition.result = {
+		"campaign_id": expedition_spec.get("campaign_id", ""),
+		"node_id": expedition_spec.get("node_id", ""),
+		"attempt_id": expedition_spec.get("attempt_id", ""),
+		"outcome": outcome,
+		"elapsed": _director.elapsed,
+		"objectives": {"seals": _expedition.seals, "elite_dead": _expedition.elite_dead,
+			"cache_claimed": _expedition.cache_claimed, "boss_dead": false},
+	}
+	_expedition.terminal = true
+	_finish_expedition_frame()
+
+
+func _finish_expedition_frame() -> void:
+	if _expedition_terminal or _expedition == null:
+		return
+	_expedition_terminal = true
+	_game_over = true
+	_sound.stop_music(0.5)
+	Engine.time_scale = 1.0
+	_expedition_result = _expedition.result.duplicate(true)
+	_expedition_result["inventory"] = _player.inventory.to_dict()
+	_expedition_result["loose_shards"] = _run_shards
+	_expedition_result["kills_by"] = _kills_by.duplicate(true)
+	var veterans := _army.veterans()
+	var candidate: Dictionary = {}
+	if _deployed_veteran_id != "":
+		for survivor in veterans:
+			if String(survivor.get("campaign_id", "")) == _deployed_veteran_id:
+				candidate = survivor.duplicate(true)
+				break
+	if candidate.is_empty() and not veterans.is_empty():
+		candidate = veterans[0].duplicate(true)
+	if not candidate.is_empty():
+		var is_deployed := _deployed_veteran_id != "" and String(candidate.get("campaign_id", "")) == _deployed_veteran_id
+		candidate["id"] = _deployed_veteran_id if is_deployed else "%s:veteran:%s" % [String(expedition_spec.get("attempt_id", "attempt")), String(candidate.get("name", "wanderer")).to_lower().replace(" ", "-")]
+		candidate.erase("crypt")
+		candidate.erase("campaign_id")
+		candidate.erase("slot")
+	_expedition_result["veteran"] = candidate
+	_expedition_result["report"] = {"kills": kills, "level": _player.stats.level, "realm": Realm.current,
+		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false))}
+	_expedition_result = _expedition_result.duplicate(true)
+	_hud.toast("Extraction secured." if _expedition_result.get("outcome", "") == "success" else "The expedition is lost.",
+		UiStyle.GOLD if _expedition_result.get("outcome", "") == "success" else Color(1.0, 0.45, 0.4))
+	_return_ritual_left = ExpeditionDirector.RITUAL_SECONDS
+
+
+func _emit_expedition_result() -> void:
+	expedition_finished.emit(_expedition_result.duplicate(true))
+
+
+func _campaign_item_level() -> int:
+	return maxi(int(expedition_spec.get("item_level", 1)), 1)
+
+
+func _campaign_rng() -> RandomNumberGenerator:
+	return _expedition_loot_rng
 
 
 ## Screen shake and damage numbers on or off, and the volumes (see PauseMenu).
@@ -325,6 +524,12 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	Juice.tick()
+	if _campaign and _expedition_terminal:
+		_return_ritual_left = maxf(_return_ritual_left - minf(delta, 0.05), 0.0)
+		if _return_ritual_left <= 0.0 and not _expedition_signal_sent:
+			_expedition_signal_sent = true
+			call_deferred("_emit_expedition_result")
+		return
 	if _game_over:
 		if _dying > 0.0:
 			_death_frame(delta)
@@ -355,6 +560,8 @@ func _process(delta: float) -> void:
 	_army.step(delta)
 	Elements.flush()
 	_army.flush()
+	if _campaign:
+		_director.tick(delta, _player.pos2)
 	_bosses.tick(delta)
 	_mid_mech.tick(delta)
 	_specialists.tick(delta)
@@ -363,11 +570,15 @@ func _process(delta: float) -> void:
 		_final_mech.tick(delta)
 	if not won or _endless:
 		_hazards.tick(delta)
-		_events.tick(delta)
+		if not _campaign:
+			_events.tick(delta)
+		else:
+			_events._update_blessing(delta)
 		_landmarks.tick(delta)
-		_ferryman.tick(delta)
-		_rift.tick(delta)
-		_rival.tick(delta)
+		if not _campaign:
+			_ferryman.tick(delta)
+			_rift.tick(delta)
+			_rival.tick(delta)
 	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
 	_events.shards = 0
 	_landmarks.shards = 0
@@ -375,7 +586,7 @@ func _process(delta: float) -> void:
 	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
-	var hint := _ferryman.bet_text
+	var hint := "" if _campaign else _ferryman.bet_text
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
@@ -417,13 +628,16 @@ func _process(delta: float) -> void:
 		_army.collect_soul(value)
 		Sound.play("soul")
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
+	if _campaign:
+		_expedition.tick_objectives(delta)
 
 	if not won or _endless:
-		_director.tick(delta, origin)
+		if not _campaign:
+			_director.tick(delta, origin)
 		_director.update_pressure(delta, _player.stats.hp / maxf(_player.stats.max_hp, 1.0), _enemy_count())
 	else:
 		_director.elapsed += delta
-	_player.xp_scale = xp_scale_at(_director.elapsed)
+	_player.xp_scale = xp_scale_at(_director.elapsed if not _campaign or bool(expedition_spec.get("final_boss", false)) else 0.0)
 	_fx.step(delta)
 	_wisps.step(delta, origin)
 	_spawn_motes(delta, origin)
@@ -431,7 +645,10 @@ func _process(delta: float) -> void:
 	_motes.step(delta)
 	_decor.follow(origin)
 	_update_first_light(delta)
-	_atmosphere.tick(delta, elapsed, _bosses.boss_alive() or _bosses.final_alive())
+	var atmosphere_time := elapsed
+	if _campaign and not bool(expedition_spec.get("final_boss", false)):
+		atmosphere_time = elapsed * 900.0 / maxf(_expedition.duration, 1.0)
+	_atmosphere.tick(delta, atmosphere_time, _bosses.boss_alive() or _bosses.final_alive())
 
 	# The ground plane trails the player in whole grid cells; the grid itself
 	# is drawn in world space, so it looks static.
@@ -452,6 +669,11 @@ func _process(delta: float) -> void:
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
+	if _campaign:
+		_hud.set_expedition(_expedition.objective_text(), _expedition.clock_text(_director.elapsed))
+		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
+		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
+			_finish_expedition_frame()
 
 
 ## A frame in the Night Market: the realm (horde, clock, spawns, events)
@@ -708,6 +930,8 @@ func _spend_shards(n: int) -> Variant:
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
 	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers() + _rival.markers()
+	if _campaign and _expedition:
+		out.append_array(_expedition.markers())
 	for swarm in _swarms:
 		if not swarm.boss:
 			continue
@@ -792,8 +1016,14 @@ func _spawn_motes(delta: float, origin: Vector2) -> void:
 
 
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
-	if won and not _endless:
+	if _expedition_terminal or (won and not _endless):
 		return
+	if _campaign and _expedition:
+		# Elite hunt death is also checked from the actual enemy arrays at frame end;
+		# signals are useful for presentation but can arrive one swarm step later.
+		for i in swarm.count:
+			if swarm.hp[i] <= 0.0 and _expedition.contract_id == "elite_hunt":
+				_expedition.observe_elite_death(swarm, swarm.ids[i])
 	_run_shards += 2
 	_power_ups.on_kill(at, true)
 	Sound.play("elite_kill")
@@ -801,13 +1031,17 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if randf() < 0.5:
 		_events.drop_orb(at + Vector2(-0.6, 0.0))
 	_souls.drop(at + Vector2(0.6, 0.0), Army.soul_value(_army.type_index(swarm), true, false))
-	_loot.drop(ItemGenerator.generate(ItemData.ilvl_for_player_level(_player.stats.level),
-			1.0 + swarm.loot_quality + _player.stats.magic_find), at)
+	var elite_ilvl := _campaign_item_level() if _campaign else ItemData.ilvl_for_player_level(_player.stats.level)
+	if not _campaign or _loot.consume_drop_token():
+		_loot.drop(ItemGenerator.generate(elite_ilvl, 1.0 + swarm.loot_quality + _player.stats.magic_find,
+				_campaign_rng() if _campaign else null), at)
 	_fx.burst(at, 1.0, Color(1.0, 0.8, 0.35), 20, 6.0, 0.55, 0.6, 5.0)
 	Juice.flash(at, Color(1.0, 0.75, 0.35), 4.0, 8.0, 0.3)
 
 
 func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
+	if _campaign and _expedition_terminal:
+		return
 	if won and not _endless:
 		# Burned away by the sunrise: no rewards.
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
@@ -822,9 +1056,15 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_power_ups.on_kill(at, false)
 	frenzy += 1.0
 	if swarm == _final:
+		if _campaign:
+			_campaign_final_boss_dead = true
+			# The controller grants the finale prize on settlement. Do not produce
+			# more combat rewards after the actual final-boss HP reaches zero.
+			return
 		_on_final_died(at)
 	if swarm.boss:
-		_on_boss_died(at, swarm)
+		if not _campaign:
+			_on_boss_died(at, swarm)
 		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
 	elif randf() < _player.stats.soul_chance * (2.0 if _rift.glitching() else 1.0):
 		_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
@@ -834,15 +1074,17 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	var overflow := _gems.drop(at, xp * (2 if _rift.glitching() else 1))
 	if overflow > 0:
 		_player.add_xp(overflow)
-	if randf() < 0.002 and not swarm.boss:
+	if not _campaign and randf() < 0.002 and not swarm.boss:
 		_events.drop_orb(at)
-	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality,
-			ItemData.ilvl_for_player_level(_player.stats.level), _player.stats.magic_find)
+	var ilvl := _campaign_item_level() if _campaign else ItemData.ilvl_for_player_level(_player.stats.level)
+	_loot.roll_kill_drop(at, swarm.loot_chance, swarm.loot_quality, ilvl, _player.stats.magic_find)
 
 
 ## The final boss is dead: the night is won. The sun comes up, the horde
 ## burns away over a few seconds, then the victory screen.
 func _on_final_died(at: Vector2) -> void:
+	if _campaign:
+		return
 	if won:
 		return
 	won = true
@@ -870,6 +1112,8 @@ func _on_final_died(at: Vector2) -> void:
 ## How far along the night is (0 at dusk, 1 at dawn), and First Light (0..1:
 ## nothing until the last FIRST_LIGHT seconds, then the sun begins to rise).
 func night_progress() -> float:
+	if _campaign and _expedition and not _expedition.finale:
+		return clampf(_director.elapsed / maxf(_expedition.duration, 1.0), 0.0, 1.0)
 	if won or _bosses.final_arrived:
 		return 1.0
 	return clampf(_director.elapsed / maxf(_bosses.run_length, 1.0), 0.0, 1.0)
@@ -887,6 +1131,8 @@ static func xp_scale_at(t: float) -> float:
 
 
 func first_light() -> float:
+	if _campaign and _expedition and not _expedition.finale:
+		return clampf((_director.elapsed - _expedition.duration * 0.75) / maxf(_expedition.duration * 0.25, 1.0), 0.0, 1.0)
 	if _endless:
 		return 0.0
 	if won or _bosses.final_arrived:
@@ -901,7 +1147,7 @@ func _update_first_light(delta: float) -> void:
 	_hud.set_night(night_progress(), light, not _endless)
 	if light > 0.0 and not _first_light_told and not won:
 		_first_light_told = true
-		_hud.toast("First light. Dawn is coming, and with it, their master...", Color(1.0, 0.75, 0.5))
+		_hud.toast("First light. Extraction is drawing near." if _campaign and not _expedition.finale else "First light. Dawn is coming, and with it, their master...", Color(1.0, 0.75, 0.5))
 
 
 ## The sunrise: a wall of light spreads from where the final boss fell, and
@@ -954,6 +1200,8 @@ func _start_endless() -> void:
 
 
 func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
+	if _campaign:
+		return
 	if swarm != _final:
 		_ferryman.boss_slain(at)
 	var shards := 15 + 5 * (_bosses.spawned - 1)
@@ -969,6 +1217,9 @@ func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
 
 
 func _on_item_picked(item: Item, result: String) -> void:
+	if _campaign and item.campaign_id.is_empty():
+		_drop_serial += 1
+		item.campaign_id = "%s:drop:%d" % [String(expedition_spec.get("attempt_id", "attempt")), _drop_serial]
 	Sound.play("pickup")
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
@@ -982,7 +1233,7 @@ func _on_item_picked(item: Item, result: String) -> void:
 func _try_level_up() -> void:
 	if _choosing_upgrade or _game_over:
 		return
-	if not _spec_chosen and _player.stats.level >= Specializations.LEVEL:
+	if not _campaign and not _spec_chosen and _player.stats.level >= Specializations.LEVEL:
 		# Level 10: choose a path (once a night) before any more cards.
 		_choosing_upgrade = true
 		get_tree().paused = true
@@ -991,7 +1242,7 @@ func _try_level_up() -> void:
 		return
 	while _player.pending_levels > 0:
 		_player.pending_levels -= 1
-		var choices := Upgrades.roll(_player.stats)
+		var choices := Upgrades.roll(_player.stats, 3, _campaign_cards if _campaign else null)
 		if Upgrades.is_exhausted(choices):
 			# Everything is maxed: a menu with one useless card would just
 			# interrupt the run, so the level-up quietly heals instead.
@@ -1007,7 +1258,7 @@ func _on_reroll() -> void:
 	if not _choosing_upgrade or _rerolls <= 0:
 		return
 	_rerolls -= 1
-	_hud.show_upgrades(Upgrades.roll(_player.stats), _rerolls)
+	_hud.show_upgrades(Upgrades.roll(_player.stats, 3, _campaign_cards if _campaign else null), _rerolls)
 
 
 func _on_upgrade_chosen(id: String) -> void:
@@ -1032,6 +1283,8 @@ func _on_upgrade_chosen(id: String) -> void:
 
 
 func _on_player_died() -> void:
+	if _campaign:
+		return # end-of-frame arbitration owns mission failure and its result
 	if _game_over or (won and not _endless):
 		return
 	_game_over = true

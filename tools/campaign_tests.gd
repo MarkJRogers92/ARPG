@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_events()
 	_test_clauses()
 	_test_recovery()
+	_test_sole_rollback_recovery()
 	_test_validation()
 	CampaignSave.fail_stage = ""
 	MetaProgress.campaign_fail_save = false
@@ -349,3 +350,74 @@ func _test_clauses() -> void:
 	var offers := controller.clause_offers("ring")
 	check(offers.size() == 3 and controller.load_campaign()["ok"] and controller.clause_offers("ring") == offers, "targeted Arsenal shows three persistent choices")
 	check(controller.accept_clause("stolen_arsenal", "ring", 1)["ok"] and controller.state["inventory"]["items"].has(offers[1]["id"]), "arsenal grants only selected exact Rare")
+
+
+func _test_sole_rollback_recovery() -> void:
+	var saved_path := CampaignSave.path
+	var valid := controller.snapshot()
+	for profile in [false, true]:
+		var isolated := test_root + (".sole-profile" if profile else ".sole-campaign")
+		var prior: Dictionary = MetaProgress._snapshot() if profile else valid.duplicate(true)
+		var changed := prior.duplicate(true)
+		if profile:
+			prior["shards"] = 717
+			prior["campaign_receipts"]["sole-rollback-award"] = true
+			changed = prior.duplicate(true)
+			changed["shards"] += 5
+		else: changed["revision"] += 1
+		var file := FileAccess.open(isolated + ".rollback", FileAccess.WRITE)
+		file.store_var(prior)
+		file.close()
+		file = FileAccess.open(isolated, FileAccess.WRITE)
+		file.store_string("damaged primary with sole valid rollback")
+		file.close()
+		var damaged_primary_hash := FileAccess.get_sha256(isolated)
+		file = FileAccess.open(isolated + ".bak", FileAccess.WRITE)
+		file.store_string("damaged backup target")
+		file.close()
+		var damaged_backup_hash := FileAccess.get_sha256(isolated + ".bak")
+		file = FileAccess.open(isolated + ".previous", FileAccess.WRITE)
+		file.store_string("unsupported previous recovery candidate")
+		file.close()
+		var untouched_previous_hash := FileAccess.get_sha256(isolated + ".previous")
+		var validator: Callable = MetaProgress._valid_snapshot if profile else Callable()
+		for retry in 2:
+			check(not CampaignSave.atomic_write(isolated, changed, "replace", validator), "sole rollback replacement failure is retryable")
+			check(CampaignSave.read_variant(isolated + ".rollback") == prior, "valid rollback remains at a discoverable fixed path")
+			if profile:
+				var profile_path := MetaProgress.save_path
+				MetaProgress.save_path = isolated
+				MetaProgress.load_save()
+				check(MetaProgress.shards == 717 and MetaProgress.campaign_receipts.has("sole-rollback-award"), "profile reload preserves sole rollback's award and receipt")
+				MetaProgress.save_path = profile_path
+			else:
+				CampaignSave.path = isolated
+				check(CampaignSave.read() == prior, "campaign reload preserves sole valid rollback after failure")
+		check(CampaignSave.atomic_write(isolated, changed, "", validator), "sole rollback replacement eventually commits")
+		check(CampaignSave.read_variant(isolated) == changed and CampaignSave.read_variant(isolated + ".bak") == prior, "successful replacement retains new primary and valid prior backup")
+		check(_has_preserved_bytes(isolated, damaged_primary_hash), "damaged campaign/profile primary bytes preserved after replacement")
+		check(_has_preserved_bytes(isolated + ".bak", damaged_backup_hash), "damaged campaign/profile backup bytes preserved before replacement")
+		check(FileAccess.get_sha256(isolated + ".previous") == untouched_previous_hash, "invalid previous recovery candidate remains untouched")
+		# A later primary failure recovers the prior checkpoint, not hidden files.
+		file = FileAccess.open(isolated, FileAccess.WRITE)
+		file.store_string("damaged committed primary")
+		file.close()
+		if profile:
+			var profile_path := MetaProgress.save_path
+			MetaProgress.save_path = isolated
+			MetaProgress.load_save()
+			check(MetaProgress.shards == 717 and MetaProgress.campaign_receipts.has("sole-rollback-award"), "profile backup remains recoverable after successful replacement")
+			MetaProgress.save_path = profile_path
+		else:
+			CampaignSave.path = isolated
+			check(CampaignSave.read() == prior, "campaign backup remains recoverable after successful replacement")
+	CampaignSave.path = saved_path
+	MetaProgress.load_save()
+
+
+func _has_preserved_bytes(original_path: String, expected_hash: String) -> bool:
+	var directory := DirAccess.open(original_path.get_base_dir())
+	if directory == null: return false
+	for file_name: String in directory.get_files():
+		if file_name.begins_with(original_path.get_file() + ".corrupt-") and FileAccess.get_sha256(original_path.get_base_dir().path_join(file_name)) == expected_hash: return true
+	return false

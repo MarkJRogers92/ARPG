@@ -27,18 +27,31 @@ var drops: Array[LootDrop] = []
 
 var _full_cooldown := 0.0
 var _tokens := 1.0
+var item_rng: RandomNumberGenerator
+
+
+func set_campaign_rng(rng: RandomNumberGenerator) -> void:
+	item_rng = rng
+
+
+func consume_drop_token() -> bool:
+	if not budgeted:
+		return true
+	if _tokens < 1.0:
+		return false
+	_tokens -= 1.0
+	return true
 
 
 ## Maybe drop an item where an enemy died. `chance` and `quality` come from the
 ## enemy type; the hero's magic find adds to quality.
 func roll_kill_drop(at: Vector2, chance: float, quality: float, ilvl: int, magic_find: float) -> void:
-	if randf() >= chance:
+	var roll := item_rng.randf() if item_rng else randf()
+	if roll >= chance:
 		return
-	if budgeted:
-		if _tokens < 1.0:
-			return
-		_tokens -= 1.0
-	drop(ItemGenerator.generate(ilvl, quality + magic_find), at)
+	if not consume_drop_token():
+		return
+	drop(ItemGenerator.generate(ilvl, quality + magic_find, item_rng), at)
 
 
 func drop(item: Item, at: Vector2) -> LootDrop:

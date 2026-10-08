@@ -207,11 +207,17 @@ static func _read(path: String) -> Variant:
 	if not FileAccess.file_exists(path):
 		return null
 	var data = CampaignSave.read_variant(path)
-	if not data is Dictionary: return null
-	if not data.get("shards", 0) is int or data.get("shards", 0) < 0 or not data.get("ranks", {}) is Dictionary or not data.get("bestiary", {}) is Dictionary or not data.get("campaign_receipts", {}) is Dictionary: return null
+	return data if _valid_snapshot(data) else null
+
+
+## The shared writer uses the same compatibility check as profile loading,
+## so a malformed primary dictionary cannot replace a valid recovery backup.
+static func _valid_snapshot(data: Variant) -> bool:
+	if not data is Dictionary: return false
+	if not data.get("shards", 0) is int or data.get("shards", 0) < 0 or not data.get("ranks", {}) is Dictionary or not data.get("bestiary", {}) is Dictionary or not data.get("campaign_receipts", {}) is Dictionary: return false
 	for id in data.get("campaign_receipts", {}):
-		if not id is String or data["campaign_receipts"][id] != true: return null
-	return data
+		if not id is String or data["campaign_receipts"][id] != true: return false
+	return true
 
 
 ## Writes the save safely: to a temporary file first, then swapped in, with
@@ -231,7 +237,7 @@ static func _snapshot() -> Dictionary:
 
 static func save() -> void:
 	if disabled: return
-	CampaignSave.atomic_write(save_path, _snapshot())
+	CampaignSave.atomic_write(save_path, _snapshot(), "", _valid_snapshot)
 
 
 ## Apply shards, successful-attempt Bestiary kills and a completion record in
@@ -252,7 +258,7 @@ static func apply_campaign_receipt(receipt: Dictionary) -> bool:
 	next["campaign_receipts"][id] = true
 	if receipt.get("completed", false):
 		next["campaign_completions"].append({"campaign_id": receipt.get("campaign_id", ""), "hero_class": receipt.get("hero_class", ""), "receipt_id": id})
-	if not disabled and not CampaignSave.atomic_write(save_path, next): return false
+	if not disabled and not CampaignSave.atomic_write(save_path, next, "", _valid_snapshot): return false
 	shards = next["shards"]
 	bestiary = next["bestiary"]
 	campaign_receipts = next["campaign_receipts"]

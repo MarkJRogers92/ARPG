@@ -46,6 +46,13 @@ var final_shot_speed := 6.0
 ## How many bosses have arrived this run.
 var spawned := 0
 var final_arrived := false
+## Campaign short contracts disable the realm finale; biome finales retain its
+## exact 900-second arrival without imposing a deadline after it appears.
+var final_enabled := true
+var expedition_mode := false
+var final_hp_scale := 1.0
+var mid_boss_first_at := 180.0
+var mid_boss_interval := 180.0
 ## Set after a win: mid-bosses keep coming, no more final boss.
 var endless := false
 
@@ -91,9 +98,9 @@ func tick(delta: float) -> void:
 		return
 	# Mid-bosses until dawn (and again in Endless), then the final boss.
 	if _director.elapsed >= _next_at and (_director.elapsed < run_length - 30.0 or endless):
-		_next_at += interval
+		_next_at += mid_boss_interval if expedition_mode else interval
 		_spawn()
-	if _final and not final_arrived and not endless and _director.elapsed >= run_length:
+	if final_enabled and _final and not final_arrived and not endless and _director.elapsed >= run_length:
 		_spawn_final()
 	if final_alive():
 		_final_attacks(delta)
@@ -142,7 +149,7 @@ func current_boss_name() -> String:
 func _spawn_final() -> void:
 	final_arrived = true
 	var at := EnemySwarm.random_ring_point(_player.pos2, 13.0, 15.0)
-	if _final.spawn(at, _director.hp_multiplier()):
+	if _final.spawn(at, _director.hp_multiplier() * (final_hp_scale if expedition_mode else 1.0)):
 		_bosses[_final.ids[_final.count - 1]] = {"max_hp": _final.hp[_final.count - 1], "timer": 3.0}
 		final_spawned.emit(final_name)
 		Juice.shake(0.7)

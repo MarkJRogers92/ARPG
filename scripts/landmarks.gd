@@ -63,6 +63,11 @@ var _scan := 0.0
 var _bells: Array[Dictionary] = []
 var _rings: Array[MeshInstance3D] = []
 var _altar_stacks := 0
+## The forbidden tome grants only a temporary in-mission boon in campaign
+## combat; campaign talent points are awarded by settlement milestones.
+var campaign_mode := false
+var campaign_item_level := -1
+var campaign_rng: RandomNumberGenerator
 ## Set by main.gd: where the ritual door leads.
 var rift: RiftDirector
 
@@ -82,6 +87,10 @@ func setup(decor: WorldDecor, player: Player, director: WaveDirector, loot: Loot
 		ring.visible = false
 		_rings.append(ring)
 	ensure_input()
+
+
+func _item_level() -> int:
+	return campaign_item_level if campaign_mode and campaign_item_level > 0 else ItemData.ilvl_for_player_level(_player.stats.level)
 
 
 static func ensure_input() -> void:
@@ -155,6 +164,8 @@ func _rescan() -> void:
 	_near_use = USES[kind]
 	_near_at = at
 	var info: Dictionary = INFO[_near_use]
+	if campaign_mode and _near_use == "tome":
+		info = {"verb": "Read the forbidden tome", "hint": "gain a temporary blessing", "color": Color(0.8, 0.5, 1.0)}
 	var why := _unavailable(_near_use)
 	prompt = "%s  %s  ·  %s" % [Controls.tag("interact"), info["verb"], why if why != "" else info["hint"]]
 	prompt_color = info["color"] if why == "" else UiStyle.MUTED
@@ -170,6 +181,8 @@ func _unavailable(use: String) -> String:
 			if _shards_available() < 5:
 				return "you need 5 Soul Shards this run"
 		"forge":
+			if campaign_mode:
+				return "town's forge handles campaign reforging"
 			if _shards_available() < 8:
 				return "you need 8 Soul Shards this run"
 			if _player.inventory.equipped.get("weapon") == null:
@@ -257,9 +270,9 @@ func _update_bells() -> void:
 			if alive:
 				break
 		if not alive:
-			var ilvl := ItemData.ilvl_for_player_level(_player.stats.level)
+			var ilvl := _item_level()
 			for k in 2:
-				_loot.drop(ItemGenerator.generate(ilvl, 2.0 + _player.stats.magic_find), b["at"] + Vector2(k * 1.2 - 0.6, 1.5))
+				_loot.drop(ItemGenerator.generate(ilvl, 2.0 + _player.stats.magic_find, campaign_rng), b["at"] + Vector2(k * 1.2 - 0.6, 1.5))
 			shards += 6
 			Sound.play("chest")
 			Juice.ring(b["at"], Color(1.0, 0.8, 0.35), 40, 8.0, 0.6, 0.6)
@@ -294,10 +307,10 @@ func _wish(at: Vector2) -> bool:
 	if not _spend.call(5):
 		return false
 	Sound.play("gem", 0.7)
-	var roll := randf()
+	var roll := campaign_rng.randf() if campaign_mode and campaign_rng else randf()
 	if roll < 0.3:
-		var item := ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level),
-				ItemData.Rarity.RARE, ItemData.SLOTS.pick_random())
+		var item := ItemGenerator.generate_with(_item_level(),
+				ItemData.Rarity.RARE, ItemData.SLOTS[campaign_rng.randi_range(0, ItemData.SLOTS.size() - 1)] if campaign_mode and campaign_rng else ItemData.SLOTS.pick_random(), campaign_rng)
 		_loot.drop(item, at + Vector2(0, 2.0))
 		announced.emit("The well gives up a treasure!", Color(1.0, 0.85, 0.3))
 	elif roll < 0.55:
@@ -347,6 +360,12 @@ func _rest(at: Vector2) -> bool:
 
 
 func _read(at: Vector2) -> bool:
+	if campaign_mode:
+		_player.heal(_player.stats.max_hp * 0.35)
+		Sound.play("levelup", 0.8)
+		Juice.burst(at, 1.3, Color(0.8, 0.5, 1.0), 30, 3.0, 0.5, 0.9, 5.0)
+		announced.emit("Forbidden knowledge: the tome restores a measure of your health.", Color(0.8, 0.5, 1.0))
+		return true
 	var stats := _player.stats
 	var pages: int = uses_made.get("tome", 0) + 1
 	stats.remove_source(TOME_SOURCE)
