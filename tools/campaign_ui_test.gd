@@ -32,7 +32,7 @@ class FixtureController:
 			], "deployed_veteran": "vet-01", "graph": _graph(), "selected_node": "",
 			"cleared_nodes": [], "clauses": [], "effects": [], "event": {}, "event_count": 0,
 			"shop": {"stock": [
-				{"id": "stock-01", "price": 50, "data": {"name": "Graveglass Wand", "base_name": "Wand", "slot": "weapon", "rarity": 1, "ilvl": 7, "implicit": [{"stat": "bolt_damage", "op": "increased", "value": 0.12}], "affixes": [], "power": ""}},
+				{"id": "stock-01", "price": 50, "data": {"name": "Graveglass Wand", "base_name": "Wand", "slot": "weapon", "rarity": 1, "ilvl": 7, "implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.12}], "affixes": [], "power": ""}},
 			]}, "shop_generation": 1, "wager": {}, "reforge": {}, "veteran_candidate": {},
 			"departure": {}, "result": {}, "receipts": {}, "successful_nodes": 1, "outbox": [], "item_serial": 4, "attempt_serial": 1, "completed": false,
 		}
@@ -75,7 +75,7 @@ class FixtureController:
 		return delivery_response.duplicate(true)
 
 	func _record(id: String, name: String, slot: String, rarity: int, affix: String, locked: bool, junk: bool) -> Dictionary:
-		return {"id": id, "data": {"slot": slot, "base_name": name, "name": name, "rarity": rarity, "ilvl": 9, "implicit": [{"stat": "max_hp", "op": "add", "value": 8}], "affixes": [{"id": "fixture", "stat": "bolt_damage", "op": "increased", "value": 0.1}], "power": ""}, "locked": locked, "junk": junk, "valuation": 100}
+		return {"id": id, "data": {"slot": slot, "base_name": name, "name": name, "rarity": rarity, "ilvl": 9, "implicit": [{"stat": "max_hp", "op": PlayerStats.Op.ADD, "value": 8}], "affixes": [{"id": "fixture", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.1}], "power": ""}, "locked": locked, "junk": junk, "valuation": 100}
 
 	func _graph() -> Dictionary:
 		var nodes := {
@@ -145,7 +145,7 @@ func _run() -> void:
 		elif screen == "ledger":
 			controller.state["clauses"] = [{"id": "advance_payment", "accepted_biome": 0}]
 		elif screen == "market":
-			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": "increased", "value": 0.18}]}, "cost": 60, "biome": 0}
+			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}]}, "cost": 60, "biome": 0}
 		elif screen == "result":
 			controller.state["phase"] = "RESULT_PENDING"
 			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "report": {"summary": "The seals are closed. A pack of rare gear came home with you."}}
@@ -189,6 +189,8 @@ func _run_behavior_test() -> void:
 	root.add_child(town)
 	town.setup(controller)
 	await process_frame
+	await _test_keyboard_entry(town, failures)
+	_test_real_snapshot_rendering(town, controller, failures)
 
 	# Exercise the market and equipment commands through actual UI button callbacks.
 	(town._service_buttons["market"] as Button).pressed.emit()
@@ -435,6 +437,92 @@ func _find_button(node: Node, text: String, prefix := false) -> Button:
 		if found != null:
 			return found
 	return null
+
+
+func _test_keyboard_entry(town: CampaignTown, failures: Array[String]) -> void:
+	var route_button: Button = town._service_buttons.get("route")
+	var focus_owner := town.get_viewport().gui_get_focus_owner()
+	if route_button == null or focus_owner != route_button:
+		failures.append("new town gives keyboard and gamepad focus to the route map")
+		return
+	var accept := InputEventKey.new()
+	accept.keycode = KEY_DOWN
+	accept.physical_keycode = KEY_DOWN
+	accept.pressed = true
+	Input.parse_input_event(accept)
+	await process_frame
+	accept.pressed = false
+	Input.parse_input_event(accept)
+	await process_frame
+	var next_focus := town.get_viewport().gui_get_focus_owner()
+	if next_focus == null or next_focus == route_button:
+		failures.append("ui_down moves focus through the town service rail")
+		return
+	var pack_button: Button = town._service_buttons.get("pack")
+	if pack_button == null:
+		failures.append("equipment service button exists for keyboard navigation")
+		return
+	pack_button.grab_focus()
+	var activate := InputEventKey.new()
+	activate.keycode = KEY_ENTER
+	activate.physical_keycode = KEY_ENTER
+	activate.pressed = true
+	Input.parse_input_event(activate)
+	await process_frame
+	activate.pressed = false
+	Input.parse_input_event(activate)
+	await process_frame
+	if town._active_service != "pack":
+		failures.append("ui_accept activates the focused service without mouse input")
+
+
+func _test_real_snapshot_rendering(town: CampaignTown, controller: CampaignController, failures: Array[String]) -> void:
+	var original_state := controller.snapshot()
+	var generated_percent_record: Dictionary = {}
+	var generated_percent_modifier: Dictionary = {}
+	for record_value: Variant in original_state.get("inventory", {}).get("items", {}).values():
+		if not record_value is Dictionary:
+			continue
+		var data: Dictionary = record_value.get("data", {})
+		for modifier_value: Variant in data.get("implicit", []) + data.get("affixes", []):
+			if modifier_value is Dictionary and modifier_value.get("op") in [PlayerStats.Op.INCREASED, PlayerStats.Op.MORE]:
+				generated_percent_record = record_value
+				generated_percent_modifier = modifier_value
+				break
+		if not generated_percent_record.is_empty():
+			break
+	if generated_percent_record.is_empty():
+		failures.append("real controller gear includes a numeric increased/more modifier")
+	else:
+		var expected_text := ItemData.mod_text(generated_percent_modifier)
+		var detail := VBoxContainer.new()
+		town.add_child(detail)
+		town._add_item_detail(detail, generated_percent_record)
+		var saw_percentage := false
+		for child: Node in detail.get_children():
+			if child is Label and (child as Label).text.contains("%"):
+				saw_percentage = true
+				break
+		if town._modifier_text(generated_percent_modifier) != expected_text or not saw_percentage:
+			failures.append("real controller gear renders its increased/more modifier as a percentage")
+		detail.free()
+
+	var transition_state := original_state.duplicate(true)
+	transition_state["biome_index"] = 1
+	var seed := int(transition_state["seed"])
+	var previous_graph := CampaignCatalog.route(seed, 0)
+	transition_state["successful_nodes"] = {}
+	for previous_node_id: Variant in previous_graph["nodes"]:
+		transition_state["successful_nodes"][str(previous_node_id)] = "receipt-" + str(previous_node_id)
+	transition_state["graph"] = CampaignCatalog.route(seed, 1)
+	var depth_one := str(transition_state["graph"]["start"][0])
+	var depth_two := str(transition_state["graph"]["nodes"][depth_one]["next"][0])
+	transition_state["cleared_nodes"] = [depth_one, depth_two]
+	controller._publish(transition_state)
+	var biome_value := town._root.find_child("Value_biome", true, false) as Label
+	if biome_value == null or not biome_value.text.ends_with("2 / 3 clears"):
+		failures.append("biome transition displays only this realm's three short-node clears")
+	controller._publish(original_state)
 
 
 func _find_confirmation(node: Node) -> ConfirmationDialog:

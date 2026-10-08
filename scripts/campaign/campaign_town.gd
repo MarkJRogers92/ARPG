@@ -53,6 +53,9 @@ func setup(controller: Node) -> void:
 		_controller.connect("error_raised", _on_error)
 	_state = _controller.snapshot()
 	_render()
+	# Put keyboard and gamepad users on a meaningful control as soon as the town opens.
+	if is_inside_tree() and _service_buttons.has(_active_service):
+		(_service_buttons[_active_service] as Button).grab_focus()
 
 
 func _input(event: InputEvent) -> void:
@@ -273,8 +276,7 @@ func _render() -> void:
 	var phase := str(_state.get("phase", "TOWN"))
 	_abandon_button.visible = phase not in ["CAMPAIGN_COMPLETE", "ABANDONED"]
 	_delivery_button.visible = not _state.get("outbox", []).is_empty() and phase not in ["RESULT_PENDING", "CAMPAIGN_COMPLETE", "ABANDONED"]
-	var successful_nodes: Variant = _state.get("successful_nodes", 0)
-	var clear_count: int = successful_nodes.size() if successful_nodes is Array or successful_nodes is Dictionary else int(successful_nodes)
+	var clear_count := _current_biome_clear_count(_state)
 	_status_label.text = "%s   ·   %s" % [biome_names[biome], phase.replace("_", " ")]
 	_set_named_value("Value_biome", "%s   ·   %d / 3 clears" % [biome_names[biome], clear_count])
 	_set_named_value("Value_gold", "%s G" % _number(int(_state.get("gold", 0))))
@@ -1009,12 +1011,17 @@ func _summary(data_value: Variant) -> String:
 
 
 func _modifier_text(modifier: Dictionary) -> String:
-	var stat := str(modifier.get("stat", "power")).replace("_", " ").capitalize()
-	var value := float(modifier.get("value", 0.0))
-	var op := str(modifier.get("op", "add"))
-	if op in ["increase", "increased", "more"]:
-		return "%s %s%d%%" % [stat, "+" if value >= 0.0 else "", roundi(value * 100.0)]
-	return "%s %s%d" % [stat, "+" if value >= 0.0 else "", roundi(value)]
+	return ItemData.mod_text(modifier)
+
+
+func _current_biome_clear_count(state: Dictionary) -> int:
+	var nodes: Dictionary = state.get("graph", {}).get("nodes", {})
+	var count := 0
+	for node_id_value: Variant in state.get("cleared_nodes", []):
+		var node: Dictionary = nodes.get(str(node_id_value), {})
+		if not node.is_empty() and int(node.get("depth", 4)) < 4:
+			count += 1
+	return mini(count, 3)
 
 
 func _sell_value(item_id: String) -> int:

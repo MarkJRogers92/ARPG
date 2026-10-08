@@ -184,6 +184,7 @@ func tick_objectives(_delta: float) -> void:
 		return
 	if (contract_id == "elite_hunt" or bool(spec.get("elite", false))) and not _elite_spawned and _wave.elapsed >= elite_at:
 		_spawn_marked_elite()
+	_sync_marked_elite_marker()
 	if contract_id == "hunt" and not _late_wave_spawned and _wave.elapsed >= duration - 35.0:
 		_spawn_hunt_pressure_wave()
 	if contract_id == "elite_hunt" and _elite_spawned and not elite_dead and _marked_dead():
@@ -247,6 +248,25 @@ func _spawn_marked_elite() -> void:
 		_marked_id = target.ids[target.count - 1]
 	if not _sites.is_empty():
 		(_visuals[0].get_child(2) as Label3D).text = "ELITE  ·  DEFEAT"
+	_sync_marked_elite_marker()
+
+
+func _sync_marked_elite_marker() -> void:
+	if contract_id != "elite_hunt" or not _elite_spawned or _sites.is_empty() or _visuals.is_empty():
+		return
+	if _marked_swarm != null:
+		for i in _marked_swarm.count:
+			if _marked_swarm.ids[i] != _marked_id:
+				continue
+			if _marked_swarm.hp[i] > 0.0:
+				var target_at: Vector2 = _marked_swarm.pos[i]
+				_sites[0] = target_at
+				_visuals[0].position = Vector3(target_at.x, 0.0, target_at.y)
+				_visuals[0].visible = true
+			else:
+				_visuals[0].visible = false
+			return
+	_visuals[0].visible = false
 
 
 func _site_complete(index: int) -> bool:

@@ -2,6 +2,9 @@ extends SceneTree
 ## Fast regression probes for mission outcome arbitration. This isolates the
 ## director's frame boundary rules from long natural-combat balance runs.
 
+class CampaignCombatTestRoot extends Node3D:
+	var _campaign_final_boss_dead := false
+
 var checks := 0
 var failures := 0
 
@@ -29,6 +32,8 @@ func _director(contract: String, mission_duration: float, mission_deadline: floa
 func _run() -> void:
 	_test_breach_boundaries()
 	_test_elite_boundaries()
+	_test_marked_elite_marker_tracks_target()
+	await _test_borrowed_battalion_schedule()
 	_test_finale_and_death_priority()
 	print("CAMPAIGN COMBAT TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
 	quit(0 if failures == 0 else 1)
@@ -90,6 +95,78 @@ func _test_elite_boundaries() -> void:
 	_check(director.result.get("outcome") == "failure" and is_equal_approx(director.result.get("elapsed", -1.0), 420.01), "elite failure reports the frame that crossed deadline")
 	director.free()
 	wave.free()
+
+
+func _test_marked_elite_marker_tracks_target() -> void:
+	var director := _director("elite_hunt", 300.0, 420.0)
+	director._elite_spawned = true
+	director._sites = [Vector2(2.0, 3.0)]
+	var marker := Node3D.new()
+	director._visuals = [marker]
+	var swarm := EnemySwarm.new()
+	swarm.count = 1
+	swarm.ids = PackedInt32Array([41])
+	swarm.pos = PackedVector2Array([Vector2(17.0, -9.0)])
+	swarm.hp = PackedFloat32Array([100.0])
+	director._marked_swarm = swarm
+	director._marked_id = 41
+	director._sync_marked_elite_marker()
+	_check(director._sites[0] == Vector2(17.0, -9.0), "elite objective location follows the marked enemy")
+	_check(marker.position == Vector3(17.0, 0.0, -9.0), "world beacon follows the marked enemy")
+	_check(director.markers().size() == 1 and director.markers()[0]["at"] == Vector2(17.0, -9.0), "edge marker points to the marked enemy")
+	swarm.pos[0] = Vector2(-24.0, 11.0)
+	director._sync_marked_elite_marker()
+	_check(director._sites[0] == Vector2(-24.0, 11.0) and marker.position == Vector3(-24.0, 0.0, 11.0), "world and edge markers track target movement")
+	swarm.hp[0] = 0.0
+	director._sync_marked_elite_marker()
+	_check(not marker.visible and director.markers().is_empty(), "elite marker hides when marked enemy dies")
+	director.free()
+	marker.free()
+	swarm.free()
+
+
+func _test_borrowed_battalion_schedule() -> void:
+	# Structural director probe: the borrowed clause should add one wave at
+	# 0:45 and one at 1:30 after guardian arrival, with no duplicate spawns.
+	var owner := CampaignCombatTestRoot.new()
+	root.add_child(owner)
+	var final_swarm := EnemySwarm.new()
+	final_swarm.name = "FinalBoss"
+	owner.add_child(final_swarm)
+	var grunts := EnemySwarm.new()
+	grunts.name = "Grunts"
+	owner.add_child(grunts)
+	await process_frame
+	final_swarm.count = 1
+	final_swarm.hp[0] = 100.0
+	var director := _director("finale", 1200.0, 0.0)
+	director.finale = true
+	director.spec["clauses"] = ["borrowed_battalion"]
+	director._main = owner
+	var bosses := BossDirector.new()
+	bosses.final_arrived = true
+	director._bosses = bosses
+	var wave := WaveDirector.new()
+	director._wave = wave
+	director._tick_ledger(944.99)
+	_check(director._ledger_reinforcements == 0, "borrowed battalion waits until 0:45 after guardian arrival")
+	director._tick_ledger(945.0)
+	_check(director._ledger_reinforcements == 1 and grunts.count == 5, "borrowed battalion sends one five-enemy wave at 0:45")
+	director._tick_ledger(950.0)
+	_check(director._ledger_reinforcements == 1 and grunts.count == 5, "first borrowed wave is not duplicated")
+	director._tick_ledger(989.99)
+	_check(director._ledger_reinforcements == 1, "second borrowed wave waits until 1:30")
+	director._tick_ledger(990.0)
+	_check(director._ledger_reinforcements == 2 and grunts.count == 10, "borrowed battalion sends the second wave at 1:30")
+	director._tick_ledger(995.0)
+	_check(director._ledger_reinforcements == 2 and grunts.count == 10, "second borrowed wave is not duplicated")
+	owner._campaign_final_boss_dead = true
+	director._tick_ledger(1100.0)
+	_check(director._ledger_reinforcements == 2 and grunts.count == 10, "ledger stops spawning reinforcements after the finale guardian dies")
+	director.free()
+	bosses.free()
+	wave.free()
+	owner.free()
 
 
 func _test_finale_and_death_priority() -> void:
