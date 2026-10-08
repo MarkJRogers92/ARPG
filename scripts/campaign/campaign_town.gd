@@ -19,6 +19,7 @@ const SERVICES := [
 var _controller: Node
 var _state: Dictionary = {}
 var _active_service := "route"
+var _sanctuary: CampaignBackdrop
 var _root: Control
 var _status_label: Label
 var _abandon_button: Button
@@ -234,6 +235,7 @@ func _build_status(parent: Control) -> void:
 	_delivery_button.pressed.connect(func() -> void: _command("deliver_outbox"))
 	box.add_child(_delivery_button)
 	var sanctuary := CampaignBackdrop.new()
+	_sanctuary = sanctuary
 	sanctuary.name = "SanctuaryVignette"
 	# Decoration yields space to ledger text and reward recovery controls.
 	sanctuary.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -271,6 +273,8 @@ func _on_error(message: String) -> void:
 func _render() -> void:
 	if not is_instance_valid(_root):
 		return
+	if is_instance_valid(_sanctuary):
+		_sanctuary.present(_state)
 	var biome_names := ["THE HOLLOW GRAVEYARD", "THE FROZEN WASTES", "THE EMBER RIFT"]
 	var biome := clampi(int(_state.get("biome_index", 0)), 0, 2)
 	var phase := str(_state.get("phase", "TOWN"))
@@ -356,11 +360,12 @@ func _render_route() -> void:
 	var route_view := CampaignRouteView.new()
 	route_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	route_view.choose_requested.connect(_choose_route)
+	var selected := str(_state.get("selected_node", ""))
+	_render_preparation_panel(selected)
 	_content.add_child(route_view)
 	var available: Array = _controller.available_routes()
 	route_view.present(_state, available)
-	var selected := str(_state.get("selected_node", ""))
-	var ready := str(_state.get("phase", "")) == "DEPARTURE_READY"
+	var ready := _departure_blockers().is_empty()
 	var action := _button("Depart for the committed route", func() -> void:
 		if not ready:
 			return
@@ -371,7 +376,117 @@ func _render_route() -> void:
 	action.disabled = not ready or selected.is_empty()
 	_content.add_child(action)
 	if ready:
-		_add_copy("Your departure is ready. The route is committed; combat starts from a fresh expedition build.")
+		var delivery_pending: bool = not _state.get("outbox", []).is_empty()
+		_add_copy("Departure checks passed. %s" % ("Profile rewards still await delivery; you may leave and retry delivery from the campaign record." if delivery_pending else "The route is committed; combat starts from a fresh expedition build."))
+
+
+func _render_preparation_panel(selected_node_id: String) -> void:
+	var panel := VBoxContainer.new()
+	panel.add_theme_constant_override("separation", 4)
+	_content.add_child(panel)
+	_add_subtitle(panel, "BEFORE YOU DEPART")
+	var mission := "No mission committed · choose an open route on the map below."
+	var graph: Dictionary = _state.get("graph", {})
+	var nodes: Dictionary = graph.get("nodes", {})
+	var selected_node: Variant = nodes.get(selected_node_id, {})
+	if not selected_node_id.is_empty() and selected_node is Dictionary and not selected_node.is_empty():
+		var node: Dictionary = selected_node
+		var contract_id := str(node.get("contract", "hunt"))
+		var contract: Dictionary = CampaignCatalog.CONTRACTS.get(contract_id, {})
+		var contract_name := str(contract.get("name", contract_id.replace("_", " ").capitalize()))
+		mission = "Committed mission · %s%s" % [contract_name, " · Elite" if bool(node.get("elite", false)) and contract_id != "elite_hunt" else ""]
+	_add_preparation_copy(panel, mission, Color(0.83, 0.86, 0.91))
+	var clauses: Array[String] = []
+	for clause_value: Variant in _state.get("clauses", []):
+		var clause_id := str(clause_value.get("id", "")) if clause_value is Dictionary else str(clause_value)
+		var definition: Dictionary = CampaignCatalog.CLAUSES.get(clause_id, {})
+		clauses.append(str(definition.get("name", clause_value.get("name", clause_id.replace("_", " ").capitalize()) if clause_value is Dictionary else clause_id.replace("_", " ").capitalize())))
+	_add_preparation_copy(panel, "Ledger obligations · %s" % (", ".join(clauses) if not clauses.is_empty() else "none"), UiStyle.MUTED)
+	var blockers := _departure_blockers()
+	if not blockers.is_empty():
+		_add_copy_to(panel, "REQUIRED BEFORE DEPARTURE", Color(0.96, 0.67, 0.48))
+		for blocker: Dictionary in blockers:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			panel.add_child(row)
+			_add_preparation_copy(row, "• " + str(blocker["text"]), Color(1.0, 0.78, 0.66))
+			if not str(blocker.get("service", "")).is_empty():
+				var service_button := _button("Open %s" % blocker["label"], _select_service.bind(str(blocker["service"])), Color(0.78, 0.85, 0.96))
+				service_button.custom_minimum_size.y = 32
+				row.add_child(service_button)
+	else:
+		_add_copy_to(panel, "No required preparation remains.", Color(0.67, 0.88, 0.75))
+	var choices: Array[Dictionary] = _optional_preparation_choices()
+	if not choices.is_empty():
+		_add_copy_to(panel, "OPTIONAL PREPARATION", UiStyle.GOLD)
+		for choice: Dictionary in choices:
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			panel.add_child(row)
+			_add_preparation_copy(row, "• " + str(choice["text"]), UiStyle.TEXT)
+			var service_button := _button("Open %s" % choice["label"], _select_service.bind(str(choice["service"])), Color(0.78, 0.85, 0.96))
+			service_button.custom_minimum_size.y = 32
+			row.add_child(service_button)
+
+
+func _departure_blockers() -> Array[Dictionary]:
+	var blockers: Array[Dictionary] = []
+	var phase := str(_state.get("phase", "TOWN"))
+	var allowed_phase := phase in ["TOWN", "DEPARTURE_READY"]
+	var selected := str(_state.get("selected_node", ""))
+	if phase == "CAMPAIGN_COMPLETE" or bool(_state.get("completed", false)):
+		blockers.append({"text": "The campaign is complete; no further departure is available."})
+	elif not allowed_phase:
+		var phase_copy := "Resolve the road event first." if phase == "EVENT_PENDING" else ("Acknowledge the expedition result before another departure." if phase == "RESULT_PENDING" else "Departure is unavailable during this campaign phase.")
+		blockers.append({"text": phase_copy})
+	if selected.is_empty() and phase != "EVENT_PENDING":
+		blockers.append({"text": "Choose and commit a route before departure."})
+	var inventory: Dictionary = _state.get("inventory", {})
+	var tray: Array = inventory.get("tray", [])
+	if not tray.is_empty():
+		blockers.append({"text": "%d reward%s wait in the tray; claim, sell, or discard them." % [tray.size(), "s" if tray.size() != 1 else ""], "service": "pack", "label": "Armory"})
+	if not (_state.get("reforge", {}) as Dictionary).is_empty():
+		blockers.append({"text": "Choose which reforge copy to keep.", "service": "market", "label": "Market"})
+	if not (_state.get("veteran_candidate", {}) as Dictionary).is_empty():
+		blockers.append({"text": "Keep or decline the veteran who returned with you.", "service": "roster", "label": "Veterans"})
+	var wager: Dictionary = _state.get("wager", {})
+	if str(wager.get("status", "")) in ["open", "won"]:
+		blockers.append({"text": "Take or finish the reserved Ferryman prize.", "service": "ferryman", "label": "Ferryman"})
+	return blockers
+
+
+func _optional_preparation_choices() -> Array[Dictionary]:
+	var choices: Array[Dictionary] = []
+	var talents: Dictionary = _state.get("talents", {})
+	var points := int(talents.get("points", 0))
+	if points > 0:
+		choices.append({"text": "%d unspent talent point%s." % [points, "s" if points != 1 else ""], "service": "trainer", "label": "Trainer"})
+	if int(talents.get("earned", 0)) > 3 and str(_state.get("specialization", "")).is_empty():
+		choices.append({"text": "Your specialization is unlocked but not selected.", "service": "trainer", "label": "Trainer"})
+	var deployed := str(_state.get("deployed_veteran", ""))
+	var usable_deployed := false
+	var available_veteran: Dictionary = {}
+	for veteran_value: Variant in _state.get("roster", []):
+		if not veteran_value is Dictionary:
+			continue
+		var veteran: Dictionary = veteran_value
+		var veteran_id := str(veteran.get("id", ""))
+		var unpledged := str(veteran.get("pledge_node", "")).is_empty()
+		if veteran_id == deployed and unpledged:
+			usable_deployed = true
+		elif available_veteran.is_empty() and unpledged:
+			available_veteran = veteran
+	if not usable_deployed and not available_veteran.is_empty():
+		var text := "%s is available in the Crypt; deploy a veteran for this expedition." % str(available_veteran.get("name", "A veteran"))
+		choices.append({"text": text, "service": "roster", "label": "Veterans"})
+	return choices
+
+
+func _add_preparation_copy(parent: Control, text: String, color: Color) -> Label:
+	var label := _add_copy_to(parent, text, color)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return label
 
 
 func _choose_route(node_id: String) -> void:
@@ -928,11 +1043,12 @@ func _add_copy(text: String) -> Label:
 	return label
 
 
-func _add_copy_to(parent: Control, text: String, color: Color) -> void:
+func _add_copy_to(parent: Control, text: String, color: Color) -> Label:
 	var label := UiStyle.label(13)
 	label.text = text
 	label.add_theme_color_override("font_color", color)
 	parent.add_child(label)
+	return label
 
 
 func _add_subtitle(parent: Control, text: String) -> void:

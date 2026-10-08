@@ -293,7 +293,7 @@ func _run_behavior_test() -> void:
 	if routes.is_empty():
 		failures.append("real campaign exposes a starting route")
 	else:
-		var route_view := town._content.get_child(0) as CampaignRouteView
+		var route_view := _find_route_view(town)
 		var route_id := str(routes[0].get("id", ""))
 		var route_card := _find_button(root, route_view._node_title(route_view._nodes[route_id]))
 		if route_card != null:
@@ -365,6 +365,7 @@ func _run_behavior_test() -> void:
 						if controller.state["phase"] != "ABANDONED" or abandon_events.size() != 1:
 							failures.append("confirmed abandon commits through the controller before returning to title")
 	await _test_event_and_retryable_abandon(failures)
+	await _test_route_preparation_panel(failures)
 
 	for message: String in failures:
 		push_error("CAMPAIGN_UI_BEHAVIOR_FAIL: " + message)
@@ -423,6 +424,95 @@ func _test_event_and_retryable_abandon(failures: Array[String]) -> void:
 			await process_frame
 			if not fixture.state["outbox"].is_empty():
 				failures.append("town retry button forwards account reward delivery")
+	town.free()
+	fixture.free()
+
+
+func _test_route_preparation_panel(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(fixture)
+	fixture.state["phase"] = "DEPARTURE_READY"
+	fixture.state["selected_node"] = "g-1-a"
+	fixture.state["inventory"]["tray"] = ["i-rare"]
+	fixture.state["reforge"] = {"item_id": "i-rare"}
+	fixture.state["wager"] = {"status": "won"}
+	fixture.state["talents"] = {"points": 2, "allocated": [], "earned": 5}
+	fixture.state["specialization"] = ""
+	fixture.state["deployed_veteran"] = "vet-01"
+	fixture.state["clauses"] = [{"id": "advance_payment"}]
+	fixture.state["biome_index"] = 2
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	if town._sanctuary._biome_index != 2 or not town._sanctuary._journey.has_node("FrostColossusHeart"):
+		failures.append("town refresh presents the current biome and earned guardian trophies")
+	var scenery := town._sanctuary._journey
+	town._render()
+	if town._sanctuary._journey != scenery:
+		failures.append("ordinary town refresh does not rebuild unchanged sanctuary geometry")
+	var blockers := town._departure_blockers()
+	if blockers.size() < 3 or not blockers.any(func(entry: Dictionary) -> bool: return str(entry.get("text", "")).contains("reward") or str(entry.get("text", "")).contains("tray")):
+		failures.append("route preparation distinguishes required tray and service decisions")
+	var depart := _find_button(town, "Depart for the committed route")
+	if depart == null or not depart.disabled:
+		failures.append("committed route is not marked ready while required preparation blocks departure")
+	if _find_button(town, "Open Trainer") == null:
+		failures.append("unspent talents and unlocked specialization remain actionable optional choices")
+	if _find_button(town, "Open Veterans") != null or _find_label(town, "Morrow is available in the Crypt") != null:
+		failures.append("a usable deployed veteran prevents a redundant Crypt prompt")
+	var mission_label := _find_label(town, "Committed mission")
+	if mission_label == null or not mission_label.text.contains(str(CampaignCatalog.CONTRACTS["hunt"]["name"])):
+		failures.append("route preparation names the committed mission contract")
+	var clauses_label := _find_label(town, "Ledger obligations")
+	var clause_name := str(CampaignCatalog.CLAUSES["advance_payment"]["name"])
+	if clauses_label == null or not clauses_label.text.contains(clause_name):
+		failures.append("route preparation names the current ledger obligations")
+	if mission_label != null and mission_label.autowrap_mode != TextServer.AUTOWRAP_WORD_SMART:
+		failures.append("mission copy wraps within the preparation panel")
+	var armory := _find_button(town, "Open Armory")
+	if armory != null:
+		armory.pressed.emit()
+		await process_frame
+		if town._active_service != "pack":
+			failures.append("required reward-tray action opens the existing Armory service")
+	fixture.state["inventory"]["tray"] = []
+	fixture.state["reforge"] = {}
+	fixture.state["wager"] = {}
+	fixture.state["outbox"] = [{"id": "fixture:pending", "shards": 5}]
+	town._state = fixture.snapshot()
+	town._active_service = "route"
+	town._render()
+	await process_frame
+	if not town._departure_blockers().is_empty():
+		failures.append("pending profile delivery is not mislabeled as a departure blocker")
+	var delivery_copy := _find_label(town, "Profile rewards still await delivery")
+	depart = _find_button(town, "Depart for the committed route")
+	if delivery_copy == null or depart == null or depart.disabled:
+		failures.append("pending profile delivery is disclosed while legal departure remains available")
+	town._state["phase"] = "RESULT_PENDING"
+	if town._departure_blockers().is_empty():
+		failures.append("a phase that forbids departure is never shown as ready")
+	town._state["phase"] = "DEPARTURE_READY"
+	town._state["completed"] = true
+	if town._departure_blockers().is_empty():
+		failures.append("a completed campaign is never shown as ready")
+	town._state["completed"] = false
+	town._state["roster"][0]["pledge_node"] = "g-1-a"
+	town._state["deployed_veteran"] = "vet-01"
+	town._active_service = "route"
+	town._render()
+	await process_frame
+	if _find_button(town, "Open Veterans") == null or _find_label(town, "Morrow is available in the Crypt") == null:
+		failures.append("a pledged deployed veteran makes the first unpledged Crypt veteran actionable")
+	town._state["roster"] = []
+	town._state["deployed_veteran"] = ""
+	town._render()
+	await process_frame
+	if _find_button(town, "Open Veterans") != null:
+		failures.append("an empty Crypt does not create a preparation action with no available veteran")
 	town.free()
 	fixture.free()
 
@@ -530,6 +620,26 @@ func _find_confirmation(node: Node) -> ConfirmationDialog:
 		return node as ConfirmationDialog
 	for child: Node in node.get_children():
 		var found := _find_confirmation(child)
+		if found != null:
+			return found
+	return null
+
+
+func _find_label(node: Node, text: String) -> Label:
+	if node is Label and (node as Label).text.contains(text):
+		return node as Label
+	for child: Node in node.get_children():
+		var found := _find_label(child, text)
+		if found != null:
+			return found
+	return null
+
+
+func _find_route_view(node: Node) -> CampaignRouteView:
+	if node is CampaignRouteView:
+		return node as CampaignRouteView
+	for child: Node in node.get_children():
+		var found := _find_route_view(child)
 		if found != null:
 			return found
 	return null
