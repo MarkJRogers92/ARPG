@@ -122,6 +122,9 @@ func _run() -> void:
 			screen = arg.trim_prefix("--screen=")
 		elif arg.begins_with("--output="):
 			output = arg.trim_prefix("--output=")
+	# The behavior suite also needs the fixture's declared viewport so focus and
+	# scroll assertions run against the same 1280×720 town layout as screenshots.
+	root.size = Vector2i(width, height)
 	if screen == "behavior":
 		await _run_behavior_test()
 		return
@@ -159,7 +162,10 @@ func _run() -> void:
 		elif screen == "ledger":
 			controller.state["clauses"] = [{"id": "advance_payment", "accepted_biome": 0}]
 		elif screen == "market":
-			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}]}, "cost": 60, "biome": 0}
+			var original: Dictionary = controller.state["inventory"]["items"]["i-rare"].duplicate(true)
+			var reforged: Dictionary = original.duplicate(true)
+			reforged["data"] = {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}], "power": ""}
+			controller.state["reforge"] = {"item_id": "i-rare", "old": original, "new": reforged, "cost": 60, "biome": 0}
 		elif screen == "market-full":
 			_fill_fixture_backpack(controller)
 		elif screen == "equipment-tools":
@@ -276,6 +282,7 @@ func _run_behavior_test() -> void:
 	await _test_real_stolen_arsenal_acceptance(failures)
 	(town._service_buttons["route"] as Button).grab_focus()
 	_test_real_snapshot_rendering(town, controller, failures)
+	await _test_reforge_pending_after_reload(temp_root, failures)
 	await _test_veteran_recruitment_details(temp_root, failures)
 	await _test_equipment_tools(failures)
 
@@ -320,6 +327,7 @@ func _run_behavior_test() -> void:
 						failures.append("equip action remains available while selected gear is focused")
 					else:
 						equip_button.pressed.emit()
+						await process_frame
 						await process_frame
 						var equipped_focus := town.get_viewport().gui_get_focus_owner()
 						if equipped_focus == null or equipped_focus.get_meta("equipment_pack_focus_kind", "") != "worn" or equipped_focus.get_meta("equipment_pack_focus_id", "") != purchased_id:
@@ -933,12 +941,23 @@ func _test_equipment_tools(failures: Array[String]) -> void:
 	var worn_choice := _find_button(town, "Weapon   ·   Moonlit Dirk")
 	if worn_choice != null:
 		await _press_enter(worn_choice)
+		# Let the rebuilt pack rows settle before checking the focused replacement.
+		await process_frame
+		await process_frame
 	focused = town.get_viewport().gui_get_focus_owner()
 	if town._selected_item_id != "i-weapon" or focused == null or focused.get_meta("equipment_pack_focus_kind", "") != "worn" or focused.get_meta("equipment_pack_focus_id", "") != "i-weapon":
 		failures.append("Enter selects worn gear and keeps focus on its replacement slot row (selected=%s focus=%s kind=%s id=%s current_row=%s queued_old_row=%s)" % [town._selected_item_id, str(focused), str(focused.get_meta("equipment_pack_focus_kind", "")) if focused else "", str(focused.get_meta("equipment_pack_focus_id", "")) if focused else "", str(_find_button(town, "Weapon   ·   Moonlit Dirk")), str(worn_choice)])
-	if scroll != null and focused != null and not _control_intersects_scroll_viewport(scroll, focused):
-		failures.append("focused worn replacement row scrolls into view after selecting from a distant position (scroll=%s focused=%s)" % [str(scroll.get_global_rect()), str(focused.get_global_rect())])
+	if scroll != null and focused != null and not _control_fully_inside_scroll_viewport(scroll, focused):
+		failures.append("focused worn replacement row scrolls into view after selecting from a distant position")
 	if scroll != null:
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		town._restore_pack_selection_focus()
+		town._restore_pack_selection_focus()
+		await process_frame
+		await process_frame
+		focused = town.get_viewport().gui_get_focus_owner()
+		if not scroll.follow_focus or focused == null or not _control_fully_inside_scroll_viewport(scroll, focused):
+			failures.append("overlapping worn-row focus restores preserve focus-follow and reveal the focused row")
 		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 		await process_frame
 	var tray_compare := _find_button(town, "Compare")
@@ -1541,6 +1560,120 @@ func _test_keyboard_entry(town: CampaignTown, failures: Array[String]) -> void:
 		failures.append("ui_accept activates the focused service without mouse input")
 
 
+func _test_reforge_pending_after_reload(temp_root: String, failures: Array[String]) -> void:
+	var prior_save_path := CampaignSave.path
+	CampaignSave.path = temp_root + "-reforge.save"
+	var original_controller := CampaignController.new()
+	root.add_child(original_controller)
+	if not original_controller.create("battlemage", 71903).get("ok", false):
+		failures.append("isolated controller creates a campaign for reforge recovery coverage")
+		original_controller.free()
+		CampaignSave.path = prior_save_path
+		return
+	var inventory: Dictionary = original_controller.state["inventory"]
+	var item_id := str(inventory["backpack"][0]) if not inventory["backpack"].is_empty() else str(inventory["equipped"]["weapon"])
+	if inventory["backpack"].is_empty() and not original_controller.unequip_item("weapon").get("ok", false):
+		failures.append("isolated controller moves an equipped item into the pack for reforge recovery coverage")
+		original_controller.free()
+		CampaignSave.path = prior_save_path
+		return
+	var gold_before := int(original_controller.state["gold"])
+	var reforge_result: Dictionary = original_controller.reforge_item(item_id)
+	if not reforge_result.get("ok", false):
+		failures.append("real controller accepts an eligible reforge before town recovery")
+		original_controller.free()
+		CampaignSave.path = prior_save_path
+		return
+	var pending_state := original_controller.snapshot()
+	var pending: Dictionary = pending_state["reforge"]
+	if int(pending_state["gold"]) != gold_before - int(pending["cost"]):
+		failures.append("real reforge charges its fee once when the choice is created")
+	if str(pending["item_id"]) != item_id or str(pending["old"].get("id", "")) != item_id or str(pending["new"].get("id", "")) != item_id:
+		failures.append("saved reforge alternatives retain the real campaign item record identity")
+	original_controller.free()
+
+	var reloaded := CampaignController.new()
+	root.add_child(reloaded)
+	if not reloaded.load_campaign().get("ok", false):
+		failures.append("pending reforge survives controller save and reload")
+		reloaded.free()
+		CampaignSave.path = prior_save_path
+		return
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(reloaded)
+	town._active_service = "market"
+	await process_frame
+	var inventory_before_view: Dictionary = reloaded.state["inventory"].duplicate(true)
+	var gold_before_view := int(reloaded.state["gold"])
+	town._render()
+	var old_name := str(pending["old"]["data"].get("name", ""))
+	var new_name := str(pending["new"]["data"].get("name", ""))
+	if not town._selected_item_id.is_empty() or old_name.is_empty() or new_name.is_empty() or _find_label(town, "Original: " + old_name) == null or _find_label(town, "Reforged: " + new_name) == null:
+		failures.append("reloaded Market shows both real reforge names without selecting a backpack item")
+	var saw_expected_modifier := false
+	for modifier: Variant in ItemComparison.rows(pending["old"]["data"], pending["new"]["data"]):
+		if modifier is Dictionary:
+			var current_value := float(modifier["current"])
+			var offered_value := float(modifier["offered"])
+			var current_text := ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), current_value)
+			var offered_text := ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), offered_value)
+			if (not is_zero_approx(current_value) and _find_label(town, current_text) != null) or (not is_zero_approx(offered_value) and _find_label(town, offered_text) != null):
+				saw_expected_modifier = true
+				break
+	if not saw_expected_modifier or reloaded.state["inventory"] != inventory_before_view or int(reloaded.state["gold"]) != gold_before_view:
+		failures.append("viewing the pending reforge shows a modifier and leaves inventory and gold unchanged")
+	for choice: Dictionary in [{"label": "Original", "record": pending["old"]}, {"label": "Reforged", "record": pending["new"]}]:
+		var power_id := str(choice["record"].get("data", {}).get("power", ""))
+		if not power_id.is_empty():
+			var power: Dictionary = ItemData.POWERS.get(power_id, {})
+			if _find_label(town, "%s legendary power" % choice["label"]) == null or _find_label(town, str(power.get("desc", "Description unavailable."))) == null:
+				failures.append("reloaded reforge comparison shows the %s legendary power description" % choice["label"].to_lower())
+	var keep_original := _find_button(town, "Keep original")
+	if keep_original == null:
+		failures.append("pending reforge offers the original-copy decision after reload")
+	else:
+		keep_original.pressed.emit()
+		await process_frame
+		var expected_original: Dictionary = pending_state["inventory"]["items"][item_id]
+		if not reloaded.state["reforge"].is_empty() or reloaded.state["inventory"] != pending_state["inventory"] or reloaded.state["inventory"]["items"][item_id] != expected_original or int(reloaded.state["gold"]) != int(pending_state["gold"]):
+			failures.append("keeping original resolves the exact real item without another charge or inventory change")
+	town.get_viewport().gui_release_focus()
+	town.free()
+	reloaded.free()
+
+	if not CampaignSave.write(pending_state):
+		failures.append("isolated test restores the saved pending reforge for the Keep new branch")
+	else:
+		var keep_new_controller := CampaignController.new()
+		root.add_child(keep_new_controller)
+		if not keep_new_controller.load_campaign().get("ok", false):
+			failures.append("pending reforge reloads for the Keep new branch")
+		else:
+			var keep_new_town := CampaignTown.new()
+			root.add_child(keep_new_town)
+			keep_new_town.setup(keep_new_controller)
+			keep_new_town._active_service = "market"
+			keep_new_town._render()
+			await process_frame
+			var keep_new := _find_button(keep_new_town, "Keep new")
+			if keep_new == null:
+				failures.append("pending reforge offers the reforged-copy decision after reload")
+			else:
+				keep_new.pressed.emit()
+				await process_frame
+				var expected_inventory: Dictionary = pending_state["inventory"].duplicate(true)
+				expected_inventory["items"][item_id]["data"] = pending["new"]["data"].duplicate(true)
+				if not keep_new_controller.state["reforge"].is_empty() or keep_new_controller.state["inventory"] != expected_inventory or int(keep_new_controller.state["gold"]) != int(pending_state["gold"]):
+					failures.append("keeping new replaces data on the same item ID without duplication, movement, or another charge")
+			keep_new_town.get_viewport().gui_release_focus()
+			keep_new_town.free()
+		keep_new_controller.free()
+	for suffix: String in ["", ".bak", ".tmp", ".previous", ".rollback"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(CampaignSave.path + suffix))
+	CampaignSave.path = prior_save_path
+
+
 func _test_real_snapshot_rendering(town: CampaignTown, controller: CampaignController, failures: Array[String]) -> void:
 	var original_state := controller.snapshot()
 	var generated_percent_record: Dictionary = {}
@@ -1785,6 +1918,12 @@ func _press_enter(control: Control) -> void:
 
 func _control_intersects_scroll_viewport(scroll: ScrollContainer, control: Control) -> bool:
 	return scroll.get_global_rect().intersects(control.get_global_rect())
+
+
+func _control_fully_inside_scroll_viewport(scroll: ScrollContainer, control: Control) -> bool:
+	var viewport_rect := scroll.get_global_rect()
+	var control_rect := control.get_global_rect()
+	return control_rect.position.y >= viewport_rect.position.y - 1.0 and control_rect.end.y <= viewport_rect.end.y + 1.0
 
 
 func _gear_row_text(item_id: String, record: Dictionary) -> String:

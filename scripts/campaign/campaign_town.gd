@@ -837,7 +837,34 @@ func _restore_pack_selection_focus() -> void:
 	var target := _find_pack_focus_target(_content, target_kind, item_id) if not target_kind.is_empty() else null
 	if target != null and target.is_visible_in_tree() and target.focus_mode != Control.FOCUS_NONE:
 		if not target is BaseButton or not (target as BaseButton).disabled:
-			target.grab_focus()
+			if target_kind == "worn":
+				# The panel rebuild queues old rows and creates replacements. Wait for
+				# their geometry to settle before changing focus or scroll state.
+				await get_tree().process_frame
+				if not is_inside_tree() or _active_service != "pack" or not is_instance_valid(target) or target.is_queued_for_deletion():
+					return
+				var post_layout_focus := get_viewport().gui_get_focus_owner()
+				if post_layout_focus != null and not post_layout_focus.is_queued_for_deletion() and not (_content == post_layout_focus or _content.is_ancestor_of(post_layout_focus)):
+					return
+				if not target.is_visible_in_tree() or target.focus_mode == Control.FOCUS_NONE:
+					return
+				if target is BaseButton and (target as BaseButton).disabled:
+					return
+				var scroll := _content.get_parent() as ScrollContainer
+				if not is_instance_valid(scroll):
+					return
+				# Worn rows are at the top. Suppress stale focus-follow geometry
+				# only during this synchronous focus-and-scroll update.
+				var follow_focus := scroll.follow_focus
+				scroll.follow_focus = false
+				target.grab_focus()
+				scroll.scroll_vertical = 0
+				scroll.follow_focus = follow_focus
+			else:
+				target.grab_focus()
+				var scroll := _content.get_parent() as ScrollContainer
+				if is_instance_valid(scroll):
+					scroll.ensure_control_visible(target)
 			return
 	if is_instance_valid(_pack_filter_dropdown) and _pack_filter_dropdown.is_visible_in_tree():
 		_pack_filter_dropdown.grab_focus()
@@ -877,8 +904,12 @@ func _confirm_discard(item_id: String) -> void:
 func _render_reforge(parent: Control) -> void:
 	var pending: Dictionary = _state.get("reforge", {})
 	_add_subtitle(parent, "REFORGE · KEEP ONE COPY")
-	_add_item_detail(parent, {"data": pending.get("old", {})})
-	_add_item_detail(parent, {"data": pending.get("new", {})})
+	var original: Dictionary = pending.get("old", {})
+	var reforged: Dictionary = pending.get("new", {})
+	_add_copy_to(parent, "%d Gold already paid · either choice consumes this biome's reforge for the item." % int(pending.get("cost", 0)), UiStyle.MUTED)
+	_add_copy_to(parent, "Original · %s · item level %d" % [_rarity_text(original), int(original.get("data", {}).get("ilvl", 1))], UiStyle.MUTED)
+	_add_copy_to(parent, "Reforged · %s · item level %d" % [_rarity_text(reforged), int(reforged.get("data", {}).get("ilvl", 1))], UiStyle.MUTED)
+	_add_item_comparison(parent, original, reforged, "Original", "Reforged")
 	var row := HBoxContainer.new()
 	parent.add_child(row)
 	row.add_child(_button("Keep original", func() -> void: _command("resolve_reforge", [false])))
@@ -887,6 +918,9 @@ func _render_reforge(parent: Control) -> void:
 
 func _render_market() -> void:
 	_add_copy("The Market's stock is saved for this town visit. Compare the item and listed cost before you buy.")
+	var pending_reforge: Dictionary = _state.get("reforge", {})
+	if not pending_reforge.is_empty():
+		_render_reforge(_content)
 	var inventory: Dictionary = _state.get("inventory", {})
 	var backpack: Array = inventory.get("backpack", [])
 	var backpack_full := backpack.size() >= Inventory.BACKPACK_SIZE
@@ -943,8 +977,6 @@ func _render_market() -> void:
 		var sell := _button("Sell selected · %d G" % _sell_value(_selected_item_id), func() -> void: _command("sell_items", [[_selected_item_id], false]))
 		sell.disabled = not is_backpack or bool(record.get("locked", false))
 		row.add_child(sell)
-		if not (_state.get("reforge", {}) as Dictionary).is_empty():
-			_render_reforge(_content)
 
 
 func _render_starting_build_summary(parent: Control) -> void:
@@ -1649,7 +1681,7 @@ func _add_item_detail(parent: Control, record: Dictionary) -> void:
 			_add_copy_to(parent, ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"])), Color(0.7, 0.82, 0.98))
 
 
-func _add_item_comparison(parent: Control, current_record: Dictionary, offered_record: Dictionary) -> void:
+func _add_item_comparison(parent: Control, current_record: Dictionary, offered_record: Dictionary, current_label := "Worn", offered_label := "Offered") -> void:
 	var offered_data: Dictionary = offered_record.get("data", {})
 	if offered_data.is_empty():
 		return
@@ -1657,10 +1689,10 @@ func _add_item_comparison(parent: Control, current_record: Dictionary, offered_r
 	var slot := str(offered_data.get("slot", current_data.get("slot", "")))
 	_add_subtitle(parent, "ITEM MODIFIERS · %s" % ItemData.SLOT_NAMES.get(slot, slot).to_upper())
 	if current_data.is_empty():
-		_add_comparison_copy(parent, "Worn: empty slot")
+		_add_comparison_copy(parent, "%s: empty slot" % current_label)
 	else:
-		_add_comparison_copy(parent, "Worn: %s" % _item_name(current_record))
-	_add_comparison_copy(parent, "Offered: %s" % _item_name(offered_record))
+		_add_comparison_copy(parent, "%s: %s" % [current_label, _item_name(current_record)])
+	_add_comparison_copy(parent, "%s: %s" % [offered_label, _item_name(offered_record)])
 	var rows := ItemComparison.rows(current_data, offered_data)
 	if rows.is_empty():
 		_add_comparison_copy(parent, "No stat modifiers on either item.")
@@ -1672,8 +1704,8 @@ func _add_item_comparison(parent: Control, current_record: Dictionary, offered_r
 	var current_power := str(current_data.get("power", ""))
 	var offered_power := str(offered_data.get("power", ""))
 	if not current_power.is_empty() or not offered_power.is_empty():
-		_add_comparison_copy(parent, _comparison_power_text("Worn", current_data))
-		_add_comparison_copy(parent, _comparison_power_text("Offered", offered_data))
+		_add_comparison_copy(parent, _comparison_power_text(current_label, current_data))
+		_add_comparison_copy(parent, _comparison_power_text(offered_label, offered_data))
 
 
 func _comparison_power_text(which: String, data: Dictionary) -> String:
