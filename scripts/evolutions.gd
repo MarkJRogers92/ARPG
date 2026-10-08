@@ -87,6 +87,37 @@ const DEFS := {
 			{"stat": "bell_radius", "op": _ADD, "value": 4.0},
 		],
 	},
+	"ossuary": {
+		"name": "Ossuary", "weapon": "spikes", "catalyst": "regen", "icon": "spikes",
+		"color": Color(0.95, 0.9, 0.75),
+		"desc": "Grave Spikes evolve: +3 spikes, +60% damage, 40% wider, 30% more often",
+		"mods": [
+			{"stat": "spikes_count", "op": _ADD, "value": 3.0},
+			{"stat": "spikes_damage", "op": _MORE, "value": 0.6},
+			{"stat": "spikes_radius", "op": _MORE, "value": 0.4},
+			{"stat": "spikes_rate", "op": _MORE, "value": 0.3},
+		],
+	},
+	"will_o_wisp": {
+		"name": "Will-o'-the-Wisp", "weapon": "wisps", "catalyst": "frostbite", "icon": "wisps",
+		"color": Color(0.65, 0.95, 1.0),
+		"desc": "The Lantern evolves: +4 wisps, +60% damage, released 40% more often",
+		"mods": [
+			{"stat": "wisp_count", "op": _ADD, "value": 4.0},
+			{"stat": "wisp_damage", "op": _MORE, "value": 0.6},
+			{"stat": "wisp_rate", "op": _MORE, "value": 0.4},
+		],
+	},
+	"path_of_cinders": {
+		"name": "Path of Cinders", "weapon": "trail", "catalyst": "ignite", "icon": "trail",
+		"color": Color(1.0, 0.55, 0.2),
+		"desc": "The Trail evolves: double burn, 50% wider, burns 2 s longer",
+		"mods": [
+			{"stat": "trail_dps", "op": _MORE, "value": 1.0},
+			{"stat": "trail_radius", "op": _MORE, "value": 0.5},
+			{"stat": "trail_life", "op": _ADD, "value": 2.0},
+		],
+	},
 	"supernova": {
 		"name": "Supernova", "weapon": "nova", "catalyst": "max_hp", "icon": "nova",
 		"color": Color(1.0, 0.55, 0.9),

@@ -81,12 +81,17 @@ var _blades: SpiritBlades
 var _nova: ArcaneNova
 var _obol: Obol
 var _scythe: ReapingScythe
+var _spikes: GraveSpikes
+var _wisps: WispLantern
+var _trail: BrimstoneTrail
 ## The Funeral Bell (main.gd feeds it kills).
 var bell: FuneralBell
 var _volleys := 0
 ## The hero's own statuses (from witch bolts, fireballs and hazards).
 var chilled := 0.0
 var burning := 0.0
+## Seconds left of a shield that takes every hit (the Aegis power-up).
+var shield_left := 0.0
 const CHILL_SLOW := 0.6
 const BURN_DPS := 5.0
 var _storm_tick := 0.0
@@ -168,8 +173,11 @@ func setup(swarms: Array[EnemySwarm], projectiles: ProjectileSwarm) -> void:
 	_nova = ArcaneNova.new()
 	_obol = Obol.new()
 	_scythe = ReapingScythe.new()
+	_spikes = GraveSpikes.new()
+	_wisps = WispLantern.new()
+	_trail = BrimstoneTrail.new()
 	bell = FuneralBell.new()
-	for ability in [_lightning, _blades, _nova, _obol, _scythe, bell]:
+	for ability in [_lightning, _blades, _nova, _obol, _scythe, _spikes, _wisps, _trail, bell]:
 		add_child(ability)
 		ability.setup(self, swarms)
 
@@ -197,6 +205,7 @@ func tick(delta: float) -> void:
 		if stats.powers.has("blinkfire") and _nova:
 			_nova.fire()
 	chilled = maxf(chilled - delta, 0.0)
+	shield_left = maxf(shield_left - delta, 0.0)
 	if burning > 0.0:
 		burning = maxf(burning - delta, 0.0)
 		take_damage(BURN_DPS * delta, "Burning")
@@ -307,6 +316,9 @@ func update_weapons(delta: float) -> void:
 		_nova.update(delta)
 		_obol.update(delta)
 		_scythe.update(delta)
+		_spikes.update(delta)
+		_wisps.update(delta)
+		_trail.update(delta)
 
 
 ## Damage taken this night by cause (after armor), and the cause of the
@@ -318,7 +330,7 @@ var last_cause := ""
 ## Damage before armor; armor is applied here. `cause` names what hit, for the
 ## death recap ("Ghoul", "Meteors", "Ogre Warlord's slam"...).
 func take_damage(amount: float, cause := "Other") -> void:
-	if dead or invulnerable or is_dashing():
+	if dead or invulnerable or is_dashing() or shield_left > 0.0:
 		return
 	var dealt := minf(amount * stats.damage_taken_factor(), stats.hp)
 	stats.hp -= amount * stats.damage_taken_factor()

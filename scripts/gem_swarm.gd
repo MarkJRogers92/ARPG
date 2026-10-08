@@ -90,6 +90,12 @@ func step(delta: float, target: Vector2, pickup_radius: float) -> int:
 	return gained
 
 
+## Pulls every gem on the ground toward the player (the Vortex power-up).
+func pull_all() -> void:
+	for i in count:
+		_pull[i] = maxf(_pull[i], 6.0)
+
+
 ## Removes every gem within `r` of `at` (a Gravedigger eating souls). Returns how many.
 func take_near(at: Vector2, r: float) -> int:
 	var n := 0

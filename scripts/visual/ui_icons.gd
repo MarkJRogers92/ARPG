@@ -133,6 +133,42 @@ func _draw() -> void:
 					var b := c + dir * s * 0.55 * side
 					draw_line(b, b + dir.rotated(0.8 * side) * s * 0.25 * side, color, 2.0, true)
 			draw_circle(c, s * 0.18, Color(1, 1, 1, 0.9))
+		"spikes":
+			# Three bone spikes bursting from a crack in the ground.
+			draw_line(c + Vector2(-s * 0.9, s * 0.6), c + Vector2(s * 0.9, s * 0.6), Color(color, 0.5), 3.0, true)
+			for k in [-1, 0, 1]:
+				var h := s * (1.35 if k == 0 else 0.9)
+				var base := c + Vector2(k * s * 0.42, s * 0.6)
+				draw_colored_polygon([base + Vector2(-s * 0.17, 0), base + Vector2(k * s * 0.12, -h), base + Vector2(s * 0.17, 0)], color)
+		"wisps":
+			# Two wisps curling in on a target, with trails.
+			for k in [-1.0, 1.0]:
+				draw_arc(c + Vector2(k * s * 0.35, s * 0.1), s * 0.55, PI * (0.6 if k < 0 else -0.6), PI * (1.4 if k < 0 else 0.4), 14, Color(color, 0.45), 3.0, true)
+				draw_circle(c + Vector2(k * s * 0.55, -s * 0.35), s * 0.2, color)
+				draw_circle(c + Vector2(k * s * 0.55, -s * 0.35), s * 0.09, Color(1, 1, 1, 0.9))
+			draw_circle(c + Vector2(0, s * 0.45), s * 0.16, Color(color, 0.7))
+		"trail":
+			# Footsteps leaving burning ground behind.
+			for k in 3:
+				var at := c + Vector2(-s * 0.6 + k * s * 0.6, s * 0.55 - k * s * 0.5)
+				draw_circle(at, s * (0.2 + 0.08 * k), Color(color, 0.35 + 0.2 * k))
+				draw_colored_polygon([at + Vector2(-s * 0.12, 0), at + Vector2(0, -s * (0.3 + 0.1 * k)), at + Vector2(s * 0.12, 0)], Color(1, 0.85, 0.45))
+		"bloodlust":
+			draw_colored_polygon([c + Vector2(0, -s * 0.9), c + Vector2(s * 0.45, 0), c + Vector2(0, s * 0.9), c + Vector2(-s * 0.45, 0)], color)
+			draw_arc(c, s * 0.75, 0.0, TAU, 24, Color(color, 0.5), 2.5, true)
+		"vortex":
+			for k in 3:
+				draw_arc(c, s * (0.35 + 0.22 * k), k * 2.0, k * 2.0 + PI * 1.3, 16, Color(color, 1.0 - 0.25 * k), 3.0, true)
+			draw_circle(c, s * 0.16, Color(1, 1, 1, 0.9))
+		"frost_bomb":
+			for k in 6:
+				var dir := Vector2.from_angle(k * TAU / 6.0)
+				draw_colored_polygon([c + dir.orthogonal() * s * 0.1, c + dir * s * 0.9, c - dir.orthogonal() * s * 0.1], color)
+			draw_circle(c, s * 0.22, Color(1, 1, 1, 0.9))
+		"aegis":
+			draw_colored_polygon([c + Vector2(-s * 0.6, -s * 0.6), c + Vector2(s * 0.6, -s * 0.6), c + Vector2(s * 0.5, s * 0.2),
+					c + Vector2(0, s * 0.85), c + Vector2(-s * 0.5, s * 0.2)], color)
+			draw_circle(c + Vector2(0, -s * 0.05), s * 0.18, Color(1, 1, 1, 0.85))
 		_:
 			draw_circle(c, s * 0.5, color)
 

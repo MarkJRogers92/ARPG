@@ -795,6 +795,80 @@ static func health_orb() -> ArrayMesh:
 		return k.commit(kit_material()))
 
 
+## Grave Spikes: a cluster of bone spikes, tips glowing, base at y = 0.
+static func bone_spikes() -> ArrayMesh:
+	return _cached("bone_spikes", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var bone := Color(0.9, 0.86, 0.74)
+		var dark := Color(0.4, 0.34, 0.26)
+		var tip := Color(0.8, 1.0, 0.85)
+		k.cylinder(0.75, 0.9, 0.12, MeshKit.at(Vector3(0, 0.0, 0)), dark, 0.0, 9) # the broken ground
+		for a in 6:
+			var ang := a * TAU / 6.0 + 0.3
+			var r := 0.18 if a == 0 else 0.5
+			var h := 1.6 if a == 0 else 0.8 + 0.4 * fposmod(a * 0.618, 1.0)
+			var lean := 0.0 if a == 0 else 18.0
+			var base := Vector3(cos(ang) * r, 0.0, sin(ang) * r)
+			var xf := Transform3D(Basis(Vector3.UP, -ang) * Basis(Vector3.FORWARD, deg_to_rad(lean)), base + Vector3(0, h * 0.5, 0))
+			k.cylinder(0.0, 0.24 if a == 0 else 0.17, h, xf, bone, 0.0, 6)
+			k.sphere(0.035, Transform3D(Basis.IDENTITY, xf * Vector3(0, h * 0.5, 0)), tip, 1.6, 4, 2)
+		return k.commit(kit_material()))
+
+
+## A Wisp Lantern wisp: a bright core in a pale frosty glow.
+static func wisp() -> ArrayMesh:
+	return _cached("wisp", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		k.sphere(0.1, MeshKit.at(Vector3.ZERO), Color(0.95, 1.0, 1.0), 0.0, 8, 4)
+		k.sphere(0.26, MeshKit.at(Vector3.ZERO), Color(0.55, 0.9, 1.0, 0.5), 0.0, 10, 6)
+		return k.commit(material("glow")))
+
+
+## The power-ups lying on the ground (see PowerUps), centered on their middle.
+static func power_up(kind: String) -> ArrayMesh:
+	return _cached("power_up|" + kind, func() -> ArrayMesh:
+		var k := MeshKit.new()
+		var gold := Color(1.0, 0.82, 0.35)
+		match kind:
+			"bloodlust":
+				# A blood-red crystal heart in a thorn ring.
+				var red := Color(1.0, 0.18, 0.15)
+				k.cylinder(0.0, 0.22, 0.32, MeshKit.at(Vector3(0, 0.16, 0)), red, 1.6, 6)
+				k.cylinder(0.0, 0.22, 0.26, MeshKit.at(Vector3(0, -0.13, 0), Vector3(180, 0, 0)), red, 1.6, 6)
+				k.torus(0.3, 0.36, MeshKit.at(Vector3.ZERO, Vector3(90, 0, 0)), Color(0.35, 0.08, 0.08), 0.2, 12)
+				for a in 6:
+					var d := Vector3(cos(a * TAU / 6.0), sin(a * TAU / 6.0), 0) * 0.36
+					k.cylinder(0.0, 0.035, 0.12, Transform3D(Basis(Vector3.BACK, a * TAU / 6.0 - PI / 2.0), d), Color(0.6, 0.12, 0.1), 0.4, 4)
+			"vortex":
+				# A violet eye inside two crossed rings.
+				var violet := Color(0.75, 0.45, 1.0)
+				k.sphere(0.15, MeshKit.at(Vector3.ZERO), Color(0.95, 0.85, 1.0), 2.0, 8, 4)
+				k.torus(0.26, 0.31, MeshKit.at(Vector3.ZERO, Vector3(70, 0, 0)), violet, 1.4, 14)
+				k.torus(0.34, 0.38, MeshKit.at(Vector3.ZERO, Vector3(-60, 40, 0)), violet.darkened(0.2), 1.0, 14)
+			"frost_bomb":
+				# A cluster of ice shards.
+				var ice := Color(0.65, 0.9, 1.0)
+				k.sphere(0.13, MeshKit.at(Vector3.ZERO), Color(0.9, 1.0, 1.0), 1.8, 6, 3)
+				for a in 7:
+					var dir := Vector3(cos(a * 2.4), sin(a * 1.7) * 0.8, sin(a * 2.4)).normalized()
+					var xf := Transform3D(Basis(Quaternion(Vector3.UP, dir)), dir * 0.2)
+					k.cylinder(0.0, 0.07, 0.34, xf, ice, 1.2, 5)
+			_:
+				# Aegis: a golden shield with a glowing boss.
+				k.cylinder(0.3, 0.3, 0.06, MeshKit.at(Vector3.ZERO, Vector3(90, 0, 0)), gold, 0.6, 12)
+				k.torus(0.28, 0.33, MeshKit.at(Vector3(0, 0, 0.02), Vector3(90, 0, 0)), Color(1.0, 0.95, 0.75), 1.0, 14)
+				k.sphere(0.1, MeshKit.at(Vector3(0, 0, 0.05)), Color(1.0, 0.95, 0.7), 2.2, 6, 3)
+		return k.commit(kit_material()))
+
+
+## Aegis around the hero: a translucent golden bubble.
+static func aegis_bubble() -> ArrayMesh:
+	return _cached("aegis_bubble", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		k.sphere(1.1, MeshKit.at(Vector3(0, 0.9, 0), Vector3.ZERO, Vector3(1.0, 1.05, 1.0)), Color(1.0, 0.85, 0.4, 0.38), 0.0, 14, 8)
+		return k.commit(material("glow")))
+
+
 ## An XP crystal (a double pyramid), centered on its middle.
 static func gem() -> ArrayMesh:
 	return _cached("gem", func() -> ArrayMesh:

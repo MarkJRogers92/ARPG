@@ -60,6 +60,19 @@ static var BASE := {
 	"scythe_count": 1.0, # scythes in the air at once
 	"scythe_rate": 0.6, # throws per second
 	"scythe_range": 8.0,
+	"spikes_level": 0.0, # 0 = locked
+	"spikes_damage": 22.0,
+	"spikes_count": 3.0, # enemies speared per volley
+	"spikes_rate": 0.45, # volleys per second
+	"spikes_radius": 1.5,
+	"wisp_level": 0.0, # 0 = locked
+	"wisp_damage": 14.0,
+	"wisp_count": 2.0, # wisps per release
+	"wisp_rate": 0.7, # releases per second
+	"trail_level": 0.0, # 0 = locked
+	"trail_dps": 10.0, # burning ground, per second
+	"trail_radius": 1.3,
+	"trail_life": 2.5, # seconds a patch keeps burning
 	"bell_level": 0.0, # 0 = locked
 	"bell_damage": 70.0,
 	"bell_radius": 7.0,
@@ -119,6 +132,19 @@ var scythe_damage := 16.0
 var scythe_count := 1
 var scythe_cooldown := 1.7
 var scythe_range := 8.0
+var spikes_level := 0
+var spikes_damage := 22.0
+var spikes_count := 3
+var spikes_cooldown := 2.2
+var spikes_radius := 1.5
+var wisp_level := 0
+var wisp_damage := 14.0
+var wisp_count := 2
+var wisp_cooldown := 1.4
+var trail_level := 0
+var trail_dps := 10.0
+var trail_radius := 1.3
+var trail_life := 2.5
 var bell_level := 0
 var bell_damage := 70.0
 var bell_radius := 7.0
@@ -134,7 +160,8 @@ var hero_power := 1.0
 const SOUL_LINK := 0.5
 const _WEAPONS := [["bolt_damage", ""], ["aura_damage", "aura_level"], ["lightning_damage", "lightning_level"],
 		["orbit_damage", "orbit_level"], ["nova_damage", "nova_level"], ["obol_damage", "obol_level"],
-		["scythe_damage", "scythe_level"], ["bell_damage", "bell_level"]]
+		["scythe_damage", "scythe_level"], ["bell_damage", "bell_level"], ["spikes_damage", "spikes_level"],
+		["wisp_damage", "wisp_level"], ["trail_dps", "trail_level"]]
 var minion_hp := 90.0
 var soul_chance := 0.06
 var soul_cost := 12
@@ -252,6 +279,19 @@ func recalculate() -> void:
 	scythe_count = clampi(roundi(values["scythe_count"]), 1, 8)
 	scythe_cooldown = 1.0 / maxf(0.05, values["scythe_rate"])
 	scythe_range = values["scythe_range"]
+	spikes_level = maxi(0, roundi(values["spikes_level"]))
+	spikes_damage = values["spikes_damage"] * damage_mult
+	spikes_count = clampi(roundi(values["spikes_count"]), 1, 16)
+	spikes_cooldown = 1.0 / maxf(0.05, values["spikes_rate"])
+	spikes_radius = values["spikes_radius"]
+	wisp_level = maxi(0, roundi(values["wisp_level"]))
+	wisp_damage = values["wisp_damage"] * damage_mult
+	wisp_count = clampi(roundi(values["wisp_count"]), 1, 12)
+	wisp_cooldown = 1.0 / maxf(0.05, values["wisp_rate"])
+	trail_level = maxi(0, roundi(values["trail_level"]))
+	trail_dps = values["trail_dps"] * damage_mult
+	trail_radius = values["trail_radius"]
+	trail_life = values["trail_life"]
 	bell_level = maxi(0, roundi(values["bell_level"]))
 	bell_damage = values["bell_damage"] * damage_mult
 	bell_radius = values["bell_radius"]

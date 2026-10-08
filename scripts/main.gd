@@ -80,6 +80,7 @@ var _spec_chosen := false
 var _final_mech: FinalMechanics
 var _mid_mech: MidMechanics
 var _specialists: Specialists
+var _power_ups: PowerUps
 ## Health and pressure through the night, for the end screen (DeathRecap).
 var _timeline: Array[Vector3] = []
 var _sample_in := 0.0
@@ -213,6 +214,10 @@ func _ready() -> void:
 	add_child(_specialists)
 	_specialists.setup(_swarms, _player, _director)
 	_specialists.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_power_ups = PowerUps.new()
+	add_child(_power_ups)
+	_power_ups.setup(_player, _director, [_gems, _souls] as Array[GemSwarm])
+	_power_ups.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.title_card(boss_name, "Dawn is near. The master of this realm rises.", Color(1.0, 0.35, 0.3))
 		Sound.play("boss_title")
@@ -353,6 +358,7 @@ func _process(delta: float) -> void:
 	_bosses.tick(delta)
 	_mid_mech.tick(delta)
 	_specialists.tick(delta)
+	_power_ups.tick(delta)
 	if _bosses.final_arrived:
 		_final_mech.tick(delta)
 	if not won or _endless:
@@ -440,6 +446,8 @@ func _process(delta: float) -> void:
 	# Music: the drums swell with the size of the horde and the hour.
 	_sound.set_intensity(maxf(_enemy_count() / 700.0, elapsed / 1200.0) if not won else 0.0)
 	_sound.set_boss(_bosses.boss_alive() or _bosses.final_alive())
+	var power := _power_ups.status()
+	_hud.set_power(power[0], power[1])
 	_hud.set_blessing(_events.blessing, _events.blessing_left,
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D)
@@ -787,6 +795,7 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if won and not _endless:
 		return
 	_run_shards += 2
+	_power_ups.on_kill(at, true)
 	Sound.play("elite_kill")
 	Juice.hitstop(0.04)
 	if randf() < 0.5:
@@ -809,6 +818,8 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1
 	Sound.play("kill_%d" % (kills % 3))
 	_player.bell.on_kill(at)
+	if not swarm.boss:
+		_power_ups.on_kill(at, false)
 	frenzy += 1.0
 	if swarm == _final:
 		_on_final_died(at)
