@@ -56,11 +56,15 @@ var _biome := -1
 var _motes: Array[MeshInstance3D] = []
 var _mote_origins: Array[Vector3] = []
 var _keepers: Array[Node3D] = []
+var _houses: Array[Vector2] = []
+var _mist: Array[MeshInstance3D] = []
+var _mist_origins: Array[Vector3] = []
+var _wisps: Array[MeshInstance3D] = []
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
 const BIOMES := [
-	{"ground": Color(0.1, 0.13, 0.085), "ambient": Color(0.53, 0.63, 0.79), "fog": Color(0.08, 0.1, 0.16),
+	{"ground": Color(0.08, 0.11, 0.075), "ambient": Color(0.45, 0.62, 0.68), "fog": Color(0.06, 0.12, 0.13),
 		"props": [["grass", 70], ["bush", 14], ["tree", 12], ["grave", 12], ["rock", 10], ["mushroom", 10], ["bones", 6]]},
 	{"ground": Color(0.62, 0.68, 0.76), "ambient": Color(0.62, 0.72, 0.9), "fog": Color(0.42, 0.5, 0.62),
 		"props": [["pine", 22], ["snowrock", 16], ["ice", 12], ["rock", 8], ["grave", 6]]},
@@ -120,6 +124,13 @@ func _process(delta: float) -> void:
 	for i in _motes.size():
 		var phase := float(i) * 0.71
 		_motes[i].position = _mote_origins[i] + Vector3(cos(_clock * 0.3 + phase) * 0.4, sin(_clock * 0.8 + phase) * 0.3, sin(_clock * 0.25 + phase) * 0.4)
+	for i in _mist.size():
+		var drift := float(i) * 1.3
+		_mist[i].position = _mist_origins[i] + Vector3(sin(_clock * 0.05 + drift) * 2.0, 0, cos(_clock * 0.04 + drift) * 2.0)
+	for i in _wisps.size():
+		var orbit := _clock * (0.07 + i * 0.012) + float(i) * 1.26
+		var reach := 17.0 + 3.0 * sin(_clock * 0.2 + i)
+		_wisps[i].position = Vector3(cos(orbit) * reach, 1.2 + 0.5 * sin(_clock * 1.3 + i), sin(orbit) * reach)
 	for i in _keepers.size():
 		_keepers[i].position.y = sin(_clock * 1.6 + i) * 0.03
 		_keepers[i].scale.y = 1.0 + sin(_clock * 1.6 + i) * 0.015
@@ -178,23 +189,25 @@ func _build_environment() -> void:
 	var env := Environment.new()
 	_env = env
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.026, 0.044, 0.064)
+	env.background_color = Color(0.018, 0.034, 0.042)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.53, 0.63, 0.79)
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.42
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
-	env.glow_intensity = 0.7
+	env.glow_intensity = 0.95
+	env.glow_bloom = 0.12
+	env.glow_hdr_threshold = 0.85
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.08, 0.1, 0.16)
-	env.fog_density = 0.012
+	env.fog_light_color = Color(0.06, 0.12, 0.13)
+	env.fog_density = 0.02
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 	var moon := DirectionalLight3D.new()
 	moon.rotation_degrees = Vector3(-50, -30, 0)
-	moon.light_color = Color(0.65, 0.76, 1.0)
-	moon.light_energy = 0.9
+	moon.light_color = Color(0.6, 0.85, 0.82) # a sickly, greenish moon
+	moon.light_energy = 0.6
 	moon.shadow_enabled = true
 	add_child(moon)
 
@@ -232,8 +245,9 @@ func _build_ground() -> void:
 	for i in 18:
 		var angle := TAU * i / 18.0
 		var kind := "rune_gravestone" if i % 3 else "ruined_pillar"
-		if sin(angle) > 0.0 and absf(cos(angle)) * (PLAZA_RADIUS + 2.2) < 4.0:
-			continue # the road and its statues
+		var edge := Vector2(cos(angle), sin(angle)) * (PLAZA_RADIUS + 2.2)
+		if (edge.y > 0.0 and absf(edge.x) < 4.0) or absf(edge.y) < 3.0:
+			continue # keep the streets (and the south statues) clear
 		_prop(kind, Vector3(cos(angle), 0, sin(angle)) * (PLAZA_RADIUS + 2.2), rad_to_deg(-angle) + 90.0, 1.0, false)
 
 
@@ -262,43 +276,201 @@ func _build_lantern() -> void:
 		_blockers.append([Vector2(x, -8.75), 1.0])
 	_light(Vector3(0, 5.0, 0), SOUL, 3.0, 14.0)
 	_build_flagstones()
+	_build_houses()
+	_build_lamps()
 	_build_buildings()
 	_build_motes()
+	_build_mist()
 
 
-## Individually laid stones in rings, plus a road leaving south.
+## Cobbled square and streets. Stones are committed in small chunks: the
+## Compatibility renderer lights each mesh with at most 8 lights, so one huge
+## floor mesh would drop most station and lamp lights.
 func _build_flagstones() -> void:
-	var kit := MeshKit.new()
-	kit.flat = true
-	kit.max_segments = 16
-	var stone := Color(0.3, 0.34, 0.4)
-	var ring := 0
+	var stone := Color(0.3, 0.32, 0.36)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var kits := {}
+	# Large slabs around the lantern.
 	var radius := 2.2
-	while radius < PLAZA_RADIUS + 1.0:
+	var ring := 0
+	while radius < 4.0:
 		var count := int(TAU * radius / 0.95)
 		for i in count:
 			var angle := TAU * (i + 0.5 * (ring % 2)) / count
-			var shade := float(posmod(i * 7 + ring * 13, 5)) * 0.025
-			kit.box(Vector3(0.86, 0.1, 0.8), MeshKit.at(Vector3(cos(angle) * radius, 0.1, sin(angle) * radius), Vector3(0, rad_to_deg(-angle) + float(posmod(i * 3, 5) - 2), 0)), stone.darkened(0.12 + shade))
+			_cobble(kits, Vector3(cos(angle) * radius, 0.1, sin(angle) * radius), Vector3(0.86, 0.1, 0.8), rad_to_deg(-angle), stone.darkened(0.1 + rng.randf() * 0.08))
 		radius += 0.92
 		ring += 1
-	for i in 12:
-		var z := PLAZA_RADIUS + 0.6 + i * 0.9
-		for x in [-0.9, 0.0, 0.9]:
-			kit.box(Vector3(0.82, 0.1, 0.8), MeshKit.at(Vector3(x + (0.2 if i % 2 else -0.2), 0.08 - i * 0.004, z), Vector3(0, float(posmod(i * 5, 7) - 3), 0)), stone.darkened(0.18 + i * 0.015))
-	# Brass inlay rings around the lantern, as in the vignette.
+	# Small irregular cobbles across the rest of the square.
+	radius = 4.3
+	while radius < PLAZA_RADIUS + 1.1:
+		var count := int(TAU * radius / 0.5)
+		for i in count:
+			var angle := TAU * (i + rng.randf_range(-0.2, 0.2)) / count
+			var size := Vector3(rng.randf_range(0.36, 0.46), rng.randf_range(0.08, 0.13), rng.randf_range(0.34, 0.44))
+			_cobble(kits, Vector3(cos(angle) * radius, 0.08, sin(angle) * radius), size, rng.randf_range(-25, 25), _cobble_color(rng, stone))
+		radius += 0.48
+	# Three streets leave the square: east, west and south.
+	for direction: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1)]:
+		var side := Vector2(-direction.y, direction.x)
+		var along := PLAZA_RADIUS + 0.6
+		while along < 34.0:
+			for k in 7:
+				var across := -1.5 + k * 0.5 + rng.randf_range(-0.06, 0.06)
+				var at := direction * along + side * across
+				_cobble(kits, Vector3(at.x, 0.07, at.y), Vector3(rng.randf_range(0.38, 0.46), rng.randf_range(0.08, 0.12), rng.randf_range(0.36, 0.44)), rng.randf_range(-15, 15), _cobble_color(rng, stone))
+			# Curbs: longer dark stones along both edges.
+			for edge in [-1.0, 1.0]:
+				var curb := direction * along + side * (edge * 1.95)
+				_cobble(kits, Vector3(curb.x, 0.1, curb.y), Vector3(0.22, 0.16, 0.5) if direction.x == 0.0 else Vector3(0.5, 0.16, 0.22), 0.0, stone.darkened(0.35))
+			along += 0.5
+	var mortar := _flat_material(Color(0.07, 0.07, 0.08))
+	for direction: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1)]:
+		var bed := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(21.0, 0.06, 4.2) if direction.y == 0.0 else Vector3(4.2, 0.06, 21.0)
+		bed.mesh = box
+		var mid := direction * (PLAZA_RADIUS + 10.5)
+		bed.position = Vector3(mid.x, 0.03, mid.y)
+		bed.material_override = mortar
+		add_child(bed)
+	var kit := MeshKit.new()
+	kit.flat = true
 	kit.torus(1.85, 1.95, MeshKit.at(Vector3(0, 0.16, 0)), Color(0.61, 0.43, 0.24), 0.12, 32)
 	kit.torus(1.6, 1.66, MeshKit.at(Vector3(0, 0.17, 0)), SOUL.darkened(0.3), 0.35, 32)
-	var instance := MeshInstance3D.new()
-	instance.name = "Flagstones"
-	instance.mesh = kit.commit(Models.material("kit"))
-	add_child(instance)
+	kits["inlay"] = kit
+	for key in kits:
+		var instance := MeshInstance3D.new()
+		instance.name = "Cobbles_%s" % str(key)
+		instance.mesh = (kits[key] as MeshKit).commit(Models.material("kit"))
+		add_child(instance)
+
+
+func _cobble_color(rng: RandomNumberGenerator, stone: Color) -> Color:
+	var color := stone.darkened(rng.randf_range(0.05, 0.3))
+	if rng.randf() < 0.12:
+		color = color.lerp(Color(0.2, 0.28, 0.16), 0.45) # moss
+	return color
+
+
+## Chunk key from a 6 m grid so nearby stones share a mesh and its lights.
+func _cobble(kits: Dictionary, at: Vector3, size: Vector3, yaw: float, color: Color) -> void:
+	var key := "%d_%d" % [floori(at.x / 6.0), floori(at.z / 6.0)]
+	if not kits.has(key):
+		var kit := MeshKit.new()
+		kit.flat = true
+		kits[key] = kit
+	(kits[key] as MeshKit).box(size, MeshKit.at(at, Vector3(0, yaw, 0)), color)
+
+
+## Timber-and-stone cottages facing the square; windows glow from within.
+func _build_houses() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1717
+	var spots := []
+	for degrees in [30, 58, 122, 150, 210, 240, 300, 330]:
+		spots.append([deg_to_rad(degrees), 20.0])
+	for degrees in [18, 44, 70, 110, 136, 162, 198, 224, 252, 288, 316, 342]:
+		spots.append([deg_to_rad(degrees), 27.5])
+	for spot: Array in spots:
+		var at := Vector3(cos(spot[0]), 0, sin(spot[0])) * float(spot[1])
+		var house := MeshInstance3D.new()
+		house.name = "Cottage"
+		house.mesh = _cottage_mesh(rng)
+		house.position = at
+		house.rotation.y = atan2(at.x, at.z) # front (-Z) faces the square
+		add_child(house)
+		_houses.append(Vector2(at.x, at.z))
+		# A few doorways carry a real light; the rest rely on glowing windows.
+		if _houses.size() % 4 == 0:
+			_light(at + (-at.normalized()) * 2.4 + Vector3(0, 1.4, 0), Color(1.0, 0.68, 0.35), 1.4, 5.0)
+
+
+func _cottage_mesh(rng: RandomNumberGenerator) -> ArrayMesh:
+	var kit := MeshKit.new()
+	kit.flat = true
+	var w := rng.randf_range(3.4, 4.6)
+	var d := rng.randf_range(3.0, 3.6)
+	var h := rng.randf_range(2.3, 3.0)
+	var plaster := Color(0.3, 0.28, 0.26).darkened(rng.randf_range(0.0, 0.25))
+	var timber := Color(0.16, 0.11, 0.08)
+	var roof := Color(0.2, 0.16, 0.18).lerp(Color(0.14, 0.2, 0.24), rng.randf())
+	var glow := Color(1.0, 0.68, 0.32) if rng.randf() < 0.7 else Color(0.45, 1.0, 0.85)
+	kit.box(Vector3(w + 0.2, 0.5, d + 0.2), MeshKit.at(Vector3(0, 0.25, 0)), Color(0.22, 0.23, 0.25))
+	kit.box(Vector3(w, h, d), MeshKit.at(Vector3(0, 0.5 + h * 0.5, 0)), plaster)
+	for x in [-w * 0.5, w * 0.5]:
+		for z in [-d * 0.5, d * 0.5]:
+			kit.box(Vector3(0.2, h, 0.2), MeshKit.at(Vector3(x, 0.5 + h * 0.5, z)), timber)
+	kit.box(Vector3(w + 0.05, 0.16, 0.1), MeshKit.at(Vector3(0, 0.5 + h * 0.55, -d * 0.5 - 0.02)), timber)
+	# A 45-degree gable: a diamond box whose lower half hides inside the walls.
+	var half := d * 0.5 + 0.35
+	kit.box(Vector3(w + 0.6, half * 1.4142, half * 1.4142), MeshKit.at(Vector3(0, 0.5 + h, 0), Vector3(45, 0, 0)), roof)
+	kit.box(Vector3(0.5, 1.4, 0.5), MeshKit.at(Vector3(w * 0.28, 0.5 + h + half * 0.7, d * 0.18)), Color(0.24, 0.22, 0.22))
+	# Door and windows on the front (-Z) face.
+	kit.box(Vector3(0.8, 1.5, 0.08), MeshKit.at(Vector3(-w * 0.18, 1.25, -d * 0.5 - 0.05)), timber.darkened(0.3))
+	kit.box(Vector3(0.7, 0.6, 0.06), MeshKit.at(Vector3(w * 0.24, 0.5 + h * 0.5, -d * 0.5 - 0.05)), glow, 2.2)
+	if rng.randf() < 0.6:
+		kit.box(Vector3(0.55, 0.5, 0.06), MeshKit.at(Vector3(-w * 0.18, 0.5 + h * 0.86, -d * 0.5 - 0.05)), glow, 1.6)
+	kit.box(Vector3(0.06, 0.55, 0.6), MeshKit.at(Vector3(w * 0.5 + 0.05, 0.5 + h * 0.5, 0)), glow, 1.4)
+	return kit.commit(Models.material("kit"))
+
+
+## Street lamps line each street; every other one carries a real light.
+func _build_lamps() -> void:
+	var index := 0
+	for direction: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1)]:
+		var side := Vector2(-direction.y, direction.x)
+		for along in [17.0, 23.0, 29.0]:
+			var edge := 1.0 if index % 2 == 0 else -1.0
+			var at := direction * along + side * (edge * 2.5)
+			_prop("lantern_post", Vector3(at.x, 0, at.y), 0.0, 1.0, false)
+			if index % 2 == 0:
+				_light(Vector3(at.x, 2.3, at.y), Color(0.55, 1.0, 0.85), 1.6, 6.0)
+			index += 1
+
+
+## Low drifting mist: additive radial-gradient sheets in sickly soul-teal.
+func _build_mist() -> void:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1, 1, 1, 1))
+	gradient.set_color(1, Color(1, 1, 1, 0))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.width = 128
+	texture.height = 128
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	material.albedo_texture = texture
+	material.albedo_color = Color(0.3, 0.85, 0.75, 0.1)
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.no_depth_test = false
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	for i in 22:
+		var sheet := MeshInstance3D.new()
+		var plane := PlaneMesh.new()
+		var size := rng.randf_range(7.0, 13.0)
+		plane.size = Vector2(size, size)
+		sheet.mesh = plane
+		sheet.material_override = material
+		sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var angle := rng.randf() * TAU
+		var distance := rng.randf_range(4.0, 30.0)
+		sheet.position = Vector3(cos(angle) * distance, rng.randf_range(0.25, 0.7), sin(angle) * distance)
+		add_child(sheet)
+		_mist.append(sheet)
+		_mist_origins.append(sheet.position)
 
 
 ## Larger structures behind the service ring give the plaza a skyline.
 func _build_buildings() -> void:
-	_prop("mausoleum", Vector3(-14.5, 0, 0.0), 90.0, 1.3, false)
-	_prop("mausoleum", Vector3(14.5, 0, 0.0), -90.0, 1.3, false)
+	_prop("mausoleum", Vector3(-13.6, 0, -11.4), 50.0, 1.3, false)
+	_prop("mausoleum", Vector3(13.6, 0, -11.4), -50.0, 1.3, false)
 	_prop("guardian_statue", Vector3(-2.2, 0, PLAZA_RADIUS + 1.6), 180.0, 1.1, false)
 	_prop("guardian_statue", Vector3(2.2, 0, PLAZA_RADIUS + 1.6), 180.0, 1.1, false)
 	_prop("funeral_wagon", Vector3(-11.8, 0, 7.5), 40.0, 1.0, false)
@@ -322,6 +494,25 @@ func _build_motes() -> void:
 		add_child(mote)
 		_motes.append(mote)
 		_mote_origins.append(mote.position)
+	# Will-o'-wisps wander the outskirts (emissive only; lights are budgeted).
+	var wisp_kit := MeshKit.new()
+	wisp_kit.sphere(0.09, Transform3D.IDENTITY, Color(0.5, 1.0, 0.7), 3.0, 6, 3)
+	var wisp_mesh := wisp_kit.commit(Models.material("kit"))
+	for i in 5:
+		var wisp := MeshInstance3D.new()
+		wisp.mesh = wisp_mesh
+		add_child(wisp)
+		_wisps.append(wisp)
+
+
+## False on streets and around cottages, where scenery would clip.
+func _open_ground(at: Vector2) -> bool:
+	if absf(at.y) < 3.2 or (at.y > 0.0 and absf(at.x) < 3.2):
+		return false
+	for house: Vector2 in _houses:
+		if at.distance_to(house) < 4.0:
+			return false
+	return true
 
 
 ## Scenery beyond the plaza follows the current biome; rebuilt only on change.
@@ -342,9 +533,8 @@ func _build_scatter(biome: int) -> void:
 			var angle := rng.randf() * TAU
 			var distance := rng.randf_range(PLAZA_RADIUS + 3.0, 32.0)
 			var at := Vector3(cos(angle) * distance, 0, sin(angle) * distance)
-			# Keep the southern road clear.
-			if absf(at.x) < 2.5 and at.z > 0.0:
-				at.x += 4.0 * signf(at.x + 0.01)
+			if not _open_ground(Vector2(at.x, at.z)):
+				continue
 			var instance := MeshInstance3D.new()
 			instance.mesh = mesh
 			instance.position = at
