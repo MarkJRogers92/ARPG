@@ -49,6 +49,7 @@ func _finish() -> void:
 	_run(&"_test_landmarks", _test_landmarks())
 	_run(&"_test_minion_roles", _test_minion_roles())
 	_run(&"_test_specialists", _test_specialists())
+	_run(&"_test_specialist_enemies", _test_specialist_enemies())
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
@@ -962,7 +963,7 @@ func _test_realms() -> bool:
 	print("realms")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var models: Array = []
-	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger"]:
+	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger", "shieldbearer", "mender", "bloater"]:
 		models.append(m)
 	_check(Realm.ORDER.size() == Realm.REALMS.size(), "every realm is in the play order")
 	for id: String in Realm.ORDER:
@@ -1561,7 +1562,8 @@ func _test_minion_roles() -> bool:
 	print("minion roles")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
-			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster"}
+			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster",
+			"Shieldbearers": "bulwark", "Menders": "caster", "Bloaters": "brawler"}
 	for swarm_name: String in want:
 		_check(Army.role_of(scene.get_node(swarm_name)) == want[swarm_name], "%s rise as %ss" % [swarm_name, want[swarm_name]])
 	scene.free()
@@ -1658,6 +1660,132 @@ func _test_specialists() -> bool:
 	souls.drop(Vector2(20, 0), 1)
 	_check(souls.take_near(Vector2.ZERO, 7.0) == 1 and souls.count == 1, "and eats the souls near it")
 	souls.free()
+	return true
+
+
+
+func _test_specialist_enemies() -> bool:
+	print("shieldbearers, menders and bloaters")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 16
+	grunts.max_hp = 100.0
+	root.add_child(grunts)
+	var shields := EnemySwarm.new()
+	shields.capacity = 4
+	shields.max_hp = 100.0
+	shields.direct_taken = 0.2
+	root.add_child(shields)
+	var menders := EnemySwarm.new()
+	menders.capacity = 4
+	menders.mend_interval = 1.0
+	menders.mend_radius = 6.0
+	menders.hold_range = 7.0
+	root.add_child(menders)
+	var bloaters := EnemySwarm.new()
+	bloaters.capacity = 8
+	bloaters.max_hp = 10.0
+	bloaters.fuse_range = 2.0
+	bloaters.fuse_time = 0.5
+	bloaters.blast_radius = 3.0
+	bloaters.blast_damage = 16.0
+	root.add_child(bloaters)
+	var swarms: Array[EnemySwarm] = [grunts, shields, menders, bloaters]
+	Elements.swarms = swarms
+	Elements.player = player
+	player.setup(swarms, null)
+	var spec := Specialists.new()
+	root.add_child(spec)
+	spec.setup(swarms, player, director)
+	var told: Array[String] = []
+	spec.announced.connect(func(text: String, _c: Color) -> void: told.append(text))
+	var far := Vector2(0, -30)
+	var step_all := func(t: Vector2) -> void:
+		for s in swarms:
+			s.step(0.0, t)
+
+	# Shields stop direct hits, not the rest.
+	shields.spawn(Vector2(5, 5))
+	step_all.call(far)
+	Elements.source = "Magic Bolt"
+	Elements.hit(shields, 0, 50.0)
+	_near(shields.hp[0], 90.0, "a bolt deals a fifth to a shieldbearer")
+	Elements.source = "Frost Aura"
+	Elements.hit(shields, 0, 50.0)
+	_near(shields.hp[0], 40.0, "the Frost Aura gets around the shield")
+	_check(told.size() == 1 and "shrug off" in told[0], "and the first block explains itself")
+
+	# A mender heals the horde in its ring, up to full health, bosses aside.
+	grunts.spawn(Vector2(1, 0))
+	grunts.spawn(Vector2(15, 0))
+	menders.spawn(Vector2(0, 0))
+	step_all.call(far)
+	grunts.hp[0] = 20.0
+	grunts.hp[1] = 20.0
+	shields.hp[0] = 95.0
+	shields.pos[0] = Vector2(2, 0)
+	step_all.call(far)
+	menders._fire[0] = 0.0
+	menders.step(1.0 / 60.0, Vector2(0, 10))
+	_near(grunts.hp[0], 20.0 + 100.0 * Specialists.MEND_SHARE, "a mender heals a nearby ghoul", 0.01)
+	_near(grunts.hp[1], 20.0, "but not one outside its ring")
+	_near(shields.hp[0], 100.0, "and never past full health")
+	_check(menders._aura != null and menders._aura.multimesh.visible_instance_count == 1, "its ring is drawn on the ground")
+
+	# A bloater lights up next to the hero, then bursts: the hero and the horde.
+	grunts.despawn_all()
+	shields.despawn_all()
+	menders.despawn_all()
+	step_all.call(far)
+	grunts.spawn(Vector2(1.5, 1.5))
+	bloaters.spawn(Vector2(1.5, 0))
+	var hero := Vector2.ZERO
+	player.position = Vector3.ZERO
+	step_all.call(hero)
+	var hp0 := player.stats.hp
+	for f in 3:
+		bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters._fuse[0] > 0.0 and spec.fuse_count() == 1, "a bloater next to the hero lights its fuse and marks the ground")
+	var at := bloaters.pos[0]
+	for f in 10:
+		bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters.pos[0].distance_to(at) < 0.01, "and stands still while it burns")
+	var deaths := EnemySwarm.deaths
+	for f in 40:
+		for s in swarms:
+			s.step(1.0 / 60.0, hero)
+		spec.tick(1.0 / 60.0)
+	_check(bloaters.alive_count() == 0 and spec.fuse_count() == 0, "then goes off, and its circle is gone")
+	_check(player.stats.hp < hp0, "hurting the hero (%.0f -> %.0f)" % [hp0, player.stats.hp])
+	_check(grunts.count == 1 and grunts.hp[0] < 100.0 - 30.0, "and the horde beside it")
+	_check(EnemySwarm.deaths == deaths, "a bloater that bursts on its own isn't a kill")
+	_check(told.size() == 3, "each specialist explains itself once (%d)" % told.size())
+
+	# Killed with the fuse lit, it bursts at once (and chains).
+	player.stats.hp = player.stats.max_hp
+	bloaters.spawn(Vector2(1.0, 0))
+	bloaters.spawn(Vector2(10, 0))
+	bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters._fuse[0] > 0.0 and bloaters._fuse[1] < 0.0, "only the one in reach lights up")
+	bloaters.pos[1] = Vector2(3.0, 0)
+	bloaters.step(0.0, hero)
+	Elements.source = "Magic Bolt"
+	Elements.hit(bloaters, 0, 100.0)
+	spec.tick(1.0 / 60.0)
+	bloaters.step(0.0, hero)
+	_check(bloaters.alive_count() == 0, "shooting a lit bloater sets it off, and it takes its neighbor with it")
+	_check(player.stats.hp < player.stats.max_hp, "which still hurts a hero standing too close")
+	spec.tick(1.0 / 60.0)
+	_check(spec.fuse_count() == 0, "no circle is left behind")
+
+	Elements.swarms = []
+	Elements.player = null
+	Elements.source = "Other"
+	for n: Node in [spec, grunts, shields, menders, bloaters, director, player]:
+		n.free()
 	return true
 
 

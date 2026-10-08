@@ -455,6 +455,25 @@ battle, it's gone for good, and listed among **the Fallen**
 - **Gravediggers** (Gravedigger, Frozen Sexton, Ash Sexton) hang back about
   8 m from the hero. Every ~6 s they raise three fresh enemies from the
   ground and swallow the uncollected souls nearby. Kill them first.
+- **Shieldbearers** (Bone Shieldbearer, Rime Warden, Obsidian Guard), from
+  4:00, hide behind tower shields: direct hits (Magic Bolt, Spirit Blades,
+  Obol, Reaping Scythe, Chain Lightning; `Elements.DIRECT`) deal only a fifth
+  and glint off with a "BLOCKED". Burning, Frost Aura, Arcane Nova, the
+  Funeral Bell, reactions, blasts and the army hit them in full.
+- **Menders** (Grave Mender, Hoarfrost Shaman, Cinder Priest), from 5:30, hang
+  back about 7 m inside a green ring on the ground. Every ~4.5 s they heal
+  every non-boss enemy in the ring by 30% of its health. Rare (at most six);
+  kill them first.
+- **Bloaters** (Plague Bloater, Frost Bloater, Magma Bloater), from 3:00, run
+  at the hero. Within 2 m they stop, glow, and a circle fills on the ground;
+  1.1 s later they burst for 16 damage (chilling in the Frozen Wastes, burning
+  in the Ember Rift), hurting the horde in the circle too, much harder. Kill
+  one with its fuse lit and it bursts at once, which can set off its
+  neighbors; one that bursts on its own gives nothing.
+
+Each explains itself with a message the first time it does its thing. The
+behavior is in `EnemySwarm` (the "Specialists" exports), what the hero sees
+and feels in `scripts/specialists.gd`.
 
 ## Imported scenery
 

@@ -24,9 +24,21 @@ signal charged_hero(damage: float)
 signal raise_called(position: Vector2)
 ## A captor touched the hero (see `captor`).
 signal seized_hero
+## A shield turned a direct hit aside (see `direct_taken`).
+signal shield_blocked(position: Vector2)
+## A mender pulses: heal the horde around `position` (see `mend_interval`).
+signal mend_called(position: Vector2)
+## An exploder lit its fuse next to the hero (see `fuse_range`); `id` names it
+## until it goes off.
+signal fuse_lit(id: int, position: Vector2)
+## An exploder went off, on its own or because it was killed with its fuse lit.
+signal detonated(id: int, position: Vector2)
 
 ## Every swarm joins this group, which is how main.gd finds them.
 const GROUP := "enemy_swarms"
+
+## The color of a mender's ring and its heal.
+const MEND_COLOR := Color(0.45, 1.0, 0.55)
 
 ## Unique across all swarms so projectiles can remember what they already hit.
 static var _next_id := 1
@@ -72,6 +84,22 @@ var shots: EnemyShots
 @export var hold_range := 0.0
 ## Debt Collectors: touching the hero seizes something (every 4 s at most).
 @export var captor := false
+## Shieldbearers: the share of direct hits (bolts, blades, coins, the scythe,
+## lightning; see Elements.DIRECT) that gets through. Burns, auras, novas,
+## reactions, blasts and the army hit them in full. 1 = no shield.
+@export_range(0.0, 1.0) var direct_taken := 1.0
+## Menders: every `mend_interval` seconds (0 = never) heal the horde within
+## `mend_radius`, which a ring on the ground shows.
+@export var mend_interval := 0.0
+@export var mend_radius := 6.0
+## Exploders: within `fuse_range` of the hero (0 = never) stop, light a fuse
+## and go off `fuse_time` later, hitting everything within `blast_radius`
+## (the hero for `blast_damage`, in `shot_element`). Killed with the fuse lit,
+## they go off at once.
+@export var fuse_range := 0.0
+@export var fuse_time := 1.1
+@export var blast_radius := 3.0
+@export var blast_damage := 16.0
 
 @export_group("Elites")
 ## Elites are rare, bigger, glowing versions with more HP, more XP and a
@@ -97,7 +125,7 @@ var shots: EnemyShots
 
 @export_group("Look")
 ## Which model to draw (see Models.enemy).
-@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector", "phylactery", "rival") var model := "grunt"
+@export_enum("grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "goblin", "lancer", "gravedigger", "collector", "phylactery", "rival", "shieldbearer", "mender", "bloater") var model := "grunt"
 ## Runs away from the hero instead of chasing (treasure goblins).
 @export var flee := false
 ## What the game calls one of these (the realm sets it; see Realm).
@@ -160,6 +188,11 @@ var _chit := PackedByteArray()
 ## At most this many chargers wind up at once (each shows a ground line).
 const MAX_WINDUPS := 6
 var _telegraph: MultiMeshInstance3D
+## Exploders: seconds left on the fuse, or -1 while unlit.
+var _fuse := PackedFloat32Array()
+## Menders: the rings on the ground around them.
+var _aura: MultiMeshInstance3D
+var _block_ready := 0
 ## Scales all damage this type takes (a warded or exposed final boss).
 var damage_taken := 1.0
 
@@ -187,6 +220,10 @@ func _ready() -> void:
 		_cdir.resize(capacity)
 		_chit.resize(capacity)
 		_make_telegraph()
+	if fuse_range > 0.0:
+		_fuse.resize(capacity)
+	if mend_interval > 0.0:
+		_make_aura()
 	grid = SpatialHash.new(radius * 2.0, 4096, capacity)
 
 	# Look: a model per type, animated in the shader (see enemy.gdshader), plus
@@ -241,7 +278,9 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	hp[count] = max_hp * hp_mult * (elite_hp_mult if elite else 1.0)
 	_elite[count] = 1 if elite else 0
 	_scale[count] = elite_scale if elite else 1.0
-	_fire[count] = randf_range(0.5, 1.0) * (raise_interval if raise_interval > 0.0 else fire_interval)
+	_fire[count] = randf_range(0.5, 1.0) * (raise_interval if raise_interval > 0.0 else (mend_interval if mend_interval > 0.0 else fire_interval))
+	if fuse_range > 0.0:
+		_fuse[count] = -1.0
 	if charger:
 		_cstate[count] = 0
 		_ctime[count] = randf_range(0.5, 1.5)
@@ -377,6 +416,29 @@ func step(delta: float, target: Vector2) -> void:
 				_fire[i] = raise_interval * randf_range(0.8, 1.2)
 				if d2 < 22.0 * 22.0:
 					raise_called.emit(p)
+		if mend_interval > 0.0:
+			_fire[i] -= delta
+			if _fire[i] <= 0.0:
+				_fire[i] = mend_interval * randf_range(0.85, 1.15)
+				if d2 < 26.0 * 26.0:
+					mend_called.emit(p)
+		if fuse_range > 0.0 and hp[i] > 0.0:
+			var fuse := _fuse[i]
+			if fuse < 0.0 and d2 < fuse_range * fuse_range:
+				fuse = fuse_time
+				fuse_lit.emit(ids[i], p)
+			if fuse >= 0.0:
+				chase = Vector2.ZERO
+				push = Vector2.ZERO
+				fuse -= delta
+				_flash[i] = maxf(_flash[i], 0.45 + 0.45 * sin(fuse * 40.0))
+				if fuse <= 0.0:
+					# Gone off: no reward, the blast is the whole point.
+					hp[i] = 0.0
+					_dead.append(i)
+					detonated.emit(ids[i], p)
+					fuse = -1.0
+			_fuse[i] = fuse
 		var move := (chase * _advance[i] + push) * sl
 		p += move
 		if ob_w > 0 and (boss or ob_stride == 1 or (i + _frame) & 1 == 0):
@@ -431,6 +493,8 @@ func step(delta: float, target: Vector2) -> void:
 
 	if charger:
 		_draw_telegraphs()
+	if _aura:
+		_draw_auras()
 	var mm := multimesh
 	mm.visible_instance_count = count
 	_shadow.multimesh.visible_instance_count = count
@@ -451,6 +515,15 @@ func damage(i: int, amount: float) -> bool:
 		_die(i)
 		return true
 	return false
+
+
+## A shield turned a direct hit aside: a steel glint, at most a few a second.
+func blocked(i: int) -> void:
+	var now := Time.get_ticks_msec()
+	if now < _block_ready:
+		return
+	_block_ready = now + 120
+	shield_blocked.emit(pos[i])
 
 
 ## Removes every enemy without a death (no XP, no loot): an escaped goblin.
@@ -502,6 +575,35 @@ func _draw_telegraphs() -> void:
 	mm.visible_instance_count = n
 
 
+## Menders' rings: a pulsing circle on the ground the size of the heal.
+func _make_aura() -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2.ONE * mend_radius * 2.0 / 0.82
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/ground_glow.gdshader")
+	mat.set_shader_parameter("color", MEND_COLOR * Color(1, 1, 1, 0.55))
+	mat.set_shader_parameter("ring", 1.0)
+	mat.set_shader_parameter("pulse_speed", 4.0)
+	plane.material = mat
+	_aura = MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = plane
+	mm.instance_count = capacity
+	mm.visible_instance_count = 0
+	_aura.multimesh = mm
+	_aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_aura.top_level = true
+	add_child(_aura)
+
+
+func _draw_auras() -> void:
+	var mm := _aura.multimesh
+	for i in count:
+		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, Vector3(pos[i].x, 0.07, pos[i].y)))
+	mm.visible_instance_count = count
+
+
 func mark_afflicted(i: int) -> void:
 	_afflicted[i] = 1
 
@@ -509,6 +611,9 @@ func mark_afflicted(i: int) -> void:
 func _die(i: int) -> void:
 	_dead.append(i)
 	deaths += 1
+	if fuse_range > 0.0 and _fuse[i] >= 0.0:
+		_fuse[i] = -1.0
+		detonated.emit(ids[i], pos[i])
 	var elite := _elite[i] == 1
 	enemy_died.emit(pos[i], xp_value * (elite_xp_mult if elite else 1))
 	if elite:
@@ -621,6 +726,8 @@ func _flush_dead() -> void:
 				_ctime[i] = _ctime[last]
 				_cdir[i] = _cdir[last]
 				_chit[i] = _chit[last]
+			if fuse_range > 0.0:
+				_fuse[i] = _fuse[last]
 			chill[i] = chill[last]
 			shock[i] = shock[last]
 			burn[i] = burn[last]

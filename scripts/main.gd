@@ -77,6 +77,7 @@ var _landmarks: Landmarks
 var _spec_chosen := false
 var _final_mech: FinalMechanics
 var _mid_mech: MidMechanics
+var _specialists: Specialists
 var _rift: RiftDirector
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
@@ -187,6 +188,10 @@ func _ready() -> void:
 	_mid_mech = MidMechanics.new()
 	add_child(_mid_mech)
 	_mid_mech.setup($Bosses, _player, _director, _bosses)
+	_specialists = Specialists.new()
+	add_child(_specialists)
+	_specialists.setup(_swarms, _player, _director)
+	_specialists.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
 		_hud.title_card(boss_name, "Dawn is near. The master of this realm rises.", Color(1.0, 0.35, 0.3))
 		Sound.play("boss_title")
@@ -307,6 +312,7 @@ func _process(delta: float) -> void:
 	_army.flush()
 	_bosses.tick(delta)
 	_mid_mech.tick(delta)
+	_specialists.tick(delta)
 	if _bosses.final_arrived:
 		_final_mech.tick(delta)
 	if not won or _endless:
