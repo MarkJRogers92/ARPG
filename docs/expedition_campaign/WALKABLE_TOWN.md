@@ -47,3 +47,16 @@ Ferryman, Ledger) is a place or person you walk up to and use with **E**.
 - Station prop scale (1.0) versus hero scale (HeroModel rig 1.12) is a guess.
 - Ui focus: closing a panel releases GUI focus so Space/Enter can't hit
   "Save & Leave" while walking.
+
+## Visual pass 2 — town and night glow
+
+- Cobbled square (slabs around the Lantern, irregular cobbles with moss) and
+  three cobbled streets (east, west, south) with curbs and a mortar bed.
+- 20 kit-built cottages facing the square: timber frame, 45° gable, chimney,
+  glowing windows (mostly amber, some soul-teal); some doorways carry a light.
+- Street lamps along each street; drifting teal ground mist; greenish moon,
+  thicker fog, stronger bloom; will-o'-wisps orbiting the outskirts.
+- Renderer note: the project uses `gl_compatibility`, which lights each mesh
+  with at most 8 lights and caps renderable lights (default 32). Floor stones
+  are committed in 6 m chunks so each chunk picks up nearby lights; total real
+  lights are kept around 24. Add glow with emissive geometry, not more lights.
