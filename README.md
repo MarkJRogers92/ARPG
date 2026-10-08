@@ -246,7 +246,14 @@ which the pause menu's sliders control.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.
 - **Daily Night** (title screen): today's realm, omen and seed are the same
-  for every run today. Your best kill count is kept.
+  for every run today. Your best kill count is kept. Every finished Daily
+  Night leaves a shareable code, such as `SB-20261008-K1234-T812-L-BAT-H0YS`
+  (date, kills, seconds survived, won or lost, hero, and a base-36 checksum
+  salted with the day's seed, so typos and edited numbers are rejected;
+  `scripts/daily_code.gd`). The code is on the end screen with a copy button.
+  The Daily Night button opens a panel with today's realm and omen, the last
+  30 dailies (each day's best starred, each with its code to copy) and a box
+  to check a friend's code: it shows the result and that day's night.
 - **Run report** on the end screen: the share of damage dealt by each weapon,
   the army, reactions and burning, plus the omen and heat.
 

@@ -22,9 +22,10 @@ static func today() -> String:
 	return "%04d-%02d-%02d" % [d["year"], d["month"], d["day"]]
 
 
-## Today's realm (among the unlocked ones) and omen pick (0..1).
-static func daily_pick(unlocked: Array) -> Dictionary:
-	var h := hash(today())
+## Today's realm (among the unlocked ones) and omen pick (0..1); or another
+## day's, for a shared Daily code (see DailyCode).
+static func daily_pick(unlocked: Array, date := today()) -> Dictionary:
+	var h := hash(date)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = h
 	return {"realm": unlocked[rng.randi() % unlocked.size()], "omen": rng.randf(), "seed": h}
