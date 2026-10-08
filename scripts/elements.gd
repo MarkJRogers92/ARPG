@@ -32,6 +32,10 @@ const SHATTER_MULT := 1.0
 const OVERLOAD_MULT := 1.3
 const MELT_MULT := 1.8
 const SPREAD_CHANCE := 0.35
+## The weapons that hit one target head-on: shields (EnemySwarm.direct_taken)
+## stop most of these. Everything else (burns, auras, novas, the bell,
+## reactions, blasts, the army) gets around a shield.
+const DIRECT := ["Magic Bolt", "Spirit Blades", "Obol", "Reaping Scythe", "Chain Lightning"]
 ## At most this many queued area effects run per frame; the rest are dropped.
 const MAX_PER_FLUSH := 24
 
@@ -102,6 +106,10 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 				_queue.append({"kind": "overload", "at": at, "damage": maxf(amount, 10.0) * OVERLOAD_MULT * react})
 	if swarm.shock[i] > 0.0 and element != LIGHTNING:
 		amount *= SHOCK_BONUS
+	if swarm.direct_taken < 1.0 and source in DIRECT:
+		amount *= swarm.direct_taken
+		swarm.blocked(i)
+		_text(at, "BLOCKED", Color(0.8, 0.85, 0.95))
 
 	var before := swarm.hp[i]
 	var killed := swarm.damage(i, amount)

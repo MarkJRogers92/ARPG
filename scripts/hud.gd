@@ -52,6 +52,8 @@ var _upgrade_title: Label
 var _frenzy_label: Label
 var _omen_label: Label
 var _report: Label
+var _recap_label: Label
+var _recap_chart: DeathRecap
 var _title_card: VBoxContainer
 var _title_main: Label
 var _title_sub: Label
@@ -90,11 +92,12 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_xp_bar.value = stats.xp
 	_level_label.text = str(stats.level)
 	_skill_label.visible = skill_points > 0
-	_skill_label.text = "%d skill point%s  [K]" % [skill_points, "" if skill_points == 1 else "s"]
+	_skill_label.text = "%d skill point%s  %s" % [skill_points, "" if skill_points == 1 else "s", Controls.tag("skill_tree")]
 	_time_label.text = _clock_text if _clock_text != "" else _format_time(elapsed)
 	_time_label.add_theme_color_override("font_color", _clock_color)
 	_kills_label.text = "%d" % kills
-	_debug_label.text = "%d FPS   %d enemies   [Tab] inventory   [K] skills   [T] aim   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies]
+	_debug_label.text = "%d FPS   %d enemies   %s inventory   %s skills   %s aim   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies,
+			Controls.tag("inventory"), Controls.tag("skill_tree"), Controls.tag("toggle_aim")]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
 
 
@@ -127,7 +130,7 @@ func toast(text: String, color := Color.WHITE) -> void:
 func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_health: float) -> void:
 	_shards_label.text = str(shards)
 	_dash_bar.value = 1.0 - dash_cooldown
-	_dash_label.text = "DASH  [Space]" if dash_cooldown <= 0.0 else "DASH"
+	_dash_label.text = "DASH  " + Controls.tag("dash") if dash_cooldown <= 0.0 else "DASH"
 	_dash_label.modulate = Color(1, 1, 1, 0.9 if dash_cooldown <= 0.0 else 0.45)
 	_boss_box.visible = boss_health >= 0.0
 	if _boss_box.visible:
@@ -166,6 +169,12 @@ func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 
 
 ## The run report on the end screen: damage by source, best first.
+## "Why I died": the causes line and the health / pressure chart.
+func set_recap(text: String, samples: Array[Vector3]) -> void:
+	_recap_label.text = text
+	_recap_chart.show_samples(samples)
+
+
 func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> void:
 	var total := 0.0
 	for k: String in damage_by:
@@ -272,7 +281,7 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance 
 	_soul_bar.max_value = cost
 	_soul_bar.value = souls
 	_soul_label.text = "SOULS %d/%d   ARMY %d/%d%s" % [mini(souls, cost), cost, minions, max_minions,
-			("   %s [Q]" % stance) if stance != "" else ""]
+			("   %s %s" % [stance, Controls.tag("army_stance")]) if stance != "" else ""]
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
@@ -280,7 +289,7 @@ func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL U
 	_upgrade_title.text = heading
 	_upgrade_subtitle.text = subheading
 	_reroll_button.visible = rerolls > 0
-	_reroll_button.text = "Reroll  [R]   ·   %d left" % rerolls
+	_reroll_button.text = "Reroll  %s   ·   %d left" % [Controls.tag("reroll"), rerolls]
 	for child in _upgrade_row.get_children():
 		child.queue_free()
 	_upgrade_ids.clear()
@@ -661,7 +670,7 @@ func _build() -> void:
 
 	# Game over.
 	var over_box := VBoxContainer.new()
-	over_box.add_theme_constant_override("separation", 18)
+	over_box.add_theme_constant_override("separation", 12)
 	_end_title = UiStyle.label(56)
 	_end_title.text = "YOU DIED"
 	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -677,6 +686,15 @@ func _build() -> void:
 	_report.custom_minimum_size.x = 820
 	_report.modulate = Color(1, 1, 1, 0.85)
 	over_box.add_child(_report)
+	_recap_label = UiStyle.label(16)
+	_recap_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_recap_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_recap_label.custom_minimum_size.x = 820
+	_recap_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.62))
+	over_box.add_child(_recap_label)
+	_recap_chart = DeathRecap.new()
+	_recap_chart.visible = false
+	over_box.add_child(_recap_chart)
 	_shards_earned_label = UiStyle.label(20)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))

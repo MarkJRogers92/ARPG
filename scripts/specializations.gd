@@ -67,6 +67,19 @@ const PATHS := {
 			"mods": [{"stat": "dash_cooldown", "op": _INC, "value": -0.4}, {"stat": "move_speed", "op": _INC, "value": 0.2},
 				{"stat": "lightning_damage", "op": _MORE, "value": 0.25}, {"stat": "max_hp", "op": _MORE, "value": -0.1}]},
 	],
+	"reaper": [
+		{"id": "harvest_moon", "name": "Harvest Moon", "icon": "scythe", "color": Color(0.65, 0.95, 0.85),
+			"desc": "+2 scythes in the air. Each cuts 20% less.",
+			"mods": [{"stat": "scythe_count", "op": _ADD, "value": 2.0}, {"stat": "scythe_damage", "op": _MORE, "value": -0.2}]},
+		{"id": "executioner", "name": "Executioner", "icon": "executioner", "color": Color(1.0, 0.45, 0.4),
+			"desc": "Scythes cut 60% harder and crit 10% more often. Thrown 20% slower.",
+			"mods": [{"stat": "scythe_damage", "op": _MORE, "value": 0.6}, {"stat": "crit_chance", "op": _ADD, "value": 0.1},
+				{"stat": "scythe_rate", "op": _MORE, "value": -0.2}]},
+		{"id": "soul_reaper", "name": "Soul Reaper", "icon": "legion", "color": Color(0.45, 1.0, 0.6),
+			"desc": "+2 army size, minions +40% damage, +60% souls. Scythes cut 15% less.",
+			"mods": [{"stat": "minion_max", "op": _ADD, "value": 2.0}, {"stat": "minion_damage", "op": _MORE, "value": 0.4},
+				{"stat": "soul_chance", "op": _MORE, "value": 0.6}, {"stat": "scythe_damage", "op": _MORE, "value": -0.15}]},
+	],
 }
 
 

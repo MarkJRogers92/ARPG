@@ -1,0 +1,173 @@
+# Runs the tests, then builds Soulbound for Mac, Windows and Linux and publishes
+# each as its own "latest" release, every time the default branch changes:
+#   https://github.com/MarkJRogers92/ARPG/releases/download/mac-latest/Soulbound.zip
+#   https://github.com/MarkJRogers92/ARPG/releases/download/windows-latest/Soulbound-windows.zip
+#   https://github.com/MarkJRogers92/ARPG/releases/download/linux-latest/Soulbound-linux.zip
+# The repo's default branch is claude/focused-fermat-m7jhtk (there is no main
+# branch yet); main is listed too so publishing keeps working if it is renamed.
+name: Build
+
+on:
+  push:
+    branches: [claude/focused-fermat-m7jhtk, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$RUNNER_TEMP/godot"
+          rm godot.zip
+
+      - name: Import assets
+        run: timeout 600 "$RUNNER_TEMP/godot" --headless --path . --import
+
+      - name: Run the tests
+        run: timeout 900 "$RUNNER_TEMP/godot" --headless --path . -s tools/tests.gd 2>&1 | tail -25; exit ${PIPESTATUS[0]}
+
+  # Downloads the ~1 GB template archive once and caches just the three
+  # templates the exports use; the export jobs restore that cache.
+  templates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cache the export templates
+        id: templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-templates-mac-win-linux-${{ env.GODOT_VERSION }}
+
+      - name: Install the export templates
+        if: steps.templates.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dir"
+          unzip -q -j templates.tpz \
+            templates/version.txt \
+            templates/macos.zip \
+            templates/windows_release_x86_64.exe \
+            templates/windows_release_x86_64_console.exe \
+            templates/linux_release.x86_64 \
+            -d "$dir"
+          rm templates.tpz
+          ls -la "$dir"
+
+  export:
+    needs: [test, templates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: mac
+            preset: macOS
+            output: build/Soulbound.zip
+          - platform: windows
+            preset: Windows Desktop
+            output: build/windows/Soulbound.exe
+          - platform: linux
+            preset: Linux
+            output: build/linux/Soulbound.x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$RUNNER_TEMP/godot"
+          rm godot.zip
+
+      - name: Restore the export templates
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-templates-mac-win-linux-${{ env.GODOT_VERSION }}
+          fail-on-cache-miss: true
+
+      - name: Import assets
+        run: timeout 600 "$RUNNER_TEMP/godot" --headless --path . --import
+
+      - name: Export
+        env:
+          PRESET: ${{ matrix.preset }}
+          OUTPUT: ${{ matrix.output }}
+        run: |
+          mkdir -p "$(dirname "$OUTPUT")"
+          timeout 600 "$RUNNER_TEMP/godot" --headless --path . --export-release "$PRESET" "$OUTPUT"
+          test -s "$OUTPUT"
+          ls -la "$(dirname "$OUTPUT")"
+
+      # The .pck is embedded, so each zip holds a single executable.
+      - name: Zip the Windows build
+        if: matrix.platform == 'windows'
+        run: cd build/windows && zip -9 ../Soulbound-windows.zip Soulbound.exe
+
+      - name: Zip the Linux build
+        if: matrix.platform == 'linux'
+        run: cd build/linux && chmod +x Soulbound.x86_64 && zip -9 ../Soulbound-linux.zip Soulbound.x86_64
+
+      - name: Publish the mac-latest release
+        if: matrix.platform == 'mac'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-latest --yes --cleanup-tag || true
+          gh release create mac-latest build/Soulbound.zip \
+            --target "$GITHUB_SHA" \
+            --title "Soulbound for Mac (latest)" \
+            --notes "Built from ${GITHUB_SHA::7}. Install or update with this one line in Terminal:
+
+          \`\`\`
+          curl -fL -o /tmp/Soulbound.zip https://github.com/${GITHUB_REPOSITORY}/releases/download/mac-latest/Soulbound.zip && rm -rf /Applications/Soulbound.app && ditto -xk /tmp/Soulbound.zip /Applications && open /Applications/Soulbound.app
+          \`\`\`
+
+          (If you download the zip in a browser instead, macOS will warn that it can't check the app: right-click Soulbound.app and choose Open, or allow it in System Settings → Privacy & Security.)"
+
+      - name: Publish the windows-latest release
+        if: matrix.platform == 'windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows-latest --yes --cleanup-tag || true
+          gh release create windows-latest build/Soulbound-windows.zip \
+            --target "$GITHUB_SHA" \
+            --title "Soulbound for Windows (latest)" \
+            --notes "Built from ${GITHUB_SHA::7}. Download Soulbound-windows.zip, extract it anywhere and run Soulbound.exe.
+
+          The exe is not code-signed, so Windows SmartScreen may say it protected your PC: choose More info, then Run anyway."
+
+      - name: Publish the linux-latest release
+        if: matrix.platform == 'linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete linux-latest --yes --cleanup-tag || true
+          gh release create linux-latest build/Soulbound-linux.zip \
+            --target "$GITHUB_SHA" \
+            --title "Soulbound for Linux (latest)" \
+            --notes "Built from ${GITHUB_SHA::7}. x86_64. Install or update with:
+
+          \`\`\`
+          curl -fL -o /tmp/Soulbound-linux.zip https://github.com/${GITHUB_REPOSITORY}/releases/download/linux-latest/Soulbound-linux.zip && unzip -o /tmp/Soulbound-linux.zip -d ~/Soulbound && ~/Soulbound/Soulbound.x86_64
+          \`\`\`"

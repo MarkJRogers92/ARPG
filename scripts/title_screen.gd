@@ -7,6 +7,8 @@ extends CanvasLayer
 
 signal previewed(realm_id: String)
 signal chosen(realm_id: String)
+## Resume the suspended night (RunSave's data).
+signal resume_requested(data: Dictionary)
 
 const GAME_TITLE := "SOULBOUND"
 
@@ -22,6 +24,9 @@ var _bestiary_overlay: Control
 var _crypt_overlay: Control
 var _crypt_box: VBoxContainer
 var _bestiary_label: Label
+var _relic_overlay: Control
+var _relic_box: VBoxContainer
+var _relic_button: Button
 
 
 func _ready() -> void:
@@ -47,7 +52,7 @@ func is_open() -> bool:
 func _input(event: InputEvent) -> void:
 	if not is_open() or not event.is_action_pressed("ui_cancel"):
 		return
-	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay]:
+	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay, _relic_overlay]:
 		if overlay and overlay.visible:
 			overlay.hide()
 			_refresh_pact_button()
@@ -84,6 +89,22 @@ func _build() -> void:
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.modulate = Color(1, 1, 1, 0.75)
 	column.add_child(tagline)
+	# A suspended night takes the tagline's place.
+	var saved := RunSave.read()
+	if not saved.is_empty():
+		tagline.hide()
+		var resume := Button.new()
+		resume.text = "Resume the night   ·   " + RunSave.describe(saved)
+		resume.custom_minimum_size = Vector2(560, 40)
+		resume.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		resume.add_theme_color_override("font_color", UiStyle.GOLD)
+		resume.add_theme_stylebox_override("normal", UiStyle.box(Color(0.1, 0.1, 0.12, 0.95), UiStyle.GOLD, 2, 8))
+		resume.tooltip_text = "Pick up where you left off. Starting a new night abandons it."
+		resume.pressed.connect(func() -> void:
+			Sound.play("ui_click")
+			resume_requested.emit(saved))
+		column.add_child(resume)
+		_first = resume
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 14
 	column.add_child(gap)
@@ -95,16 +116,33 @@ func _build() -> void:
 	column.add_child(heroes)
 	for id: String in HeroClass.ORDER:
 		heroes.add_child(_class_button(id))
+	# The hero's description, and beside it the Reliquary (relic, starting
+	# weapon and lost lore for the next night).
+	var hero_row := HBoxContainer.new()
+	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero_row.add_theme_constant_override("separation", 18)
+	column.add_child(hero_row)
 	_class_desc = UiStyle.label(15)
 	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_class_desc.custom_minimum_size = Vector2(900, 24)
-	_class_desc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_class_desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_class_desc.custom_minimum_size = Vector2(640, 40)
 	_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_class_desc.modulate = Color(1, 1, 1, 0.8)
 	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"]
-	column.add_child(_class_desc)
+	hero_row.add_child(_class_desc)
+	_relic_button = Button.new()
+	_relic_button.custom_minimum_size = Vector2(360, 40)
+	_relic_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_relic_button.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
+	_relic_button.tooltip_text = "Relics, a starting weapon and lost lore, bought with Soul Shards and Bestiary stars."
+	_relic_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		_fill_reliquary()
+		_relic_overlay.show())
+	hero_row.add_child(_relic_button)
+	_refresh_relic_button()
 	var gap3 := Control.new()
-	gap3.custom_minimum_size.y = 8
+	gap3.custom_minimum_size.y = 2
 	column.add_child(gap3)
 
 	var row := HBoxContainer.new()
@@ -118,7 +156,7 @@ func _build() -> void:
 			_first = card
 
 	var gap2 := Control.new()
-	gap2.custom_minimum_size.y = 18
+	gap2.custom_minimum_size.y = 8
 	column.add_child(gap2)
 	var bottom := HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -189,6 +227,10 @@ func _build() -> void:
 	_crypt_box.add_theme_constant_override("separation", 10)
 	_crypt_box.custom_minimum_size.x = 620
 	(_crypt_overlay.get_meta("box") as VBoxContainer).add_child(_crypt_box)
+	_relic_overlay = _overlay()
+	_relic_box = VBoxContainer.new()
+	_relic_box.add_theme_constant_override("separation", 8)
+	(_relic_overlay.get_meta("box") as VBoxContainer).add_child(_relic_box)
 	_refresh_pact_button()
 
 	# The Altar, over everything.
@@ -257,6 +299,120 @@ func _overlay() -> Control:
 		if back.get_index() != box.get_child_count() - 1:
 			box.move_child(back, box.get_child_count() - 1))
 	return overlay
+
+
+func _refresh_relic_button() -> void:
+	var relic := Relics.data(MetaProgress.relic)
+	var weapon: String = Upgrades.DEFS[MetaProgress.start_weapon]["name"] if MetaProgress.start_weapon != "" else ""
+	var parts := ["Reliquary"]
+	parts.append(relic.get("name", "no relic"))
+	if weapon != "":
+		parts.append("starts with " + weapon)
+	_relic_button.text = "   ·   ".join(parts)
+
+
+## Relics on the left; starting weapons and lost lore on the right. Rebuilt
+## after every purchase or pick.
+func _fill_reliquary() -> void:
+	for child in _relic_box.get_children():
+		child.queue_free()
+	var title := UiStyle.label(30)
+	title.text = "RELIQUARY   ·   %d ◆   ·   %d ★" % [MetaProgress.shards, MetaProgress.total_stars()]
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
+	_relic_box.add_child(title)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 28)
+	_relic_box.add_child(columns)
+	var left := VBoxContainer.new()
+	left.add_theme_constant_override("separation", 6)
+	left.custom_minimum_size.x = 520
+	columns.add_child(left)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	right.custom_minimum_size.x = 400
+	columns.add_child(right)
+
+	left.add_child(_heading("RELICS   ·   carry one into the night"))
+	left.add_child(_pick_row("No relic", "", MetaProgress.relic == "", "Carry", true, func() -> void:
+		MetaProgress.carry_relic("")))
+	for id: String in Relics.ORDER:
+		var d := Relics.data(id)
+		var owned := MetaProgress.relic_owned(id)
+		var action := "Carry" if owned else ("%s ★ needed" % d["stars"] if d.has("stars") else "Buy  ·  %d ◆" % d["cost"])
+		var can: bool = owned or (not d.has("stars") and MetaProgress.shards >= d["cost"])
+		left.add_child(_pick_row(d["name"], d["desc"], MetaProgress.relic == id, action, can, func() -> void:
+			if MetaProgress.buy_relic(id):
+				MetaProgress.carry_relic(id), d["color"]))
+
+	right.add_child(_heading("STARTING WEAPON   ·   %d ◆ to unlock" % Relics.WEAPON_COST))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	right.add_child(grid)
+	for id: String in [""] + Relics.WEAPONS:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(196, 36)
+		b.add_theme_font_size_override("font_size", 15)
+		var picked := MetaProgress.start_weapon == id
+		var unlocked := id == "" or MetaProgress.weapon_unlocked(id)
+		var label: String = "None" if id == "" else Upgrades.DEFS[id]["name"]
+		b.text = ("✓ " if picked else "") + label + ("" if unlocked else "  ·  %d ◆" % Relics.WEAPON_COST)
+		b.disabled = not unlocked and MetaProgress.shards < Relics.WEAPON_COST
+		if picked:
+			b.add_theme_stylebox_override("normal", UiStyle.box(Color(0.1, 0.1, 0.12, 0.95), UiStyle.GOLD, 2, 6))
+		b.tooltip_text = "Start the night with nothing extra." if id == "" else Upgrades.DEFS[id]["desc"]
+		b.pressed.connect(func() -> void:
+			Sound.play("ui_click")
+			if id == "" or MetaProgress.buy_weapon(id):
+				MetaProgress.pick_weapon(id)
+			_refresh_relic_button()
+			_fill_reliquary())
+		grid.add_child(b)
+
+	right.add_child(_heading("LOST LORE   ·   new level-up cards"))
+	for id: String in Upgrades.DEFS:
+		var def: Dictionary = Upgrades.DEFS[id]
+		if not def.has("unlock"):
+			continue
+		var owned := MetaProgress.card_unlocked(id)
+		right.add_child(_pick_row(def["name"], def["desc"], owned, "Learned" if owned else "Learn  ·  %d ◆" % def["unlock"],
+				not owned and MetaProgress.shards >= def["unlock"], func() -> void:
+			MetaProgress.buy_card(id)))
+
+
+func _heading(text: String) -> Label:
+	var l := UiStyle.label(16)
+	l.text = text
+	l.add_theme_color_override("font_color", UiStyle.GOLD)
+	return l
+
+
+## One line of the Reliquary: a name and description, and a button.
+func _pick_row(title: String, desc: String, picked: bool, action: String, enabled: bool, on_press: Callable,
+		color := UiStyle.TEXT) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var text := UiStyle.label(15)
+	text.text = ("✓ " if picked else "") + title + ("\n" + desc if desc != "" else "")
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_color_override("font_color", color if picked or enabled else UiStyle.MUTED)
+	row.add_child(text)
+	var b := Button.new()
+	b.text = "✓" if picked and action == "Carry" else action
+	b.custom_minimum_size = Vector2(130, 34)
+	b.add_theme_font_size_override("font_size", 14)
+	b.disabled = not enabled or (picked and action == "Carry")
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		on_press.call()
+		_refresh_relic_button()
+		_fill_reliquary())
+	row.add_child(b)
+	return row
 
 
 func _refresh_pact_button() -> void:

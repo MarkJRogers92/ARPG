@@ -175,7 +175,7 @@ func _final_attacks(delta: float) -> void:
 		var offset := randf() * TAU
 		for k in n:
 			var dir := Vector2.from_angle(offset + TAU * k / n)
-			_shots.spawn(at + dir * 1.5, dir, final_shot_speed, 10.0 + 6.0 * _director.hp_scale, final_shot)
+			_shots.spawn(at + dir * 1.5, dir, final_shot_speed, 10.0 + 6.0 * _director.hp_scale, final_shot, final_name)
 		Juice.flash(at, Elements.COLORS.get(final_shot, Color(0.8, 0.5, 1.0)), 4.0, 10.0, 0.3)
 	_summon_timer -= delta
 	if _summon_timer <= 0.0 and _summon_swarm:
@@ -197,11 +197,11 @@ func _spawn() -> void:
 
 
 func _start_slam(at: Vector2) -> void:
-	var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.15, 0.1, 0.8), 1.0, slam_radius * 2.0)
-	var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.25, 0.1, 0.35), 0.0, slam_radius * 2.0)
+	var ring := HazardDirector.make_warning(self, at, Color(1.0, 0.15, 0.1, 0.8), 1.0, slam_radius * 2.0)
+	var fill := HazardDirector.make_warning(self, at, Color(1.0, 0.25, 0.1, 0.35), 0.0, slam_radius * 2.0)
 	fill.scale = Vector3.ONE * 0.05
 	Sound.play("telegraph")
-	_slams.append({"at": at, "t": 0.0, "ring": ring, "fill": fill,
+	_slams.append({"at": at, "t": 0.0, "ring": ring, "fill": fill, "by": current_boss_name(),
 			"damage": slam_damage * (1.0 + growth * maxi(spawned - 1, 0)) * (1.5 if final_alive() else 1.0)})
 
 
@@ -215,7 +215,7 @@ func _update_slams(delta: float) -> void:
 		if t >= 1.0:
 			var at: Vector2 = slam["at"]
 			if _player.pos2.distance_to(at) <= slam_radius + Player.RADIUS and not _player.is_dashing():
-				_player.take_damage(slam["damage"])
+				_player.take_damage(slam["damage"], "%s's slam" % slam["by"])
 			Juice.shake(0.55)
 			Sound.play("slam")
 			Juice.flash(at, Color(1.0, 0.45, 0.2), 6.0, slam_radius * 3.0, 0.4)

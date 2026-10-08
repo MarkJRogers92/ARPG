@@ -68,15 +68,24 @@ static var nemesis := {}
 static var nemeses_slain := 0
 const NEMESIS_MAX_RANK := 5
 static var ascension_unlocked := 0
+## The Reliquary (see Relics): relics owned (id -> true) and the one carried
+## ("" for none), starting weapons unlocked and the one picked, and the extra
+## level-up cards bought.
+static var relics := {}
+static var relic := ""
+static var weapons := {}
+static var start_weapon := ""
+static var cards := {}
 static var fallen: Array = []
 static var crypt_chosen := -1
 const CRYPT_SIZE := 3
 const FALLEN_KEPT := 12
 ## Kills of one kind that each earn a star; every star is +1% damage, for good.
 const BESTIARY_STEPS := [100, 1000, 5000]
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
-const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true}
+const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true,
+	"calm": false, "bold_telegraphs": false, "aim_assist": 0.0, "keys": {}}
 static var _loaded := false
 
 
@@ -98,6 +107,11 @@ static func load_save() -> void:
 	ascension_unlocked = 0
 	nemesis = {}
 	nemeses_slain = 0
+	relics = {}
+	relic = ""
+	weapons = {}
+	start_weapon = ""
+	cards = {}
 	if disabled:
 		return
 	var data = _read(save_path)
@@ -142,11 +156,29 @@ static func load_save() -> void:
 		if saved_nemesis is Dictionary and saved_nemesis.has("name"):
 			nemesis = saved_nemesis
 		nemeses_slain = int(data.get("nemeses_slain", 0))
+		# Version 3: the Reliquary. Older saves simply have none of it.
+		relics = _known(data.get("relics", {}), Relics.DEFS)
+		weapons = _known(data.get("weapons", {}), Relics.WEAPONS)
+		cards = _known(data.get("cards", {}), Upgrades.DEFS)
+		var saved_relic = data.get("relic", "")
+		relic = saved_relic if saved_relic is String and relic_owned(saved_relic) else ""
+		var saved_weapon = data.get("start_weapon", "")
+		start_weapon = saved_weapon if saved_weapon is String and weapons.has(saved_weapon) else ""
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
 				if Realm.REALMS.has(id) and saved_realms[id] is Dictionary:
 					realms[id] = saved_realms[id]
+
+
+## The ids in a saved {id: true} dictionary that still exist in `known`.
+static func _known(saved: Variant, known: Variant) -> Dictionary:
+	var out := {}
+	if saved is Dictionary:
+		for id in saved:
+			if id is String and id in known and saved[id]:
+				out[id] = true
+	return out
 
 
 static func _read(path: String) -> Variant:
@@ -170,7 +202,8 @@ static func save() -> void:
 			"bestiary": bestiary, "pacts": pacts, "daily": daily,
 			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
 			"ascension": ascension, "ascension_unlocked": ascension_unlocked,
-			"nemesis": nemesis, "nemeses_slain": nemeses_slain})
+			"nemesis": nemesis, "nemeses_slain": nemeses_slain,
+			"relics": relics, "relic": relic, "weapons": weapons, "start_weapon": start_weapon, "cards": cards})
 	file.close()
 	var dir := DirAccess.open(save_path.get_base_dir())
 	if dir == null:
@@ -469,6 +502,98 @@ static func current_class() -> String:
 
 ## Bots can force a class (balance_bot's class= option).
 static var forced_class := ""
+
+
+## Owned: bought with shards, or earned with Bestiary stars.
+static func relic_owned(id: String) -> bool:
+	_ensure_loaded()
+	var d := Relics.data(id)
+	if d.is_empty():
+		return false
+	if d.has("stars"):
+		return total_stars() >= d["stars"]
+	return disabled or relics.get(id, false)
+
+
+## Buys relic `id` if it can be bought and is affordable. True when owned.
+static func buy_relic(id: String) -> bool:
+	if relic_owned(id):
+		return true
+	var d := Relics.data(id)
+	if d.is_empty() or d.has("stars") or shards < d["cost"]:
+		return false
+	shards -= d["cost"]
+	relics[id] = true
+	save()
+	return true
+
+
+## Carries relic `id` into the next nights ("" for none).
+static func carry_relic(id: String) -> void:
+	_ensure_loaded()
+	if id == "" or relic_owned(id):
+		relic = id
+		save()
+
+
+static func weapon_unlocked(id: String) -> bool:
+	_ensure_loaded()
+	return id in Relics.WEAPONS and (disabled or weapons.get(id, false))
+
+
+static func buy_weapon(id: String) -> bool:
+	if weapon_unlocked(id):
+		return true
+	if not id in Relics.WEAPONS or shards < Relics.WEAPON_COST:
+		return false
+	shards -= Relics.WEAPON_COST
+	weapons[id] = true
+	save()
+	return true
+
+
+static func pick_weapon(id: String) -> void:
+	_ensure_loaded()
+	if id == "" or weapon_unlocked(id):
+		start_weapon = id
+		save()
+
+
+static func card_unlocked(id: String) -> bool:
+	_ensure_loaded()
+	return cards.get(id, false) or not Upgrades.DEFS.get(id, {}).has("unlock")
+
+
+static func buy_card(id: String) -> bool:
+	if card_unlocked(id):
+		return true
+	var c: int = Upgrades.DEFS.get(id, {}).get("unlock", -1)
+	if c < 0 or shards < c:
+		return false
+	shards -= c
+	cards[id] = true
+	save()
+	return true
+
+
+## The relic and starting weapon for this night: the picked ones, or none for
+## bots and tests (unless forced, like the class).
+static func current_relic() -> String:
+	_ensure_loaded()
+	if disabled:
+		return forced_relic
+	return relic
+
+
+static func current_start_weapon() -> String:
+	_ensure_loaded()
+	if disabled:
+		return forced_weapon
+	return start_weapon
+
+
+static var forced_relic := ""
+static var forced_weapon := ""
 
 
 static func setting(key: String):

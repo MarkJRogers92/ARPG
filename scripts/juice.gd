@@ -14,6 +14,12 @@ static var camera: CameraRig
 ## Whether hit-stop and slow motion may change the game speed (off in tests
 ## and bots, whose fixed steps would be distorted by it).
 static var time_effects := false
+## The "Calm effects" setting (photosensitivity): no hit-stop or slow motion,
+## dimmer light flashes, a much fainter rift glitch.
+static var calm := false
+## The "Bold warnings" setting: ground telegraphs drawn brighter and solid
+## (see warning_color()).
+static var bold_telegraphs := false
 ## Slow effects in play: [scale, ends at (msec, real time)]. tick() sets the
 ## game speed from them every frame, so it always returns to normal.
 static var _slows: Array = []
@@ -46,7 +52,15 @@ static func number(at: Vector2, amount: float, crit := false, color := Color.WHI
 
 static func flash(at: Vector2, color: Color, energy := 4.0, radius := 8.0, time := 0.3) -> void:
 	if flashes:
-		flashes.flash(at, color, energy, radius, time)
+		flashes.flash(at, color, energy * (0.3 if calm else 1.0), radius, time)
+
+
+## The color a ground warning (a circle that will hurt, a charge line) is drawn
+## in: as given, or, with Bold warnings on, brighter and close to opaque.
+static func warning_color(c: Color) -> Color:
+	if not bold_telegraphs:
+		return c
+	return Color(minf(c.r * 1.25 + 0.1, 1.0), minf(c.g * 1.25 + 0.1, 1.0), minf(c.b * 1.25 + 0.1, 1.0), maxf(c.a * 1.8, 0.9))
 
 
 ## A tiny freeze on a heavy blow: the game runs at 5% speed for `seconds`
@@ -61,7 +75,7 @@ static func slow_motion(scale: float, seconds: float) -> void:
 
 
 static func _slow_for(scale: float, seconds: float) -> void:
-	if not time_effects:
+	if not time_effects or calm:
 		return
 	_slows.append([scale, Time.get_ticks_msec() + int(seconds * 1000.0)])
 	tick()

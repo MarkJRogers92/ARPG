@@ -147,7 +147,7 @@ func _update_visit(delta: float) -> void:
 		_depart()
 		return
 	if _player.pos2.distance_to(_visit["at"]) <= 3.2:
-		prompt = "[E]  Speak with the Ferryman  ·  a wager for your soul"
+		prompt = "%s  Speak with the Ferryman  ·  a wager for your soul" % Controls.tag("interact")
 		if Input.is_action_just_pressed("interact"):
 			open_table()
 

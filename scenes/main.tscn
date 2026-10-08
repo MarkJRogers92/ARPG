@@ -182,6 +182,65 @@ body_height = 1.5
 color = Color(0.24, 0.22, 0.2, 1)
 capacity = 10
 
+[node name="Shieldbearers" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 60.0
+move_speed = 2.4
+contact_dps = 7.0
+radius = 0.55
+xp_value = 7
+knockback_taken = 0.4
+spawn_start_time = 240.0
+spawn_ramp_seconds = 300.0
+spawn_share = 0.05
+loot_chance = 0.05
+loot_quality = 0.4
+direct_taken = 0.2
+model = "shieldbearer"
+body_height = 1.6
+color = Color(0.36, 0.34, 0.32, 1)
+capacity = 60
+
+[node name="Menders" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 45.0
+move_speed = 2.4
+contact_dps = 3.0
+radius = 0.45
+xp_value = 9
+spawn_start_time = 330.0
+spawn_ramp_seconds = 300.0
+spawn_share = 0.015
+loot_chance = 0.12
+loot_quality = 0.5
+hold_range = 7.0
+mend_interval = 4.5
+mend_radius = 6.0
+model = "mender"
+body_height = 1.6
+color = Color(0.3, 0.34, 0.26, 1)
+capacity = 6
+
+[node name="Bloaters" type="MultiMeshInstance3D" parent="."]
+script = ExtResource("4_swarm")
+max_hp = 14.0
+move_speed = 3.6
+contact_dps = 3.0
+radius = 0.5
+xp_value = 3
+spawn_start_time = 180.0
+spawn_ramp_seconds = 240.0
+spawn_share = 0.05
+loot_chance = 0.02
+fuse_range = 2.0
+fuse_time = 1.1
+blast_radius = 3.0
+blast_damage = 16.0
+model = "bloater"
+body_height = 1.3
+color = Color(0.55, 0.6, 0.42, 1)
+capacity = 40
+
 [node name="Collectors" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("4_swarm")
 max_hp = 400.0

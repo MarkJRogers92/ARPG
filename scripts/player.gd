@@ -57,6 +57,10 @@ var aim_mode := Aim.AUTO
 var mouse_aim_enabled := true
 ## Ground-plane direction the hero aims in MOUSE / STICK mode.
 var aim_dir := Vector2(0, -1)
+## Aim assist (a setting, 0..1): when aiming by hand, shots bend toward an
+## enemy within ASSIST_CONE * aim_assist of the aim.
+var aim_assist := 0.0
+const ASSIST_CONE := deg_to_rad(30.0)
 
 var _swarms: Array[EnemySwarm] = []
 var _projectiles: ProjectileSwarm
@@ -195,7 +199,7 @@ func tick(delta: float) -> void:
 	chilled = maxf(chilled - delta, 0.0)
 	if burning > 0.0:
 		burning = maxf(burning - delta, 0.0)
-		take_damage(BURN_DPS * delta)
+		take_damage(BURN_DPS * delta, "Burning")
 		if Engine.get_process_frames() % 6 == 0:
 			Juice.burst(pos2, 1.0, Elements.COLORS[Elements.FIRE], 1, 1.0, 0.35, 0.4, 2.0)
 	if chilled > 0.0 and Engine.get_process_frames() % 8 == 0:
@@ -305,11 +309,22 @@ func update_weapons(delta: float) -> void:
 		_scythe.update(delta)
 
 
-## Damage before armor; armor is applied here.
-func take_damage(amount: float) -> void:
+## Damage taken this night by cause (after armor), and the cause of the
+## latest hit: the end screen's "why I died" (see DeathRecap).
+var damage_taken_by := {}
+var last_cause := ""
+
+
+## Damage before armor; armor is applied here. `cause` names what hit, for the
+## death recap ("Ghoul", "Meteors", "Ogre Warlord's slam"...).
+func take_damage(amount: float, cause := "Other") -> void:
 	if dead or invulnerable or is_dashing():
 		return
+	var dealt := minf(amount * stats.damage_taken_factor(), stats.hp)
 	stats.hp -= amount * stats.damage_taken_factor()
+	if dealt > 0.0:
+		damage_taken_by[cause] = damage_taken_by.get(cause, 0.0) + dealt
+		last_cause = cause
 	if stats.hp <= 0.0:
 		stats.hp = 0.0
 		dead = true
@@ -339,6 +354,8 @@ func add_xp(amount: int) -> void:
 
 
 func _update_bolt(delta: float) -> void:
+	if stats.powers.has("reaping"):
+		return # the Reaper throws scythes instead
 	_bolt_timer -= delta
 	if _bolt_timer > 0.0:
 		return
@@ -362,7 +379,7 @@ func _update_bolt(delta: float) -> void:
 	_bolt_timer = stats.bolt_cooldown
 	var aim := (target - origin).normalized()
 	if aim_mode != Aim.AUTO:
-		aim = aim_dir # aimed by hand; an enemy in range just means "fire"
+		aim = assisted_aim(aim_dir, stats.bolt_range) # aimed by hand; an enemy in range just means "fire"
 	elif velocity.is_zero_approx():
 		# Turn to face the target when standing still, so the cast reads.
 		_visual.rotation.y = atan2(-aim.x, -aim.y)
@@ -383,7 +400,37 @@ func _update_bolt(delta: float) -> void:
 				damage, stats.bolt_pierce, 1.5, crit, _bolt_element())
 
 
-## Which element the next bolt carries: lightning with a Stormcaller weapon,
+## `dir`, or with aim assist on, the direction to the enemy (within `reach`)
+## closest to it inside the assist cone; nearer enemies win ties.
+func assisted_aim(dir: Vector2, reach: float) -> Vector2:
+	if aim_assist <= 0.0:
+		return dir
+	var cone := ASSIST_CONE * aim_assist
+	var origin := pos2
+	var best := dir
+	var best_score := INF
+	for swarm in _swarms:
+		var n := swarm.grid.query(origin + dir * reach * 0.5, reach * 0.65 + swarm.radius)
+		var res := swarm.grid.results
+		for k in n:
+			var i := res[k]
+			if swarm.hp[i] <= 0.0:
+				continue
+			var to := swarm.pos[i] - origin
+			var d := to.length()
+			if d < 0.3 or d > reach:
+				continue
+			var off := absf(dir.angle_to(to))
+			if off > cone:
+				continue
+			var score := off / cone + d / reach * 0.5
+			if score < best_score:
+				best_score = score
+				best = to / d
+	return best
+
+
+## Which element the next bolt (or, for the Reaper, scythe) carries: lightning with a Stormcaller weapon,
 ## otherwise fire or frost by the ignite / chill chances.
 func _bolt_element() -> int:
 	if stats.powers.has("stormcaller"):

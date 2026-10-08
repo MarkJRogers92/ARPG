@@ -18,12 +18,32 @@ build into Applications and opens it; run it again any time to update.
 curl -fL -o /tmp/Soulbound.zip https://github.com/MarkJRogers92/ARPG/releases/download/mac-latest/Soulbound.zip && rm -rf /Applications/Soulbound.app && ditto -xk /tmp/Soulbound.zip /Applications && open /Applications/Soulbound.app
 ```
 
-After that it's an ordinary app (Launchpad, Spotlight, the Dock). The build
-comes from `.github/workflows/mac-build.yml`: every change to the main branch
-runs the tests, exports the app (`export_presets.cfg`, a universal build,
-ad-hoc signed) and replaces the `mac-latest` release. Saves are shared with
-the editor (`config/custom_user_dir_name` keeps the old folder name). The icon
-is drawn by `tools/make_icon.py`.
+After that it's an ordinary app (Launchpad, Spotlight, the Dock).
+
+**On Windows, without Godot:** download
+[Soulbound-windows.zip](https://github.com/MarkJRogers92/ARPG/releases/download/windows-latest/Soulbound-windows.zip),
+extract it anywhere and run `Soulbound.exe`. The exe isn't code-signed, so
+SmartScreen may warn: choose **More info**, then **Run anyway**. Download it
+again to update.
+
+**On Linux (x86_64), without Godot:** this installs or updates into `~/Soulbound`
+and starts the game:
+
+```bash
+curl -fL -o /tmp/Soulbound-linux.zip https://github.com/MarkJRogers92/ARPG/releases/download/linux-latest/Soulbound-linux.zip && unzip -o /tmp/Soulbound-linux.zip -d ~/Soulbound && ~/Soulbound/Soulbound.x86_64
+```
+
+The builds come from `.github/workflows/build.yml`: every push to the
+repository's default branch (`claude/focused-fermat-m7jhtk`; `main` is listed
+too), or a manual run, runs the tests once, exports all three presets in
+`export_presets.cfg` (Mac: a universal build, ad-hoc signed; Windows and Linux:
+x86_64, a single executable with the game data embedded) and replaces the
+`mac-latest`, `windows-latest` and `linux-latest` releases. Each release follows
+the pattern `https://github.com/MarkJRogers92/ARPG/releases/download/<tag>/<asset>`.
+A web build (Compatibility renderer) is possible but needs a performance check
+first: thousands of MultiMesh enemies in a browser. Saves are shared with the
+editor (`config/custom_user_dir_name` keeps the old folder name). The icon is
+drawn by `tools/make_icon.py`.
 
 **From the editor:**
 
@@ -43,7 +63,23 @@ is drawn by `tools/make_icon.py`.
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 | E / gamepad B | Use the set piece in reach (a gold ring marks usable ones) |
 | Q / gamepad LB | Switch the army's stance: Hunt, Guard, Swarm |
-| Esc | Pause: music and sound volume, screen shake, damage numbers, back to the title |
+| Esc | Pause: settings (below), Controls (rebind keys), back to the title |
+
+The keys above are the defaults. **Controls** in the pause menu rebinds the
+first key of every action (moving, dash, use, stance, inventory, skill tree,
+reroll, aim mode); taking a key another action uses swaps the two, and the
+arrow keys and gamepad stay. Hints on screen ("[E]  Open") follow the
+bindings (`scripts/controls.gd`; saved with the settings).
+
+The pause menu also has the comfort and accessibility settings:
+
+- **Calm effects** (photosensitivity): no hit-stop or slow motion, light
+  flashes at 30%, and the rift glitch at a fifth of its strength.
+- **Bold warnings**: every ground warning (hazards, boss slams, mid-boss moves,
+  meteors, bloater fuses, Lancer and Colossus lines) drawn brighter and near
+  opaque (`HazardDirector.make_warning`, `Juice.warning_color`).
+- **Aim assist** (0-100%): when aiming with the mouse or stick, bolts and
+  scythes bend toward an enemy within up to 30° of the aim.
 
 Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
 *Frost Aura* (an upgrade) damages everything around you. Aiming is twin-stick
@@ -111,6 +147,25 @@ entry to `REALMS` and its id to `ORDER`.
 the hero, each leaving a short fading trail (`scripts/visual/wisps.gd`; capped
 at 260 at once, so a huge fight stays cheap).
 
+**Save and quit.** The pause menu's *Save and quit* keeps the night in one
+slot (`user://run.save`, `scripts/run_save.gd`), and the title screen offers
+*Resume the night* in place of its tagline. It keeps the hero (level, XP,
+health, position, every lasting stat change: upgrades, evolutions, the path,
+landmark gifts), gear, skills, the clock and pressure, the boss schedule,
+the army's kinds and ranks, souls, rerolls, kills, shards and the night's
+omen, pacts and Ascension. The horde isn't saved: a crowd fit for the hour
+gathers instead, and a mid-boss in the field returns shortly. Shrines,
+goblins, chests, rifts, the Ferryman's loans and bets, the rival, frenzy and
+blessings start fresh. A saved night resumes once; starting a new one
+abandons it; and the night can't be saved once its master is up.
+
+**Why you died.** The end screen names the killing blow and what hurt most
+over the night ("SLAIN BY: Plague Bloater blast / HURT MOST BY: Ghoul 45% ·
+Meteors 20%..."), with a small chart of health and pressure through the
+night. Every source of damage passes its cause to `Player.take_damage`
+(contact by enemy name, shots by who fired them, slams, hazards, mid-boss
+moves, blasts, burning); `scripts/death_recap.gd` has the summary and chart.
+
 **Death.** When the hero falls, time slows, the army bursts apart minion by
 minion, the hero's souls scatter up into the dark and the hero crumples; the
 end screen comes up after a few seconds. (The night is settled at the moment
@@ -127,6 +182,12 @@ once with Soul Shards and stay unlocked (`scripts/hero_class.gd`):
 | Necromancer | 30 ◆ | +2 army size, +50% souls, minions +30% damage and they burst in soulfire when they fall (Lich Shroud); bolts deal 15% less |
 | Pyromancer | 40 ◆ | Bolts ignite 35% of the time, +60% burn damage, and fire always spreads from the burning dead (Pyre) |
 | Stormcaller | 50 ◆ | Starts with a faster, stronger Chain Lightning; dashes 30% more often and leaves lightning in its wake (Stormstride) |
+| Reaper | 60 ◆ | No bolts: fights with two Reaping Scythes from the start, thrown 80% faster and 3 m farther for 25% more damage, which carry the bolt elements (Kindling, Frostbite); +10% move speed. Slower in the first minutes, stronger once the horde is thick |
+
+The Reaper never sees the bolt cards (Sharper Bolts, Quick Cast, Multishot,
+Piercing Bolts); it gets Keen Edge, Whirling Throw and Long Reach in their
+place (`only` / `bolt` in `Upgrades.DEFS`), and its paths at level 10 are
+Harvest Moon, Executioner and Soul Reaper.
 
 Each has its own robe, cape, eye glow and starting weapon. A class is a set of stat
 modifiers under the source `class` plus innate powers, the same flags that
@@ -270,6 +331,19 @@ of the shared slams, shot rings and summons:
   (step off them). Then he's exposed for 3 s and takes double damage.
 - **The Ashen Tyrant:** four cinder seals take 75% of his damage. He calls
   meteors down on you; stand by a seal so a meteor breaks it.
+
+**Mid-bosses** (`scripts/mid_mechanics.gd`) each have a move of their own on
+top of the shared ground slam, and come harder each time (shorter gaps, +35%
+damage per boss):
+
+- **The Ogre Warlord:** every 11 s he stamps and a shockwave rolls out 17 m.
+  It hits whoever it reaches; dash through it.
+- **The Troll Chieftain:** every 18 s he grows a rime armor for 7 s (he takes
+  65% less damage). Chill him to crack it; he's then brittle for 4 s and takes
+  50% more.
+- **The Magma Lord:** leaves pools of lava where he walks (and from the third
+  boss on, drops some near you). They erupt after a warning, then burn you
+  and the horde for 9 s.
 
 **Feel:**
 - Elite kills and bell tolls land a tiny hit-stop, and the final kill drops
@@ -442,6 +516,25 @@ battle, it's gone for good, and listed among **the Fallen**
 - **Gravediggers** (Gravedigger, Frozen Sexton, Ash Sexton) hang back about
   8 m from the hero. Every ~6 s they raise three fresh enemies from the
   ground and swallow the uncollected souls nearby. Kill them first.
+- **Shieldbearers** (Bone Shieldbearer, Rime Warden, Obsidian Guard), from
+  4:00, hide behind tower shields: direct hits (Magic Bolt, Spirit Blades,
+  Obol, Reaping Scythe, Chain Lightning; `Elements.DIRECT`) deal only a fifth
+  and glint off with a "BLOCKED". Burning, Frost Aura, Arcane Nova, the
+  Funeral Bell, reactions, blasts and the army hit them in full.
+- **Menders** (Grave Mender, Hoarfrost Shaman, Cinder Priest), from 5:30, hang
+  back about 7 m inside a green ring on the ground. Every ~4.5 s they heal
+  every non-boss enemy in the ring by 30% of its health. Rare (at most six);
+  kill them first.
+- **Bloaters** (Plague Bloater, Frost Bloater, Magma Bloater), from 3:00, run
+  at the hero. Within 2 m they stop, glow, and a circle fills on the ground;
+  1.1 s later they burst for 16 damage (chilling in the Frozen Wastes, burning
+  in the Ember Rift), hurting the horde in the circle too, much harder. Kill
+  one with its fuse lit and it bursts at once, which can set off its
+  neighbors; one that bursts on its own gives nothing.
+
+Each explains itself with a message the first time it does its thing. The
+behavior is in `EnemySwarm` (the "Specialists" exports), what the hero sees
+and feels in `scripts/specialists.gd`.
 
 ## Imported scenery
 
@@ -666,6 +759,25 @@ run). They're saved in `user://meta.save` (`meta_progress.gd`; the costs are
 there too). To start over, delete that file: on macOS it's in
 `~/Library/Application Support/Godot/app_userdata/ARPG/`.
 
+**The Reliquary** (title screen, next to the hero's description) is where
+shards go beyond the Altar (`scripts/relics.gd`):
+
+- **Relics.** Carry one into each night. Bought once with shards: Glass Skull
+  (+35% damage, 30% less health), Lodestone (double pickup radius, +40% magic
+  find, a little slower), Bone Dice (+3 rerolls, 10% less XP), Iron Heart (+30
+  armor, +40% health, 15% less damage). Earned with Bestiary stars: Soul Censer
+  (5 ★, the Soul Lantern's power), Winter's Tear (10 ★, Endless Winter's) and
+  Cinder Heart (15 ★, the Ring of Embers').
+- **Starting weapon.** Unlock a weapon card for 20 shards and begin every
+  night with it taken (rank 1, so it levels and evolves as usual).
+- **Lost lore.** Level-up cards that only enter the pool once learned:
+  Deadly Aim (crit), Bulwark (armor) and Catalyst (reactions)
+  (`unlock` in `Upgrades.DEFS`).
+
+The picks and purchases are saved with the rest (save version 3; older saves
+load with an empty Reliquary). Bots and tests carry nothing unless told to
+(`relic=` / `weapon=` in `balance_bot.gd`).
+
 **Feel.** Damage numbers (crits are big and gold; only one in five ordinary hits
 shows a number, to keep it readable), screen shake on big hits, real light from
 explosions, dash trails, drifting embers, and a sky that changes over the run:
@@ -675,9 +787,10 @@ with `shake_enabled` on `CameraRig`.
 
 ## The look
 
-Everything you see is built in code: there are no models, textures or icons on
-disk. `scripts/visual/models.gd` assembles each model (the hooded hero, the three
-enemy types, every item base, bolts, XP crystals and the scenery) out of
+Almost everything you see is built in code: the hero, every enemy and boss,
+items, bolts, XP crystals, icons and most scenery. The exception is 52
+imported Blender props (`assets/environment/arpg_pack/`, see Imported
+scenery). `scripts/visual/models.gd` assembles each code-built model out of
 primitive shapes with `MeshKit`, which merges them into one vertex-colored mesh.
 A part can glow (stored per vertex), and the shaders in `shaders/` do the rest.
 
@@ -928,6 +1041,7 @@ tools/balance.sh -g /path/to/godot -s "1 2 3 4" -p "greedy random" -m 10 \
 godot --headless --path . -s tools/tests.gd                      # unit tests
 godot --headless --path . -s tools/ui_test.gd                    # drives the real inventory screen
 godot --headless --path . -s tools/skill_ui_test.gd              # drives the real skill tree screen
+godot --headless --path . --fixed-fps 60 -s tools/resume_test.gd # saves a night, reloads, resumes it
 xvfb-run godot --path . --fixed-fps 60 -s tools/aim_test.gd     # mouse aim, T toggle, right stick (needs a display)
 godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd  # bot playthrough, exit 0 = ok
 godot --headless --path . -s tools/bench_swarm.gd                # simulation cost, 1k..16k enemies
@@ -954,6 +1068,16 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
   weapons' upgrades, Soul Shards and the Altar
   (buying, costs, max ranks, saving and loading, applying at run start), elites,
   knockback, enemy fireballs and dash invulnerability.
+- It also covers the specialist enemies (shields block only direct hits,
+  menders heal up to full in their ring, bloaters light up, burst, chain and
+  clear their circles), the Reaper (no bolts, its own cards, scythes carrying
+  elements), the Reliquary (buying, star relics, carrying, starting weapons,
+  lost lore gating the pool, old saves loading), key rebinding (swaps, reset,
+  saving), bold warnings, calm effects, aim assist, and the death recap
+  (damage by cause, the killing blow, who fired a shot).
+- `resume_test.gd` builds a night with history (upgrades, a path, gear,
+  skills, an army), saves and quits through the real flow, resumes from the
+  title screen's signal and checks that everything came back.
 - `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
   actions, check the pause, and click through equipping, discarding, allocating,
   refunding (including the refusals), resetting and closing.
@@ -982,10 +1106,25 @@ scripts/
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
   player.gd            Movement, aiming, dash, Magic Bolt, Frost Aura, XP, levels
-  abilities/           Chain Lightning, Spirit Blades, Arcane Nova
-  enemy_shots.gd       Fireballs from ranged enemies
+  abilities/           Chain Lightning, Spirit Blades, Arcane Nova, Obol, Reaping Scythe, Funeral Bell
+  enemy_shots.gd       Fireballs from ranged enemies (each remembers who fired it)
   boss_director.gd     When bosses come, and their telegraphed slam
-  meta_progress.gd     Soul Shards and the Altar's permanent upgrades (saved)
+  mid_mechanics.gd     Each realm's mid-boss move: shockwave, rime armor, lava pools
+  final_mechanics.gd   Each realm's final boss: phylacteries, fracture lines, meteors
+  specialists.gd       Shieldbearers, Menders and Bloaters: blocks, heals, blasts
+  meta_progress.gd     Soul Shards, the Altar, the Reliquary, settings (saved)
+  relics.gd            The Reliquary: relics, starting weapons, lost lore
+  run_save.gd          Save and quit / resume: the one saved night
+  death_recap.gd       The end screen's "why you died" summary and chart
+  controls.gd          Key rebinding and key names for on-screen hints
+  evolutions.gd        Weapon evolutions (a maxed weapon + its catalyst)
+  specializations.gd   The three paths per hero at level 10
+  run_modifiers.gd     Omens, Pacts of Night and Ascension
+  landmarks.gd         Usable set pieces (wells, forges, tomes...)
+  ferryman.gd          The Ferryman's wagers, loans, bets and Debt Collectors
+  wager_panel.gd       The Ferryman's table
+  rival.gd             The rival necromancer and the nemesis
+  rift_director.gd     Rifts: the Night Market and the glitch
   juice.gd             One place to trigger particles, numbers, flashes, shake
   army.gd              The Soul Army: souls, raising minions, minion AI
   elements.gd          Elemental hits, statuses and reactions
@@ -995,7 +1134,7 @@ scripts/
   title_screen.gd      Hero and realm select (previews each realm behind the menu)
   hero_class.gd        The playable heroes: looks, weapons, stats, powers
   event_director.gd    Shrines, treasure goblins, cursed chests, health orbs
-  pause_menu.gd        Esc menu: volumes, shake and damage-number toggles
+  pause_menu.gd        Esc menu: settings, Controls, Save and quit
   audio/sound.gd       Sound effects (pooled, rate-limited) and layered music
   altar_panel.gd       The Altar of Souls, on the title, death and victory screens
   player_stats.gd      Base values + modifiers -> effective stats
@@ -1027,6 +1166,8 @@ scripts/
     damage_numbers.gd  Pooled floating damage numbers
     light_flashes.gd   Pooled light bursts for explosions
     atmosphere.gd      Dusk -> moonlight -> blood moon over the run
+    dawn_glow.gd       First Light's glow and rays
+    wisps.gd           Soul trails from the dead to the hero
 shaders/
   kit.gdshader         Vertex-colored models with glow and rim light
   kit_landmark.gdshader  kit for big imported set pieces, with a see-through window
@@ -1038,7 +1179,7 @@ audio/
   sfx/*.wav, music/*.ogg   Generated by tools/audio/make_audio.py
 tools/
   audio/make_audio.py  Synthesizes every sound effect and music loop
-  tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, smoke_test.gd, bench_swarm.gd
+  tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, resume_test.gd, smoke_test.gd, bench_swarm.gd
   balance_bot.gd, balance.sh, screenshot.gd, asset_showcase.gd
 ```
 
@@ -1096,7 +1237,7 @@ tools/
 
 ## Not built yet
 
-Saving a run in progress (items and the skill tree already serialize with
-`to_dict()`; Soul Shards, the Altar and realm progress already save with
-`FileAccess.store_var`), harder difficulty tiers for conquered realms, biomes with obstacles (the player is already a `CharacterBody3D`; the
-scenery is decoration only), and level-of-detail meshes for far-away enemies.
+Level-of-detail meshes for far-away enemies; a web build (the Compatibility
+renderer would allow it, but thousands of MultiMesh enemies need a
+performance check in a browser first); gamepad rebinding (Controls rebinds
+keys only); and saving a night during its final fight.

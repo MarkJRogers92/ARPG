@@ -74,6 +74,12 @@ static func enemy(kind: String, skin: Color, height: float) -> ArrayMesh:
 			_phylactery(kit, skin)
 		"goblin":
 			_goblin(kit, skin)
+		"shieldbearer":
+			_shieldbearer(kit, skin)
+		"mender":
+			_mender(kit, skin)
+		"bloater":
+			_bloater(kit, skin)
 		_:
 			_grunt(kit, skin)
 	kit.transform_all(Transform3D(Basis.from_scale(Vector3.ONE * height), Vector3.ZERO))
@@ -228,6 +234,82 @@ static func _gravedigger(k: MeshKit, skin: Color) -> void:
 	k.capsule(0.04, 0.3, MeshKit.at(Vector3(-0.2, 0.6, -0.12), Vector3(50, 0, 20)), coat, 0.0, 5)
 	k.box(Vector3(0.11, 0.15, 0.11), MeshKit.at(Vector3(-0.26, 0.42, -0.26)), Color(0.2, 0.2, 0.22))
 	k.sphere(0.06, MeshKit.at(Vector3(-0.26, 0.42, -0.26)), soul, 2.4, 6, 3)
+
+
+## The Shieldbearer: a squat armored warrior behind a tall tower shield with
+## an iron boss. Direct hits glance off it (see EnemySwarm.direct_taken).
+static func _shieldbearer(k: MeshKit, skin: Color) -> void:
+	var iron := skin.darkened(0.25)
+	var steel := Color(0.7, 0.72, 0.76)
+	var bone := Color(0.85, 0.82, 0.72)
+	var eye := Color(1.0, 0.45, 0.2)
+	for side: float in [-1.0, 1.0]:
+		k.capsule(0.07, 0.36, MeshKit.at(Vector3(0.12 * side, 0.19, 0.04)), iron, 0.0, 6)
+		k.box(Vector3(0.13, 0.07, 0.2), MeshKit.at(Vector3(0.12 * side, 0.035, 0.0)), iron)
+	k.cylinder(0.2, 0.24, 0.42, MeshKit.at(Vector3(0, 0.55, 0.04)), iron, 0.0, 8)
+	k.box(Vector3(0.5, 0.08, 0.24), MeshKit.at(Vector3(0, 0.78, 0.04)), steel)
+	# A helm with a slit and two glowing eyes.
+	k.cylinder(0.12, 0.13, 0.2, MeshKit.at(Vector3(0, 0.9, 0.02)), steel, 0.0, 8)
+	k.sphere(0.13, MeshKit.at(Vector3(0, 1.0, 0.02), Vector3.ZERO, Vector3(1.0, 0.6, 1.0)), steel, 0.0, 8, 3)
+	k.sphere(0.022, MeshKit.at(Vector3(-0.045, 0.93, -0.11)), eye, 2.2, 4, 2)
+	k.sphere(0.022, MeshKit.at(Vector3(0.045, 0.93, -0.11)), eye, 2.2, 4, 2)
+	k.box(Vector3(0.03, 0.14, 0.16), MeshKit.at(Vector3(0, 1.08, 0.02)), bone)
+	# The tower shield, held in front, covering most of the body.
+	k.box(Vector3(0.62, 0.82, 0.06), MeshKit.at(Vector3(-0.02, 0.5, -0.24), Vector3(-6, 0, 0)), skin, 0.0, true)
+	k.box(Vector3(0.66, 0.06, 0.08), MeshKit.at(Vector3(-0.02, 0.9, -0.27), Vector3(-6, 0, 0)), steel)
+	k.box(Vector3(0.66, 0.06, 0.08), MeshKit.at(Vector3(-0.02, 0.1, -0.22), Vector3(-6, 0, 0)), steel)
+	k.sphere(0.09, MeshKit.at(Vector3(-0.02, 0.52, -0.29), Vector3.ZERO, Vector3(1.0, 1.0, 0.5)), steel, 0.4, 6, 3)
+	# A short mace in the other hand.
+	k.capsule(0.05, 0.3, MeshKit.at(Vector3(0.28, 0.6, 0.0), Vector3(15, 0, 10)), iron, 0.0, 5)
+	k.cylinder(0.02, 0.02, 0.36, MeshKit.at(Vector3(0.32, 0.5, -0.1), Vector3(-60, 0, 0)), Color(0.35, 0.24, 0.16), 0.0, 5)
+	k.sphere(0.07, MeshKit.at(Vector3(0.32, 0.6, -0.26)), steel, 0.0, 5, 3, true)
+
+
+## The Mender: a thin robed priest with a tall crooked staff topped by a
+## glowing green lamp. Heals the horde around it (see EnemySwarm.mend_interval).
+static func _mender(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.45)
+	var wood := Color(0.35, 0.25, 0.16)
+	var glow := EnemySwarm.MEND_COLOR
+	var flesh := Color(0.7, 0.68, 0.6)
+	k.cylinder(0.12, 0.28, 0.66, MeshKit.at(Vector3(0, 0.33, 0)), skin, 0.0, 8)
+	k.cylinder(0.29, 0.3, 0.05, MeshKit.at(Vector3(0, 0.03, 0)), glow.darkened(0.3), 0.4, 8)
+	k.cylinder(0.15, 0.12, 0.22, MeshKit.at(Vector3(0, 0.75, 0)), skin, 0.0, 8)
+	k.sphere(0.18, MeshKit.at(Vector3(0, 0.86, 0.0), Vector3.ZERO, Vector3(1.3, 0.45, 1.0)), dark)
+	# A rounded hood with a pale mask.
+	k.sphere(0.14, MeshKit.at(Vector3(0, 0.98, 0.0)), dark, 0.0, 7, 4)
+	k.sphere(0.08, MeshKit.at(Vector3(0, 0.96, -0.08), Vector3.ZERO, Vector3(1.0, 1.2, 0.6)), flesh, 0.0, 5, 3)
+	k.sphere(0.018, MeshKit.at(Vector3(-0.03, 0.98, -0.13)), glow, 2.0, 4, 2)
+	k.sphere(0.018, MeshKit.at(Vector3(0.03, 0.98, -0.13)), glow, 2.0, 4, 2)
+	# The staff, held upright in the right hand, and its lamp.
+	k.capsule(0.04, 0.3, MeshKit.at(Vector3(0.18, 0.72, -0.08), Vector3(30, 0, -20)), skin, 0.0, 5)
+	k.cylinder(0.022, 0.026, 1.35, MeshKit.at(Vector3(0.26, 0.68, -0.14)), wood, 0.0, 5)
+	k.torus(0.05, 0.09, MeshKit.at(Vector3(0.26, 1.38, -0.14), Vector3(90, 0, 0)), wood, 0.0, 8)
+	k.sphere(0.07, MeshKit.at(Vector3(0.26, 1.38, -0.14)), glow, 2.6, 6, 3)
+	k.sphere(0.12, MeshKit.at(Vector3(0.26, 1.38, -0.14)), glow, 0.8, 6, 3)
+	k.capsule(0.04, 0.28, MeshKit.at(Vector3(-0.17, 0.62, -0.05), Vector3(20, 0, 15)), skin, 0.0, 5)
+
+
+## The Bloater: a swollen corpse with a glowing, cracked belly, waddling on
+## stubby legs. Goes off next to the hero (see EnemySwarm.fuse_range).
+static func _bloater(k: MeshKit, skin: Color) -> void:
+	var dark := skin.darkened(0.4)
+	var hot := Color(1.0, 0.75, 0.3)
+	var eye := Color(1.0, 0.85, 0.3)
+	for side: float in [-1.0, 1.0]:
+		k.capsule(0.08, 0.26, MeshKit.at(Vector3(0.14 * side, 0.13, 0.0)), dark, 0.0, 6)
+	k.sphere(0.36, MeshKit.at(Vector3(0, 0.52, 0.0), Vector3.ZERO, Vector3(1.0, 0.95, 1.0)), skin, 0.0, 9, 5)
+	# Glowing seams across the belly.
+	for a in 3:
+		k.box(Vector3(0.03, 0.34, 0.02), MeshKit.at(Vector3(-0.14 + a * 0.14, 0.5, -0.34), Vector3(-10, 0, -20 + a * 20)), hot, 2.2)
+	k.sphere(0.11, MeshKit.at(Vector3(0, 0.5, -0.3), Vector3.ZERO, Vector3(1.0, 1.0, 0.4)), hot, 1.4, 6, 3)
+	# A small head sunk into the shoulders.
+	k.sphere(0.13, MeshKit.at(Vector3(0, 0.9, -0.08)), dark, 0.0, 7, 4)
+	k.sphere(0.025, MeshKit.at(Vector3(-0.05, 0.92, -0.19)), eye, 2.0, 4, 2)
+	k.sphere(0.025, MeshKit.at(Vector3(0.05, 0.92, -0.19)), eye, 2.0, 4, 2)
+	for side: float in [-1.0, 1.0]:
+		k.capsule(0.05, 0.22, MeshKit.at(Vector3(0.36 * side, 0.55, -0.04), Vector3(20, 0, 30 * side)), dark, 0.0, 5)
+		k.sphere(0.06, MeshKit.at(Vector3(0.22 * side, 0.74, 0.18)), skin.lightened(0.15), 0.0, 5, 2)
 
 
 ## The Debt Collector: a gaunt figure in a long coat and tall hat, a ledger
@@ -515,6 +597,17 @@ static func _item_parts(k: MeshKit, base_name: String, accent: Color) -> void:
 			k.cylinder(0.12, 0.05, 0.1, MeshKit.at(Vector3(0, -0.08, 0)), gold, 0.1, 8)
 			k.sphere(0.17, MeshKit.at(Vector3(0, 0.1, 0)), accent, 1.0, 12, 8)
 			k.torus(0.2, 0.23, MeshKit.at(Vector3(0, 0.1, 0), Vector3(70, 0, 20)), gold, 0.2, 14)
+		"Scythe":
+			# The Reaper's: a long haft and a crescent blade, glowing at the edge.
+			k.cylinder(0.03, 0.04, 1.6, MeshKit.at(Vector3(0, -0.15, 0)), wood.darkened(0.3), 0.0, 6, true)
+			k.box(Vector3(0.09, 0.1, 0.09), MeshKit.at(Vector3(0, 0.64, 0)), iron)
+			for i in 6:
+				var t := float(i) / 5.0
+				var ang := deg_to_rad(10.0 + t * 70.0)
+				k.box(Vector3(0.24 - t * 0.1, 0.03, 0.08 - t * 0.04),
+						MeshKit.at(Vector3(-sin(ang) * 0.38, 0.64 + cos(ang) * 0.38 - 0.38, 0), Vector3(0, 0, -10.0 - t * 70.0)),
+						silver if i < 5 else accent, 0.2 + t * 0.6)
+			k.sphere(0.05, MeshKit.at(Vector3(0, 0.7, 0)), accent, 1.2, 5, 2)
 		# Helms
 		"Cap":
 			k.sphere(0.26, MeshKit.at(Vector3(0, -0.02, 0), Vector3.ZERO, Vector3(1.0, 0.8, 1.0)), leather)

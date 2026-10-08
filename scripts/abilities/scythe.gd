@@ -5,7 +5,9 @@ extends Node3D
 ## moved, so where you walk shapes its second cut. It cuts each enemy once
 ## on the way out and once on the way back, and the return cut hits harder.
 ##
-## Unlocked and improved by the "scythe" upgrade (see Upgrades.DEFS).
+## Unlocked and improved by the "scythe" upgrade (see Upgrades.DEFS). The
+## Reaper starts with it, and its throws carry the bolt elements (Kindling,
+## Frostbite), one roll per throw.
 
 const SPEED := 16.0
 const RETURN_SPEED := 19.0
@@ -54,14 +56,18 @@ func update(delta: float) -> void:
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
 	var spread := 0.0 if _blades.is_empty() else (0.35 * (1 if _blades.size() % 2 == 1 else -1))
+	var element := _player._bolt_element() if stats.powers.has("reaping") else Elements.NONE
 	_blades.append({"node": node, "pos": _player.pos2, "dir": dir.rotated(spread), "out": stats.scythe_range,
-			"back": false, "hits": {}})
+			"back": false, "hits": {}, "element": element})
 	Sound.play("blade", 0.6, 4.0)
+	if _player.stats.powers.has("reaping"):
+		_player._visual.cast()
+		_player.cast.emit()
 
 
 func _aim() -> Vector2:
 	if _player.aim_mode != Player.Aim.AUTO:
-		return _player.aim_dir
+		return _player.assisted_aim(_player.aim_dir, _player.stats.scythe_range + 2.0)
 	var best := Vector2.ZERO
 	var best_d2 := 14.0 * 14.0
 	var from := _player.pos2
@@ -122,5 +128,5 @@ func _cut(b: Dictionary, damage: float) -> void:
 				continue
 			b["hits"][swarm.ids[i]] = true
 			var crit := randf() < stats.crit_chance
-			Elements.hit(swarm, i, damage * (stats.crit_mult if crit else 1.0), Elements.NONE, crit)
-			Juice.burst(swarm.pos[i], 0.9, COLOR, 2, 3.0, 0.3, 0.25, 1.5)
+			Elements.hit(swarm, i, damage * (stats.crit_mult if crit else 1.0), b["element"], crit)
+			Juice.burst(swarm.pos[i], 0.9, Elements.COLORS.get(b["element"], COLOR), 2, 3.0, 0.3, 0.25, 1.5)

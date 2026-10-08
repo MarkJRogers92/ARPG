@@ -43,15 +43,20 @@ func _finish() -> void:
 	_run(&"_test_elements", _test_elements())
 	_run(&"_test_army", _test_army())
 	_run(&"_test_heroes", _test_heroes())
+	_run(&"_test_reliquary", _test_reliquary())
+	_run(&"_test_accessibility", _test_accessibility())
+	_run(&"_test_death_recap", _test_death_recap())
 	_run(&"_test_events", _test_events())
 	_run(&"_test_obstacles", _test_obstacles())
 	_run(&"_test_fixes", _test_fixes())
 	_run(&"_test_landmarks", _test_landmarks())
 	_run(&"_test_minion_roles", _test_minion_roles())
 	_run(&"_test_specialists", _test_specialists())
+	_run(&"_test_specialist_enemies", _test_specialist_enemies())
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
+	_run(&"_test_mid_mechanics", _test_mid_mechanics())
 	_run(&"_test_replayability", _test_replayability())
 	_run(&"_test_rifts", _test_rifts())
 	_run(&"_test_dawn", _test_dawn())
@@ -961,7 +966,7 @@ func _test_realms() -> bool:
 	print("realms")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var models: Array = []
-	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger"]:
+	for m in ["grunt", "brute", "runner", "cultist", "boss", "wraith", "imp", "lich", "colossus", "tyrant", "lancer", "gravedigger", "shieldbearer", "mender", "bloater"]:
 		models.append(m)
 	_check(Realm.ORDER.size() == Realm.REALMS.size(), "every realm is in the play order")
 	for id: String in Realm.ORDER:
@@ -1068,7 +1073,248 @@ func _test_heroes() -> bool:
 	_check(player.stats.powers.has("pyre") and not player.stats.powers.has("lich_shroud"), "and the old powers")
 	HeroClass.apply(player, "stormcaller")
 	_check(player.stats.lightning_level >= 1, "the Stormcaller starts with Chain Lightning")
+
+	# The Reaper: no bolts, two scythes from the start, its own cards and paths.
+	for id: String in HeroClass.ORDER:
+		_check(Specializations.paths(id).size() == 3 and Specializations.paths(id)[0] in Specializations.PATHS.get(id, []),
+				"%s has three paths of its own" % id)
+	HeroClass.apply(player, "reaper")
+	_check(player.stats.scythe_level >= 1 and player.stats.scythe_count == 2, "the Reaper starts with two scythes")
+	_check(player.stats.powers.has("reaping"), "and the reaping power")
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 8
+	swarm.max_hp = 1000.0
+	root.add_child(swarm)
+	var projectiles := ProjectileSwarm.new()
+	root.add_child(projectiles)
+	var swarms: Array[EnemySwarm] = [swarm]
+	player.setup(swarms, projectiles)
+	Elements.swarms = swarms
+	Elements.player = player
+	swarm.spawn(player.pos2 + Vector2(3, 0))
+	swarm.step(0.0, player.pos2)
+	for f in 90:
+		player.update_weapons(1.0 / 60.0)
+		swarm.step(1.0 / 60.0, player.pos2)
+	_check(projectiles.count == 0, "it never fires a bolt")
+	_check(swarm.hp[0] < 1000.0, "its scythes cut what's near (%.0f)" % swarm.hp[0])
+	var offered := {}
+	for k in 300:
+		for c: Dictionary in Upgrades.roll(player.stats, 3):
+			offered[c["id"]] = true
+	_check(not offered.has("bolt_damage") and not offered.has("bolt_count") and not offered.has("bolt_rate") and not offered.has("bolt_pierce"),
+			"the Reaper is never offered bolt cards")
+	_check(offered.has("keen_edge") and offered.has("whirl"), "but gets scythe cards of its own")
+	_check("Scythe throws" in Upgrades._desc("ignite", 0, player.stats), "Kindling speaks of scythes")
+	player.stats.chill_chance = 1.0
+	_check(player._bolt_element() == Elements.FROST, "and the scythes carry the bolt elements")
+	HeroClass.apply(player, "battlemage")
+	offered.clear()
+	for k in 300:
+		for c: Dictionary in Upgrades.roll(player.stats, 3):
+			offered[c["id"]] = true
+	_check(offered.has("bolt_damage") and not offered.has("keen_edge"), "other heroes keep the bolt cards and never see the Reaper's")
+	Elements.swarms = []
+	Elements.player = null
+	swarm.free()
+	projectiles.free()
 	player.free()
+	return true
+
+
+
+func _test_reliquary() -> bool:
+	print("the Reliquary")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_relics.save"
+	_wipe_save()
+	# An old (version 2) save loads with an empty Reliquary.
+	var old := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	old.store_var({"version": 2, "shards": 100, "ranks": {"vigor": 1}})
+	old.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 100 and MetaProgress.rank("vigor") == 1, "a version 2 save still loads")
+	_check(MetaProgress.relic == "" and MetaProgress.relics.is_empty() and MetaProgress.cards.is_empty(), "with an empty Reliquary")
+
+	# Relics: bought with shards, or earned with stars; one carried.
+	_check(not MetaProgress.relic_owned("glass_skull"), "relics start unowned")
+	_check(MetaProgress.buy_relic("glass_skull") and MetaProgress.shards == 70, "buying a relic spends its shards")
+	MetaProgress.carry_relic("glass_skull")
+	_check(not MetaProgress.buy_relic("soul_censer"), "a star relic can't be bought")
+	MetaProgress.carry_relic("soul_censer")
+	_check(MetaProgress.relic == "glass_skull", "nor carried before it's earned")
+	MetaProgress.bestiary = {"Ghoul": 5000, "Ogre": 1000}
+	_check(MetaProgress.relic_owned("soul_censer") and not MetaProgress.relic_owned("winter_tear"), "five stars earn the Soul Censer, not more")
+
+	# Starting weapons and lost lore.
+	_check(not MetaProgress.weapon_unlocked("aura"), "starting weapons start locked")
+	_check(MetaProgress.buy_weapon("aura") and MetaProgress.shards == 70 - Relics.WEAPON_COST, "unlocking one costs shards")
+	MetaProgress.pick_weapon("aura")
+	MetaProgress.pick_weapon("lightning")
+	_check(MetaProgress.start_weapon == "aura", "a locked weapon can't be picked")
+	var stats := PlayerStats.new()
+	var offered := {}
+	for k in 400:
+		for c: Dictionary in Upgrades.roll(stats, 3):
+			offered[c["id"]] = true
+	_check(not offered.has("deadly_aim") and not offered.has("bulwark"), "lost lore isn't offered before it's learned")
+	_check(MetaProgress.buy_card("bulwark"), "learning a card")
+	offered.clear()
+	for k in 400:
+		for c: Dictionary in Upgrades.roll(stats, 3):
+			offered[c["id"]] = true
+	_check(offered.has("bulwark") and not offered.has("deadly_aim"), "puts it in the pool (and only it)")
+	var shards := MetaProgress.shards
+	MetaProgress.load_save()
+	_check(MetaProgress.relic == "glass_skull" and MetaProgress.start_weapon == "aura" and MetaProgress.card_unlocked("bulwark")
+			and MetaProgress.shards == shards, "the Reliquary survives a reload")
+
+	# Applied to a hero: mods, powers, rerolls, the weapon card.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	HeroClass.apply(player, "battlemage")
+	var hp := player.stats.max_hp
+	var bolt := player.stats.bolt_damage
+	Relics.apply(player, "glass_skull", "aura")
+	_near(player.stats.max_hp, hp * 0.7, "the Glass Skull costs 30% max health", 0.01)
+	_near(player.stats.bolt_damage, bolt * 1.35, "for 35% more damage", 0.01)
+	_check(player.stats.aura_level == 1 and Upgrades.level_of("aura", player.stats) == 1, "the starting weapon is a card already taken")
+	_near(player.stats.hp, player.stats.max_hp, "the night starts at full health")
+	HeroClass.apply(player, "battlemage")
+	Relics.apply(player, "soul_censer", "")
+	_check(player.stats.powers.has("soul_lantern"), "a power relic grants its power")
+	_check(Relics.extra_rerolls("bone_dice") == 3 and Relics.extra_rerolls("glass_skull") == 0, "Bone Dice give rerolls")
+	for id: String in Relics.ORDER:
+		var d := Relics.data(id)
+		_check(d.has("name") and d.has("desc") and (d.has("cost") or d.has("stars")), "%s is complete" % id)
+		if d.has("power"):
+			_check(ItemData.POWERS.has(d["power"]), "%s grants a real power" % id)
+	for id: String in Relics.WEAPONS:
+		_check(Upgrades.DEFS.has(id) and Upgrades.DEFS[id].has("first_mods"), "%s is a weapon card" % id)
+	player.free()
+
+	MetaProgress.disabled = true
+	_check(MetaProgress.current_relic() == "" and MetaProgress.current_start_weapon() == "", "bots and tests carry nothing")
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+	return true
+
+
+
+func _test_accessibility() -> bool:
+	print("controls and accessibility settings")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_settings.save"
+	_wipe_save()
+	MetaProgress.load_save()
+	Controls.apply()
+	var dash := Controls.key_code("dash")
+	var use := Controls.key_code("interact")
+	_check(dash == KEY_SPACE and use == KEY_E, "default keys: Space dashes, E uses (%s, %s)" % [Controls.key_name("dash"), Controls.key_name("interact")])
+	_check(Controls.tag("interact") == "[E]", "hints name the key")
+	Controls.rebind("dash", KEY_F)
+	_check(Controls.key_code("dash") == KEY_F and Controls.tag("dash") == "[F]", "dash rebound to F, and the hint follows")
+	var pad := InputMap.action_get_events("dash").filter(func(e: InputEvent) -> bool: return e is InputEventJoypadButton)
+	_check(not pad.is_empty(), "the gamepad button stays")
+	Controls.rebind("interact", KEY_F)
+	_check(Controls.key_code("interact") == KEY_F and Controls.key_code("dash") == use, "taking a used key swaps the two")
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_F
+	_check(InputMap.event_is_action(ev, "interact") and not InputMap.event_is_action(ev, "dash"), "the InputMap agrees")
+	MetaProgress.load_save()
+	Controls.reset()
+	MetaProgress.set_setting("keys", {"dash": KEY_G})
+	Controls.apply()
+	_check(Controls.key_code("dash") == KEY_G, "saved bindings are applied at startup")
+	Controls.reset()
+	_check(Controls.key_code("dash") == KEY_SPACE and Controls.key_code("interact") == KEY_E, "reset restores the defaults")
+	_check(MetaProgress.setting("keys").is_empty(), "and forgets the saved ones")
+
+	# Calm effects and bold warnings.
+	var faint := Color(1.0, 0.3, 0.1, 0.4)
+	Juice.bold_telegraphs = false
+	_check(Juice.warning_color(faint) == faint, "warnings look as designed by default")
+	Juice.bold_telegraphs = true
+	var bold := Juice.warning_color(faint)
+	_check(bold.a >= 0.89 and bold.g > faint.g, "bold warnings are brighter and near opaque")
+	Juice.bold_telegraphs = false
+	Juice.time_effects = true
+	Juice.calm = true
+	Juice.hitstop(0.5)
+	_check(Engine.time_scale == 1.0, "calm effects: no hit-stop")
+	Juice.calm = false
+	Juice.reset()
+
+	# Aim assist: shots bend toward an enemy near the aim, not one far off it.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 4
+	root.add_child(swarm)
+	var swarms: Array[EnemySwarm] = [swarm]
+	player.setup(swarms, null)
+	swarm.spawn(Vector2(8, 2)) # about 14 degrees off the aim
+	swarm.spawn(Vector2(0, 8)) # 90 degrees off
+	swarm.step(0.0, Vector2(0, -30))
+	var aim := Vector2(1, 0)
+	_check(player.assisted_aim(aim, 16.0) == aim, "no assist by default")
+	player.aim_assist = 1.0
+	var bent := player.assisted_aim(aim, 16.0)
+	_near(bent.angle(), Vector2(8, 2).angle(), "full assist aims at the enemy near the aim", 0.01)
+	player.aim_assist = 0.3
+	_check(player.assisted_aim(aim, 16.0) == aim, "a weak assist leaves it alone (outside its 9 degree cone)")
+	_check(player.assisted_aim(Vector2(0.3, 1).normalized(), 16.0) != Vector2(0, 1), "and never swings to an enemy far off the aim")
+	swarm.free()
+	player.free()
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+	Controls.reset()
+	return true
+
+
+
+func _test_death_recap() -> bool:
+	print("why I died")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	player.stats.hp = 100.0
+	player.take_damage(30.0, "Ghoul")
+	player.take_damage(10.0, "Meteors")
+	player.take_damage(20.0, "Ghoul")
+	_near(player.damage_taken_by["Ghoul"], 50.0, "damage taken is kept by cause", 0.01)
+	_check(player.last_cause == "Ghoul", "with the latest cause")
+	player.take_damage(500.0, "Ogre Warlord's slam")
+	_near(player.damage_taken_by["Ogre Warlord's slam"], 40.0, "an overkill counts only the health that was left", 0.01)
+	_check(player.dead and player.last_cause == "Ogre Warlord's slam", "and names the killing blow")
+	var r := DeathRecap.ranked(player.damage_taken_by)
+	_check(r[0][0] == "Ghoul" and is_equal_approx(r[0][2], 0.5), "causes rank by damage (%s)" % [r[0]])
+	var text := DeathRecap.summary(player.damage_taken_by, player.last_cause, true)
+	_check(text.begins_with("SLAIN BY:  Ogre Warlord's slam") and "Ghoul 50%" in text, "the summary: " + text.replace("\n", " / "))
+	_check(not "SLAIN" in DeathRecap.summary(player.damage_taken_by, player.last_cause, false), "a won night isn't a death")
+	_check(DeathRecap.summary({}, "", false) == "Untouched all night.", "nor is an untouched one")
+	player.free()
+
+	# Shots remember who fired them.
+	var hero: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(hero)
+	var shots := EnemyShots.new()
+	root.add_child(shots)
+	shots.spawn(hero.pos2 + Vector2(0.2, 0), Vector2(-1, 0), 1.0, 5.0, Elements.NONE, "Frost Witch")
+	shots.step(1.0 / 60.0, hero)
+	_check(hero.damage_taken_by.has("Frost Witch's shots"), "a witch's bolt is blamed on the witch (%s)" % [hero.damage_taken_by.keys()])
+	shots.free()
+	hero.free()
+
+	var samples: Array[Vector3] = []
+	for k in DeathRecap.MAX_SAMPLES + 1:
+		DeathRecap.add_sample(samples, k * 10.0, 1.0, 1.0)
+	_check(samples.size() <= DeathRecap.MAX_SAMPLES / 2 + 1 and samples[0].x == 0.0, "a long night's timeline halves itself (%d)" % samples.size())
 	return true
 
 
@@ -1560,7 +1806,8 @@ func _test_minion_roles() -> bool:
 	print("minion roles")
 	var scene: Node = load("res://scenes/main.tscn").instantiate()
 	var want := {"Grunts": "brawler", "Brutes": "bulwark", "Runners": "skirmisher", "Cultists": "caster",
-			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster"}
+			"Bosses": "tyrant", "FinalBoss": "tyrant", "Goblins": "brawler", "Lancers": "skirmisher", "Gravediggers": "caster",
+			"Shieldbearers": "bulwark", "Menders": "caster", "Bloaters": "brawler"}
 	for swarm_name: String in want:
 		_check(Army.role_of(scene.get_node(swarm_name)) == want[swarm_name], "%s rise as %ss" % [swarm_name, want[swarm_name]])
 	scene.free()
@@ -1657,6 +1904,132 @@ func _test_specialists() -> bool:
 	souls.drop(Vector2(20, 0), 1)
 	_check(souls.take_near(Vector2.ZERO, 7.0) == 1 and souls.count == 1, "and eats the souls near it")
 	souls.free()
+	return true
+
+
+
+func _test_specialist_enemies() -> bool:
+	print("shieldbearers, menders and bloaters")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var director := WaveDirector.new()
+	root.add_child(director)
+	var grunts := EnemySwarm.new()
+	grunts.capacity = 16
+	grunts.max_hp = 100.0
+	root.add_child(grunts)
+	var shields := EnemySwarm.new()
+	shields.capacity = 4
+	shields.max_hp = 100.0
+	shields.direct_taken = 0.2
+	root.add_child(shields)
+	var menders := EnemySwarm.new()
+	menders.capacity = 4
+	menders.mend_interval = 1.0
+	menders.mend_radius = 6.0
+	menders.hold_range = 7.0
+	root.add_child(menders)
+	var bloaters := EnemySwarm.new()
+	bloaters.capacity = 8
+	bloaters.max_hp = 10.0
+	bloaters.fuse_range = 2.0
+	bloaters.fuse_time = 0.5
+	bloaters.blast_radius = 3.0
+	bloaters.blast_damage = 16.0
+	root.add_child(bloaters)
+	var swarms: Array[EnemySwarm] = [grunts, shields, menders, bloaters]
+	Elements.swarms = swarms
+	Elements.player = player
+	player.setup(swarms, null)
+	var spec := Specialists.new()
+	root.add_child(spec)
+	spec.setup(swarms, player, director)
+	var told: Array[String] = []
+	spec.announced.connect(func(text: String, _c: Color) -> void: told.append(text))
+	var far := Vector2(0, -30)
+	var step_all := func(t: Vector2) -> void:
+		for s in swarms:
+			s.step(0.0, t)
+
+	# Shields stop direct hits, not the rest.
+	shields.spawn(Vector2(5, 5))
+	step_all.call(far)
+	Elements.source = "Magic Bolt"
+	Elements.hit(shields, 0, 50.0)
+	_near(shields.hp[0], 90.0, "a bolt deals a fifth to a shieldbearer")
+	Elements.source = "Frost Aura"
+	Elements.hit(shields, 0, 50.0)
+	_near(shields.hp[0], 40.0, "the Frost Aura gets around the shield")
+	_check(told.size() == 1 and "shrug off" in told[0], "and the first block explains itself")
+
+	# A mender heals the horde in its ring, up to full health, bosses aside.
+	grunts.spawn(Vector2(1, 0))
+	grunts.spawn(Vector2(15, 0))
+	menders.spawn(Vector2(0, 0))
+	step_all.call(far)
+	grunts.hp[0] = 20.0
+	grunts.hp[1] = 20.0
+	shields.hp[0] = 95.0
+	shields.pos[0] = Vector2(2, 0)
+	step_all.call(far)
+	menders._fire[0] = 0.0
+	menders.step(1.0 / 60.0, Vector2(0, 10))
+	_near(grunts.hp[0], 20.0 + 100.0 * Specialists.MEND_SHARE, "a mender heals a nearby ghoul", 0.01)
+	_near(grunts.hp[1], 20.0, "but not one outside its ring")
+	_near(shields.hp[0], 100.0, "and never past full health")
+	_check(menders._aura != null and menders._aura.multimesh.visible_instance_count == 1, "its ring is drawn on the ground")
+
+	# A bloater lights up next to the hero, then bursts: the hero and the horde.
+	grunts.despawn_all()
+	shields.despawn_all()
+	menders.despawn_all()
+	step_all.call(far)
+	grunts.spawn(Vector2(1.5, 1.5))
+	bloaters.spawn(Vector2(1.5, 0))
+	var hero := Vector2.ZERO
+	player.position = Vector3.ZERO
+	step_all.call(hero)
+	var hp0 := player.stats.hp
+	for f in 3:
+		bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters._fuse[0] > 0.0 and spec.fuse_count() == 1, "a bloater next to the hero lights its fuse and marks the ground")
+	var at := bloaters.pos[0]
+	for f in 10:
+		bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters.pos[0].distance_to(at) < 0.01, "and stands still while it burns")
+	var deaths := EnemySwarm.deaths
+	for f in 40:
+		for s in swarms:
+			s.step(1.0 / 60.0, hero)
+		spec.tick(1.0 / 60.0)
+	_check(bloaters.alive_count() == 0 and spec.fuse_count() == 0, "then goes off, and its circle is gone")
+	_check(player.stats.hp < hp0, "hurting the hero (%.0f -> %.0f)" % [hp0, player.stats.hp])
+	_check(grunts.count == 1 and grunts.hp[0] < 100.0 - 30.0, "and the horde beside it")
+	_check(EnemySwarm.deaths == deaths, "a bloater that bursts on its own isn't a kill")
+	_check(told.size() == 3, "each specialist explains itself once (%d)" % told.size())
+
+	# Killed with the fuse lit, it bursts at once (and chains).
+	player.stats.hp = player.stats.max_hp
+	bloaters.spawn(Vector2(1.0, 0))
+	bloaters.spawn(Vector2(10, 0))
+	bloaters.step(1.0 / 60.0, hero)
+	_check(bloaters._fuse[0] > 0.0 and bloaters._fuse[1] < 0.0, "only the one in reach lights up")
+	bloaters.pos[1] = Vector2(3.0, 0)
+	bloaters.step(0.0, hero)
+	Elements.source = "Magic Bolt"
+	Elements.hit(bloaters, 0, 100.0)
+	spec.tick(1.0 / 60.0)
+	bloaters.step(0.0, hero)
+	_check(bloaters.alive_count() == 0, "shooting a lit bloater sets it off, and it takes its neighbor with it")
+	_check(player.stats.hp < player.stats.max_hp, "which still hurts a hero standing too close")
+	spec.tick(1.0 / 60.0)
+	_check(spec.fuse_count() == 0, "no circle is left behind")
+
+	Elements.swarms = []
+	Elements.player = null
+	Elements.source = "Other"
+	for n: Node in [spec, grunts, shields, menders, bloaters, director, player]:
+		n.free()
 	return true
 
 
@@ -1791,9 +2164,9 @@ func _test_new_tools() -> bool:
 		for card: Dictionary in cards:
 			var stats := PlayerStats.new()
 			stats.recalculate()
-			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp, stats.scythe_damage, stats.scythe_count]
 			_check(Specializations.apply(stats, hero, card["id"].substr(5)), "%s: %s applies" % [hero, card["name"]])
-			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp, stats.scythe_damage, stats.scythe_count]
 			_check(before != after or stats.ignite_chance > 0.0 or stats.chill_chance > 0.0, "%s: %s changes the build" % [hero, card["name"]])
 			Specializations.apply(stats, hero, card["id"].substr(5))
 			_check(stats.mods_from(Specializations.SOURCE).size() == Specializations.find(hero, card["id"].substr(5))["mods"].size(),
@@ -1911,6 +2284,115 @@ func _test_final_mechanics() -> bool:
 		mech.tick(0.016)
 		_check(mech.hint == "" and wards.alive_count() == 0 and mech.seals_left() == 0, "%s: everything clears when he dies" % realm)
 		for n: Node in [mech, wards, final, director, player]:
+			n.free()
+	Realm.current = was
+	return true
+
+
+func _test_mid_mechanics() -> bool:
+	print("mid-boss moves")
+	var was := Realm.current
+	for realm: String in ["graveyard", "frozen", "ember"]:
+		Realm.current = realm
+		var player: Player = load("res://scenes/player.tscn").instantiate()
+		root.add_child(player)
+		var director := WaveDirector.new()
+		root.add_child(director)
+		var boss := EnemySwarm.new()
+		boss.capacity = 4
+		boss.boss = true
+		boss.max_hp = 100000.0
+		boss.move_speed = 0.0
+		root.add_child(boss)
+		var bosses := BossDirector.new()
+		bosses.spawned = 1
+		root.add_child(bosses)
+		var mech := MidMechanics.new()
+		root.add_child(mech)
+		mech.setup(boss, player, director, bosses)
+		Elements.player = player
+		Elements.swarms = [boss] as Array[EnemySwarm]
+		boss.spawn(Vector2(0, -8))
+		boss.step(0.0, Vector2.ZERO) # builds the spatial hash
+		mech.tick(0.016)
+		var st: Dictionary = mech._state[boss.ids[0]]
+		match realm:
+			"graveyard":
+				_check(mech.kind() == "warlord", "the graveyard's mid-boss is the Warlord")
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.waves() == 1, "the Warlord stamps and a shockwave starts")
+				var hp := player.stats.hp
+				for f in 30:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp, "it winds up before it moves")
+				for f in 200:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp < hp, "a hero who stays put is hit as it rolls over")
+				_check(mech.waves() == 0, "and it dies out at its full reach")
+				# Dashing through is safe.
+				player.stats.hp = player.stats.max_hp
+				hp = player.stats.hp
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				for f in 200:
+					player._dash_time = 1.0
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp, "a dash through the wave takes nothing")
+				# A hero out of its reach isn't bothered at all.
+				player.global_position = Vector3(60, 0, 60)
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.waves() == 0, "the Warlord doesn't stamp at a hero far away")
+			"frozen":
+				_check(mech.kind() == "chieftain", "the frozen mid-boss is the Chieftain")
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.RIME_TAKEN) and mech.hint != "",
+						"the Chieftain grows rime armor: he takes far less")
+				boss.chill[0] = 3.0
+				mech.tick(0.016)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.RIME_TAKEN), "chill in the first instant doesn't crack it")
+				for f in int(MidMechanics.RIME_GRACE * 60.0) + 2:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, MidMechanics.CRACK_TAKEN), "chilling him cracks it: he's brittle (%s)" % boss.damage_taken)
+				boss.chill[0] = 0.0
+				for f in int(MidMechanics.CRACK_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, 1.0), "then he's back to normal")
+				# Unchilled, the armor just runs out.
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				for f in int(MidMechanics.RIME_TIME * 60.0) + 5:
+					mech.tick(1.0 / 60.0)
+				_check(is_equal_approx(boss.damage_taken, 1.0) and st["timer"] > 0.0, "an armor nobody cracked wears off")
+			"ember":
+				_check(mech.kind() == "magma", "the ember mid-boss is the Magma Lord")
+				player.global_position = Vector3(0, 0, -8)
+				st["timer"] = 0.0
+				mech.tick(0.016)
+				_check(mech.pools() == 1, "the Magma Lord leaves a pool of lava")
+				var hp2 := player.stats.hp
+				for f in 30:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp == hp2, "it only erupts after a warning")
+				for f in 90:
+					mech.tick(1.0 / 60.0)
+				_check(player.stats.hp < hp2, "then it burns a hero standing in it")
+				for f in int(MidMechanics.POOL_LIFE * 60.0):
+					mech.tick(1.0 / 60.0)
+				_check(mech.pools() <= 3, "and pools burn out in time (%d left)" % mech.pools())
+				bosses.spawned = 3
+				st["timer"] = 0.0
+				var before := mech.pools()
+				mech.tick(0.016)
+				_check(mech.pools() >= before + 2, "from the third boss on, some land near the hero too")
+		boss.damage(0, 1.0e9)
+		boss.step(0.0, Vector2.ZERO)
+		mech.tick(0.016)
+		_check(is_equal_approx(boss.damage_taken, 1.0), "%s: nothing lingers when he dies" % realm)
+		Elements.swarms = [] as Array[EnemySwarm]
+		for n: Node in [mech, bosses, boss, director, player]:
 			n.free()
 	Realm.current = was
 	return true

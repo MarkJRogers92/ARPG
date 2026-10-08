@@ -10,6 +10,14 @@ extends RefCounted
 ##   first_mods    optional: applied instead of `mods` on the first level
 ##   desc_next     optional: card text for levels after the first
 ##   heal          optional: flat HP restored when taken
+##   bolt          optional: improves only Magic Bolt, so the Reaper (no bolts)
+##                 never sees it
+##   only          optional: a power the hero must have for it to be offered
+##   reaper_desc   optional: card text for the Reaper (whose scythes carry
+##                 the bolt elements)
+##   unlock        optional: Soul Shards to buy it in the Reliquary; until
+##                 then it is never offered (see Relics, MetaProgress)
+##   icon          optional: the card's icon (see UiIcons), if not its id
 
 const SOURCE := "upgrade"
 const _MORE := PlayerStats.Op.MORE
@@ -17,19 +25,19 @@ const _ADD := PlayerStats.Op.ADD
 
 const DEFS := {
 	"bolt_damage": {
-		"name": "Sharper Bolts", "desc": "+25% bolt damage", "max": 8,
+		"name": "Sharper Bolts", "desc": "+25% bolt damage", "max": 8, "bolt": true,
 		"mods": [{"stat": "bolt_damage", "op": _MORE, "value": 0.25}],
 	},
 	"bolt_rate": {
-		"name": "Quick Cast", "desc": "Bolts fire 18% faster", "max": 6,
+		"name": "Quick Cast", "desc": "Bolts fire 18% faster", "max": 6, "bolt": true,
 		"mods": [{"stat": "bolt_rate", "op": _MORE, "value": 0.18}],
 	},
 	"bolt_count": {
-		"name": "Multishot", "desc": "+1 bolt per volley", "max": 5,
+		"name": "Multishot", "desc": "+1 bolt per volley", "max": 5, "bolt": true,
 		"mods": [{"stat": "bolt_count", "op": _ADD, "value": 1.0}],
 	},
 	"bolt_pierce": {
-		"name": "Piercing Bolts", "desc": "Bolts pass through +1 enemy", "max": 4,
+		"name": "Piercing Bolts", "desc": "Bolts pass through +1 enemy", "max": 4, "bolt": true,
 		"mods": [{"stat": "bolt_pierce", "op": _ADD, "value": 1.0}],
 	},
 	"aura": {
@@ -86,6 +94,32 @@ const DEFS := {
 			{"stat": "scythe_range", "op": _ADD, "value": 1.0},
 		],
 	},
+	# The Reaper's own: in place of the bolt cards.
+	"keen_edge": {
+		"name": "Keen Edge", "desc": "+25% scythe damage", "max": 8, "only": "reaping",
+		"mods": [{"stat": "scythe_damage", "op": _MORE, "value": 0.25}],
+	},
+	"whirl": {
+		"name": "Whirling Throw", "desc": "Scythes are thrown 18% faster", "max": 6, "only": "reaping",
+		"mods": [{"stat": "scythe_rate", "op": _MORE, "value": 0.18}],
+	},
+	"long_reach": {
+		"name": "Long Reach", "desc": "Scythes fly 1.5 m farther and cut 15% harder", "max": 4, "only": "reaping",
+		"mods": [{"stat": "scythe_range", "op": _ADD, "value": 1.5}, {"stat": "scythe_damage", "op": _MORE, "value": 0.15}],
+	},
+	# Lost lore: bought once in the Reliquary, then part of the pool.
+	"deadly_aim": {
+		"name": "Deadly Aim", "desc": "+5% crit chance, +25% crit damage", "max": 5, "unlock": 25, "icon": "bolt_damage",
+		"mods": [{"stat": "crit_chance", "op": _ADD, "value": 0.05}, {"stat": "crit_mult", "op": _ADD, "value": 0.25}],
+	},
+	"bulwark": {
+		"name": "Bulwark", "desc": "+15 armor", "max": 5, "unlock": 20, "icon": "max_hp",
+		"mods": [{"stat": "armor", "op": _ADD, "value": 15.0}],
+	},
+	"catalyst": {
+		"name": "Catalyst", "desc": "Shatter, Melt and Overload deal 30% more", "max": 4, "unlock": 30, "icon": "frostbite",
+		"mods": [{"stat": "reaction_damage", "op": _MORE, "value": 0.3}],
+	},
 	"bell": {
 		"name": "Funeral Bell", "desc": "Every 30 kills near you, a bell tolls: a shockwave that hurls the horde back",
 		"desc_next": "-4 kills per toll, +35% damage, +1 m radius", "max": 5,
@@ -125,6 +159,7 @@ const DEFS := {
 	},
 	"ignite": {
 		"name": "Kindling", "desc": "Bolts have a 20% chance to set enemies on fire",
+		"reaper_desc": "Scythe throws have a 20% chance to set what they cut on fire",
 		"desc_next": "+10% ignite chance, +35% burn damage", "max": 5,
 		"first_mods": [{"stat": "ignite_chance", "op": _ADD, "value": 0.2}],
 		"mods": [
@@ -134,6 +169,7 @@ const DEFS := {
 	},
 	"frostbite": {
 		"name": "Frostbite", "desc": "Bolts have a 20% chance to chill (slow) enemies",
+		"reaper_desc": "Scythe throws have a 20% chance to chill (slow) what they cut",
 		"desc_next": "+10% chill chance, reactions +12% damage", "max": 4,
 		"first_mods": [{"stat": "chill_chance", "op": _ADD, "value": 0.2}],
 		"mods": [
@@ -174,7 +210,7 @@ static func level_of(id: String, stats: PlayerStats) -> int:
 static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 	var pool: Array[String] = []
 	for id: String in DEFS:
-		if level_of(id, stats) < DEFS[id]["max"]:
+		if level_of(id, stats) < DEFS[id]["max"] and offered(id, stats):
 			pool.append(id)
 	pool.shuffle()
 
@@ -188,6 +224,7 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 			"level": lvl + 1,
 			"max": def["max"],
 			"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
+			"icon": def.get("icon", id),
 			"desc": _desc(id, lvl, stats),
 		})
 	var evolving := Evolutions.ready(stats)
@@ -202,9 +239,22 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 	return out
 
 
+## Whether this hero can be offered card `id` at all (see `bolt` and `only`).
+static func offered(id: String, stats: PlayerStats) -> bool:
+	var def: Dictionary = DEFS[id]
+	var reaper := stats.powers.has("reaping")
+	if reaper and def.get("bolt", false):
+		return false
+	if def.has("unlock") and not MetaProgress.card_unlocked(id):
+		return false
+	return not def.has("only") or stats.powers.has(def["only"])
+
+
 static func _desc(id: String, lvl: int, stats: PlayerStats) -> String:
 	var def: Dictionary = DEFS[id]
 	var text: String = def["desc_next"] if (lvl > 0 or already_active(id, stats)) and def.has("desc_next") else def["desc"]
+	if lvl == 0 and def.has("reaper_desc") and stats.powers.has("reaping"):
+		text = def["reaper_desc"]
 	# The last rank or two: say what it evolves with.
 	var evo := Evolutions.for_weapon(id)
 	if not evo.is_empty() and lvl + 2 >= def["max"]:

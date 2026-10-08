@@ -9,6 +9,8 @@ extends SceneTree
 ##   policy     greedy | tank | random
 ##   overrides  realm=<id> plays that realm (see Realm.REALMS; default graveyard)
 ##              class=<id> plays that hero class (see HeroClass; default battlemage)
+##              relic=<id> carries that relic, weapon=<id> starts with that
+##              weapon card (see Relics; default none)
 ##              ascension=<n> plays at that Ascension (see RunModifiers)
 ##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
@@ -23,6 +25,8 @@ const PRIORITY := {
 	"greedy": ["bolt_count", "bolt_damage", "bolt_rate", "aura", "bolt_pierce", "regen", "max_hp", "legion", "magnet", "move_speed"],
 	"tank": ["max_hp", "regen", "move_speed", "bolt_damage", "bolt_rate", "aura", "bolt_count", "bolt_pierce", "magnet"],
 }
+## The Reaper is never offered bolt cards; its own scythe cards take their place.
+const REAPER_CARDS := {"bolt_count": "scythe", "bolt_damage": "keen_edge", "bolt_rate": "whirl", "bolt_pierce": "long_reach"}
 ## Skill tree order per policy: the first node in the list that can be bought
 ## is bought. (Nodes only become buyable once linked to something owned.)
 const SKILL_PRIORITY := {
@@ -75,6 +79,10 @@ func _initialize() -> void:
 			Realm.current = o.substr(6)
 		elif o.begins_with("class="):
 			MetaProgress.forced_class = o.substr(6)
+		elif o.begins_with("relic="):
+			MetaProgress.forced_relic = o.substr(6)
+		elif o.begins_with("weapon="):
+			MetaProgress.forced_weapon = o.substr(7)
 		elif o.begins_with("omen="):
 			RunModifiers.forced_omen = o.substr(5)
 		elif o.begins_with("ascension="):
@@ -125,7 +133,8 @@ func _setup() -> void:
 		_rarities[item.rarity] += 1)
 	for o in _overrides:
 		if not o.begins_with("base.") and not o.begins_with("realm=") and not o.begins_with("class=") \
-				and not o.begins_with("omen=") and not o.begins_with("ascension="):
+				and not o.begins_with("omen=") and not o.begins_with("ascension=") and not o.begins_with("relic=") \
+				and not o.begins_with("weapon="):
 			_apply_override(o)
 
 
@@ -252,7 +261,10 @@ func _pick_upgrade() -> void:
 	else:
 		var best := 999
 		for i in offered.size():
-			var rank: int = PRIORITY[_policy].find(offered[i])
+			var order: Array = PRIORITY[_policy]
+			if _player.stats.powers.has("reaping"):
+				order = order.map(func(id: String) -> String: return REAPER_CARDS.get(id, id))
+			var rank: int = order.find(offered[i])
 			if rank >= 0 and rank < best:
 				best = rank
 				choice = i
