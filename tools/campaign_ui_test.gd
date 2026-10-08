@@ -137,7 +137,7 @@ func _run() -> void:
 	capture_viewport.add_child(controller)
 	town.setup(controller)
 	if screen != "route" and screen != "route-rewards":
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("pack" if screen == "comparison" else screen)
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen == "comparison" else screen))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -154,6 +154,8 @@ func _run() -> void:
 			controller.state["clauses"] = [{"id": "advance_payment", "accepted_biome": 0}]
 		elif screen == "market":
 			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}]}, "cost": 60, "biome": 0}
+		elif screen == "market-full":
+			_fill_fixture_backpack(controller)
 		elif screen == "result":
 			controller.state["phase"] = "RESULT_PENDING"
 			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "reserved_prize": "reserved-01", "biome_complete": false, "campaign_complete": false,
@@ -388,6 +390,7 @@ func _run_behavior_test() -> void:
 	await _test_route_reward_preview(failures)
 	await _test_route_preparation_panel(failures)
 	await _test_result_report_and_comparison(failures)
+	await _test_full_backpack_controls(failures)
 
 	for message: String in failures:
 		push_error("CAMPAIGN_UI_BEHAVIOR_FAIL: " + message)
@@ -475,6 +478,110 @@ func _test_route_reward_preview(failures: Array[String]) -> void:
 	route_view.free()
 	hidden_route_view.free()
 	fixture.free()
+
+
+func _test_full_backpack_controls(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	_fill_fixture_backpack(fixture)
+	var tray_record: Dictionary = fixture.state["inventory"]["items"]["i-junk"].duplicate(true)
+	tray_record["id"] = "i-tray-full-test"
+	fixture.state["inventory"]["items"]["i-tray-full-test"] = tray_record
+	fixture.state["inventory"]["tray"] = ["i-tray-full-test"]
+	root.add_child(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(fixture)
+	await process_frame
+	var state_before_render := fixture.snapshot()
+	var town_state_before_render := town._state.duplicate(true)
+
+	(town._service_buttons["market"] as Button).pressed.emit()
+	await process_frame
+	var market_copy := _find_label(town, "Backpack · %d / %d — full" % [Inventory.BACKPACK_SIZE, Inventory.BACKPACK_SIZE])
+	var buy := _find_button(town, "Buy ·", true)
+	if market_copy == null or buy == null or not buy.disabled:
+		failures.append("full Market reports capacity and disables purchases")
+	if fixture.state != state_before_render or town._state != town_state_before_render:
+		failures.append("full Market rendering leaves fixture state unchanged")
+	var recovery := _find_button(town, "Open Equipment to free a slot")
+	if recovery == null:
+		failures.append("full Market exposes its Equipment recovery action")
+	else:
+		recovery.pressed.emit()
+		await process_frame
+		var equipment_button := town._service_buttons["pack"] as Button
+		var selected_style := equipment_button.get_theme_stylebox("normal") as StyleBoxFlat
+		if town._active_service != "pack" or town._content_title.text != "THE ARMORY":
+			failures.append("full Market recovery opens Equipment")
+		if selected_style == null or selected_style.bg_color != Color(0.19, 0.15, 0.09, 0.96):
+			failures.append("recovery navigation highlights Equipment in the service rail")
+
+	var heading := _find_label(town, "BACKPACK · %d / %d" % [Inventory.BACKPACK_SIZE, Inventory.BACKPACK_SIZE])
+	if heading == null or _find_label(town, "sell or discard an item here") == null:
+		failures.append("full Equipment shows capacity and explains how to make space")
+	town._select_item("i-weapon", "weapon")
+	await process_frame
+	var unequip := _find_button(town, "Unequip")
+	if unequip == null or not unequip.disabled:
+		failures.append("full Equipment disables unequip because it needs a free slot")
+	town._select_item("i-rare", "weapon")
+	await process_frame
+	var equip := _find_button(town, "Equip")
+	if equip == null or equip.disabled:
+		failures.append("full Equipment keeps backpack gear equipable")
+	town._select_item("i-tray-full-test", "offhand")
+	await process_frame
+	var claim_selected := _find_button(town, "Claim to backpack")
+	var claim_tray := _find_button(town, "Claim")
+	if claim_selected == null or not claim_selected.disabled or claim_tray == null or not claim_tray.disabled:
+		failures.append("full Equipment disables both reward claim actions")
+	if fixture.state != state_before_render or town._state != town_state_before_render:
+		failures.append("Equipment capacity controls render without mutating fixture state")
+
+	fixture.state["inventory"]["backpack"].pop_back()
+	fixture.changed.emit(fixture.snapshot())
+	await process_frame
+	var state_after_freeing_slot := fixture.snapshot()
+	var town_state_after_freeing_slot := town._state.duplicate(true)
+	town._select_item("i-weapon", "weapon")
+	await process_frame
+	unequip = _find_button(town, "Unequip")
+	if unequip == null or unequip.disabled:
+		failures.append("state change freeing a slot re-enables unequip")
+	town._select_item("i-tray-full-test", "offhand")
+	await process_frame
+	claim_selected = _find_button(town, "Claim to backpack")
+	claim_tray = _find_button(town, "Claim")
+	if claim_selected == null or claim_selected.disabled or claim_tray == null or claim_tray.disabled:
+		failures.append("state change freeing a slot re-enables both claim actions")
+	town._select_item("i-rare", "weapon")
+	await process_frame
+	equip = _find_button(town, "Equip")
+	if equip == null or equip.disabled:
+		failures.append("freeing capacity keeps backpack equipment available")
+	if fixture.state != state_after_freeing_slot or town._state != town_state_after_freeing_slot:
+		failures.append("capacity controls remain read-only after a state change")
+	(town._service_buttons["market"] as Button).pressed.emit()
+	await process_frame
+	buy = _find_button(town, "Buy ·", true)
+	if buy == null or buy.disabled:
+		failures.append("state change freeing a slot re-enables Market purchases")
+	town.free()
+	fixture.free()
+
+
+func _fill_fixture_backpack(controller: FixtureController) -> void:
+	var inventory: Dictionary = controller.state["inventory"]
+	var items: Dictionary = inventory["items"]
+	var backpack: Array = inventory["backpack"]
+	var template: Dictionary = items["i-junk"]
+	while backpack.size() < Inventory.BACKPACK_SIZE:
+		var item_id := "i-capacity-%02d" % backpack.size()
+		var record := template.duplicate(true)
+		record["id"] = item_id
+		record["data"]["name"] = "Capacity Fixture %02d" % backpack.size()
+		items[item_id] = record
+		backpack.append(item_id)
 
 
 func _test_event_and_retryable_abandon(failures: Array[String]) -> void:

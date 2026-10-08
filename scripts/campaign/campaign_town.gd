@@ -257,7 +257,7 @@ func _section(title: String, key: String) -> Control:
 
 func _select_service(id: String) -> void:
 	_active_service = id
-	_render_panel()
+	_render()
 
 
 func _on_changed(state: Dictionary) -> void:
@@ -502,6 +502,7 @@ func _render_pack() -> void:
 	var equipped: Dictionary = inventory.get("equipped", {})
 	var backpack: Array = inventory.get("backpack", [])
 	var tray: Array = inventory.get("tray", [])
+	var backpack_full := backpack.size() >= Inventory.BACKPACK_SIZE
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 14)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -516,7 +517,9 @@ func _render_pack() -> void:
 		var button := _button("%s   ·   %s" % [ItemData.SLOT_NAMES.get(slot, str(slot)), _item_name(record)], func() -> void: _select_item(item_id, str(slot)), UiStyle.GOLD)
 		button.disabled = item_id.is_empty()
 		item_column.add_child(button)
-	_add_subtitle(item_column, "BACKPACK · %d" % backpack.size())
+	_add_subtitle(item_column, "BACKPACK · %d / %d" % [backpack.size(), Inventory.BACKPACK_SIZE])
+	if backpack_full:
+		_add_copy_to(item_column, "Backpack full. Free a slot to buy, claim, or unequip gear; sell or discard an item here.", UiStyle.MUTED)
 	for item_id_variant: Variant in backpack:
 		var item_id := str(item_id_variant)
 		var rec: Dictionary = items.get(item_id, {})
@@ -560,7 +563,9 @@ func _render_pack() -> void:
 		if equipped_here or in_backpack:
 			var equipped_action := "unequip_item" if equipped_here else "equip_item"
 			var equipped_args: Array = [_selected_slot] if equipped_here else [_selected_item_id]
-			detail_column.add_child(_button("Unequip" if equipped_here else "Equip", func() -> void: _command(equipped_action, equipped_args)))
+			var equip_button := _button("Unequip" if equipped_here else "Equip", func() -> void: _command(equipped_action, equipped_args))
+			equip_button.disabled = equipped_here and backpack_full
+			detail_column.add_child(equip_button)
 		if not equipped_here and not in_tray:
 			detail_column.add_child(_button("Lock / unlock", func() -> void: _toggle_item_mark(_selected_item_id, "locked")))
 			detail_column.add_child(_button("Mark / unmark junk", func() -> void: _toggle_item_mark(_selected_item_id, "junk")))
@@ -626,6 +631,14 @@ func _render_reforge(parent: Control) -> void:
 
 func _render_market() -> void:
 	_add_copy("The Market's stock is saved for this town visit. Compare the item and listed cost before you buy.")
+	var inventory: Dictionary = _state.get("inventory", {})
+	var backpack: Array = inventory.get("backpack", [])
+	var backpack_full := backpack.size() >= Inventory.BACKPACK_SIZE
+	if backpack_full:
+		_add_copy("Backpack · %d / %d — full. Free a slot to buy, claim, or unequip gear; sell or discard an item in Equipment." % [backpack.size(), Inventory.BACKPACK_SIZE])
+		_content.add_child(_button("Open Equipment to free a slot", func() -> void: _select_service("pack"), Color(0.67, 0.82, 0.93)))
+	else:
+		_add_copy("Backpack · %d / %d" % [backpack.size(), Inventory.BACKPACK_SIZE])
 	var shop: Variant = _state.get("shop", [])
 	var stock: Variant = shop.get("stock", []) if shop is Dictionary else shop
 	if stock is Dictionary:
@@ -651,7 +664,7 @@ func _render_market() -> void:
 		row.add_child(label)
 		var price := int(stock_item.get("price", stock_item.get("valuation", 0)))
 		var buy := _button("Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
-		buy.disabled = id.is_empty() or int(_state.get("gold", 0)) < price
+		buy.disabled = id.is_empty() or backpack_full or int(_state.get("gold", 0)) < price
 		row.add_child(buy)
 		var slot := str(data.get("slot", ""))
 		if ItemData.SLOTS.has(slot):
