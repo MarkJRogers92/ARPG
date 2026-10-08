@@ -3,6 +3,7 @@ extends RefCounted
 ## Plain saved facts; no live nodes, resources, positions or combat modifiers.
 
 const SCHEMA_VERSION := 1
+const VETERAN_SWARMS := ["Grunts", "Brutes", "Runners", "Cultists", "Lancers", "Gravediggers", "Shieldbearers", "Menders", "Bloaters", "Collectors", "Phylacteries", "Bosses", "FinalBoss", "Goblins", "Rival", "Thralls"]
 const PHASES := ["TOWN", "EVENT_PENDING", "DEPARTURE_READY", "EXPEDITION_ACTIVE", "RESULT_PENDING", "CAMPAIGN_COMPLETE", "ABANDONED"]
 
 static func fresh(hero: String, seed_value: int, account: Dictionary) -> Dictionary:
@@ -138,22 +139,30 @@ static func validate(state: Variant) -> String:
 	if state["roster"].size() > 3 or state["clauses"].size() > 2: return "Roster or Ledger exceeds capacity."
 	var veteran_ids := {}
 	for veteran in state["roster"]:
-		if not veteran is Dictionary or not veteran.get("id") is String or veteran_ids.has(veteran["id"]) or not Army.ROLES.has(veteran.get("role", "")) or not veteran.get("rank") is int or veteran["rank"] < 1 or veteran["rank"] > 3: return "Invalid veteran."
+		if validate_veteran(veteran, false) != "" or veteran_ids.has(veteran["id"]): return "Invalid or duplicate veteran."
 		veteran_ids[veteran["id"]] = true
 	if state["deployed_veteran"] != "" and not veteran_ids.has(state["deployed_veteran"]): return "Missing deployed veteran."
 	var clause_ids := {}
 	for clause in state["clauses"]:
-		if not clause is Dictionary or not CampaignCatalog.CLAUSES.has(clause.get("id")) or clause_ids.has(clause["id"]): return "Invalid or duplicate Ledger clause."
+		if not clause is Dictionary or not CampaignCatalog.CLAUSES.has(clause.get("id")) or clause_ids.has(clause["id"]) or not clause.get("accepted_biome") is int or clause["accepted_biome"] != state["biome_index"]: return "Invalid or duplicate Ledger clause."
 		clause_ids[clause["id"]] = true
 	for entry in state["shop"]:
 		if not entry is Dictionary or not entry.get("price") is int or entry["price"] < 0 or validate_record(entry.get("item"), "") != "": return "Invalid stock."
 	for receipt in state["outbox"]:
 		if not receipt is Dictionary or not receipt.get("id") is String or not receipt.get("shards") is int or receipt["shards"] < 0 or not receipt.get("kills") is Dictionary: return "Invalid account receipt."
-	for effect in state["effects"]:
-		if not effect is Dictionary or not effect.get("id") in ["quiet_bell", "loaded_passage", "unfinished", "borrowed_battalion"] or not effect.get("node_id") is String: return "Invalid scoped event effect."
-		if effect.has("mods") and validate_mods(effect["mods"]) != "": return "Invalid event modifiers."
+	var effect_error := validate_effects(state["effects"])
+	if effect_error != "": return effect_error
+	var candidate_error := validate_veteran(state["veteran_candidate"], true)
+	if candidate_error != "": return candidate_error
+	for receipt_id in state["receipts"]:
+		var operation = state["receipts"][receipt_id]
+		if not receipt_id is String or not operation is Dictionary or not operation.get("signature") is String or not operation.get("response") is Dictionary: return "Invalid saved operation receipt."
+		var response: Dictionary = operation["response"]
+		if response.get("ok") != true or not response.get("error") is String or response.get("operation_id") != receipt_id: return "Invalid operation response."
 	if not state["event"].is_empty():
 		if not CampaignCatalog.EVENTS.has(state["event"].get("id")) or not state["event"].get("resolved") is bool or not state["event"].get("offers") is Dictionary or not state["event"].get("choices") is Array: return "Invalid route event record."
+		for choice in state["event"]["choices"]:
+			if not choice is Dictionary or not choice.get("id") is String or not choice.get("name") is String: return "Invalid event choice."
 		for offer in state["event"]["offers"].values():
 			if validate_record(offer, "") != "": return "Invalid event offer."
 	if not state["reforge"].is_empty():
@@ -162,6 +171,8 @@ static func validate(state: Variant) -> String:
 	if not state["wager"].is_empty():
 		var bet: Dictionary = state["wager"]
 		if not bet.get("stage") is int or bet["stage"] < 0 or bet["stage"] > 2 or not bet.get("status") in ["open", "won", "lost", "taken"] or not bet.get("prizes") is Array: return "Invalid saved wager."
+		if not (bet.get("chance") is float or bet.get("chance") is int) or bet["chance"] < 0.0 or bet["chance"] > 0.85 or not bet.get("outcome") is Dictionary: return "Invalid wager outcome."
+		if not bet["outcome"].is_empty() and (not bet["outcome"].get("won") is bool or not bet["outcome"].get("stage") is int): return "Malformed wager outcome."
 		for prize in bet["prizes"]:
 			if validate_record(prize, "") != "": return "Invalid wager prize."
 	for offers in state["clause_offers"].values():
@@ -231,11 +242,26 @@ static func validate_spec(spec: Dictionary) -> String:
 	for key in ["duration", "deadline"]:
 		if not (spec.get(key) is float or spec.get(key) is int) or not is_finite(float(spec[key])) or spec[key] < 0: return "Invalid departure timing."
 	if not spec.get("final_boss") is bool or not spec.get("elite") is bool or not spec.get("loot_band") is Array or spec["loot_band"].size() != 2 or not spec.get("effects") is Array or not spec.get("clauses") is Array or not spec.get("objectives") is Dictionary: return "Invalid departure rules."
-	if spec["loot_band"] != CampaignCatalog.BANDS[spec["biome_index"]]: return "Invalid departure loot band."
+	if spec["loot_band"] != CampaignCatalog.BANDS[spec["biome_index"]] or spec["biome_id"] != Realm.ORDER[spec["biome_index"]]: return "Invalid departure loot band."
+	var contract: Dictionary = CampaignCatalog.CONTRACTS[spec["contract_id"]]
+	if spec["duration"] != contract["duration"] or spec["deadline"] != contract["deadline"] or spec["final_boss"] != (spec["contract_id"] == "finale"): return "Departure contract policy was changed."
+	var effect_error := validate_effects(spec["effects"])
+	if effect_error != "": return effect_error
+	var clauses := {}
+	for clause in spec["clauses"]:
+		if not clause is Dictionary or not CampaignCatalog.CLAUSES.has(clause.get("id")) or clauses.has(clause["id"]) or clause.get("accepted_biome") != spec["biome_index"]: return "Invalid departure Ledger."
+		clauses[clause["id"]] = true
+	if clauses.size() > 2: return "Departure Ledger exceeds capacity."
+	if not spec["objectives"].get("seals") is int or spec["objectives"]["seals"] < 0 or spec["objectives"]["seals"] > 3: return "Invalid departure objectives."
 	var loadout = spec.get("starting_loadout")
 	if not loadout is Dictionary or not loadout.get("profile_snapshot") is Dictionary or not loadout.get("inventory") is Dictionary or not loadout.get("talents") is Dictionary or not loadout.get("veteran") is Dictionary: return "Invalid departure loadout."
 	var error := validate_profile(loadout["profile_snapshot"])
 	if error != "": return error
+	error = validate_veteran(loadout["veteran"], true)
+	if error != "": return error
+	if not loadout["veteran"].is_empty() and loadout["veteran"]["rank"] > spec["biome_index"] + 1: return "Departure veteran exceeds biome rank."
+	if not HeroClass.CLASSES.has(loadout.get("hero_class")) or not loadout.get("specialization") is String or not loadout.get("gold") is int or loadout["gold"] < 0: return "Invalid departure character."
+	if loadout["specialization"] != "" and Specializations.find(loadout["hero_class"], loadout["specialization"]).is_empty(): return "Unknown departure specialization."
 	var inv: Dictionary = loadout["inventory"]
 	if not inv.get("equipped") is Dictionary or not inv.get("backpack") is Array or inv["backpack"].size() > Inventory.BACKPACK_SIZE: return "Invalid departure inventory."
 	var copies := {}
@@ -249,6 +275,46 @@ static func validate_spec(spec: Dictionary) -> String:
 		copies[id] = true
 	var talents: Dictionary = loadout["talents"]
 	if not talents.get("points") is int or not talents.get("allocated") is Array: return "Invalid departure talent allocation."
+	var owned := {SkillData.ROOT: true}
+	var spent := 0
 	for id in talents["allocated"]:
-		if not SkillData.NODES.has(id): return "Unknown departure talent."
+		if not id is String or id == SkillData.ROOT or not SkillData.NODES.has(id) or owned.has(id): return "Unknown or duplicate departure talent."
+		owned[id] = true
+		spent += SkillData.cost(id)
+	if not talents.get("earned") is int or talents["earned"] < 3 or talents["earned"] > 18 or talents["points"] < 0 or talents["points"] + spent != talents["earned"]: return "Invalid departure talent budget."
+	var reached := {SkillData.ROOT: true}
+	var frontier: Array = [SkillData.ROOT]
+	while not frontier.is_empty():
+		for id: String in SkillData.neighbors(frontier.pop_back()):
+			if owned.has(id) and not reached.has(id):
+				reached[id] = true
+				frontier.append(id)
+	if reached.size() != owned.size(): return "Disconnected departure talents."
+	return ""
+
+
+static func validate_veteran(record: Variant, allow_empty: bool) -> String:
+	if not record is Dictionary: return "Invalid veteran record."
+	if record.is_empty(): return "" if allow_empty else "Missing veteran identity."
+	for field in ["id", "name", "swarm", "label", "role", "pledge_node"]:
+		if not record.get(field) is String: return "Invalid veteran field: " + field
+	if record["id"] == "" or not record["swarm"] in VETERAN_SWARMS or not Army.ROLES.has(record["role"]): return "Unknown veteran identity or archetype."
+	for field in ["rank", "deeds", "elite", "nights"]:
+		if not record.get(field) is int or record[field] < 0: return "Invalid veteran quantity."
+	if record["rank"] < 1 or record["rank"] > 3 or record["elite"] > 1: return "Invalid veteran rank."
+	return ""
+
+static func validate_effects(effects: Array) -> String:
+	for effect in effects:
+		if not effect is Dictionary or not effect.get("id") in ["quiet_bell", "loaded_passage", "unfinished", "borrowed_battalion"] or not effect.get("node_id") is String: return "Invalid scoped event effect."
+		if effect.has("mods") and validate_mods(effect["mods"]) != "": return "Invalid event modifiers."
+		match effect["id"]:
+			"quiet_bell":
+				if not effect.get("gold") is int or effect["gold"] != -30 or not effect.get("mods") is Array: return "Invalid Quiet Bell contract."
+			"loaded_passage":
+				if not (effect.get("odds") is float or effect.get("odds") is int) or effect["odds"] != 0.05: return "Invalid Loaded Passage odds."
+			"unfinished":
+				if effect.get("specialist") != true or effect.get("bonus_rare") != true: return "Invalid unfinished contract."
+			"borrowed_battalion":
+				if effect.get("minions") != 3: return "Invalid borrowed minion budget."
 	return ""

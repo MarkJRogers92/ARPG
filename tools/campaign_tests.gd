@@ -41,6 +41,12 @@ func _run() -> void:
 	MetaProgress.campaign_fail_save = false
 	for suffix in [".save", ".save.bak", ".save.tmp", ".save.previous", ".save.rollback", ".meta", ".meta.bak", ".meta.tmp", ".meta.rollback"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_root + suffix))
+	# Atomic crash probes may preserve a prior recovery under a unique name.
+	# Remove only this invocation's exact test prefix, never legacy saves.
+	var directory := DirAccess.open("user://")
+	if directory:
+		for file_name: String in directory.get_files():
+			if file_name.begins_with(test_root.get_file()): directory.remove(file_name)
 	controller.free()
 	print("CAMPAIGN TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
 	quit(0 if failures == 0 else 1)
@@ -247,6 +253,18 @@ func _test_validation() -> void:
 	bad = controller.snapshot()
 	bad["talents"]["earned"] = 19
 	check(CampaignState.validate(bad) != "", "oversized talents rejected")
+	bad = controller.snapshot()
+	bad["departure"]["effects"] = [7]
+	check(CampaignState.validate(bad) != "", "malformed saved departure effect rejected")
+	bad = controller.snapshot()
+	bad["departure"]["starting_loadout"]["veteran"] = {"id": "x", "rank": "bad"}
+	check(CampaignState.validate(bad) != "", "malformed saved departure veteran rejected")
+	bad = controller.snapshot()
+	bad["receipts"]["invalid"] = {"signature": 0, "response": 0}
+	check(CampaignState.validate(bad) != "", "malformed operation receipt rejected")
+	bad = controller.snapshot()
+	bad["departure"]["starting_loadout"]["talents"]["allocated"] = [SkillData.ROOT]
+	check(CampaignState.validate(bad) != "", "malformed departure talent allocation rejected")
 
 
 func _event_fixture(event_id: String) -> void:
