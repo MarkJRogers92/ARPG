@@ -278,7 +278,14 @@ which the pause menu's sliders control.
   100, 1,000 and 5,000 kills earn a star, and every star is +1% damage, for
   good.
 - **Daily Night** (title screen): today's realm, omen and seed are the same
-  for every run today. Your best kill count is kept.
+  for every run today. Your best kill count is kept. Every finished Daily
+  Night leaves a shareable code, such as `SB-20261008-K1234-T812-L-BAT-H0YS`
+  (date, kills, seconds survived, won or lost, hero, and a base-36 checksum
+  salted with the day's seed, so typos and edited numbers are rejected;
+  `scripts/daily_code.gd`). The code is on the end screen with a copy button.
+  The Daily Night button opens a panel with today's realm and omen, the last
+  30 dailies (each day's best starred, each with its code to copy) and a box
+  to check a friend's code: it shows the result and that day's night.
 - **Run report** on the end screen: the share of damage dealt by each weapon,
   the army, reactions and burning, plus the omen and heat.
 
@@ -972,18 +979,29 @@ time than these numbers suggest:
 | greedy (damage-first build, plus Soul Legion) | 5 of 6 reached 10:00 (one died at the first boss, 4.0 min) | ~70 | ~30 |
 | random upgrades and nodes | 5 of 6 reached 10:00 (one died at 7.4 min) | ~70 | ~30 |
 
-**Whole nights** (19 minutes of game time, 4 seeds, the bot dodging telegraphs):
+**Whole nights** (19 minutes of game time: the 15-minute night plus 4 minutes
+after dawn; the bot dodging telegraphs). Re-run after the specialist enemies,
+the Reaper's cards, the Reliquary and the mid-boss moves, with 4 seeds in the
+Graveyard and 2 in the other realms (`tools/balance.sh -m 19 -o DIR realm=...`):
 
 | Realm | Damage-first bot | Random picks |
 |---|---|---|
-| The Hollow Graveyard | wins 4 of 4 (final boss falls 50-70 s after dawn) | survives 10 min in 3 of 6 |
-| The Frozen Wastes | wins 2 of 4 | dies at 4-5 min |
-| The Ember Rift | survives 10 min in 2 of 4 | survives 10 min in 1 of 4 |
+| The Hollow Graveyard | survives to 19:00 in 3 of 4 (one died at 10.5 min); level ~71 | survives to 19:00 in 4 of 4; level ~65 |
+| The Frozen Wastes | survives to 19:00 in 2 of 2; level ~65 | 1 of 2 (one died at 6.2 min) |
+| The Ember Rift | survives to 19:00 in 2 of 2; level ~75 | 0 of 2 (died at 6.5 and 17.4 min) |
+
+**No run killed the final boss** in the 4 minutes after dawn the runs allow,
+in any realm (the game itself has no time limit there).
+The same runs on the code from before these features (3 Graveyard seeds) didn't
+either, so the change came earlier, with the tuning that tied the army to the
+hero's power and moved pressure to 5:00 (an earlier table had the damage-first
+bot winning the Graveyard 4 of 4, the boss falling 50-70 s after dawn). The
+bot may simply not finish the boss before the horde of a pressured night
+buries it; worth a look with `-m 25` and the final boss's HP (`FinalBoss.max_hp`
+in `scenes/main.tscn`, and `BossDirector` in `boss_director.gd`).
 
 The later realms are meant to be a step up: by the time you reach them you'll
-have Altar upgrades, which the bots don't. (The Frozen and Ember numbers come
-from slightly earlier tuning: the Frozen run before the hero's chill from witch
-bolts was shortened, and the Ember run at 10 minutes.) The first version of the
+have Altar upgrades and relics, which the bots don't. The first version of the
 hazards aimed half of all ice shards and meteors at where you were heading,
 and with no dodging the bot died at 2-5 minutes in both realms.
 

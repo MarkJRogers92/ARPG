@@ -2,7 +2,7 @@
 # Runs tools/balance_bot.gd for several seeds and policies in parallel and
 # summarizes how long each survived.
 #
-#   tools/balance.sh [-g /path/to/godot] [-s "1 2 3 4"] [-p "greedy tank random"] [-m 20] [-j 4] [-f 60] [overrides...]
+#   tools/balance.sh [-g /path/to/godot] [-s "1 2 3 4"] [-p "greedy tank random"] [-m 20] [-j 4] [-f 60] [-o DIR] [overrides...]
 #
 #   -g  Godot binary (default: $GODOT, then `godot`)
 #   -s  seeds                (default: 1 2 3 4)
@@ -10,6 +10,9 @@
 #   -m  max minutes per run  (default: 20)
 #   -j  parallel runs        (default: number of CPUs)
 #   -f  simulation fps       (default: 60; 30 is about twice as fast but unverified against 60, so explore only)
+#   -o  keep each run's log in DIR (default: a temporary folder, deleted at
+#       the end). Runs whose log in DIR already has a result are skipped, so an
+#       interrupted batch picks up where it stopped when started again.
 #   overrides: node.property=value, e.g. director.rate_growth=0.1
 
 set -euo pipefail
@@ -20,8 +23,9 @@ POLICIES="greedy tank random"
 MINUTES=20
 JOBS="$(nproc 2>/dev/null || echo 4)"
 FPS=60
+KEEP=""
 
-while getopts "g:s:p:m:j:f:" opt; do
+while getopts "g:s:p:m:j:f:o:" opt; do
   case "$opt" in
     g) GODOT_BIN="$OPTARG" ;;
     s) SEEDS="$OPTARG" ;;
@@ -29,6 +33,7 @@ while getopts "g:s:p:m:j:f:" opt; do
     m) MINUTES="$OPTARG" ;;
     j) JOBS="$OPTARG" ;;
     f) FPS="$OPTARG" ;;
+    o) KEEP="$OPTARG" ;;
     *) exit 2 ;;
   esac
 done
@@ -36,14 +41,25 @@ shift $((OPTIND - 1))
 OVERRIDES=("$@")
 
 cd "$(dirname "$0")/.."
-OUT="$(mktemp -d)"
-trap 'rm -rf "$OUT"' EXIT
+if [ -n "$KEEP" ]; then
+  mkdir -p "$KEEP"
+  OUT="$(cd "$KEEP" && pwd)"
+else
+  OUT="$(mktemp -d)"
+  trap 'rm -rf "$OUT"' EXIT
+fi
 
 run_one() {
   local seed="$1" policy="$2"
+  if grep -q '^RESULT ' "$OUT/$policy-$seed.log" 2>/dev/null; then
+    return # finished in an earlier, interrupted batch
+  fi
+  # Written to a .part file and renamed when done, so a killed run never
+  # looks finished.
   "$GODOT_BIN" --headless --path . --fixed-fps "$FPS" -s tools/balance_bot.gd -- \
     "$seed" "$policy" "$MINUTES" "${OVERRIDES[@]}" 2>&1 \
-    | grep -E '^(T|RESULT|OVERRIDE) ' > "$OUT/$policy-$seed.log" || true
+    | grep -E '^(T|RESULT|OVERRIDE) ' > "$OUT/$policy-$seed.log.part" || true
+  mv "$OUT/$policy-$seed.log.part" "$OUT/$policy-$seed.log"
 }
 export -f run_one
 export GODOT_BIN MINUTES OUT FPS

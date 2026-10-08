@@ -52,6 +52,10 @@ static var bestiary := {}
 static var pacts: Array = []
 ## The Daily Night: date -> best kills.
 static var daily := {}
+## Every finished Daily Night, oldest first, at most DAILY_KEPT:
+## {"date", "kills", "seconds", "won", "class", "code"} (see DailyCode).
+static var daily_runs: Array = []
+const DAILY_KEPT := 30
 ## The Crypt: veterans laid to rest after a night, to rise again in another
 ## ({"id", "name", "swarm", "label", "role", "elite", "deeds", "rank", "nights"}),
 ## at most CRYPT_SIZE. One of them (crypt_chosen, an id; -1 for none) rises
@@ -100,6 +104,7 @@ static func load_save() -> void:
 	bestiary = {}
 	pacts = []
 	daily = {}
+	daily_runs = []
 	crypt = []
 	fallen = []
 	crypt_chosen = -1
@@ -143,6 +148,10 @@ static func load_save() -> void:
 		var saved_daily = data.get("daily", {})
 		if saved_daily is Dictionary:
 			daily = saved_daily
+		# Added after version 3: older saves simply have no history yet.
+		var saved_runs = data.get("daily_runs", [])
+		if saved_runs is Array:
+			daily_runs = saved_runs.filter(func(r) -> bool: return r is Dictionary and r.has("date") and r.has("code"))
 		var saved_crypt = data.get("crypt", [])
 		if saved_crypt is Array:
 			crypt = saved_crypt.filter(func(v) -> bool: return v is Dictionary and v.has("id") and v.has("name"))
@@ -199,7 +208,7 @@ static func save() -> void:
 		return
 	file.store_var({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
 			"settings": settings, "classes": classes, "hero_class": hero_class,
-			"bestiary": bestiary, "pacts": pacts, "daily": daily,
+			"bestiary": bestiary, "pacts": pacts, "daily": daily, "daily_runs": daily_runs,
 			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
 			"ascension": ascension, "ascension_unlocked": ascension_unlocked,
 			"nemesis": nemesis, "nemeses_slain": nemeses_slain,
@@ -265,6 +274,19 @@ static func record_daily(date: String, kills: int) -> bool:
 	daily[date] = kills
 	save()
 	return true
+
+
+## A finished Daily Night joins the history. `replace_last` updates the entry
+## just added instead (a won night that went on past dawn, then fell).
+static func add_daily_run(entry: Dictionary, replace_last := false) -> void:
+	_ensure_loaded()
+	if replace_last and not daily_runs.is_empty():
+		daily_runs[-1] = entry
+	else:
+		daily_runs.append(entry)
+	while daily_runs.size() > DAILY_KEPT:
+		daily_runs.pop_front()
+	save()
 
 
 static func set_ascension(level: int) -> void:

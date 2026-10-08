@@ -27,6 +27,8 @@ var _bestiary_label: Label
 var _relic_overlay: Control
 var _relic_box: VBoxContainer
 var _relic_button: Button
+var _daily_overlay: Control
+var _daily_box: VBoxContainer
 
 
 func _ready() -> void:
@@ -52,7 +54,7 @@ func is_open() -> bool:
 func _input(event: InputEvent) -> void:
 	if not is_open() or not event.is_action_pressed("ui_cancel"):
 		return
-	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay, _relic_overlay]:
+	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay, _relic_overlay, _daily_overlay]:
 		if overlay and overlay.visible:
 			overlay.hide()
 			_refresh_pact_button()
@@ -198,14 +200,13 @@ func _build() -> void:
 	bottom.add_child(crypt_button)
 	var daily_button := Button.new()
 	daily_button.text = "Daily Night"
-	daily_button.tooltip_text = "Today's realm, omen and seed are the same for every run today. Beat your best kill count."
+	daily_button.tooltip_text = "Today's realm, omen and seed are the same for every run today. Beat your best kill count, and share the code."
 	daily_button.custom_minimum_size = Vector2(150, 46)
 	daily_button.add_theme_color_override("font_color", UiStyle.GOLD)
 	daily_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
-		var unlocked := Realm.ORDER.filter(func(id: String) -> bool: return MetaProgress.is_unlocked(id))
-		Realm.daily = true
-		chosen.emit(Realm.daily_pick(unlocked)["realm"]))
+		_fill_daily()
+		_daily_overlay.show())
 	bottom.add_child(daily_button)
 	var quit := Button.new()
 	quit.text = "Quit"
@@ -231,6 +232,11 @@ func _build() -> void:
 	_relic_box = VBoxContainer.new()
 	_relic_box.add_theme_constant_override("separation", 8)
 	(_relic_overlay.get_meta("box") as VBoxContainer).add_child(_relic_box)
+	_daily_overlay = _overlay()
+	_daily_box = VBoxContainer.new()
+	_daily_box.add_theme_constant_override("separation", 8)
+	_daily_box.custom_minimum_size.x = 700
+	(_daily_overlay.get_meta("box") as VBoxContainer).add_child(_daily_box)
 	_refresh_pact_button()
 
 	# The Altar, over everything.
@@ -529,6 +535,120 @@ func _fill_bestiary() -> void:
 				break
 		lines.append("%s   %s   %d slain%s" % ["★".repeat(stars) + "☆".repeat(3 - stars), kind, MetaProgress.bestiary[kind], next])
 	_bestiary_label.text = "\n".join(lines)
+
+
+## The Daily Night: today's realm and omen, a button to play it, the past
+## nights with their codes, and a box to check a friend's code.
+func _fill_daily() -> void:
+	for child in _daily_box.get_children():
+		child.queue_free()
+	var title := UiStyle.label(30)
+	title.text = "DAILY NIGHT"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", UiStyle.GOLD)
+	_daily_box.add_child(title)
+	var unlocked := Realm.ORDER.filter(func(id: String) -> bool: return MetaProgress.is_unlocked(id))
+	var today := Realm.today()
+	var pick := Realm.daily_pick(unlocked)
+	var info := UiStyle.label(16)
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.text = "%s   ·   %s   ·   Omen: %s   ·   your best today: %s" % [today, Realm.REALMS[pick["realm"]]["name"],
+			RunModifiers.OMENS[RunModifiers.roll_omen(pick["omen"])]["name"],
+			("%d kills" % MetaProgress.daily[today]) if MetaProgress.daily.has(today) else "none yet"]
+	_daily_box.add_child(info)
+	var play := Button.new()
+	play.text = "Play today's night"
+	play.custom_minimum_size = Vector2(260, 46)
+	play.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	play.add_theme_color_override("font_color", UiStyle.GOLD)
+	play.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		Realm.daily = true
+		chosen.emit(pick["realm"]))
+	_daily_box.add_child(play)
+	play.grab_focus.call_deferred()
+
+	_daily_box.add_child(_heading("PAST NIGHTS   ·   ★ the best of its day"))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(700, 230)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_daily_box.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+	if MetaProgress.daily_runs.is_empty():
+		var empty := UiStyle.label(15)
+		empty.text = "No Daily Night finished yet. Each one leaves a code here to share."
+		empty.modulate = Color(1, 1, 1, 0.7)
+		list.add_child(empty)
+	# Each day's best: the first run that reached its record.
+	var starred := {}
+	for i in MetaProgress.daily_runs.size():
+		var r: Dictionary = MetaProgress.daily_runs[i]
+		if not starred.has(r["date"]) and r.get("kills", 0) == MetaProgress.daily.get(r["date"], -1):
+			starred[r["date"]] = i
+	for i in range(MetaProgress.daily_runs.size() - 1, -1, -1):
+		var r: Dictionary = MetaProgress.daily_runs[i]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var text := UiStyle.label(15)
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var best: bool = starred.get(r["date"], -1) == i
+		text.text = "%s %s   ·   %s\n     %s" % ["★" if best else "   ", r["date"], _daily_result(r), r["code"]]
+		if best:
+			text.add_theme_color_override("font_color", UiStyle.GOLD)
+		row.add_child(text)
+		var copy := Button.new()
+		copy.text = "Copy code"
+		copy.custom_minimum_size = Vector2(120, 34)
+		copy.add_theme_font_size_override("font_size", 14)
+		copy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var code: String = r["code"]
+		copy.pressed.connect(func() -> void:
+			copy.text = "Copied"
+			Sound.play("ui_click")
+			DisplayServer.clipboard_set(code))
+		row.add_child(copy)
+		list.add_child(row)
+
+	_daily_box.add_child(_heading("CHECK A CODE"))
+	var check_row := HBoxContainer.new()
+	check_row.add_theme_constant_override("separation", 10)
+	_daily_box.add_child(check_row)
+	var field := LineEdit.new()
+	field.placeholder_text = "SB-20261008-K1234-T1432-W-REA-7Q2F"
+	field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	field.custom_minimum_size.y = 36
+	check_row.add_child(field)
+	var check := Button.new()
+	check.text = "Check"
+	check.custom_minimum_size = Vector2(120, 36)
+	check_row.add_child(check)
+	var verdict := UiStyle.label(15)
+	verdict.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_daily_box.add_child(verdict)
+	var run_check := func() -> void:
+		Sound.play("ui_click")
+		var parts := DailyCode.decode(field.text)
+		if parts.is_empty():
+			verdict.text = "That isn't a valid code (a typo, or it was changed)."
+			verdict.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+			return
+		var day := Realm.daily_pick(Realm.ORDER, parts["date"])
+		verdict.text = "A true code:  %s   ·   %s\nThat day's night: %s, Omen: %s (with every realm open)" % [parts["date"],
+				_daily_result(parts), Realm.REALMS[day["realm"]]["name"], RunModifiers.OMENS[RunModifiers.roll_omen(day["omen"])]["name"]]
+		verdict.add_theme_color_override("font_color", UiStyle.GOLD)
+	check.pressed.connect(run_check)
+	field.text_submitted.connect(func(_text: String) -> void: run_check.call())
+
+
+## "1234 kills   ·   23:52   ·   won   ·   Reaper" for a history entry or a
+## decoded code.
+func _daily_result(r: Dictionary) -> String:
+	var secs: int = r.get("seconds", 0)
+	return "%d kills   ·   %d:%02d   ·   %s   ·   %s" % [r.get("kills", 0), secs / 60, secs % 60,
+			"won" if r.get("won", false) else "fell", HeroClass.data(r.get("class", "battlemage"))["name"]]
 
 
 func _class_button(id: String) -> Button:
