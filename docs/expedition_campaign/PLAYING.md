@@ -17,7 +17,9 @@ Short success freezes combat and returns you after a two-second ritual. Death lo
 
 Campaign gear, gold, talents, specialization and up to three veterans persist. Combat XP, level-up cards, ordinary army, cooldowns and temporary effects reset on each departure. Three starting talent points grow to a maximum of 18 before the final boss; specialization unlocks after your first short clear. Visit the Trainer for free talent and specialization changes.
 
-Use Equipment and the Market to compare exact rolled gear, equip, lock favorites, mark junk, sell, buy finite stock and reforge once per item per biome. New stock appears only after a new combat clear. Full-inventory rewards wait safely in the reward tray; resolve it before departing. No departure fee or healing bill applies.
+Use Equipment and the Market to compare exact rolled gear against what you currently wear, equip, lock favorites, mark junk, sell, buy finite stock and reforge once per item per biome. The results screen and Ferryman use the same read-only comparison, including both legendary power descriptions and Added, Increased and More modifier totals. New stock appears only after a new combat clear. Full-inventory rewards wait safely in the reward tray; resolve it before departing. No departure fee or healing bill applies.
+
+After an expedition, the results recap shows its outcome, recorded damage causes and objectives, progression, and exact gold/talent changes. It distinguishes banked field or reward gear from prizes still reserved by the Ferryman. Choosing a town shortcut acknowledges the result first and opens the service only when that succeeds. Reports omit details that were not recorded; they do not score an overall item or build.
 
 The route board's **Before You Depart** panel lists required blockers separately from optional preparation and opens the service for each required action. Optional talent spending, specialization, and veteran deployment never block departure. A pending reward delivery can be retried from the campaign record after leaving.
 
