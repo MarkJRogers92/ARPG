@@ -265,7 +265,8 @@ func _ready() -> void:
 	_power_ups.setup(_player, _director, [_gems, _souls] as Array[GemSwarm])
 	_power_ups.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	_bosses.final_spawned.connect(func(boss_name: String) -> void:
-		_hud.title_card(boss_name, "The biome's master has arrived. Slay it to claim the route.", Color(1.0, 0.35, 0.3) if _campaign else Color(1.0, 0.35, 0.3))
+		var subtitle := CampaignGuidance.guardian_intro(_final_mech.kind()) if _campaign else "The biome's master has arrived. Slay it to claim the route."
+		_hud.title_card(boss_name, subtitle, Color(1.0, 0.35, 0.3), _campaign)
 		Sound.play("boss_title")
 		_hud.toast(("The final guardian rises: %s!" if _campaign else "Dawn is near... %s rises!") % boss_name, Color(1.0, 0.35, 0.3)))
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
@@ -590,7 +591,12 @@ func _process(delta: float) -> void:
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
-		hint = _rival.hint if _rival.hint != "" else (_final_mech.hint if _final_mech.hint != "" else _mid_mech.hint)
+		if _rival.hint != "":
+			hint = _rival.hint
+		elif _campaign:
+			hint = _mid_mech.hint
+		else:
+			hint = _final_mech.hint if _final_mech.hint != "" else _mid_mech.hint
 	_hud.set_bet(hint)
 	_update_frenzy(delta)
 	_sample_in -= delta
@@ -671,6 +677,13 @@ func _process(delta: float) -> void:
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
 	if _campaign:
 		_hud.set_expedition(_expedition.objective_text(), _expedition.clock_text(_director.elapsed))
+		var guidance := ""
+		if not _expedition_terminal:
+			if not _expedition.finale or not _bosses.final_arrived:
+				guidance = _expedition.guidance_text()
+			elif _bosses.final_alive():
+				guidance = CampaignGuidance.guardian_hint(_final_mech.kind(), _final_mech.hint, _final_mech._lines.size())
+		_hud.set_campaign_guidance(guidance)
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()

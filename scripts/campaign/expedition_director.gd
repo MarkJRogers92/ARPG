@@ -67,7 +67,7 @@ func configure(mission: Dictionary, owner: Node3D, player: Player, wave: WaveDir
 		for i in 3:
 			_add_site("seal_%d" % (i + 1), OBJECTIVE_COLOR, "SEAL %d / 3" % (i + 1))
 	elif cache_enabled:
-		_add_site("cache", CACHE_COLOR, "CURSED CACHE  ·  E")
+		_add_site("cache", CACHE_COLOR, "CURSED CACHE  ·  %s" % Controls.tag("interact"))
 	if contract_id == "elite_hunt":
 		_add_site("elite", ELITE_COLOR, "MARKED ELITE")
 	if finale:
@@ -325,6 +325,11 @@ func objective_text() -> String:
 			return "Cursed cache: %s  ·  survive to 6:00" % ("claimed" if cache_claimed else "optional")
 		_:
 			return "Survive to 5:00  ·  extraction is automatic"
+
+
+func guidance_text() -> String:
+	return CampaignGuidance.contract_action(contract_id, seals, _elite_spawned,
+			elite_dead, cache_claimed, _bosses.final_arrived if _bosses else false)
 
 
 func clock_text(elapsed: float) -> String:
