@@ -50,6 +50,16 @@ func _run() -> void:
 		return
 	check(not town._body_row.visible and town._walk.walking, "walking view starts with controls available and panels hidden")
 	if not capture_path.is_empty():
+		if capture_screen == "departure":
+			var routes: Array = controller.available_routes()
+			if not routes.is_empty():
+				var choice := controller.choose_route(str(routes[0].get("id", "")))
+				if bool(choice.get("ok", false)) and controller.state.get("phase") == "EVENT_PENDING":
+					var event: Dictionary = controller.state.get("event", {})
+					var choices: Array = event.get("choices", [])
+					if not choices.is_empty():
+						controller.resolve_event(str(choices[0].get("id", "leave")))
+			town._active_service = "route"
 		var capture_state := controller.snapshot()
 		capture_state["cleared_nodes"] = ["0:1:0", "0:2:0"]
 		if capture_screen == "return":
@@ -63,6 +73,8 @@ func _run() -> void:
 				"shard_conversion": 5, "talent_points": 1,
 				"report": {"summary": "The first route is clear. Your gear and rewards are waiting in the Last Lantern."}}
 		town._on_changed(capture_state)
+		if capture_screen == "departure":
+			town._open_station("route")
 		for _frame in 6:
 			await process_frame
 		var viewport_texture := root.get_texture()
@@ -74,6 +86,8 @@ func _run() -> void:
 		var save_error := image.save_png(capture_path)
 		check(save_error == OK, "real-render capture saves (%s)" % error_string(save_error))
 		town._on_changed(controller.snapshot())
+		if capture_screen == "departure":
+			town._close_panel()
 	var progress_state := controller.snapshot()
 	town._walk.present(progress_state)
 	check(_visible_votives(town._walk) == 0, "the apse starts quiet with no cleared route nodes")

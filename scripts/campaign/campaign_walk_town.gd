@@ -61,6 +61,9 @@ var _mist: Array[MeshInstance3D] = []
 var _mist_origins: Array[Vector3] = []
 var _wisps: Array[MeshInstance3D] = []
 var _returning_votives: Array[MeshInstance3D] = []
+var _journey_dressing: Node3D
+var _journey_stage_key := ""
+var _ferryman_story: Label3D
 var _footstep_left := 0.0
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
@@ -68,7 +71,7 @@ var _footstep_left := 0.0
 const BIOMES := [
 	{"ground": Color(0.08, 0.11, 0.075), "ambient": Color(0.45, 0.62, 0.68), "fog": Color(0.06, 0.12, 0.13),
 		"props": [["grass", 70], ["bush", 14], ["tree", 12], ["grave", 12], ["rock", 10], ["mushroom", 10], ["bones", 6]]},
-	{"ground": Color(0.62, 0.68, 0.76), "ambient": Color(0.62, 0.72, 0.9), "fog": Color(0.42, 0.5, 0.62),
+	{"ground": Color(0.43, 0.52, 0.63), "ambient": Color(0.46, 0.57, 0.72), "fog": Color(0.22, 0.31, 0.44),
 		"props": [["pine", 22], ["snowrock", 16], ["ice", 12], ["rock", 8], ["grave", 6]]},
 	{"ground": Color(0.16, 0.08, 0.06), "ambient": Color(0.82, 0.5, 0.36), "fog": Color(0.22, 0.08, 0.04),
 		"props": [["ashtree", 18], ["obsidian", 16], ["brimstone", 12], ["rock", 10], ["bones", 8]]},
@@ -105,6 +108,7 @@ func present(state: Dictionary) -> void:
 	var cleared: Array = state.get("cleared_nodes", [])
 	for i in _returning_votives.size():
 		_returning_votives[i].visible = i < mini(cleared.size(), _returning_votives.size())
+	_present_journey_dressing(state, cleared)
 	var info: Dictionary = HeroClass.data(str(state.get("hero_class", "")))
 	if info.has("look"):
 		_hero.set_body(info["look"])
@@ -288,6 +292,7 @@ func _build_lantern() -> void:
 		_blockers.append([Vector2(x, -8.75), 1.0])
 	_light(Vector3(0, 5.0, 0), SOUL, 3.0, 14.0)
 	_build_returning_votives()
+	_build_ferryman_story()
 	_build_flagstones()
 	_build_houses()
 	_build_lamps()
@@ -314,6 +319,132 @@ func _build_returning_votives() -> void:
 		votive.visible = false
 		add_child(votive)
 		_returning_votives.append(votive)
+
+
+func _build_ferryman_story() -> void:
+	_ferryman_story = Label3D.new()
+	_ferryman_story.name = "TheFerrymanRemembers"
+	_ferryman_story.position = Vector3(-3.5, 2.75, 6.75)
+	_ferryman_story.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_ferryman_story.font_size = 38
+	_ferryman_story.outline_size = 6
+	_ferryman_story.modulate = Color(0.88, 0.82, 0.68, 0.94)
+	_ferryman_story.text = ""
+	_ferryman_story.visible = false
+	add_child(_ferryman_story)
+
+
+## The same campaign fields that drive the inset trophies also dress the full
+## sanctuary. Replacing the small dedicated branch prevents stale trophies as
+## the campaign moves between biomes, while leaving its saved state untouched.
+func _present_journey_dressing(state: Dictionary, cleared: Array) -> void:
+	var success_value: Variant = state.get("successful_nodes", {})
+	var success_count: int = success_value.size() if success_value is Array or success_value is Dictionary else 0
+	var biome := clampi(int(state.get("biome_index", 0)), 0, BIOMES.size() - 1)
+	var complete := bool(state.get("completed", false))
+	var stage_key := "%d:%d:%d:%s" % [biome, cleared.size(), success_count, str(complete)]
+	if stage_key == _journey_stage_key:
+		return
+	_journey_stage_key = stage_key
+	if is_instance_valid(_journey_dressing):
+		remove_child(_journey_dressing)
+		_journey_dressing.free()
+	_journey_dressing = Node3D.new()
+	_journey_dressing.name = "JourneyProgressDressings"
+	add_child(_journey_dressing)
+	_ferryman_story.visible = success_count > 0 or complete
+	if complete:
+		_ferryman_story.text = "At last, dawn has found the road."
+	elif biome >= 2:
+		_ferryman_story.text = "The Rift burns; our lantern burns longer."
+	elif biome == 1:
+		_ferryman_story.text = "The Lich's crown casts no shadow here."
+	elif success_count > 0:
+		_ferryman_story.text = "A light came home. The roads remember."
+	else:
+		_ferryman_story.text = ""
+	if success_count > 0:
+		_add_first_road_memorial()
+	if biome >= 1:
+		_add_guardian_trophy(false)
+	if biome >= 2:
+		_add_guardian_trophy(true)
+	if complete:
+		_add_restoration_arch()
+
+
+func _add_first_road_memorial() -> void:
+	var kit := MeshKit.new()
+	kit.flat = true
+	var center := Vector3(-4.5, 0, -0.2)
+	kit.box(Vector3(1.1, 0.18, 0.92), MeshKit.at(center + Vector3(0, 0.1, 0)), Color(0.24, 0.26, 0.29))
+	kit.box(Vector3(0.78, 0.55, 0.68), MeshKit.at(center + Vector3(0, 0.42, 0)), Color(0.34, 0.35, 0.36))
+	kit.box(Vector3(0.92, 0.12, 0.82), MeshKit.at(center + Vector3(0, 0.76, 0)), Color(0.61, 0.43, 0.24))
+	kit.box(Vector3(0.13, 0.43, 0.06), MeshKit.at(center + Vector3(0, 1.02, -0.25)), Color(0.95, 0.79, 0.4), 0.2)
+	kit.box(Vector3(0.32, 0.08, 0.06), MeshKit.at(center + Vector3(0, 1.03, -0.25)), Color(0.95, 0.79, 0.4), 0.2)
+	var memorial := _progress_mesh("FirstRoadMemorial", kit)
+	memorial.position = Vector3.ZERO
+	var plaque := Label3D.new()
+	plaque.name = "FirstRoadInscription"
+	plaque.text = "FIRST RETURN"
+	plaque.position = center + Vector3(0, 1.72, 0)
+	plaque.font_size = 32
+	plaque.outline_size = 5
+	plaque.modulate = Color(0.95, 0.79, 0.4)
+	plaque.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_journey_dressing.add_child(plaque)
+
+
+func _add_guardian_trophy(frost: bool) -> void:
+	var kit := MeshKit.new()
+	var center := Vector3(4.25 if frost else -5.5, 0, 0.1 if frost else -2.7)
+	var accent := Color(0.6, 0.84, 0.94) if frost else Color(0.77, 0.69, 0.47)
+	kit.box(Vector3(1.15, 0.2, 0.92), MeshKit.at(center + Vector3(0, 0.12, 0)), Color(0.14, 0.18, 0.24))
+	kit.box(Vector3(0.78, 0.48, 0.65), MeshKit.at(center + Vector3(0, 0.46, 0)), Color(0.3, 0.34, 0.4))
+	kit.box(Vector3(1.0, 0.14, 0.84), MeshKit.at(center + Vector3(0, 0.77, 0)), Color(0.61, 0.43, 0.24))
+	if frost:
+		kit.sphere(0.34, MeshKit.at(center + Vector3(0, 1.35, 0), Vector3(0, 20, 12), Vector3(0.8, 1.4, 0.8)), accent, 0.32, 5, 3)
+		for dx: float in [-0.28, 0.28]:
+			kit.box(Vector3(0.07, 0.4, 0.08), MeshKit.at(center + Vector3(dx, 1.21, 0), Vector3(0, 0, -signf(dx) * 18)), Color(0.61, 0.43, 0.24))
+	else:
+		kit.torus(0.25, 0.35, MeshKit.at(center + Vector3(0, 1.26, 0)), accent)
+		for i in 5:
+			var angle := TAU * float(i) / 5.0
+			kit.cylinder(0, 0.075, 0.39, MeshKit.at(center + Vector3(sin(angle) * 0.29, 1.46, cos(angle) * 0.29)), accent, 0, 4)
+		kit.sphere(0.08, MeshKit.at(center + Vector3(0, 1.3, 0.33)), Color(0.39, 0.3, 0.55), 0.22, 6, 3)
+	var name := "FrostColossusTrophy" if frost else "LichKingTrophy"
+	_progress_mesh(name, kit)
+
+
+func _add_restoration_arch() -> void:
+	var kit := MeshKit.new()
+	var brass := Color(0.61, 0.43, 0.24)
+	for x: float in [-3.75, 3.75]:
+		kit.box(Vector3(0.18, 0.72, 0.2), MeshKit.at(Vector3(x, 3.45, -4.25)), brass.lightened(0.14))
+	kit.box(Vector3(7.55, 0.16, 0.24), MeshKit.at(Vector3(0, 3.84, -4.25)), brass.lightened(0.18))
+	for i in 7:
+		var x := -2.7 + i * 0.9
+		var y := 3.7 - (1.0 - absf(x) / 3.1) * 0.22
+		kit.box(Vector3(0.24, 0.32, 0.05), MeshKit.at(Vector3(x, y, -4.1), Vector3(0, 0, 45)), brass.lightened(0.28), 0.2)
+	_progress_mesh("RestoredLanternArch", kit)
+	var flowers := MeshKit.new()
+	for side: float in [-1.0, 1.0]:
+		for i in 4:
+			var center := Vector3(side * (4.0 + 0.32 * (i % 2)), 0.16, -2.2 + i * 0.9)
+			for j in 3:
+				var offset := Vector3(float(j - 1) * 0.13, 0.18 + 0.03 * j, float(j % 2) * 0.08)
+				flowers.box(Vector3(0.04, 0.32, 0.04), MeshKit.at(center + offset, Vector3(0, 0, float(j - 1) * 14)), Color(0.34, 0.48, 0.35))
+				flowers.sphere(0.075, MeshKit.at(center + offset + Vector3(0, 0.18, 0)), Color(0.95, 0.76, 0.4), 0.15, 5, 3)
+	_progress_mesh("RestoredLanternGarden", flowers)
+
+
+func _progress_mesh(node_name: String, kit: MeshKit) -> MeshInstance3D:
+	var instance := MeshInstance3D.new()
+	instance.name = node_name
+	instance.mesh = kit.commit(Models.material("kit"))
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_journey_dressing.add_child(instance)
+	return instance
 
 
 ## Cobbled square and streets. Stones are committed in small chunks: the
