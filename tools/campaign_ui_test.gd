@@ -10,6 +10,8 @@ class FixtureController:
 	var abandon_response := {"ok": true, "error": ""}
 	var delivery_response := {"ok": true, "error": ""}
 	var acknowledge_response := {"ok": true, "error": ""}
+	var ledger_offers: Array = []
+	var last_clause_accept: Array = []
 
 	func _init() -> void:
 		state = {
@@ -54,7 +56,11 @@ class FixtureController:
 		return {"ok": true, "spec": {"node_id": state.get("selected_node", "g-1-a")}}
 
 	func clause_offers(_slot: String) -> Array:
-		return []
+		return ledger_offers.duplicate(true)
+
+	func accept_clause(clause_id: String, slot: String, offer_index: int) -> Dictionary:
+		last_clause_accept = [clause_id, slot, offer_index]
+		return {"ok": true, "error": ""}
 
 	func resolve_event(_choice_id: String, _operation_id := "", _selection: Dictionary = {}) -> Dictionary:
 		state["event"] = {}
@@ -137,7 +143,7 @@ func _run() -> void:
 	capture_viewport.add_child(controller)
 	town.setup(controller)
 	if screen not in ["route", "route-rewards"]:
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen in ["trainer-reaper", "trainer-inspection", "trainer-specializations"] else ("route" if screen == "route-effects" else screen))))
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen in ["trainer-reaper", "trainer-inspection", "trainer-specializations"] else ("route" if screen == "route-effects" else ("ledger" if screen in ["ledger-comparison", "ledger-choice-detail"] else screen)))))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -173,6 +179,18 @@ func _run() -> void:
 		if screen == "comparison":
 			controller.state["inventory"]["items"]["i-rare"]["data"]["power"] = "stormcaller"
 			controller.state["inventory"]["items"]["i-rare"]["data"]["affixes"] = [{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.15}, {"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 4.0}]
+		if screen in ["ledger-comparison", "ledger-choice-detail"]:
+			controller.state["inventory"]["items"]["i-weapon"]["data"]["power"] = "splitting"
+			controller.ledger_offers = [
+				{"id": "offer-one", "valuation": 140, "data": {"slot": "weapon", "name": "Rain's First Promise", "base_name": "Promise", "rarity": 3, "ilvl": 13,
+					"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 12.0}], "affixes": [{"id": "one", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.20}], "power": "stormcaller"}},
+				{"id": "offer-two", "valuation": 160, "data": {"slot": "weapon", "name": "Rain's Second Promise", "base_name": "Promise", "rarity": 3, "ilvl": 14,
+					"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 15.0}], "affixes": [{"id": "two-a", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.25},
+						{"id": "two-b", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.08}], "power": "stormcaller"}},
+				{"id": "offer-three", "valuation": 180, "data": {"slot": "weapon", "name": "Rain's Third Promise", "base_name": "Promise", "rarity": 3, "ilvl": 15,
+					"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 18.0}], "affixes": [{"id": "three-a", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.30},
+						{"id": "three-b", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.10}], "power": "stormcaller"}},
+			]
 		if screen == "route-effects":
 			controller.state["phase"] = "DEPARTURE_READY"
 			controller.state["selected_node"] = "g-1-a"
@@ -181,6 +199,9 @@ func _run() -> void:
 				{"stat": "max_hp", "op": PlayerStats.Op.INCREASED, "value": 0.10},
 			]}]
 		town._state = controller.snapshot()
+		if screen in ["ledger-comparison", "ledger-choice-detail"]:
+			town._stolen_offers = controller.ledger_offers.duplicate(true)
+			town._clause_offer = 1
 		town._render()
 		if screen == "equipment-tools":
 			await process_frame
@@ -203,6 +224,12 @@ func _run() -> void:
 			await process_frame
 		if screen == "comparison":
 			town._select_item("i-rare", "weapon")
+		if screen in ["ledger-comparison", "ledger-choice-detail"]:
+			await process_frame
+			var ledger_scroll := town._content.get_parent() as ScrollContainer
+			var scroll_max := int(ledger_scroll.get_v_scroll_bar().max_value)
+			ledger_scroll.scroll_vertical = scroll_max if screen == "ledger-comparison" else mini(350, scroll_max)
+			await process_frame
 	await process_frame
 	await process_frame
 	await process_frame
@@ -211,8 +238,11 @@ func _run() -> void:
 		route_scroll.scroll_vertical = int(route_scroll.get_v_scroll_bar().max_value)
 		await process_frame
 		await process_frame
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
+	if DisplayServer.get_name() == "headless":
+		await process_frame
+	else:
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
 	var image := capture_viewport.get_texture().get_image()
 	if image.is_empty():
 		push_error("Campaign UI fixture could not capture the viewport")
@@ -242,7 +272,11 @@ func _run_behavior_test() -> void:
 	town.setup(controller)
 	await process_frame
 	await _test_keyboard_entry(town, failures)
+	await _test_ledger_offer_inspection(failures)
+	await _test_real_stolen_arsenal_acceptance(failures)
+	(town._service_buttons["route"] as Button).grab_focus()
 	_test_real_snapshot_rendering(town, controller, failures)
+	await _test_veteran_recruitment_details(temp_root, failures)
 	await _test_equipment_tools(failures)
 
 	# Exercise the market and equipment commands through actual UI button callbacks.
@@ -1202,6 +1236,85 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	fixture.free()
 
 
+func _test_veteran_recruitment_details(temp_root: String, failures: Array[String]) -> void:
+	var original_save_path := CampaignSave.path
+	CampaignSave.path = temp_root + "-roster.save"
+	var controller := CampaignController.new()
+	root.add_child(controller)
+	if not controller.create("battlemage", 70914).get("ok", false):
+		failures.append("roster recruitment test creates its isolated real campaign")
+		controller.free()
+		CampaignSave.path = original_save_path
+		return
+	controller.state["biome_index"] = 0
+	controller.state["roster"] = [
+		{"id": "replace-cinder", "name": "Cinder", "swarm": "Grunts", "label": "Veteran", "role": "brawler", "elite": 0, "rank": 2, "deeds": 60, "nights": 2, "pledge_node": ""},
+		{"id": "pledged-morrow", "name": "Morrow", "swarm": "Cultists", "label": "Veteran", "role": "caster", "elite": 0, "rank": 1, "deeds": 12, "nights": 0, "pledge_node": "g-1-a"},
+		{"id": "keep-ash", "name": "Ash", "swarm": "Brutes", "label": "Veteran", "role": "bulwark", "elite": 0, "rank": 1, "deeds": 3, "nights": 0, "pledge_node": ""},
+	]
+	controller.state["deployed_veteran"] = "replace-cinder"
+	controller.state["veteran_candidate"] = {"id": "candidate-exact-42", "name": "Ash-in-the-Reeds", "swarm": "Bosses", "label": "Hero", "role": "tyrant", "elite": 0, "rank": 3, "deeds": 300, "nights": 4, "pledge_node": ""}
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(controller)
+	town._active_service = "roster"
+	town._render()
+	await process_frame
+	var candidate_info := _find_label(town, "Ash-in-the-Reeds")
+	if candidate_info == null or not candidate_info.text.contains("Tyrant") or not candidate_info.text.contains("Rank 3 (travels as 1; biome rank cap 1)") or not candidate_info.text.contains("Kills (deeds): 300") or not candidate_info.text.contains("Nights: 4"):
+		failures.append("candidate details show the readable role, effective biome rank cap, kills, and nights")
+	var pledged_replace := _find_button(town, "Replace Morrow")
+	var add_candidate := _find_button(town, "Add to the roster")
+	if pledged_replace == null or not pledged_replace.disabled or _find_label(town, "pledged and cannot be replaced until that route clears") == null:
+		failures.append("pledged veterans cannot be selected for replacement and explain why")
+	if add_candidate == null or not add_candidate.disabled or _find_label(town, "The roster is full. Replace an available veteran") == null:
+		failures.append("a full roster keeps direct addition disabled with a clear explanation")
+	var before_cancel := controller.snapshot()
+	var available_replace := _find_button(town, "Replace Ash")
+	if available_replace == null:
+		failures.append("an unpledged veteran remains an available replacement choice")
+	else:
+		available_replace.pressed.emit()
+		var cancel_dialog := _find_confirmation(root)
+		if cancel_dialog == null:
+			failures.append("choosing replacement opens an explicit confirmation")
+		else:
+			var cancel_dialog_text := cancel_dialog.dialog_text
+			if not cancel_dialog_text.contains("Ash") or not cancel_dialog_text.contains("Ash-in-the-Reeds"):
+				failures.append("replacement confirmation names both the current and incoming veteran")
+			cancel_dialog.hide()
+			cancel_dialog.queue_free()
+			await process_frame
+			if controller.snapshot() != before_cancel:
+				failures.append("canceling replacement leaves the campaign roster and candidate unchanged")
+		var replace_cinder := _find_button(town, "Replace Cinder")
+		if replace_cinder == null:
+			failures.append("the selected current veteran has a specific replacement action")
+		else:
+			replace_cinder.pressed.emit()
+			var confirm_dialog := _find_confirmation(root)
+			if confirm_dialog == null:
+				failures.append("selecting the intended veteran opens confirmation before changing state")
+			else:
+				if not confirm_dialog.dialog_text.contains("Cinder") or not confirm_dialog.dialog_text.contains("Ash-in-the-Reeds"):
+					failures.append("final replacement confirmation names the exact selected and incoming veterans")
+				if controller.snapshot() != before_cancel:
+					failures.append("viewing the replacement confirmation does not mutate the roster")
+				confirm_dialog.confirmed.emit()
+				await process_frame
+				var roster: Array = controller.state.get("roster", [])
+				var roster_ids: Array[String] = []
+				for veteran: Dictionary in roster:
+					roster_ids.append(str(veteran.get("id", "")))
+				if roster_ids != ["pledged-morrow", "keep-ash", "candidate-exact-42"]:
+					failures.append("confirmed replacement sends the exact candidate and replacement IDs to the real controller (got %s; error=%s)" % [str(roster_ids), controller.last_error])
+				if controller.state.get("veteran_candidate", {}) != {} or controller.state.get("deployed_veteran", "") != "candidate-exact-42":
+					failures.append("confirmed replacement consumes the candidate and deploys it when replacing the current veteran (candidate=%s deployed=%s)" % [str(controller.state.get("veteran_candidate", {})), str(controller.state.get("deployed_veteran", ""))])
+	town.free()
+	controller.free()
+	CampaignSave.path = original_save_path
+
+
 func _test_result_report_and_comparison(failures: Array[String]) -> void:
 	var fixture := FixtureController.new()
 	root.add_child(fixture)
@@ -1370,7 +1483,7 @@ func _test_result_report_and_comparison(failures: Array[String]) -> void:
 
 
 func _find_town_action_button(node: Node, kind: String, identity: String) -> Button:
-	if node is Button and node.get_meta("town_action_focus_kind", "") == kind and node.get_meta("town_action_focus_id", "") == identity:
+	if not node.is_queued_for_deletion() and node is Button and node.get_meta("town_action_focus_kind", "") == kind and node.get_meta("town_action_focus_id", "") == identity:
 		return node as Button
 	for child: Node in node.get_children():
 		var found := _find_town_action_button(child, kind, identity)
@@ -1495,6 +1608,147 @@ func _find_label(node: Node, text: String) -> Label:
 		if found != null:
 			return found
 	return null
+
+
+func _test_ledger_offer_inspection(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	fixture.ledger_offers = [
+		{"id": "offer-one", "valuation": 140, "data": {"slot": "weapon", "name": "Rain's First Promise", "base_name": "Promise", "rarity": 3, "ilvl": 13,
+			"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 12.0}],
+			"affixes": [{"id": "one", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.20}], "power": "stormcaller"}},
+		{"id": "offer-two", "valuation": 160, "data": {"slot": "weapon", "name": "Rain's Second Promise", "base_name": "Promise", "rarity": 3, "ilvl": 14,
+			"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 15.0}],
+			"affixes": [{"id": "two-a", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.25},
+				{"id": "two-b", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.08}], "power": "stormcaller"}},
+		{"id": "offer-three", "valuation": 180, "data": {"slot": "weapon", "name": "Rain's Third Promise", "base_name": "Promise", "rarity": 3, "ilvl": 15,
+			"implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 18.0}],
+			"affixes": [{"id": "three-a", "stat": "damage", "op": PlayerStats.Op.INCREASED, "value": 0.30},
+				{"id": "three-b", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.10}], "power": "stormcaller"}},
+	]
+	fixture.state["inventory"]["items"]["i-weapon"]["data"]["power"] = "splitting"
+	var town := CampaignTown.new()
+	root.add_child(fixture)
+	root.add_child(town)
+	town.setup(fixture)
+	town._active_service = "ledger"
+	town._render()
+	var inventory_before: Dictionary = fixture.state["inventory"].duplicate(true)
+	var slots := _find_option_buttons(town)
+	if slots.is_empty():
+		failures.append("Ledger renders a usable slot selector for Stolen Arsenal")
+	var inspect := _find_button(town, "Inspect three Weapon rewards")
+	if inspect == null:
+		failures.append("Ledger exposes the Stolen Arsenal offer inspector")
+	else:
+		await _press_enter(inspect)
+		await process_frame
+		var offers_before: Array = town._stolen_offers.duplicate(true)
+		var second := _find_town_action_button(town, "clause_offer", "1")
+		if second == null or not second.text.contains("Rain's Second Promise"):
+			failures.append("three Ledger choices have concise names and stable offer indices")
+		else:
+			await _press_enter(second)
+			if town._clause_offer != 1 or not _find_label(town, "SELECTED OFFER · 2 OF 3"):
+				failures.append("choosing a Ledger offer updates the highlighted selected index")
+			if not _find_label(town, "+8% Crit Chance") or not _find_label(town, "Bolts shock what they hit (+1 lightning jump)"):
+				failures.append("selected offer detail includes its second affix and legendary power")
+			if not _find_label(town, "Worn: Moonlit Dirk") or not _find_label(town, "Offered: Rain's Second Promise") or not _find_label(town, "Bolts split into three when they kill") or not _find_label(town, "Bolts shock what they hit (+1 lightning jump)"):
+				failures.append("selected offer compares worn and offered modifiers and powers")
+			var selected_button := _find_town_action_button(town, "clause_offer", "1")
+			if selected_button == null or not selected_button.text.contains("✓"):
+				failures.append("selected Ledger choice keeps its visible checkmark")
+			var focus := town.get_viewport().gui_get_focus_owner()
+			if focus == null or focus.get_meta("town_action_focus_kind", "") != "clause_offer" or focus.get_meta("town_action_focus_id", "") != "1":
+				failures.append("selecting an offer restores keyboard focus to that offer")
+			if fixture.state["inventory"] != inventory_before or town._stolen_offers != offers_before:
+				failures.append("inspecting and selecting offers leaves inventory and generated choices unchanged")
+	slots = _find_option_buttons(town)
+	if not slots.is_empty():
+		slots[0].grab_focus()
+		slots[0].item_selected.emit(ItemData.SLOTS.find("armor"))
+		await process_frame
+		if not town._stolen_offers.is_empty() or _find_label(town, "SELECTED OFFER ·") != null or _find_label(town, "Offered: Rain's Second Promise") != null:
+			failures.append("changing the offer slot clears old offers and their comparison")
+		var slot_focus := town.get_viewport().gui_get_focus_owner()
+		if slot_focus != null and slot_focus.get_meta("town_action_focus_kind", "") != "clause_slot":
+			failures.append("slot change keeps keyboard focus on the slot selector")
+		if not _find_option_buttons(town).is_empty() and town.get_viewport().gui_get_focus_owner() != _find_option_buttons(town)[0]:
+			failures.append("replacement Ledger slot selector receives restored focus")
+		slots = _find_option_buttons(town)
+		if not slots.is_empty():
+			slots[0].grab_focus()
+			slots[0].item_selected.emit(ItemData.SLOTS.find("weapon"))
+			await process_frame
+			inspect = _find_button(town, "Inspect three Weapon rewards")
+			if inspect != null:
+				inspect.pressed.emit()
+				await process_frame
+			var third := _find_town_action_button(town, "clause_offer", "2")
+			if third == null:
+				failures.append("slot reset regenerates a third selectable offer")
+			else:
+				await _press_enter(third)
+			var accept := _find_button(town, "Accept Stolen Arsenal")
+			if accept != null:
+				accept.pressed.emit()
+				if fixture.last_clause_accept != ["stolen_arsenal", "weapon", 2]:
+					failures.append("accept action forwards the selected slot and stable offer index to the controller")
+			else:
+				failures.append("Ledger renders the Stolen Arsenal accept action")
+		else:
+			failures.append("Ledger keeps the slot selector available after switching slots")
+	town.free()
+	fixture.free()
+
+
+func _test_real_stolen_arsenal_acceptance(failures: Array[String]) -> void:
+	var previous_save_path := CampaignSave.path
+	CampaignSave.path = "user://campaign-ledger-real-ui-%d.save" % Time.get_ticks_usec()
+	MetaProgress.disabled = true
+	var controller := CampaignController.new()
+	root.add_child(controller)
+	if not controller.create("battlemage", 70914).get("ok", false):
+		failures.append("real controller creates an isolated Ledger acceptance campaign")
+		CampaignSave.path = previous_save_path
+		controller.free()
+		return
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(controller)
+	town._active_service = "ledger"
+	town._render()
+	await process_frame
+	var inspect := _find_button(town, "Inspect three Weapon rewards")
+	if inspect == null:
+		failures.append("real controller Ledger exposes offer generation")
+	else:
+		await _press_enter(inspect)
+		await process_frame
+		var inspect_focus := town.get_viewport().gui_get_focus_owner()
+		if inspect_focus == null or inspect_focus.get_meta("town_action_focus_kind", "") != "ledger_inspect":
+			failures.append("Enter on Inspect preserves focus through real offer generation")
+		var generated: Array = controller.state.get("clause_offers", {}).get("weapon", [])
+		var third := _find_town_action_button(town, "clause_offer", "2")
+		var accept := _find_button(town, "Accept Stolen Arsenal")
+		if generated.size() != 3 or third == null or accept == null or accept.disabled:
+			failures.append("real controller generates three offers before enabling acceptance")
+		else:
+			await _press_enter(third)
+			var selected_focus := town.get_viewport().gui_get_focus_owner()
+			if selected_focus == null or selected_focus.get_meta("town_action_focus_kind", "") != "clause_offer" or selected_focus.get_meta("town_action_focus_id", "") != "2":
+				failures.append("Enter on a real offer preserves focus on the selected choice")
+			accept = _find_button(town, "Accept Stolen Arsenal")
+			var chosen: Dictionary = generated[2]
+			if accept != null:
+				accept.pressed.emit()
+				await process_frame
+				var backpack: Array = controller.state["inventory"]["backpack"]
+				var stored: Dictionary = controller.state["inventory"]["items"].get(str(backpack.back()) if not backpack.is_empty() else "", {})
+				if town._clause_slot != "weapon" or town._clause_offer != 2 or not controller.state["clauses"].any(func(clause: Dictionary) -> bool: return str(clause.get("id", "")) == "stolen_arsenal") or stored != chosen:
+					failures.append("real controller accepts the selected slot/index and stores that exact generated offer")
+	CampaignSave.path = previous_save_path
+	town.free()
+	controller.free()
 
 
 func _find_option_buttons(node: Node) -> Array[OptionButton]:

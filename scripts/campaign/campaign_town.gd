@@ -397,7 +397,7 @@ func _render_panel() -> void:
 
 
 func _current_action_focus_identity() -> Dictionary:
-	if _active_service not in ["market", "trainer"] or not is_instance_valid(_content):
+	if _active_service not in ["market", "trainer", "ledger"] or not is_instance_valid(_content):
 		return {}
 	var focused := get_viewport().gui_get_focus_owner()
 	if focused == null or not (_content == focused or _content.is_ancestor_of(focused)):
@@ -408,7 +408,7 @@ func _current_action_focus_identity() -> Dictionary:
 
 
 func _restore_town_action_focus(service: String, kind: String, item_id: String) -> void:
-	if not is_inside_tree() or _active_service != service or service not in ["market", "trainer"] or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
+	if not is_inside_tree() or _active_service != service or service not in ["market", "trainer", "ledger"] or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
 		return
 	var current_focus := get_viewport().gui_get_focus_owner()
 	if current_focus != null and not current_focus.is_queued_for_deletion() and not (_content == current_focus or _content.is_ancestor_of(current_focus)):
@@ -1132,7 +1132,8 @@ func _render_roster() -> void:
 		var effective_rank := mini(rank, effective_rank_cap)
 		var pledge_node := str(veteran.get("pledge_node", ""))
 		var pledge_copy := "Pledged until the next route clears" if pledge_node == "next" else ("Pledged to route %s" % pledge_node if not pledge_node.is_empty() else "Available")
-		info.text = "%s  ·  %s  ·  Rank %d (travels as %d)\n%s\n%s" % [veteran.get("name", "Unnamed veteran"), veteran.get("role", "Veteran"), rank, effective_rank, pledge_copy, veteran.get("deeds", "A soul who has seen the road.")]
+		info.text = "%s  ·  %s  ·  Rank %d (travels as %d; biome rank cap %d)\n%s\n%s" % [veteran.get("name", "Unnamed veteran"), _veteran_role_name(veteran), rank, effective_rank, effective_rank_cap, pledge_copy, _veteran_record_details(veteran)]
+		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
 		var button := _button("Deployed" if deployed == id else "Deploy", func() -> void: _command("choose_veteran", [id]), UiStyle.GOLD)
@@ -1143,13 +1144,27 @@ func _render_roster() -> void:
 		_add_subtitle(_content, "A VETERAN SURVIVED THE EXPEDITION")
 		_add_copy("Keep this companion, choose whom they replace, or decline. Replacement is confirmed before the roster changes.")
 		var candidate_id := str(candidate.get("id", candidate.get("candidate_id", "")))
+		var candidate_name := str(candidate.get("name", "Unnamed veteran"))
+		var candidate_rank := int(candidate.get("rank", 1))
+		var candidate_effective_rank := mini(candidate_rank, effective_rank_cap)
+		var candidate_info := UiStyle.label(16)
+		candidate_info.text = "%s  ·  %s  ·  Rank %d (travels as %d; biome rank cap %d)\n%s" % [candidate_name, _veteran_role_name(candidate), candidate_rank, candidate_effective_rank, effective_rank_cap, _veteran_record_details(candidate)]
+		candidate_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		candidate_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_content.add_child(candidate_info)
 		var add_candidate := _button("Add to the roster", func() -> void: _recruit_veteran(candidate_id, ""), UiStyle.GOLD)
 		add_candidate.disabled = roster.size() >= 3
 		_content.add_child(add_candidate)
+		if add_candidate.disabled:
+			_add_copy("The roster is full. Replace an available veteran to make room.")
 		for veteran: Variant in roster:
 			if veteran is Dictionary:
 				var replace_id := str(veteran.get("id", ""))
-				_content.add_child(_button("Replace %s" % veteran.get("name", "veteran"), func() -> void: _confirm_recruit_veteran(candidate_id, replace_id, str(veteran.get("name", "this veteran"))), Color(0.9, 0.68, 0.42)))
+				var replace_button := _button("Replace %s" % veteran.get("name", "veteran"), func() -> void: _confirm_recruit_veteran(candidate_id, replace_id, candidate_name, str(veteran.get("name", "this veteran"))), Color(0.9, 0.68, 0.42))
+				replace_button.disabled = not str(veteran.get("pledge_node", "")).is_empty()
+				_content.add_child(replace_button)
+				if replace_button.disabled:
+					_add_copy("%s is pledged and cannot be replaced until that route clears." % veteran.get("name", "This veteran"))
 		_content.add_child(_button("Decline this veteran", func() -> void: _command("decline_veteran"), Color(0.8, 0.57, 0.51)))
 	if roster.is_empty() and candidate.is_empty():
 		_add_copy("No veteran is ready yet. Survive a mission and a named soul may choose to follow you home.")
@@ -1159,9 +1174,30 @@ func _recruit_veteran(candidate_id: String, replace_id: String) -> void:
 	_command("recruit_veteran", [candidate_id, replace_id])
 
 
-func _confirm_recruit_veteran(candidate_id: String, replace_id: String, old_name: String) -> void:
+func _veteran_role_name(veteran: Dictionary) -> String:
+	var role := str(veteran.get("role", "Veteran"))
+	if Army.ROLES.has(role):
+		return str(Army.ROLES[role].get("label", role))
+	return role
+
+
+func _veteran_record_details(veteran: Dictionary) -> String:
+	var details: Array[String] = []
+	var deeds: Variant = veteran.get("deeds", null)
+	if deeds is int or deeds is float:
+		details.append("Kills (deeds): %d" % int(deeds))
+	elif deeds != null and not str(deeds).is_empty():
+		details.append(str(deeds))
+	if veteran.has("nights"):
+		details.append("Nights: %d" % int(veteran["nights"]))
+	if details.is_empty():
+		details.append("A soul who has seen the road.")
+	return "  ·  ".join(details)
+
+
+func _confirm_recruit_veteran(candidate_id: String, replace_id: String, candidate_name: String, old_name: String) -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.dialog_text = "Replace %s with this surviving veteran?" % old_name
+	dialog.dialog_text = "Replace %s with %s?" % [old_name, candidate_name]
 	dialog.confirmed.connect(func() -> void: _recruit_veteran(candidate_id, replace_id))
 	_root.add_child(dialog)
 	dialog.popup_centered()
@@ -1251,6 +1287,7 @@ func _render_ledger() -> void:
 		if clause is Dictionary:
 			active_ids.append(str(clause.get("id", "")))
 	var slots := OptionButton.new()
+	_set_town_action_focus_identity(slots, "clause_slot", "selected")
 	for slot: String in ItemData.SLOTS:
 		slots.add_item(ItemData.SLOT_NAMES[slot])
 		if slot == _clause_slot:
@@ -1260,6 +1297,7 @@ func _render_ledger() -> void:
 		_clause_offer = 0
 		_stolen_offers.clear()
 		_render_panel()
+		_restore_town_action_focus.call_deferred("ledger", "clause_slot", "selected")
 	)
 	_content.add_child(slots)
 	for id: String in ["advance_payment", "stolen_arsenal", "borrowed_battalion"]:
@@ -1269,15 +1307,27 @@ func _render_ledger() -> void:
 		var title := str(definition.get("name", id.replace("_", " ").capitalize()))
 		_add_info_card(_content, title, str(definition.get("benefit", "Immediate expedition help.")), str(definition.get("consequence", "Adds a fixed complication to this biome's finale.")))
 		if id == "stolen_arsenal":
-			_content.add_child(_button("Inspect three %s rewards" % ItemData.SLOT_NAMES.get(_clause_slot, _clause_slot), func() -> void: _inspect_stolen_offers(), Color(0.65, 0.83, 0.96)))
+			var inspect := _button("Inspect three %s rewards" % ItemData.SLOT_NAMES.get(_clause_slot, _clause_slot), func() -> void: _inspect_stolen_offers(), Color(0.65, 0.83, 0.96))
+			_set_town_action_focus_identity(inspect, "ledger_inspect", _clause_slot)
+			_content.add_child(inspect)
 			for index in _stolen_offers.size():
 				var offer: Dictionary = _stolen_offers[index]
-				var choice := _button("%s%s" % ["✓  " if index == _clause_offer else "◇  ", _summary(offer.get("data", {}))], func() -> void:
+				var choice := _button("%s%d · %s · %s · ilvl %d" % ["✓  " if index == _clause_offer else "◇  ", index + 1, _item_name(offer), _rarity_text(offer), int(offer.get("data", {}).get("ilvl", 1))], func() -> void:
 					_clause_offer = index
 					_render_panel()
+					_restore_town_action_focus.call_deferred("ledger", "clause_offer", str(index))
 				, _rarity_color(offer))
 				choice.custom_minimum_size.y = 52
+				_set_town_action_focus_identity(choice, "clause_offer", str(index))
 				_content.add_child(choice)
+			if not _stolen_offers.is_empty():
+				var selected_index := clampi(_clause_offer, 0, _stolen_offers.size() - 1)
+				var selected_offer: Dictionary = _stolen_offers[selected_index]
+				_add_subtitle(_content, "SELECTED OFFER · %d OF %d" % [selected_index + 1, _stolen_offers.size()])
+				_add_item_detail(_content, selected_offer)
+				var equipped_id := str(_state.get("inventory", {}).get("equipped", {}).get(_clause_slot, ""))
+				var worn: Dictionary = _state.get("inventory", {}).get("items", {}).get(equipped_id, {})
+				_add_item_comparison(_content, worn, selected_offer)
 		var accept := _button("Accept %s" % title, func() -> void: _command("accept_clause", [id, _clause_slot, _clause_offer]), Color(0.92, 0.58, 0.44))
 		if id == "stolen_arsenal":
 			accept.disabled = _stolen_offers.size() != 3
@@ -1291,6 +1341,7 @@ func _inspect_stolen_offers() -> void:
 	_stolen_offers = _controller.call("clause_offers", _clause_slot)
 	_clause_offer = clampi(_clause_offer, 0, maxi(0, _stolen_offers.size() - 1))
 	_render_panel()
+	_restore_town_action_focus.call_deferred("ledger", "ledger_inspect", _clause_slot)
 
 
 func _render_event() -> void:
