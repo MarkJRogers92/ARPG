@@ -1,6 +1,6 @@
 # Last Lantern expedition polish preview
 
-Branch: `preview/last-lantern-expedition-polish`, based on Claude's merged town at `6768024`. Local preview only; no merge, push, release or installed-app replacement.
+Branch: `preview/last-lantern-expedition-polish`, based on Claude's merged town at `6768024`. Approved by Mark and merged in PR #32 on 2026-10-08 as `b9c0c2f`. GitHub build/test and Mac, Windows, Linux exports succeeded. This document records the original preview; current follow-up work is in `WORLD_FEEDBACK_PREVIEW.md`.
 
 ## Changes
 

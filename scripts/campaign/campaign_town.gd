@@ -654,7 +654,9 @@ func _render_preparation_panel(selected_node_id: String) -> void:
 		var contract_id := str(node.get("contract", "hunt"))
 		var contract: Dictionary = CampaignCatalog.CONTRACTS.get(contract_id, {})
 		var contract_name := str(contract.get("name", contract_id.replace("_", " ").capitalize()))
-		mission = "Committed mission · %s%s" % [contract_name, " · Elite" if bool(node.get("elite", false)) and contract_id != "elite_hunt" else ""]
+		var biome_index := clampi(int(_state.get("biome_index", 0)), 0, Realm.ORDER.size() - 1)
+		var realm := str(Realm.data(Realm.ORDER[biome_index]).get("name", "The Hollow Graveyard"))
+		mission = "Destination · %s\nCommitted mission · %s%s" % [realm, contract_name, " · Elite" if bool(node.get("elite", false)) and contract_id != "elite_hunt" else ""]
 	_add_preparation_copy(panel, mission, Color(0.83, 0.86, 0.91))
 	var clauses: Array[String] = []
 	for clause_value: Variant in _state.get("clauses", []):

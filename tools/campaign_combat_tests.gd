@@ -52,6 +52,8 @@ func _director(contract: String, mission_duration: float, mission_deadline: floa
 
 func _run() -> void:
 	await _test_objective_prompts()
+	await _test_objective_feedback()
+	await _test_elite_feedback_signal_first()
 	_test_breach_boundaries()
 	_test_breach_deadline_feedback()
 	_test_elite_boundaries()
@@ -60,6 +62,70 @@ func _run() -> void:
 	_test_finale_and_death_priority()
 	print("CAMPAIGN COMBAT TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
 	quit(0 if failures == 0 else 1)
+
+
+func _test_objective_feedback() -> void:
+	var hud := Hud.new()
+	hud.name = "Hud"
+	var main := Node3D.new()
+	main.name = "FeedbackOwner"
+	root.add_child(main)
+	main.add_child(hud)
+	await process_frame
+	var director := _director("breach", 360.0, 420.0)
+	director._main = main
+	main.add_child(director)
+	director._sites = [Vector2.ZERO, Vector2.ONE, Vector2(2.0, 2.0)]
+	for _i in 3:
+		var visual := Node3D.new()
+		director._visuals.append(visual)
+		main.add_child(visual)
+	director._site_claimed = [true, true, false]
+	director.seals = 2
+	director._complete_site(2)
+	_check(director.seals == 3 and hud._toasts.get_child_count() == 1 and
+		String((hud._toasts.get_child(0) as Label).text).contains("All seals closed"),
+		"third seal gives one readable extraction acknowledgement")
+	director._complete_site(2)
+	_check(director.seals == 3 and hud._toasts.get_child_count() == 1,
+		"repeated site completion does not duplicate the objective acknowledgement")
+	main.free()
+
+
+func _test_elite_feedback_signal_first() -> void:
+	var hud := Hud.new()
+	hud.name = "Hud"
+	var main := Node3D.new()
+	main.name = "EliteFeedbackOwner"
+	main.add_child(hud)
+	root.add_child(main)
+	await process_frame
+	var director := _director("elite_hunt", 300.0, 420.0)
+	director._main = main
+	main.add_child(director)
+	var player_scene := load("res://scenes/player.tscn") as PackedScene
+	var player := player_scene.instantiate() as Player
+	main.add_child(player)
+	director._player = player
+	var wave := WaveDirector.new()
+	director.add_child(wave)
+	director._wave = wave
+	director._elite_spawned = true
+	var swarm := EnemySwarm.new()
+	swarm.count = 1
+	swarm.ids = PackedInt32Array([17])
+	swarm.hp = PackedFloat32Array([0.0])
+	director._marked_swarm = swarm
+	director._marked_id = 17
+	main.add_child(swarm)
+	director.observe_elite_death(swarm, 17)
+	_check(director.elite_dead and hud._toasts.get_child_count() == 1 and
+		String((hud._toasts.get_child(0) as Label).text).contains("Marked elite defeated"),
+		"marked elite death signal presents one explicit objective acknowledgement")
+	director.tick_objectives(0.01)
+	_check(director.elite_dead and hud._toasts.get_child_count() == 1,
+		"following live objective polling does not repeat the elite acknowledgement")
+	main.free()
 
 
 func _test_objective_prompts() -> void:

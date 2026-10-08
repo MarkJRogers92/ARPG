@@ -87,9 +87,26 @@ func _test_title_card_positions() -> void:
 	hud.title_card("Classic Guardian", "The realm's master has arrived.", Color.WHITE)
 	_check(hud._title_card.offset_top == -300.0 and hud._title_card.offset_bottom == -190.0,
 			"Classic title card keeps its original position")
+	var old_tween := hud._title_tween
+	await create_timer(0.3).timeout
 	hud.title_card("Campaign Guardian", "A mechanic explanation.", Color.WHITE, true)
-	_check(hud._title_card.offset_top == -140.0 and hud._title_card.offset_bottom == -30.0,
-			"campaign arrival title card clears the objective and guidance HUD")
+	_check(hud._title_card.offset_top == -140.0 and hud._title_card.offset_bottom == -70.0 and
+		hud._title_main.get_theme_font_size("font_size") == 30,
+		"campaign arrival card stays compact above the hero and objective guidance")
+	_check(not old_tween.is_running() and hud._title_tween.is_running(),
+			"a replacement campaign card cancels the earlier title tween")
+	await create_timer(1.2).timeout
+	_check(hud._title_main.text == "CAMPAIGN GUARDIAN" and hud._title_card.modulate.a > 0.5,
+			"the earlier boss-card fade cannot hide the active campaign card")
+	var prior_calm: Variant = MetaProgress.setting("calm")
+	MetaProgress.settings["calm"] = true
+	hud.title_card("Calm Arrival", "Contract context remains readable.", Color.WHITE, true)
+	_check(hud._title_card.scale == Vector2.ONE,
+			"calm campaign title cards avoid zoom motion")
+	await create_timer(0.2).timeout
+	_check(hud._title_card.scale == Vector2.ONE and hud._title_main.text == "CALM ARRIVAL",
+			"calm card remains still after its alpha transition")
+	MetaProgress.settings["calm"] = prior_calm
 	hud.queue_free()
 	await process_frame
 

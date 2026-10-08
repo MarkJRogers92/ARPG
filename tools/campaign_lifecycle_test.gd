@@ -78,10 +78,16 @@ func _run() -> void:
 			"attempt_id": retry_spec["attempt_id"], "outcome": "failure", "elapsed": 1.0, "objectives": {}}
 		var failed_hud: Hud = failed_main.get("_hud")
 		failed_hud.set_prompt("test failure prompt", Color.WHITE)
+		failed_hud.set_expedition("test objective", "0:01")
+		failed_hud.set_campaign_guidance("test interaction guidance")
 		failed_main.get("_player").dead = true
 		check(failed_hud._prompt_label.visible, "visible interaction prompt is seeded before the failure result")
 		failed_main.call("_finish_expedition_frame")
 		check(not failed_hud._prompt_label.visible, "death result clears the interaction prompt during the return ritual")
+		check(not failed_hud._expedition_label.visible and not failed_hud._campaign_guidance_label.visible and failed_hud._marker_items.is_empty(),
+			"terminal return clears active objectives, guidance and field markers")
+		check(failed_hud._title_main.text == "MISSION FAILED" and failed_hud._title_sub.text.contains("were not banked"),
+			"failure return card describes the lost contract gains before controller settlement")
 		stale_failure_result = failed_main.get("_expedition_result").duplicate(true)
 		failed_main.call("_emit_expedition_result")
 		await process_frame
@@ -183,6 +189,8 @@ func _run() -> void:
 		check(combat_hud._prompt_label.visible, "visible interaction prompt is seeded before the success result")
 		combat.call("_finish_expedition_frame")
 		check(not combat_hud._prompt_label.visible, "success result clears the interaction prompt during the return ritual")
+		check(combat_hud._title_main.text == "MISSION SECURED" and combat_hud._title_sub.text.contains("Extraction secured"),
+			"success return card reflects extraction before the controller settlement")
 		previous_result = combat.get("_expedition_result").duplicate(true)
 		var report: Dictionary = previous_result.get("report", {})
 		check(report.get("died") == false and report.get("objectives") == result_objectives,

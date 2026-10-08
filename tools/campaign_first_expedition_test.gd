@@ -11,11 +11,14 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var capture_path := ""
+	var capture_moment := "arrival"
 	var width := 1280
 	var height := 720
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture="):
 			capture_path = arg.trim_prefix("--capture=")
+		elif arg.begins_with("--moment="):
+			capture_moment = arg.trim_prefix("--moment=")
 		elif arg.begins_with("--width="):
 			width = int(arg.trim_prefix("--width="))
 		elif arg.begins_with("--height="):
@@ -75,10 +78,56 @@ func _run() -> void:
 		"first Graveyard arrival builds the paired-pier gateway and short causeway")
 	var contract_name := str(CampaignCatalog.CONTRACTS.get(str(spec.get("contract_id", "")), {}).get("name", ""))
 	check(hud != null and hud._title_main.text == "THE HOLLOW GRAVEYARD" and hud._title_sub.text.contains(contract_name)
-		and hud._expedition_label.visible,
+		and hud._expedition_label.visible and not hud._title_sub.text.to_lower().contains("cursed cache:"),
 		"arrival card names the saved realm and contract while objective HUD stays live")
 	if not capture_path.is_empty():
-		await create_timer(3.7).timeout # capture after the nonblocking arrival card clears
+		if capture_moment == "return":
+			expedition.result = {"campaign_id": spec["campaign_id"], "node_id": spec["node_id"],
+				"attempt_id": spec["attempt_id"], "outcome": "failure", "elapsed": 240.0,
+				"objectives": {"seals": 1, "elite_dead": false, "cache_claimed": false, "boss_dead": false}}
+			scene.call("_finish_expedition_frame")
+			await create_timer(0.45).timeout
+		elif capture_moment == "busy":
+			var player: Player = scene.get("_player")
+			var loot: LootManager = scene.get_node("Loot") as LootManager
+			var slots := ["weapon", "chest", "helm", "boots", "ring"]
+			for index in slots.size():
+				var rarity := mini(index, ItemData.Rarity.LEGENDARY)
+				var item := ItemGenerator.generate_with(8, rarity, str(slots[index]))
+				loot.drop(item, player.pos2 + Vector2.from_angle(-PI * 0.5 + TAU * float(index) / float(slots.size())) * 9.0)
+			var swarms: Array = scene.get("_swarms")
+			for index in 8:
+				var group := swarms[index % swarms.size()] as EnemySwarm
+				group.spawn(player.pos2 + Vector2.from_angle(TAU * float(index) / 8.0) * 7.0, 1.0, false)
+			var director: ExpeditionDirector = scene.get("_expedition")
+			director.contract_id = "breach"
+			director.cache_enabled = false
+			director.seals = 0
+			director._site_claimed = [false, false, false]
+			director._sites = [player.pos2 + Vector2(-4.0, -2.0), player.pos2 + Vector2(4.0, -2.0), player.pos2 + Vector2(0.0, 5.0)]
+			for visual: Node3D in director._visuals:
+				visual.visible = false
+			director._visuals.clear()
+			for at: Vector2 in director._sites:
+				var marker := Node3D.new()
+				marker.position = Vector3(at.x, 0.0, at.y)
+				scene.add_child(marker)
+				director._visuals.append(marker)
+			var charger: EnemySwarm
+			for candidate_value: Variant in swarms:
+				var candidate := candidate_value as EnemySwarm
+				if candidate.charger:
+					charger = candidate
+					break
+			if charger != null and charger.count > 0:
+				var last := charger.count - 1
+				charger.charge_windup = 6.0
+				charger._cstate[last] = 1
+				charger._ctime[last] = 5.0
+				charger._cdir[last] = Vector2(-1.0, 0.0)
+			await create_timer(4.0).timeout
+		else:
+			await create_timer(0.45).timeout
 		var viewport_texture := root.get_texture()
 		if viewport_texture == null:
 			check(false, "first-expedition render has a viewport texture")

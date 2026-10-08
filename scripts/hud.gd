@@ -58,6 +58,7 @@ var _recap_chart: DeathRecap
 var _title_card: VBoxContainer
 var _title_main: Label
 var _title_sub: Label
+var _title_tween: Tween
 var _upgrade_subtitle: Label
 var _shards_earned_label: Label
 var _altar: AltarPanel
@@ -163,17 +164,24 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 
 ## A boss arrives: its name across the screen for a moment.
 func title_card(boss_name: String, subtitle: String, color: Color, campaign_arrival := false) -> void:
+	if is_instance_valid(_title_tween) and _title_tween.is_running():
+		_title_tween.kill()
 	_title_main.text = boss_name.to_upper()
 	_title_main.add_theme_color_override("font_color", color)
 	_title_sub.text = subtitle
+	_title_main.add_theme_font_size_override("font_size", 30 if campaign_arrival else 56)
+	_title_sub.add_theme_font_size_override("font_size", 15 if campaign_arrival else 18)
 	_title_card.offset_top = -140 if campaign_arrival else -300
-	_title_card.offset_bottom = -30 if campaign_arrival else -190
+	_title_card.offset_bottom = -70 if campaign_arrival else -190
 	var t := _title_card.create_tween()
-	_title_card.scale = Vector2(1.15, 1.15)
+	_title_tween = t
+	var calm_campaign_card := campaign_arrival and bool(MetaProgress.setting("calm"))
+	_title_card.scale = Vector2.ONE if calm_campaign_card else Vector2(1.15, 1.15)
 	_title_card.pivot_offset = _title_card.size * 0.5
 	t.set_parallel()
 	t.tween_property(_title_card, "modulate:a", 1.0, 0.35)
-	t.tween_property(_title_card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if not calm_campaign_card:
+		t.tween_property(_title_card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.chain().tween_interval(1.8)
 	t.chain().tween_property(_title_card, "modulate:a", 0.0, 0.7)
 
@@ -262,13 +270,15 @@ func set_prompt(text: String, color := Color.WHITE) -> void:
 
 ## Things worth walking to: [{"at": world Vector2, "color", "label"}]. Off
 ## screen they get an arrow at the edge; on screen, a marker bobbing above.
-func set_markers(items: Array, camera: Camera3D) -> void:
+func set_markers(items: Array, camera: Camera3D, campaign_objectives := false) -> void:
 	_marker_items.clear()
 	if camera == null:
 		_marker_canvas.queue_redraw()
 		return
 	var view := _marker_canvas.get_viewport_rect().size
 	var center := view * 0.5
+	var nearest_inside := -1
+	var nearest_inside_distance := INF
 	for m: Dictionary in items:
 		var world := Vector3(m["at"].x, 1.5, m["at"].y)
 		var behind := camera.is_position_behind(world)
@@ -277,7 +287,8 @@ func set_markers(items: Array, camera: Camera3D) -> void:
 			p = center - (p - center) * 1000.0
 		var margin := 44.0
 		var inside := not behind and Rect2(Vector2.ONE * margin, view - Vector2.ONE * margin * 2.0).has_point(p)
-		var item := {"color": m["color"], "label": m["label"], "inside": inside, "p": p}
+		var item := {"color": m["color"], "label": m["label"], "inside": inside, "p": p,
+			"campaign_objective": campaign_objectives}
 		if not inside:
 			var d := (p - center)
 			var half := center - Vector2.ONE * margin
@@ -285,15 +296,36 @@ func set_markers(items: Array, camera: Camera3D) -> void:
 			item["p"] = center + d * minf(t, 1.0)
 			item["dir"] = d.normalized()
 		_marker_items.append(item)
+		if inside and p.distance_squared_to(center) < nearest_inside_distance:
+			nearest_inside = _marker_items.size() - 1
+			nearest_inside_distance = p.distance_squared_to(center)
+	if nearest_inside >= 0:
+		_marker_items[nearest_inside]["prominent"] = true
 	_marker_canvas.queue_redraw()
 
 
 func _draw_markers() -> void:
 	var font := ThemeDB.fallback_font
-	var bob := sin(Time.get_ticks_msec() * 0.006) * 4.0
+	var bob := 0.0 if bool(MetaProgress.setting("calm")) else sin(Time.get_ticks_msec() * 0.006) * 4.0
 	for m: Dictionary in _marker_items:
 		var color: Color = m["color"]
 		var p: Vector2 = m["p"]
+		if m["inside"] and m.get("campaign_objective", false) and m.get("prominent", false):
+			var tip := p + Vector2(0, -40 + bob)
+			_marker_canvas.draw_colored_polygon(PackedVector2Array([tip + Vector2(-9, -12), tip + Vector2(9, -12), tip]), color)
+			var text: String = m["label"]
+			var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+			var badge_size := Vector2(text_size.x + 12.0, 19.0)
+			var viewport_size := _marker_canvas.get_viewport_rect().size
+			var badge_position := Vector2(tip.x - badge_size.x * 0.5, tip.y - 33.0)
+			badge_position.x = clampf(badge_position.x, 4.0, maxf(viewport_size.x - badge_size.x - 4.0, 4.0))
+			badge_position.y = clampf(badge_position.y, 4.0, maxf(viewport_size.y - badge_size.y - 4.0, 4.0))
+			var badge := Rect2(badge_position, badge_size)
+			_marker_canvas.draw_rect(badge, Color(0.025, 0.035, 0.055, 0.9))
+			_marker_canvas.draw_rect(badge, color, false, 1.0)
+			_marker_canvas.draw_string_outline(font, badge.position + Vector2(6.0, 14.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.95))
+			_marker_canvas.draw_string(font, badge.position + Vector2(6.0, 14.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, color)
+			continue
 		if m["inside"]:
 			var tip := p + Vector2(0, -40 + bob)
 			_marker_canvas.draw_colored_polygon(PackedVector2Array([tip + Vector2(-9, -12), tip + Vector2(9, -12), tip]), color)

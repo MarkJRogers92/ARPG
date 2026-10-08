@@ -48,10 +48,16 @@ func _run() -> void:
 		check(not shell._campaign_sound._music_on and shell._campaign_sound._calm.volume_db <= -40.0
 			and shell._campaign_sound._drums.volume_db <= -40.0 and shell._campaign_sound._boss.volume_db <= -40.0,
 			"town music layers fade below audibility during combat %d" % (cycle + 1))
-		shell._receive_result({"campaign_id": spec["campaign_id"], "node_id": spec["node_id"],
+		var combat: Node = shell.get("_view")
+		var director: ExpeditionDirector = combat.get("_expedition")
+		director.result = {"campaign_id": spec["campaign_id"], "node_id": spec["node_id"],
 			"attempt_id": spec["attempt_id"], "outcome": "retreat", "elapsed": 12.0,
-			"objectives": {}, "kills_by": {}, "loose_shards": 0,
-			"report": {"summary": "We turned back before the pressure closed in."}})
+			"objectives": {"seals": 0, "elite_dead": false, "cache_claimed": false, "boss_dead": false}}
+		combat.call("_finish_expedition_frame")
+		var hud: Hud = combat.get("_hud")
+		check(hud._title_main.text == "WITHDRAWAL" and hud._title_sub.text.contains("You withdrew; the route remains committed"),
+			"retreat return card keeps the committed route without claiming a payout")
+		combat.call("_emit_expedition_result")
 		for _frame in 4:
 			await process_frame
 		check(shell.controller.state.get("phase") == "RESULT_PENDING" and Sound.instance == shell._campaign_sound,

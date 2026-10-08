@@ -441,6 +441,9 @@ func _finish_expedition_frame() -> void:
 		return
 	_expedition_terminal = true
 	_hud.set_prompt("")
+	_hud.set_expedition("", "")
+	_hud.set_campaign_guidance("")
+	_hud.set_markers([], null)
 	_game_over = true
 	_sound.stop_music(0.5)
 	Engine.time_scale = 1.0
@@ -470,8 +473,13 @@ func _finish_expedition_frame() -> void:
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
 		"objectives": _expedition_result.get("objectives", {}).duplicate(true)}
 	_expedition_result = _expedition_result.duplicate(true)
-	_hud.toast("Extraction secured." if _expedition_result.get("outcome", "") == "success" else "The expedition is lost.",
-		UiStyle.GOLD if _expedition_result.get("outcome", "") == "success" else Color(1.0, 0.45, 0.4))
+	var outcome := str(_expedition_result.get("outcome", "failure"))
+	var heading := "MISSION SECURED" if outcome == "success" else ("WITHDRAWAL" if outcome == "retreat" else "MISSION FAILED")
+	var cue := "Extraction secured" if outcome == "success" else ("You withdrew; the route remains committed" if outcome == "retreat" else "Contract rewards and route progress were not banked")
+	var contract: Dictionary = CampaignCatalog.CONTRACTS.get(str(expedition_spec.get("contract_id", "")), {})
+	var contract_name := str(contract.get("name", "Expedition"))
+	_hud.title_card(heading, "%s  ·  %s\nReturning to the Last Lantern" % [contract_name, cue],
+		UiStyle.GOLD if outcome == "success" else Color(1.0, 0.58, 0.48), true)
 	_return_ritual_left = ExpeditionDirector.RITUAL_SECONDS
 
 
@@ -667,7 +675,7 @@ func _process(delta: float) -> void:
 	_hud.set_power(power[0], power[1])
 	_hud.set_blessing(_events.blessing, _events.blessing_left,
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
-	_hud.set_markers(_markers(), $CameraRig/Camera3D)
+	_hud.set_markers(_markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
 	if _campaign:
 		_hud.set_expedition(_expedition.objective_text(), _expedition.clock_text(_director.elapsed))
@@ -702,7 +710,7 @@ func _market_frame(delta: float) -> void:
 	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
-	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D)
+	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
 
 

@@ -54,6 +54,8 @@ func _mount_town() -> void:
 	_view.setup(controller)
 
 func _mount_combat(spec: Dictionary) -> void:
+	# A short ritual sound marks the committed crossing without delaying combat.
+	Sound.play("shrine_charge", 0.9, -7.0)
 	_campaign_sound.stop_music(0.65)
 	_clear_view()
 	Realm.in_title = false
