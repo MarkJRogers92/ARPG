@@ -36,7 +36,7 @@ Ferryman, Ledger) is a place or person you walk up to and use with **E**.
 4. [ ] Verify in Godot 4.7 on desktop: import, walk, every station opens its
        panel, depart from route board, result/event overlays, Esc behavior.
        Not yet run (authored without a Godot binary).
-5. [ ] Polish after first look: station spacing/scale, camera angle, collisions,
+5. [~] Visual pass 1 done (reused Lantern + apse art, flagstones, road, biome scenery/lighting, buildings, motes, idle keepers). Remaining polish: station spacing/scale, camera angle, collisions,
        NPC idle animation, footstep sound, gamepad prompt glyphs, biome-tinted
        lighting (reuse `CampaignBackdrop` journey/trophy dressing).
 
