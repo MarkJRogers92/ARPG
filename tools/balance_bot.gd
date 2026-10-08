@@ -23,6 +23,8 @@ const PRIORITY := {
 	"greedy": ["bolt_count", "bolt_damage", "bolt_rate", "aura", "bolt_pierce", "regen", "max_hp", "legion", "magnet", "move_speed"],
 	"tank": ["max_hp", "regen", "move_speed", "bolt_damage", "bolt_rate", "aura", "bolt_count", "bolt_pierce", "magnet"],
 }
+## The Reaper is never offered bolt cards; its own scythe cards take their place.
+const REAPER_CARDS := {"bolt_count": "scythe", "bolt_damage": "keen_edge", "bolt_rate": "whirl", "bolt_pierce": "long_reach"}
 ## Skill tree order per policy: the first node in the list that can be bought
 ## is bought. (Nodes only become buyable once linked to something owned.)
 const SKILL_PRIORITY := {
@@ -252,7 +254,10 @@ func _pick_upgrade() -> void:
 	else:
 		var best := 999
 		for i in offered.size():
-			var rank: int = PRIORITY[_policy].find(offered[i])
+			var order: Array = PRIORITY[_policy]
+			if _player.stats.powers.has("reaping"):
+				order = order.map(func(id: String) -> String: return REAPER_CARDS.get(id, id))
+			var rank: int = order.find(offered[i])
 			if rank >= 0 and rank < best:
 				best = rank
 				choice = i

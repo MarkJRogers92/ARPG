@@ -56,7 +56,8 @@ func set_body(look: Dictionary) -> void:
 ## Shows the weapon base `base_name` (see ItemData.BASES) with an `accent` gem.
 func set_weapon(base_name: String, accent: Color) -> void:
 	_weapon.mesh = Models.item("weapon", base_name, accent)
-	# Staffs are planted like a walking stick; wands and orbs are held up.
+	# Staffs (and the Reaper's scythe) are planted like a walking stick; wands
+	# and orbs are held up.
 	match base_name:
 		"Staff":
 			_weapon.position = Vector3(0, 0.15, 0)
@@ -64,6 +65,9 @@ func set_weapon(base_name: String, accent: Color) -> void:
 		"Orb":
 			_weapon.position = Vector3(0, 0.18, -0.05)
 			_weapon.rotation_degrees = Vector3.ZERO
+		"Scythe":
+			_weapon.position = Vector3(0, 0.2, 0)
+			_weapon.rotation_degrees = Vector3(-8, 90, 0)
 		_:
 			_weapon.position = Vector3(0, 0.25, -0.05)
 			_weapon.rotation_degrees = Vector3(-35, 0, 0)

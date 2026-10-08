@@ -127,6 +127,12 @@ once with Soul Shards and stay unlocked (`scripts/hero_class.gd`):
 | Necromancer | 30 ◆ | +2 army size, +50% souls, minions +30% damage and they burst in soulfire when they fall (Lich Shroud); bolts deal 15% less |
 | Pyromancer | 40 ◆ | Bolts ignite 35% of the time, +60% burn damage, and fire always spreads from the burning dead (Pyre) |
 | Stormcaller | 50 ◆ | Starts with a faster, stronger Chain Lightning; dashes 30% more often and leaves lightning in its wake (Stormstride) |
+| Reaper | 60 ◆ | No bolts: fights with two Reaping Scythes from the start, thrown 80% faster and 3 m farther for 25% more damage, which carry the bolt elements (Kindling, Frostbite); +10% move speed. Slower in the first minutes, stronger once the horde is thick |
+
+The Reaper never sees the bolt cards (Sharper Bolts, Quick Cast, Multishot,
+Piercing Bolts); it gets Keen Edge, Whirling Throw and Long Reach in their
+place (`only` / `bolt` in `Upgrades.DEFS`), and its paths at level 10 are
+Harvest Moon, Executioner and Soul Reaper.
 
 Each has its own robe, cape, eye glow and starting weapon. A class is a set of stat
 modifiers under the source `class` plus innate powers, the same flags that

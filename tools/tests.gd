@@ -1070,6 +1070,51 @@ func _test_heroes() -> bool:
 	_check(player.stats.powers.has("pyre") and not player.stats.powers.has("lich_shroud"), "and the old powers")
 	HeroClass.apply(player, "stormcaller")
 	_check(player.stats.lightning_level >= 1, "the Stormcaller starts with Chain Lightning")
+
+	# The Reaper: no bolts, two scythes from the start, its own cards and paths.
+	for id: String in HeroClass.ORDER:
+		_check(Specializations.paths(id).size() == 3 and Specializations.paths(id)[0] in Specializations.PATHS.get(id, []),
+				"%s has three paths of its own" % id)
+	HeroClass.apply(player, "reaper")
+	_check(player.stats.scythe_level >= 1 and player.stats.scythe_count == 2, "the Reaper starts with two scythes")
+	_check(player.stats.powers.has("reaping"), "and the reaping power")
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 8
+	swarm.max_hp = 1000.0
+	root.add_child(swarm)
+	var projectiles := ProjectileSwarm.new()
+	root.add_child(projectiles)
+	var swarms: Array[EnemySwarm] = [swarm]
+	player.setup(swarms, projectiles)
+	Elements.swarms = swarms
+	Elements.player = player
+	swarm.spawn(player.pos2 + Vector2(3, 0))
+	swarm.step(0.0, player.pos2)
+	for f in 90:
+		player.update_weapons(1.0 / 60.0)
+		swarm.step(1.0 / 60.0, player.pos2)
+	_check(projectiles.count == 0, "it never fires a bolt")
+	_check(swarm.hp[0] < 1000.0, "its scythes cut what's near (%.0f)" % swarm.hp[0])
+	var offered := {}
+	for k in 300:
+		for c: Dictionary in Upgrades.roll(player.stats, 3):
+			offered[c["id"]] = true
+	_check(not offered.has("bolt_damage") and not offered.has("bolt_count") and not offered.has("bolt_rate") and not offered.has("bolt_pierce"),
+			"the Reaper is never offered bolt cards")
+	_check(offered.has("keen_edge") and offered.has("whirl"), "but gets scythe cards of its own")
+	_check("Scythe throws" in Upgrades._desc("ignite", 0, player.stats), "Kindling speaks of scythes")
+	player.stats.chill_chance = 1.0
+	_check(player._bolt_element() == Elements.FROST, "and the scythes carry the bolt elements")
+	HeroClass.apply(player, "battlemage")
+	offered.clear()
+	for k in 300:
+		for c: Dictionary in Upgrades.roll(player.stats, 3):
+			offered[c["id"]] = true
+	_check(offered.has("bolt_damage") and not offered.has("keen_edge"), "other heroes keep the bolt cards and never see the Reaper's")
+	Elements.swarms = []
+	Elements.player = null
+	swarm.free()
+	projectiles.free()
 	player.free()
 	return true
 
@@ -1920,9 +1965,9 @@ func _test_new_tools() -> bool:
 		for card: Dictionary in cards:
 			var stats := PlayerStats.new()
 			stats.recalculate()
-			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			var before := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp, stats.scythe_damage, stats.scythe_count]
 			_check(Specializations.apply(stats, hero, card["id"].substr(5)), "%s: %s applies" % [hero, card["name"]])
-			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp]
+			var after := [stats.bolt_damage, stats.minion_max, stats.lightning_chains, stats.aura_level, stats.max_hp, stats.scythe_damage, stats.scythe_count]
 			_check(before != after or stats.ignite_chance > 0.0 or stats.chill_chance > 0.0, "%s: %s changes the build" % [hero, card["name"]])
 			Specializations.apply(stats, hero, card["id"].substr(5))
 			_check(stats.mods_from(Specializations.SOURCE).size() == Specializations.find(hero, card["id"].substr(5))["mods"].size(),

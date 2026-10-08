@@ -597,6 +597,17 @@ static func _item_parts(k: MeshKit, base_name: String, accent: Color) -> void:
 			k.cylinder(0.12, 0.05, 0.1, MeshKit.at(Vector3(0, -0.08, 0)), gold, 0.1, 8)
 			k.sphere(0.17, MeshKit.at(Vector3(0, 0.1, 0)), accent, 1.0, 12, 8)
 			k.torus(0.2, 0.23, MeshKit.at(Vector3(0, 0.1, 0), Vector3(70, 0, 20)), gold, 0.2, 14)
+		"Scythe":
+			# The Reaper's: a long haft and a crescent blade, glowing at the edge.
+			k.cylinder(0.03, 0.04, 1.6, MeshKit.at(Vector3(0, -0.15, 0)), wood.darkened(0.3), 0.0, 6, true)
+			k.box(Vector3(0.09, 0.1, 0.09), MeshKit.at(Vector3(0, 0.64, 0)), iron)
+			for i in 6:
+				var t := float(i) / 5.0
+				var ang := deg_to_rad(10.0 + t * 70.0)
+				k.box(Vector3(0.24 - t * 0.1, 0.03, 0.08 - t * 0.04),
+						MeshKit.at(Vector3(-sin(ang) * 0.38, 0.64 + cos(ang) * 0.38 - 0.38, 0), Vector3(0, 0, -10.0 - t * 70.0)),
+						silver if i < 5 else accent, 0.2 + t * 0.6)
+			k.sphere(0.05, MeshKit.at(Vector3(0, 0.7, 0)), accent, 1.2, 5, 2)
 		# Helms
 		"Cap":
 			k.sphere(0.26, MeshKit.at(Vector3(0, -0.02, 0), Vector3.ZERO, Vector3(1.0, 0.8, 1.0)), leather)

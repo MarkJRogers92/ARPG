@@ -87,7 +87,7 @@ func _draw() -> void:
 			for k in 8:
 				var dir := Vector2.from_angle(k * TAU / 8.0)
 				draw_line(c + dir * s * 0.62, c + dir * s * 0.82, color, 2.5, true)
-		"scythe":
+		"scythe", "keen_edge", "whirl", "long_reach", "executioner":
 			# A crescent blade on a haft, mid-spin.
 			draw_arc(c, s * 0.7, -PI * 0.9, -PI * 0.1, 20, color, s * 0.22, true)
 			draw_line(c + Vector2(-s * 0.1, -s * 0.05), c + Vector2(s * 0.45, s * 0.85), Color(0.6, 0.45, 0.3), 4.0, true)

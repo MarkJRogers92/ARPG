@@ -7,7 +7,7 @@ extends RefCounted
 ## screen (see MetaProgress).
 
 const SOURCE := "class"
-const ORDER := ["battlemage", "necromancer", "pyromancer", "stormcaller"]
+const ORDER := ["battlemage", "necromancer", "pyromancer", "stormcaller", "reaper"]
 
 const _ADD := PlayerStats.Op.ADD
 const _INC := PlayerStats.Op.INCREASED
@@ -51,6 +51,18 @@ const CLASSES := {
 			{"stat": "lightning_rate", "op": _INC, "value": 0.5}, {"stat": "lightning_damage", "op": _INC, "value": 0.3},
 			{"stat": "dash_cooldown", "op": _INC, "value": -0.3}],
 		"powers": ["stormstride"],
+	},
+	# No bolts at all: the scythe is the main attack (the "reaping" power).
+	"reaper": {
+		"name": "Reaper", "cost": 60,
+		"desc": "Fights with the Reaping Scythe instead of bolts: starts with two, thrown 80% faster and 3 m farther for 25% more damage, and they carry your fire and frost. +10% move speed.",
+		"weapon": "Scythe", "accent": Color(0.65, 0.95, 0.85),
+		"look": {"robe": Color(0.1, 0.1, 0.11), "robe_dark": Color(0.04, 0.04, 0.05), "trim": Color(0.6, 0.9, 0.8),
+			"cape": Color(0.08, 0.1, 0.1), "eye": Color(0.6, 1.0, 0.85)},
+		"mods": [{"stat": "scythe_level", "op": _ADD, "value": 1.0}, {"stat": "scythe_count", "op": _ADD, "value": 1.0},
+			{"stat": "scythe_rate", "op": _INC, "value": 0.8}, {"stat": "scythe_damage", "op": _INC, "value": 0.25},
+			{"stat": "scythe_range", "op": _ADD, "value": 3.0}, {"stat": "move_speed", "op": _INC, "value": 0.1}],
+		"powers": ["reaping"],
 	},
 }
 

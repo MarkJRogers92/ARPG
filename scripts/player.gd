@@ -339,6 +339,8 @@ func add_xp(amount: int) -> void:
 
 
 func _update_bolt(delta: float) -> void:
+	if stats.powers.has("reaping"):
+		return # the Reaper throws scythes instead
 	_bolt_timer -= delta
 	if _bolt_timer > 0.0:
 		return
@@ -383,7 +385,7 @@ func _update_bolt(delta: float) -> void:
 				damage, stats.bolt_pierce, 1.5, crit, _bolt_element())
 
 
-## Which element the next bolt carries: lightning with a Stormcaller weapon,
+## Which element the next bolt (or, for the Reaper, scythe) carries: lightning with a Stormcaller weapon,
 ## otherwise fire or frost by the ignite / chill chances.
 func _bolt_element() -> int:
 	if stats.powers.has("stormcaller"):
