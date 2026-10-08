@@ -235,14 +235,18 @@ func _run_behavior_test() -> void:
 		failures.append("market stock renders a buy action")
 	else:
 		var backpack_before: int = controller.state["inventory"]["backpack"].size()
-		buy_button.pressed.emit()
-		await process_frame
+		await _press_enter(buy_button)
 		var backpack: Array = controller.state["inventory"]["backpack"]
 		if backpack.size() != backpack_before + 1:
 			failures.append("market button commits a purchase through the controller")
 		else:
 			var purchased_id := str(backpack[-1])
 			var purchased: Dictionary = controller.state["inventory"]["items"][purchased_id]
+			var purchase_focus := town.get_viewport().gui_get_focus_owner()
+			var purchase_focus_is_action: bool = purchase_focus != null and purchase_focus.get_meta("town_action_focus_kind", "") == "market_stock" and not (purchase_focus as BaseButton).disabled
+			var purchase_focus_is_sidebar: bool = purchase_focus == town._service_buttons["market"]
+			if not purchase_focus_is_action and not purchase_focus_is_sidebar:
+				failures.append("purchase refresh keeps focus on another market action or its sidebar fallback")
 			(town._service_buttons["pack"] as Button).pressed.emit()
 			await process_frame
 			var item_button := _find_button(root, str(purchased["data"].get("name", "")), true)
@@ -324,10 +328,29 @@ func _run_behavior_test() -> void:
 	if talent_button == null or selected_talent.is_empty():
 		failures.append("trainer exposes a reachable affordable talent")
 	else:
-		talent_button.pressed.emit()
-		await process_frame
+		var talent_id := str(talent_button.get_meta("town_action_focus_id", ""))
+		await _press_enter(talent_button)
 		if int(controller.state["talents"]["points"]) >= talent_before:
 			failures.append("trainer allocation spends points through the controller")
+		var talent_focus := town.get_viewport().gui_get_focus_owner()
+		if talent_focus == null or talent_focus.get_meta("town_action_focus_kind", "") != "talent" or talent_focus.get_meta("town_action_focus_id", "") != talent_id:
+			failures.append("allocation refresh keeps focus on the same talent's refund control")
+		else:
+			var points_after_allocation := int(controller.state["talents"]["points"])
+			await _press_enter(talent_focus)
+			var refund_focus := town.get_viewport().gui_get_focus_owner()
+			if int(controller.state["talents"]["points"]) <= points_after_allocation:
+				failures.append("trainer refund returns points through the controller")
+			if refund_focus == null or refund_focus.get_meta("town_action_focus_kind", "") != "talent" or refund_focus.get_meta("town_action_focus_id", "") != talent_id:
+				failures.append("refund refresh keeps focus on the same talent's allocation control")
+			talent_focus = town.get_viewport().gui_get_focus_owner()
+			controller.changed.emit(controller.snapshot())
+			var market_rail := town._service_buttons["market"] as Button
+			market_rail.grab_focus()
+			market_rail.pressed.emit()
+			await process_frame
+			if town._active_service != "market" or town.get_viewport().gui_get_focus_owner() != market_rail:
+				failures.append("market navigation before deferred trainer focus restore keeps sidebar focus")
 	(town._service_buttons["ledger"] as Button).pressed.emit()
 	await process_frame
 	var gold_before: int = controller.state["gold"]
@@ -672,7 +695,7 @@ func _test_equipment_tools(failures: Array[String]) -> void:
 	if town._selected_item_id != "i-weapon" or focused == null or focused.get_meta("equipment_pack_focus_kind", "") != "worn" or focused.get_meta("equipment_pack_focus_id", "") != "i-weapon":
 		failures.append("Enter selects worn gear and keeps focus on its replacement slot row (selected=%s focus=%s kind=%s id=%s current_row=%s queued_old_row=%s)" % [town._selected_item_id, str(focused), str(focused.get_meta("equipment_pack_focus_kind", "")) if focused else "", str(focused.get_meta("equipment_pack_focus_id", "")) if focused else "", str(_find_button(town, "Weapon   ·   Moonlit Dirk")), str(worn_choice)])
 	if scroll != null and focused != null and not _control_intersects_scroll_viewport(scroll, focused):
-		failures.append("focused worn replacement row scrolls into view after selecting from a distant position")
+		failures.append("focused worn replacement row scrolls into view after selecting from a distant position (scroll=%s focused=%s)" % [str(scroll.get_global_rect()), str(focused.get_global_rect())])
 	if scroll != null:
 		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 		await process_frame

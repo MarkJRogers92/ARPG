@@ -267,11 +267,15 @@ func _select_service(id: String) -> void:
 
 func _on_changed(state: Dictionary) -> void:
 	var restore_pack_focus := _pack_content_has_focus()
+	var action_focus := _current_action_focus_identity()
+	var focus_service := _active_service
 	_state = state.duplicate(true)
 	_feedback.text = ""
 	_render()
 	if restore_pack_focus and _active_service == "pack" and str(_state.get("phase", "TOWN")) in ["TOWN", "DEPARTURE_READY"]:
 		_restore_pack_selection_focus.call_deferred()
+	elif not action_focus.is_empty() and _active_service == focus_service and str(_state.get("phase", "TOWN")) in ["TOWN", "DEPARTURE_READY"]:
+		_restore_town_action_focus.call_deferred(focus_service, str(action_focus["kind"]), str(action_focus["id"]))
 
 
 func _on_error(message: String) -> void:
@@ -358,6 +362,70 @@ func _render_panel() -> void:
 		"ledger":
 			_content_title.text = "THE FERRYMAN'S LEDGER"
 			_render_ledger()
+
+
+func _current_action_focus_identity() -> Dictionary:
+	if _active_service not in ["market", "trainer"] or not is_instance_valid(_content):
+		return {}
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused == null or not (_content == focused or _content.is_ancestor_of(focused)):
+		return {}
+	var kind := str(focused.get_meta("town_action_focus_kind", ""))
+	var item_id := str(focused.get_meta("town_action_focus_id", ""))
+	return {"kind": kind, "id": item_id} if not kind.is_empty() and not item_id.is_empty() else {}
+
+
+func _restore_town_action_focus(service: String, kind: String, item_id: String) -> void:
+	if not is_inside_tree() or _active_service != service or service not in ["market", "trainer"] or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
+		return
+	var current_focus := get_viewport().gui_get_focus_owner()
+	if current_focus != null and not current_focus.is_queued_for_deletion() and not (_content == current_focus or _content.is_ancestor_of(current_focus)):
+		return
+	var target := _find_town_action_focus_target(_content, kind, item_id)
+	if _town_action_control_is_available(target):
+		target.grab_focus()
+		return
+	var fallback := _find_available_town_action_focus_target(_content)
+	if fallback != null:
+		fallback.grab_focus()
+		return
+	if _service_buttons.has(service):
+		(_service_buttons[service] as Button).grab_focus()
+
+
+func _find_town_action_focus_target(node: Node, kind: String, item_id: String) -> Control:
+	if node.is_queued_for_deletion():
+		return null
+	if node is Control and node.get_meta("town_action_focus_kind", "") == kind and node.get_meta("town_action_focus_id", "") == item_id:
+		return node as Control
+	for child: Node in node.get_children():
+		var target := _find_town_action_focus_target(child, kind, item_id)
+		if target != null:
+			return target
+	return null
+
+
+func _find_available_town_action_focus_target(node: Node) -> Control:
+	if node.is_queued_for_deletion():
+		return null
+	if node is Control and not str(node.get_meta("town_action_focus_kind", "")).is_empty() and _town_action_control_is_available(node as Control):
+		return node as Control
+	for child: Node in node.get_children():
+		var target := _find_available_town_action_focus_target(child)
+		if target != null:
+			return target
+	return null
+
+
+func _town_action_control_is_available(control: Control) -> bool:
+	if control == null or control.is_queued_for_deletion() or not control.is_visible_in_tree() or control.focus_mode == Control.FOCUS_NONE:
+		return false
+	return not control is BaseButton or not (control as BaseButton).disabled
+
+
+func _set_town_action_focus_identity(control: Control, kind: String, item_id: String) -> void:
+	control.set_meta("town_action_focus_kind", kind)
+	control.set_meta("town_action_focus_id", item_id)
 
 
 func _render_route() -> void:
@@ -819,6 +887,7 @@ func _render_market() -> void:
 		row.add_child(label)
 		var price := int(stock_item.get("price", stock_item.get("valuation", 0)))
 		var buy := _button("Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
+		_set_town_action_focus_identity(buy, "market_stock", id)
 		buy.disabled = id.is_empty() or backpack_full or int(_state.get("gold", 0)) < price
 		row.add_child(buy)
 		var slot := str(data.get("slot", ""))
@@ -868,6 +937,7 @@ func _render_trainer() -> void:
 		var reachable := SkillData.neighbors(id).any(func(neighbor: String) -> bool: return neighbor == SkillData.ROOT or allocated.has(neighbor))
 		var button := _button("%s%s\n%d pt" % ["◆ " if owned else "◇ ", def["name"], cost], func() -> void:
 			_command("refund_talent" if owned else "allocate_talent", [id]), SkillData.BRANCHES[def["branch"]])
+		_set_town_action_focus_identity(button, "talent", id)
 		button.custom_minimum_size = Vector2(132, 52)
 		button.tooltip_text = "\n".join(SkillData.description_lines(id))
 		button.disabled = not owned and (not reachable or int(talents.get("points", 0)) < cost)
@@ -881,7 +951,9 @@ func _render_trainer() -> void:
 	if not specialization_unlocked:
 		_add_copy("Earn one more talent point from a successful expedition to unlock a specialization.")
 	for path: Dictionary in Specializations.paths(str(_state.get("hero_class", "battlemage"))):
-		var button := _button("%s%s\n%s" % ["✓ " if specialization == str(path["id"]) else "", path["name"], path["desc"]], func() -> void: _command("choose_specialization", [str(path["id"])]), path["color"])
+		var path_id := str(path["id"])
+		var button := _button("%s%s\n%s" % ["✓ " if specialization == path_id else "", path["name"], path["desc"]], func() -> void: _command("choose_specialization", [path_id]), path["color"])
+		_set_town_action_focus_identity(button, "specialization", path_id)
 		button.custom_minimum_size.y = 70
 		button.disabled = specialization == str(path["id"]) or not specialization_unlocked
 		_content.add_child(button)
