@@ -361,29 +361,10 @@ func _apply_expedition_loadout_before_tree(loadout: Dictionary) -> void:
 	var player := get_node("Player") as Player
 	var profile_snapshot: Dictionary = loadout.get("profile_snapshot", {})
 	_campaign_cards = profile_snapshot.get("cards", {}).duplicate(true)
-	player.stats.add_mods("meta", profile_snapshot.get("mods", []))
-	HeroClass.apply(player, _hero_class)
 	_relic = String(profile_snapshot.get("relic", ""))
-	Relics.apply(player, _relic, String(profile_snapshot.get("start_weapon", "")))
-	player.skill_point_every_levels = 0
-	player.stats.level = 1
-	player.stats.xp = 0
-	player.pending_levels = 0
-	var inventory_data: Dictionary = loadout.get("inventory", {})
-	if not inventory_data.is_empty():
-		player.inventory.restore(inventory_data)
-	var talent_data: Dictionary = loadout.get("talents", {"points": 0, "allocated": []})
-	player.skills.restore(talent_data)
 	var specialization := String(loadout.get("specialization", ""))
 	_spec_chosen = specialization != ""
-	if specialization != "":
-		Specializations.apply(player.stats, _hero_class, specialization)
-	for effect in expedition_spec.get("effects", []):
-		if effect is Dictionary and effect.get("mods", []) is Array:
-			player.stats.add_mods("campaign_effects", effect.get("mods", []))
-	player.stats.recalculate()
-	player.stats.hp = player.stats.max_hp
-	player.dead = false
+	CampaignLoadout.apply(player, _hero_class, loadout, expedition_spec.get("effects", []))
 
 
 func _raise_expedition_veteran(loadout: Dictionary) -> void:
