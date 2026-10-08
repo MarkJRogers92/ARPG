@@ -7,7 +7,7 @@ Open this checkout in Godot 4.7.2, or launch `/opt/homebrew/bin/godot --path /Us
 The Last Lantern connects Hollow Graveyard, Frozen Wastes and Ember Rift. Preview the available connected routes, choose one, resolve its event if present, then depart. Clear exactly three short expeditions in a biome to unlock its guardian. The guardian arrives after 15 minutes; winning requires its actual death and has no new time limit.
 
 - Hunt: survive five minutes.
-- Seal the Breach: activate three beacons and survive six minutes; finish before seven minutes.
+- Seal the Breach: activate three beacons and survive six minutes; if seals remain, close them before the seven-minute deadline.
 - Elite Hunt: the marked elite arrives at five minutes; defeat it before seven minutes.
 - Cursed Cache: survive six minutes; opening the marked cache is optional and adds danger/reward.
 

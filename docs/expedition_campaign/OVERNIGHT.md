@@ -42,3 +42,12 @@ Veiled routes remain veiled, and existing availability, reveal, selection, and c
 Root `project.godot` bytes and all six protected player files matched the original snapshot; no import churn remains from this pass. The next bounded opportunity is to inspect one concrete combat/objective feedback moment or town friction against current state before proposing changes. Do not duplicate active work. The hourly task remains active until 7:00 a.m. Chicago time.
 
 Checkpoint 3 ownership is closed: native Luna implemented; parent Sol independently reviewed and integrated. Jev advice was unavailable; no external classification was requested. No active worker package remains.
+
+
+## Accepted checkpoint 4 — seal deadline feedback
+
+Integrated at `131a328` on `feature/expedition-campaign-v1`, based on `7573849`. The breach HUD now uses the configured survival target and seal deadline: if seals remain incomplete at the survival target, it displays a seal-deadline countdown and instructs the player to close the remaining seals by the deadline. Both breach aliases are covered. When all seals are already closed, guidance continues to describe surviving until extraction; deadline-free specs invent no deadline.
+
+The change is limited to director presentation and focused combat/guidance tests. Arbitration, timings, gameplay, controllers, saves, and art are unchanged. Parent independently reviewed the actual diff and had the worker repair tests to assert success rather than terminal-only completion. Parent inspected the 720p seal-deadline fixture using catalog durations 360/420 and elapsed 398; [preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/seal-deadline-720.png) is a fixture, not live-combat proof. Integrated combat tests passed 50 and guidance tests passed 22 (both exit 0, no ERROR/WARNING); logs are in `work/objective-feedback/integrated-{combat,guidance}.log`. Protected player-file states and original `project.godot` bytes matched after tests; no import churn remains. No full journey/lifecycle rerun was made because only two presentation methods changed.
+
+Native Luna implemented; parent Sol reviewed and integrated. Jev advice was unavailable; no external advice was requested. Workers are done. The hourly continuation remains active through 7:00 a.m. Chicago time. Next bounded entry: inspect actual campaign friction or a concrete bug before adding anything; avoid repeated metadata-only polish and speculative changes. No push, release, purchase, or art generation.

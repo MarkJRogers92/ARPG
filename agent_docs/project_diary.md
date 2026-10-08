@@ -17,3 +17,8 @@ Integrated at `c221155`. Results now recap recorded cause, objectives, progressi
 ## 2026-10-08 — Overnight checkpoint 3
 
 Integrated at `9211a01`. Route previews clarify scaled base gold before event/shard changes, the optional Cursed Cache bonus, talent awards by mission and realm, and reserved Rare versus banked finale Legendary prizes. Veiled routes and existing reveal/availability/commit behavior remain intact. Parent diff review caught a vacuous state-preservation test, which the worker repaired; focused integrated UI passed with exit 0 and no ERROR/WARNING. Parent inspected 720p/1080p fixture previews, not live-play proof. Protected files matched the original snapshot; no import churn. The full journey was not repeated for this view-only change. Overnight work remains active through 7:00 a.m. Chicago time; next bounded inspection is one concrete combat/objective feedback moment or town friction. Details: `docs/expedition_campaign/OVERNIGHT.md`.
+
+
+## 2026-10-08 — Overnight checkpoint 4
+
+Integrated at `131a328`. Breach guidance now follows configured survival/deadline values, shows a countdown for incomplete seals after the survival target, and keeps extraction guidance when all seals are closed. Both breach aliases are covered; deadline-free specs invent none. Parent review prompted tests that assert successful completion. Integrated combat (50) and guidance (22) checks passed, exit 0 with no ERROR/WARNING. Parent inspected a 720p fixture, not live-combat proof. Protected player files and original `project.godot` bytes matched; no import churn. No full journey/lifecycle rerun for the two-method presentation change. Details: `docs/expedition_campaign/OVERNIGHT.md`.
