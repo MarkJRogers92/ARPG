@@ -2,7 +2,7 @@
 
 ## Authority and deadline
 
-Mark requested continued feature development through the morning. Target cutoff: 7:00 a.m. America/Chicago, October 8. Hourly follow-ups are attached to this chat as `soulbound-overnight-improvements`, with a schedule ending at the cutoff. Continue safe bounded packages; do not start new work after the cutoff. No push, merge, release, deployment, installed-app replacement, purchases, or paid generation.
+Mark requested continued feature development through the morning. Target cutoff: 6:00 a.m. America/Chicago, October 8. Mark shortened the deadline at approximately 4:03 a.m.; this overrides all older 7:00 a.m. continuation notes below. Hourly follow-ups are attached to this chat as `soulbound-overnight-improvements`, with a schedule ending at the cutoff. Continue safe bounded packages; do not start new work after the cutoff. No push, merge, release, deployment, installed-app replacement, purchases, or paid generation.
 
 ## Starting checkpoint
 

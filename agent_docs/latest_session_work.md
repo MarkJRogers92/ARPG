@@ -2,6 +2,8 @@
 
 ## Expedition campaign — 2026-10-08
 
+Current deadline: **6:00 a.m. America/Chicago, October 8**, shortened by Mark at approximately 4:03 a.m. The automation cutoff and prompt are updated; older 7:00 a.m. notes below are superseded.
+
 - Feature branch: `feature/expedition-campaign-v1`; base `3fe4ea0`.
 - Task commits: `125043d`, `d0196d9`, `4be1500`, `a35ee41`, `3b67fec`, `aede952`, `473d471`.
 - Campaign baseline HEAD: `473d471`; overnight checkpoint 1 HEAD: `3254886`.
