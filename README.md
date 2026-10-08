@@ -787,9 +787,10 @@ with `shake_enabled` on `CameraRig`.
 
 ## The look
 
-Everything you see is built in code: there are no models, textures or icons on
-disk. `scripts/visual/models.gd` assembles each model (the hooded hero, the three
-enemy types, every item base, bolts, XP crystals and the scenery) out of
+Almost everything you see is built in code: the hero, every enemy and boss,
+items, bolts, XP crystals, icons and most scenery. The exception is 52
+imported Blender props (`assets/environment/arpg_pack/`, see Imported
+scenery). `scripts/visual/models.gd` assembles each code-built model out of
 primitive shapes with `MeshKit`, which merges them into one vertex-colored mesh.
 A part can glow (stored per vertex), and the shaders in `shaders/` do the rest.
 
@@ -1067,6 +1068,16 @@ godot --path . --fixed-fps 60 -s tools/screenshot.gd -- shots 5 crowd     # star
   weapons' upgrades, Soul Shards and the Altar
   (buying, costs, max ranks, saving and loading, applying at run start), elites,
   knockback, enemy fireballs and dash invulnerability.
+- It also covers the specialist enemies (shields block only direct hits,
+  menders heal up to full in their ring, bloaters light up, burst, chain and
+  clear their circles), the Reaper (no bolts, its own cards, scythes carrying
+  elements), the Reliquary (buying, star relics, carrying, starting weapons,
+  lost lore gating the pool, old saves loading), key rebinding (swaps, reset,
+  saving), bold warnings, calm effects, aim assist, and the death recap
+  (damage by cause, the killing blow, who fired a shot).
+- `resume_test.gd` builds a night with history (upgrades, a path, gear,
+  skills, an army), saves and quits through the real flow, resumes from the
+  title screen's signal and checks that everything came back.
 - `ui_test.gd` and `skill_ui_test.gd` open the real screens with the real input
   actions, check the pause, and click through equipping, discarding, allocating,
   refunding (including the refusals), resetting and closing.
@@ -1095,11 +1106,25 @@ scripts/
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
   player.gd            Movement, aiming, dash, Magic Bolt, Frost Aura, XP, levels
-  abilities/           Chain Lightning, Spirit Blades, Arcane Nova
-  enemy_shots.gd       Fireballs from ranged enemies
+  abilities/           Chain Lightning, Spirit Blades, Arcane Nova, Obol, Reaping Scythe, Funeral Bell
+  enemy_shots.gd       Fireballs from ranged enemies (each remembers who fired it)
   boss_director.gd     When bosses come, and their telegraphed slam
   mid_mechanics.gd     Each realm's mid-boss move: shockwave, rime armor, lava pools
-  meta_progress.gd     Soul Shards and the Altar's permanent upgrades (saved)
+  final_mechanics.gd   Each realm's final boss: phylacteries, fracture lines, meteors
+  specialists.gd       Shieldbearers, Menders and Bloaters: blocks, heals, blasts
+  meta_progress.gd     Soul Shards, the Altar, the Reliquary, settings (saved)
+  relics.gd            The Reliquary: relics, starting weapons, lost lore
+  run_save.gd          Save and quit / resume: the one saved night
+  death_recap.gd       The end screen's "why you died" summary and chart
+  controls.gd          Key rebinding and key names for on-screen hints
+  evolutions.gd        Weapon evolutions (a maxed weapon + its catalyst)
+  specializations.gd   The three paths per hero at level 10
+  run_modifiers.gd     Omens, Pacts of Night and Ascension
+  landmarks.gd         Usable set pieces (wells, forges, tomes...)
+  ferryman.gd          The Ferryman's wagers, loans, bets and Debt Collectors
+  wager_panel.gd       The Ferryman's table
+  rival.gd             The rival necromancer and the nemesis
+  rift_director.gd     Rifts: the Night Market and the glitch
   juice.gd             One place to trigger particles, numbers, flashes, shake
   army.gd              The Soul Army: souls, raising minions, minion AI
   elements.gd          Elemental hits, statuses and reactions
@@ -1109,7 +1134,7 @@ scripts/
   title_screen.gd      Hero and realm select (previews each realm behind the menu)
   hero_class.gd        The playable heroes: looks, weapons, stats, powers
   event_director.gd    Shrines, treasure goblins, cursed chests, health orbs
-  pause_menu.gd        Esc menu: volumes, shake and damage-number toggles
+  pause_menu.gd        Esc menu: settings, Controls, Save and quit
   audio/sound.gd       Sound effects (pooled, rate-limited) and layered music
   altar_panel.gd       The Altar of Souls, on the title, death and victory screens
   player_stats.gd      Base values + modifiers -> effective stats
@@ -1141,6 +1166,8 @@ scripts/
     damage_numbers.gd  Pooled floating damage numbers
     light_flashes.gd   Pooled light bursts for explosions
     atmosphere.gd      Dusk -> moonlight -> blood moon over the run
+    dawn_glow.gd       First Light's glow and rays
+    wisps.gd           Soul trails from the dead to the hero
 shaders/
   kit.gdshader         Vertex-colored models with glow and rim light
   kit_landmark.gdshader  kit for big imported set pieces, with a see-through window
@@ -1152,7 +1179,7 @@ audio/
   sfx/*.wav, music/*.ogg   Generated by tools/audio/make_audio.py
 tools/
   audio/make_audio.py  Synthesizes every sound effect and music loop
-  tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, smoke_test.gd, bench_swarm.gd
+  tests.gd, ui_test.gd, skill_ui_test.gd, aim_test.gd, resume_test.gd, smoke_test.gd, bench_swarm.gd
   balance_bot.gd, balance.sh, screenshot.gd, asset_showcase.gd
 ```
 
@@ -1210,7 +1237,7 @@ tools/
 
 ## Not built yet
 
-Saving a run in progress (items and the skill tree already serialize with
-`to_dict()`; Soul Shards, the Altar and realm progress already save with
-`FileAccess.store_var`), harder difficulty tiers for conquered realms, biomes with obstacles (the player is already a `CharacterBody3D`; the
-scenery is decoration only), and level-of-detail meshes for far-away enemies.
+Level-of-detail meshes for far-away enemies; a web build (the Compatibility
+renderer would allow it, but thousands of MultiMesh enemies need a
+performance check in a browser first); gamepad rebinding (Controls rebinds
+keys only); and saving a night during its final fight.
