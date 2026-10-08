@@ -145,6 +145,7 @@ func _add_site(id: String, color: Color, label_text: String) -> void:
 	label.outline_size = 8
 	label.modulate = color
 	holder.add_child(label)
+	ObjectiveProps.attach(holder, id, color)
 	_visuals.append(holder)
 
 
