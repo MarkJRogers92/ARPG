@@ -1838,10 +1838,28 @@ func _test_real_snapshot_rendering(town: CampaignTown, controller: CampaignContr
 	var depth_one := str(transition_state["graph"]["start"][0])
 	var depth_two := str(transition_state["graph"]["nodes"][depth_one]["next"][0])
 	transition_state["cleared_nodes"] = [depth_one, depth_two]
+	town._active_service = "route"
 	controller._publish(transition_state)
+	await process_frame
 	var biome_value := town._root.find_child("Value_biome", true, false) as Label
 	if biome_value == null or not biome_value.text.ends_with("2 / 3 clears"):
 		failures.append("biome transition displays only this realm's three short-node clears")
+	if town._place_header_title.text != "RIMEWATCH" or not town._place_header_subtitle.text.contains("STOP 3 / 4"):
+		failures.append("town header names the current shelter and its journey stage")
+	if town._place_context.text != "A high watchtower tracks movement across the frozen ridges." or _find_label(town, "Victory takes you to the next stop") == null:
+		failures.append("route panel explains the current stop and forward route in player-facing copy")
+	transition_state["phase"] = "RESULT_PENDING"
+	transition_state["result"] = {"outcome": "success", "elapsed": 1.0, "gold": 1, "shard_conversion": 0,
+		"talent_points": 0, "campaign_complete": false, "report": {}, "items": []}
+	controller._publish(transition_state)
+	await process_frame
+	if _find_label(town, "NEXT STOP · Rimewatch") == null:
+		failures.append("settled success result shows the saved destination stop")
+	transition_state["result"]["outcome"] = "retreat"
+	controller._publish(transition_state)
+	await process_frame
+	if _find_label(town, "BACK AT Rimewatch") == null or _find_label(town, "NEXT STOP · Rimewatch") != null:
+		failures.append("retreat result reports return to the same shelter instead of forward arrival")
 	controller._publish(original_state)
 
 

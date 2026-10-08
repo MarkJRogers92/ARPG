@@ -1,6 +1,6 @@
 # Latest session work
 
-Current checkpoint: approved PR #32 merged as `b9c0c2f`; follow-up is local branch `preview/campaign-world-and-feedback`. See `docs/expedition_campaign/WORLD_FEEDBACK_PREVIEW.md`. Earlier entries are historical.
+Current checkpoint: approved PR #33 merged as `4035c99`; the next local review branch is `preview/onward-biome-settlements`. See `docs/expedition_campaign/ONWARD_PREVIEW.md`. Earlier entries are historical.
 
 ## Expedition campaign — 2026-10-08
 
@@ -53,3 +53,10 @@ Local branch `preview/last-lantern-expedition-polish` starts at Claude's merged 
 ## 2026-10-08 — World and feedback follow-up
 
 Mark approved publication of the Last Lantern preview: PR #32 merged as `b9c0c2f`, and all GitHub build/test/export jobs succeeded. New local review branch `preview/campaign-world-and-feedback` adds first-Graveyard composition, destination/arrival/return presentation, objective feedback, and town milestone dressing. Native Luna packages received independent Sol review; parent integrated and verified. Integrated world/walk/arrival/audio/UI, combat70, guidance27, lifecycle150 and Classic60-second smoke passed. Rendered fixtures inspected; shutdown audio/resource cleanup warnings remain. Original profile/settings fingerprints match. No save format/economy/balance changes. The new preview remains unpushed/unmerged for user review. See `docs/expedition_campaign/WORLD_FEEDBACK_PREVIEW.md` for scope, exact evidence and limitations.
+
+
+## 2026-10-08 — Onward biome settlements preview
+
+Mark approved a forward journey with different camps/cities for each biome. Local `preview/onward-biome-settlements`, based on merged PR #33 (`4035c99`), adds 12 biome stops and Dawn's Rest. A pure resolver follows committed biome/clears/completion; original Last Lantern stays the starting scene, while subsequent stops have distinct scenery and biome lighting. Services and hero/camera persist. Failed attempts and withdrawals do not advance; guardian victory enters the next biome. No save schema, controller, economy, or balance changes.
+
+Native Luna packages and independent Sol review; parent integrated and inspected native 720p views. Integrated waystop 66 (windowed capture variant 70), all-stop movement/service 571, world 50, walk 43, UI, backdrop, sound lifecycle, and campaign lifecycle 150 passed. First victory uses real Shell/Main with an injected result, not another full combat playthrough. Existing shutdown ObjectDB/resource warnings remain. Original six save states and project settings fingerprints match. The launcher uses a separate copied profile. Jev routing unavailable; native plan retained. Local review only, no publication. Details and limitations: `docs/expedition_campaign/ONWARD_PREVIEW.md`.

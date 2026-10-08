@@ -58,6 +58,8 @@ func _test_town_progression() -> void:
 	walk.present(state)
 	check(_count_progress_groups(walk) == 1 and walk._journey_dressing.get_child_count() == 0,
 		"fresh town starts with no saved-route trophy dressing")
+	check(walk._journey_dressing.get_parent() == walk._lantern_world,
+		"journey progression dressing stays owned by Last Lantern and hides with it")
 	check(_visible_votives(walk) == 0 and not walk._ferryman_story.visible,
 		"fresh town keeps return lights and the Ferryman's story quiet")
 
@@ -94,7 +96,12 @@ func _test_town_progression() -> void:
 		"campaign completion restores the Lantern's arch and garden")
 	check(walk._ferryman_story.text == "At last, dawn has found the road.",
 		"the town story reaches its completion line")
+	check(walk._env.ambient_light_color.is_equal_approx(Color(0.96, 0.72, 0.43))
+		and walk._env.background_color.is_equal_approx(Color(0.23, 0.14, 0.065)),
+		"completion warms the walk-town lighting into a dawn palette")
 	check(_count_progress_groups(walk) == 1, "milestone changes replace dressing without stale duplicate nodes")
+	check(walk._journey_dressing.get_parent() == walk._lantern_world,
+		"completed progression dressing remains inside Last Lantern")
 	check(state == original, "town presentation reads campaign data without mutating it")
 
 	if not capture_path.is_empty() and capture_kind == "town":
@@ -273,10 +280,13 @@ func _has_progress_node(walk: CampaignWalkTown, node_name: String) -> bool:
 
 
 func _count_progress_groups(walk: CampaignWalkTown) -> int:
-	var count := 0
-	for child: Node in walk.get_children():
-		if child.name == "JourneyProgressDressings":
-			count += 1
+	return _count_named_groups(walk, "JourneyProgressDressings")
+
+
+func _count_named_groups(node: Node, expected_name: String) -> int:
+	var count := 1 if node.name == expected_name else 0
+	for child: Node in node.get_children():
+		count += _count_named_groups(child, expected_name)
 	return count
 
 

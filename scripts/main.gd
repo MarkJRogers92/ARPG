@@ -476,9 +476,10 @@ func _finish_expedition_frame() -> void:
 	var outcome := str(_expedition_result.get("outcome", "failure"))
 	var heading := "MISSION SECURED" if outcome == "success" else ("WITHDRAWAL" if outcome == "retreat" else "MISSION FAILED")
 	var cue := "Extraction secured" if outcome == "success" else ("You withdrew; the route remains committed" if outcome == "retreat" else "Contract rewards and route progress were not banked")
+	var destination_copy := "Moving onward along the road" if outcome == "success" else "Falling back to the last shelter"
 	var contract: Dictionary = CampaignCatalog.CONTRACTS.get(str(expedition_spec.get("contract_id", "")), {})
 	var contract_name := str(contract.get("name", "Expedition"))
-	_hud.title_card(heading, "%s  ·  %s\nReturning to the Last Lantern" % [contract_name, cue],
+	_hud.title_card(heading, "%s  ·  %s\n%s" % [contract_name, cue, destination_copy],
 		UiStyle.GOLD if outcome == "success" else Color(1.0, 0.58, 0.48), true)
 	_return_ritual_left = ExpeditionDirector.RITUAL_SECONDS
 

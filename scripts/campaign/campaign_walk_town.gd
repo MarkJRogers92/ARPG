@@ -61,10 +61,18 @@ var _mist: Array[MeshInstance3D] = []
 var _mist_origins: Array[Vector3] = []
 var _wisps: Array[MeshInstance3D] = []
 var _returning_votives: Array[MeshInstance3D] = []
+var _completed_presentation := false
 var _journey_dressing: Node3D
 var _journey_stage_key := ""
 var _ferryman_story: Label3D
 var _footstep_left := 0.0
+var _lantern_world: Node3D
+var _destination_world: Node3D
+var _lantern_blockers: Array = []
+var _station_blockers: Array = []
+var _lantern_houses: Array[Vector2] = []
+var _waystop: Dictionary = {}
+var _waystop_id := ""
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -82,8 +90,24 @@ func _ready() -> void:
 	_build_environment()
 	_build_ground()
 	_build_lantern()
+	_lantern_houses = _houses.duplicate()
+	# The opening sanctuary is kept as one reusable layer. Service stations,
+	# hero, and camera stay outside it so they can travel to later waystops.
+	_lantern_world = Node3D.new()
+	_lantern_world.name = "LastLanternWorld"
+	for child: Node in get_children():
+		if child is WorldEnvironment or child is DirectionalLight3D:
+			continue
+		remove_child(child)
+		_lantern_world.add_child(child)
+	add_child(_lantern_world)
+	_lantern_blockers = _blockers.duplicate(true)
 	for station: Dictionary in STATIONS:
 		_build_station(station)
+	_station_blockers = _blockers.slice(_lantern_blockers.size())
+	_lantern_blockers.append_array(_station_blockers.duplicate(true))
+	_waystop = CampaignWaystops.resolve({"biome_index": 0, "cleared_nodes": [], "completed": false})
+	_waystop_id = str(_waystop.get("id", ""))
 	_hero = HeroModel.new()
 	add_child(_hero)
 	_camera = Camera3D.new()
@@ -98,12 +122,20 @@ func present(state: Dictionary) -> void:
 	if not is_instance_valid(_hero):
 		return
 	var biome := clampi(int(state.get("biome_index", 0)), 0, BIOMES.size() - 1)
-	if biome != _biome:
+	var completed := bool(state.get("completed", false))
+	var place := CampaignWaystops.resolve(state)
+	if str(place.get("id", "")) != _waystop_id:
+		_switch_waystop(place)
+	if biome != _biome or completed != _completed_presentation:
 		_biome = biome
+		_completed_presentation = completed
 		var look: Dictionary = BIOMES[biome]
-		_ground_material.albedo_color = look["ground"]
-		_env.ambient_light_color = look["ambient"]
-		_env.fog_light_color = look["fog"]
+		_ground_material.albedo_color = Color(0.27, 0.18, 0.1) if completed else look["ground"]
+		_env.ambient_light_color = Color(0.96, 0.72, 0.43) if completed else look["ambient"]
+		_env.fog_light_color = Color(0.39, 0.27, 0.15) if completed else look["fog"]
+		_env.background_color = Color(0.23, 0.14, 0.065) if completed else (look["fog"].darkened(0.65) if _waystop.get("kind", "") == "lantern" else look["ambient"].darkened(0.35))
+		_env.ambient_light_energy = 0.78 if completed else (0.42 if _waystop.get("kind", "") == "lantern" else 0.58)
+	if biome != _biome or not is_instance_valid(_scatter):
 		_build_scatter(biome)
 	var cleared: Array = state.get("cleared_nodes", [])
 	for i in _returning_votives.size():
@@ -119,6 +151,36 @@ func present(state: Dictionary) -> void:
 	if record is Dictionary and record.get("data") is Dictionary:
 		weapon = str(record["data"].get("base_name", weapon))
 	_hero.set_weapon(weapon, info.get("accent", HeroModel.DEFAULT_ACCENT))
+
+
+## A stop ID is the only reason to rebuild location art. The hero and all seven
+## service identities remain alive; travel arrivals enter from the south road.
+func _switch_waystop(place: Dictionary) -> void:
+	_waystop = place.duplicate(true)
+	_waystop_id = str(place.get("id", ""))
+	if is_instance_valid(_scatter):
+		_scatter.free()
+		_scatter = null
+	if is_instance_valid(_destination_world):
+		_destination_world.free()
+		_destination_world = null
+	var is_lantern := str(place.get("kind", "")) == "lantern"
+	if is_instance_valid(_lantern_world):
+		_lantern_world.visible = is_lantern
+	_blockers = _lantern_blockers.duplicate(true) if is_lantern else _station_blockers.duplicate(true)
+	_houses.clear()
+	if is_lantern:
+		_houses = _lantern_houses.duplicate()
+	if not is_lantern:
+		_destination_world = CampaignWaystopScenery.build(self, place)
+		for blocker: Array in CampaignWaystopScenery.walk_blockers(_destination_world):
+			_blockers.append(blocker)
+		# A returning traveler arrives at the south marker, facing the northbound
+		# route board, while retaining the same hero instance and campaign kit.
+		_hero_pos = Vector2(0, 2.5)
+		_place_hero(0.0)
+		_near = ""
+		_update_near()
 
 
 func nearest_station() -> String:
@@ -347,11 +409,12 @@ func _present_journey_dressing(state: Dictionary, cleared: Array) -> void:
 		return
 	_journey_stage_key = stage_key
 	if is_instance_valid(_journey_dressing):
-		remove_child(_journey_dressing)
+		if is_instance_valid(_journey_dressing.get_parent()):
+			_journey_dressing.get_parent().remove_child(_journey_dressing)
 		_journey_dressing.free()
 	_journey_dressing = Node3D.new()
 	_journey_dressing.name = "JourneyProgressDressings"
-	add_child(_journey_dressing)
+	(_lantern_world if is_instance_valid(_lantern_world) else self).add_child(_journey_dressing)
 	_ferryman_story.visible = success_count > 0 or complete
 	if complete:
 		_ferryman_story.text = "At last, dawn has found the road."
@@ -685,7 +748,10 @@ func _build_scatter(biome: int) -> void:
 		_scatter.free()
 	_scatter = Node3D.new()
 	_scatter.name = "Scatter"
-	add_child(_scatter)
+	var scatter_parent := _destination_world if is_instance_valid(_destination_world) else _lantern_world
+	if not is_instance_valid(scatter_parent):
+		scatter_parent = self
+	scatter_parent.add_child(_scatter)
 	var info: Dictionary = BIOMES[biome]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7919 + biome
