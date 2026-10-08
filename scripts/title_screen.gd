@@ -161,7 +161,7 @@ func _build() -> void:
 	var campaign_continue := Button.new()
 	campaign_continue.text = "Continue Campaign"
 	campaign_continue.custom_minimum_size = Vector2(260, 44)
-	campaign_continue.disabled = not CampaignSave.exists()
+	campaign_continue.disabled = not CampaignSave.resumable()
 	campaign_continue.tooltip_text = "Town and results are saved. An active expedition restarts from its departure checkpoint."
 	campaign_continue.pressed.connect(func() -> void: _open_campaign(false))
 	campaigns.add_child(campaign_continue)
@@ -843,7 +843,7 @@ func _fill_crypt() -> void:
 
 
 func _new_campaign() -> void:
-	if not CampaignSave.exists():
+	if not CampaignSave.resumable():
 		_open_campaign(true)
 		return
 	var confirm := ConfirmationDialog.new()
