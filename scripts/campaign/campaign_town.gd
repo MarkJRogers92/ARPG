@@ -186,6 +186,7 @@ func _build_center(parent: Control) -> void:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.follow_focus = true
 	stack.add_child(scroll)
 	_content = VBoxContainer.new()
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -265,9 +266,12 @@ func _select_service(id: String) -> void:
 
 
 func _on_changed(state: Dictionary) -> void:
+	var restore_pack_focus := _pack_content_has_focus()
 	_state = state.duplicate(true)
 	_feedback.text = ""
 	_render()
+	if restore_pack_focus and _active_service == "pack" and str(_state.get("phase", "TOWN")) in ["TOWN", "DEPARTURE_READY"]:
+		_restore_pack_selection_focus.call_deferred()
 
 
 func _on_error(message: String) -> void:
@@ -519,6 +523,7 @@ func _render_pack() -> void:
 		var item_id := str(equipped.get(slot, ""))
 		var record: Dictionary = items.get(item_id, {})
 		var button := _button("%s   ·   %s" % [ItemData.SLOT_NAMES.get(slot, str(slot)), _item_name(record)], func() -> void: _select_item(item_id, str(slot)), UiStyle.GOLD)
+		_set_pack_focus_identity(button, "worn", item_id)
 		button.disabled = item_id.is_empty()
 		item_column.add_child(button)
 	_add_subtitle(item_column, "BACKPACK · %d / %d" % [backpack.size(), Inventory.BACKPACK_SIZE])
@@ -570,6 +575,7 @@ func _render_pack() -> void:
 		var rec: Dictionary = items.get(item_id, {})
 		var mark := "◆ " if bool(rec.get("locked", false)) else ("× " if bool(rec.get("junk", false)) else "")
 		var b := _button("%s%s  ·  %s" % [mark, _item_name(rec), _rarity_text(rec)], func() -> void: _select_item(item_id, str(rec.get("data", {}).get("slot", "weapon"))), _rarity_color(rec))
+		_set_pack_focus_identity(b, "backpack", item_id)
 		item_column.add_child(b)
 	_add_subtitle(item_column, "REWARD TRAY · %d unclaimed" % tray.size())
 	for item_id_variant: Variant in tray:
@@ -585,7 +591,9 @@ func _render_pack() -> void:
 		var tray_actions := HBoxContainer.new()
 		tray_actions.add_theme_constant_override("separation", 4)
 		tray_card.add_child(tray_actions)
-		tray_actions.add_child(_button("Compare", func() -> void: _select_item(item_id, str(rec.get("data", {}).get("slot", "weapon")))))
+		var compare := _button("Compare", func() -> void: _select_item(item_id, str(rec.get("data", {}).get("slot", "weapon"))))
+		_set_pack_focus_identity(compare, "tray", item_id)
+		tray_actions.add_child(compare)
 		var claim := _button("Claim", func() -> void: _command("claim_item", [item_id]), UiStyle.GOLD)
 		claim.disabled = backpack.size() >= Inventory.BACKPACK_SIZE
 		tray_actions.add_child(claim)
@@ -694,6 +702,56 @@ func _select_item(item_id: String, slot: String) -> void:
 	_selected_item_id = item_id
 	_selected_slot = slot
 	_render_panel()
+	_restore_pack_selection_focus.call_deferred()
+
+
+func _set_pack_focus_identity(control: Control, kind: String, item_id: String) -> void:
+	control.set_meta("equipment_pack_focus_kind", kind)
+	control.set_meta("equipment_pack_focus_id", item_id)
+
+
+func _pack_content_has_focus() -> bool:
+	if not is_instance_valid(_content):
+		return false
+	var focused := get_viewport().gui_get_focus_owner()
+	return focused != null and (_content == focused or _content.is_ancestor_of(focused))
+
+
+func _restore_pack_selection_focus() -> void:
+	if not is_inside_tree() or _active_service != "pack" or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
+		return
+	var current_focus := get_viewport().gui_get_focus_owner()
+	if current_focus != null and not current_focus.is_queued_for_deletion() and not (_content == current_focus or _content.is_ancestor_of(current_focus)):
+		return
+	var target_kind := ""
+	var inventory: Dictionary = _state.get("inventory", {})
+	var item_id := _selected_item_id
+	if not item_id.is_empty() and _inventory_has_item(inventory, item_id):
+		if inventory.get("equipped", {}).values().has(item_id):
+			target_kind = "worn"
+		elif inventory.get("backpack", []).has(item_id):
+			target_kind = "backpack"
+		elif inventory.get("tray", []).has(item_id):
+			target_kind = "tray"
+	var target := _find_pack_focus_target(_content, target_kind, item_id) if not target_kind.is_empty() else null
+	if target != null and target.is_visible_in_tree() and target.focus_mode != Control.FOCUS_NONE:
+		if not target is BaseButton or not (target as BaseButton).disabled:
+			target.grab_focus()
+			return
+	if is_instance_valid(_pack_filter_dropdown) and _pack_filter_dropdown.is_visible_in_tree():
+		_pack_filter_dropdown.grab_focus()
+
+
+func _find_pack_focus_target(node: Node, kind: String, item_id: String) -> Control:
+	if node.is_queued_for_deletion():
+		return null
+	if node is Control and node.get_meta("equipment_pack_focus_kind", "") == kind and node.get_meta("equipment_pack_focus_id", "") == item_id:
+		return node as Control
+	for child: Node in node.get_children():
+		var target := _find_pack_focus_target(child, kind, item_id)
+		if target != null:
+			return target
+	return null
 
 
 func _toggle_item_mark(item_id: String, key: String) -> void:

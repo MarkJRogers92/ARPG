@@ -249,43 +249,62 @@ func _run_behavior_test() -> void:
 			if item_button == null:
 				failures.append("purchased copy appears in the armory")
 			else:
-				item_button.pressed.emit()
-				await process_frame
+				await _press_enter(item_button)
+				var selection_focus := town.get_viewport().gui_get_focus_owner()
+				if town._selected_item_id != purchased_id or selection_focus == null or selection_focus.get_meta("equipment_pack_focus_kind", "") != "backpack" or selection_focus.get_meta("equipment_pack_focus_id", "") != purchased_id:
+					failures.append("Enter selects purchased gear and keeps focus on its rendered backpack row")
 				var equip_button := _find_button(root, "Equip")
 				if equip_button == null:
 					failures.append("selected item exposes equip action")
 				else:
-					equip_button.pressed.emit()
+					equip_button.grab_focus()
 					await process_frame
-					if str(controller.state["inventory"]["equipped"].get(str(purchased["data"]["slot"]), "")) != purchased_id:
-						failures.append("armory equip button commits the selected stable item ID")
-					var backpack_after_equip: Array = controller.state["inventory"]["backpack"]
-					if not backpack_after_equip.is_empty():
-						var junk_id := str(backpack_after_equip[0])
-						var junk_record: Dictionary = controller.state["inventory"]["items"][junk_id]
-						town._select_item(junk_id, str(junk_record["data"]["slot"]))
-						var lock_button := _find_button(root, "Lock / unlock")
+					equip_button = _find_button(root, "Equip")
+					if equip_button == null:
+						failures.append("equip action remains available while selected gear is focused")
+					else:
+						equip_button.pressed.emit()
+						await process_frame
+						var equipped_focus := town.get_viewport().gui_get_focus_owner()
+						if equipped_focus == null or equipped_focus.get_meta("equipment_pack_focus_kind", "") != "worn" or equipped_focus.get_meta("equipment_pack_focus_id", "") != purchased_id:
+							failures.append("real equip refresh moves focus to the selected item's new worn row")
+				if str(controller.state["inventory"]["equipped"].get(str(purchased["data"]["slot"]), "")) != purchased_id:
+					failures.append("armory equip button commits the selected stable item ID")
+				var backpack_after_equip: Array = controller.state["inventory"]["backpack"]
+				if not backpack_after_equip.is_empty():
+					var junk_id := str(backpack_after_equip[0])
+					var junk_record: Dictionary = controller.state["inventory"]["items"][junk_id]
+					town._select_item(junk_id, str(junk_record["data"]["slot"]))
+					await process_frame
+					var lock_button := _find_button(root, "Lock / unlock")
+					if lock_button != null:
+						lock_button.grab_focus()
+						await process_frame
+						lock_button = _find_button(root, "Lock / unlock")
 						if lock_button != null:
 							lock_button.pressed.emit()
 							await process_frame
 							if not controller.state["inventory"]["items"][junk_id]["locked"]:
 								failures.append("lock button protects the selected copy")
+							var marked_focus := town.get_viewport().gui_get_focus_owner()
+							if marked_focus == null or marked_focus.get_meta("equipment_pack_focus_kind", "") != "backpack" or marked_focus.get_meta("equipment_pack_focus_id", "") != junk_id:
+								failures.append("real lock refresh keeps focus on the selected backpack item")
 							lock_button = _find_button(root, "Lock / unlock")
 							if lock_button != null:
 								lock_button.pressed.emit()
 								await process_frame
-						var junk_button := _find_button(root, "Mark / unmark junk")
-						if junk_button != null:
-							junk_button.pressed.emit()
+					var junk_button := _find_button(root, "Mark / unmark junk")
+					if junk_button != null:
+						junk_button.pressed.emit()
+						await process_frame
+						if not controller.state["inventory"]["items"][junk_id]["junk"]:
+							failures.append("junk button marks only the chosen copy")
+						var sell_button := _find_button(root, "Sell marked junk")
+						if sell_button != null:
+							sell_button.pressed.emit()
 							await process_frame
-							if not controller.state["inventory"]["items"][junk_id]["junk"]:
-								failures.append("junk button marks only the chosen copy")
-							var sell_button := _find_button(root, "Sell marked junk")
-							if sell_button != null:
-								sell_button.pressed.emit()
-								await process_frame
-								if controller.state["inventory"]["items"].has(junk_id):
-									failures.append("sell marked junk sends eligible IDs to the controller")
+							if controller.state["inventory"]["items"].has(junk_id):
+								failures.append("sell marked junk sends eligible IDs to the controller")
 
 	# A point-bearing talent and an optional Ledger bargain both update through commands.
 	(town._service_buttons["trainer"] as Button).pressed.emit()
@@ -635,6 +654,61 @@ func _test_equipment_tools(failures: Array[String]) -> void:
 	var items: Dictionary = inventory["items"]
 	if inventory["backpack"].size() != Inventory.BACKPACK_SIZE or inventory["tray"] != ["i-rare"]:
 		failures.append("equipment fixture shows a full 24-item bag beside a visible reward tray")
+	var backpack_choice := _find_button(town, "Gear 00", true)
+	if backpack_choice != null:
+		await _press_enter(backpack_choice)
+	var focused := town.get_viewport().gui_get_focus_owner()
+	if town._selected_item_id != "i-tool-00" or focused == null or focused.get_meta("equipment_pack_focus_kind", "") != "backpack" or focused.get_meta("equipment_pack_focus_id", "") != "i-tool-00":
+		failures.append("Enter selects a backpack item and keeps focus on its replacement row")
+	var scroll := town._content.get_parent() as ScrollContainer
+	if scroll != null:
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		await process_frame
+		await process_frame
+	var worn_choice := _find_button(town, "Weapon   ·   Moonlit Dirk")
+	if worn_choice != null:
+		await _press_enter(worn_choice)
+	focused = town.get_viewport().gui_get_focus_owner()
+	if town._selected_item_id != "i-weapon" or focused == null or focused.get_meta("equipment_pack_focus_kind", "") != "worn" or focused.get_meta("equipment_pack_focus_id", "") != "i-weapon":
+		failures.append("Enter selects worn gear and keeps focus on its replacement slot row (selected=%s focus=%s kind=%s id=%s current_row=%s queued_old_row=%s)" % [town._selected_item_id, str(focused), str(focused.get_meta("equipment_pack_focus_kind", "")) if focused else "", str(focused.get_meta("equipment_pack_focus_id", "")) if focused else "", str(_find_button(town, "Weapon   ·   Moonlit Dirk")), str(worn_choice)])
+	if scroll != null and focused != null and not _control_intersects_scroll_viewport(scroll, focused):
+		failures.append("focused worn replacement row scrolls into view after selecting from a distant position")
+	if scroll != null:
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		await process_frame
+	var tray_compare := _find_button(town, "Compare")
+	if tray_compare != null:
+		await _press_enter(tray_compare)
+	focused = town.get_viewport().gui_get_focus_owner()
+	if town._selected_item_id != "i-rare" or focused == null or focused.get_meta("equipment_pack_focus_kind", "") != "tray" or focused.get_meta("equipment_pack_focus_id", "") != "i-rare":
+		failures.append("Enter selects a reward and keeps focus on its replacement Compare control (selected=%s focus=%s kind=%s id=%s)" % [town._selected_item_id, str(focused), str(focused.get_meta("equipment_pack_focus_kind", "")) if focused else "", str(focused.get_meta("equipment_pack_focus_id", "")) if focused else ""])
+	if scroll != null and focused != null and not _control_intersects_scroll_viewport(scroll, focused):
+		failures.append("focused reward Compare replacement scrolls into view")
+	# A controller refresh may queue replacement row focus, but a newly focused
+	# sidebar control must keep ownership when the deferred callback runs.
+	var backpack_for_external_focus := _find_button(town, "Gear 00", true)
+	var market_button := town._service_buttons["market"] as Button
+	if backpack_for_external_focus != null:
+		backpack_for_external_focus.grab_focus()
+		await process_frame
+		fixture.changed.emit(fixture.snapshot())
+		market_button.grab_focus()
+		await process_frame
+		if town.get_viewport().gui_get_focus_owner() != market_button or town._active_service != "pack":
+			failures.append("controller refresh preserves newly focused sidebar control")
+		# Schedule another restore, then navigate before the deferred callback.
+		var focused_row := _find_button(town, "Gear 00", true)
+		if focused_row != null:
+			focused_row.grab_focus()
+			await process_frame
+			fixture.changed.emit(fixture.snapshot())
+			market_button.grab_focus()
+			market_button.pressed.emit()
+			await process_frame
+			if town._active_service != "market" or town.get_viewport().gui_get_focus_owner() != market_button:
+				failures.append("service navigation before deferred row-focus restore remains active (service=%s focus=%s)" % [town._active_service, str(town.get_viewport().gui_get_focus_owner())])
+			(town._service_buttons["pack"] as Button).pressed.emit()
+			await process_frame
 	var options := _find_option_buttons(town)
 	if options.size() < 2 or options[0].item_count != ItemData.SLOTS.size() + 1 or options[1].item_count != 4:
 		failures.append("equipment controls expose all slot filters and four local sort choices")
@@ -713,6 +787,10 @@ func _test_equipment_tools(failures: Array[String]) -> void:
 	await process_frame
 	if _find_label(town, "outside this backpack filter") == null:
 		failures.append("filtered-out selection remains inspectable with a clear explanation")
+	fixture.changed.emit(fixture.snapshot())
+	await process_frame
+	if town.get_viewport().gui_get_focus_owner() != town._pack_filter_dropdown:
+		failures.append("state refresh falls back to the filter when selected gear is hidden")
 	if _find_button(town, "Claim") == null or not _find_button(town, "Claim").disabled:
 		failures.append("full backpack keeps reward claim blocked while filtering")
 	if town._state != original_state:
@@ -747,6 +825,8 @@ func _test_equipment_tools(failures: Array[String]) -> void:
 	await process_frame
 	if not town._selected_item_id.is_empty():
 		failures.append("selection clears safely when its item disappears from current inventory")
+	if town.get_viewport().gui_get_focus_owner() != town._pack_filter_dropdown:
+		failures.append("state refresh falls back to the filter after the selected item disappears")
 	town.free()
 	fixture.free()
 
@@ -1192,6 +1272,24 @@ func _backpack_rows(node: Node) -> Array[String]:
 	for child: Node in node.get_children():
 		rows.append_array(_backpack_rows(child))
 	return rows
+
+
+func _press_enter(control: Control) -> void:
+	control.grab_focus()
+	await process_frame
+	var key := InputEventKey.new()
+	key.keycode = KEY_ENTER
+	key.physical_keycode = KEY_ENTER
+	key.pressed = true
+	Input.parse_input_event(key)
+	await process_frame
+	key.pressed = false
+	Input.parse_input_event(key)
+	await process_frame
+
+
+func _control_intersects_scroll_viewport(scroll: ScrollContainer, control: Control) -> bool:
+	return scroll.get_global_rect().intersects(control.get_global_rect())
 
 
 func _gear_row_text(item_id: String, record: Dictionary) -> String:
