@@ -77,6 +77,131 @@ func configure(mission: Dictionary, owner: Node3D, player: Player, wave: WaveDir
 		_bosses.final_enabled = false
 		_bosses.run_length = 900.0
 	_setup_difficulty()
+	_present_arrival()
+	_build_arrival_landmark()
+
+
+## A brief, nonblocking arrival card repeats the place and the committed task.
+## The HUD remains the source of objective timing and interaction prompts.
+func _present_arrival() -> void:
+	if not is_instance_valid(_main):
+		return
+	var hud := _main.get_node_or_null("Hud") as Hud
+	if hud == null:
+		return
+	var biome := clampi(int(spec.get("biome_index", 0)), 0, Realm.ORDER.size() - 1)
+	var realm: Dictionary = Realm.data(Realm.ORDER[biome])
+	var contract: Dictionary = CampaignCatalog.CONTRACTS.get(contract_id, {})
+	var task := str(contract.get("name", contract_id.replace("_", " ").capitalize()))
+	var objective := objective_text()
+	hud.title_card(str(realm.get("name", "The Hollow Graveyard")), "%s  ·  %s" % [task, objective], Color(0.78, 0.88, 0.98), true)
+	Sound.play("soul", 0.82, -7.0)
+
+
+## A low, non-colliding entry seal makes the first Graveyard arrival feel
+## deliberately placed while leaving the spawn lane and enemy silhouettes open.
+func _build_arrival_landmark() -> void:
+	var node_id := str(spec.get("node_id", ""))
+	if int(spec.get("biome_index", 0)) != 0 or not node_id.begins_with("0:1:") or finale:
+		return
+	var kit := MeshKit.new()
+	kit.flat = true
+	kit.max_segments = 20
+	var stone := Color(0.3, 0.34, 0.4)
+	var ash_stone := Color(0.24, 0.25, 0.27)
+	var brass := Color(0.61, 0.43, 0.24)
+	var soul := Color(0.34, 0.86, 1.0)
+	var moss := Color(0.17, 0.25, 0.16)
+	# A short, walkable causeway leads from the spawn into an open cemetery gate.
+	for row in 8:
+		var z := -0.5 - float(row) * 0.86
+		for col in 3:
+			var x := float(col - 1) * 0.92 + (0.16 if row % 2 == 0 else -0.16) + float((row + col * 3) % 3 - 1) * 0.035
+			var width := 0.78 + float((row + col) % 3) * 0.035
+			var depth := 0.7 + float((row * 2 + col) % 3) * 0.035
+			var shade := float((row + col * 2) % 4) * 0.045
+			kit.box(Vector3(width, 0.1, depth), MeshKit.at(Vector3(x, 0.045, z), Vector3(0, float((row + col) % 3 - 1) * 3.0, 0)), stone.darkened(0.05 + shade))
+	# Loose moss follows the causeway seams instead of becoming a full floor mat.
+	for row in [1, 4, 6]:
+		var side := -1.0 if row % 2 == 0 else 1.0
+		var moss_at := Vector3(side * (1.48 + float(row % 2) * 0.12), 0.06, -0.5 - float(row) * 0.86)
+		kit.sphere(0.18, MeshKit.at(moss_at, Vector3.ZERO, Vector3(1.7, 0.16, 0.7)), moss.darkened(0.04), 0, 6, 3)
+	# Heavy piers stand outside the fighting lane. Broken shoulders and split
+	# lintels frame the route while keeping the center open for the hero and HUD.
+	for side: float in [-1.0, 1.0]:
+		var x := side * 4.55
+		var z := -3.9
+		var shade := 0.07 if side < 0.0 else 0.0
+		kit.box(Vector3(1.12, 0.18, 1.25), MeshKit.at(Vector3(x, 0.09, z)), ash_stone.lightened(shade))
+		kit.box(Vector3(0.94, 0.18, 1.08), MeshKit.at(Vector3(x, 0.27, z)), stone.darkened(0.17))
+		kit.box(Vector3(0.7, 0.22, 0.83), MeshKit.at(Vector3(x, 0.47, z)), stone.darkened(0.04))
+		kit.box(Vector3(0.61, 1.72, 0.72), MeshKit.at(Vector3(x, 1.42, z)), stone.darkened(0.06 + shade))
+		# Raised corner ribs and a narrow seam give the shaft carved courses.
+		for edge: float in [-1.0, 1.0]:
+			kit.box(Vector3(0.08, 1.68, 0.08), MeshKit.at(Vector3(x + edge * 0.3, 1.42, z - 0.38)), stone.lightened(0.12))
+		kit.box(Vector3(0.76, 0.13, 0.88), MeshKit.at(Vector3(x, 2.32, z)), stone.darkened(0.02))
+		kit.box(Vector3(1.0, 0.18, 1.12), MeshKit.at(Vector3(x, 2.49, z)), ash_stone.lightened(0.1))
+		kit.box(Vector3(1.12, 0.16, 1.24), MeshKit.at(Vector3(x, 2.66, z)), stone.lightened(0.12))
+		# A shallow cyan-cut rune faces the arrival lane.
+		kit.box(Vector3(0.07, 0.66, 0.035), MeshKit.at(Vector3(x, 1.36, z - 0.383), Vector3(0, 0, side * 5)), soul.darkened(0.1), 0.28)
+		kit.box(Vector3(0.22, 0.055, 0.04), MeshKit.at(Vector3(x, 1.42, z - 0.39), Vector3(0, 0, 35)), brass, 0.05)
+		var wall_x := side * 6.0
+		if side < 0.0:
+			kit.box(Vector3(2.18, 0.68, 0.78), MeshKit.at(Vector3(wall_x, 0.5, z + 0.25), Vector3(0, 0, 2)), stone.darkened(0.16))
+			kit.box(Vector3(2.25, 0.15, 0.84), MeshKit.at(Vector3(wall_x, 0.91, z + 0.25), Vector3(0, 0, 2)), stone.lightened(0.06))
+		else:
+			# The eastern wing has slumped; mismatched courses and a fallen block
+			# break the silhouette without narrowing the player lane.
+			kit.box(Vector3(1.15, 0.48, 0.76), MeshKit.at(Vector3(wall_x - 0.48, 0.39, z + 0.25), Vector3(0, 0, -4)), ash_stone)
+			kit.box(Vector3(1.28, 0.63, 0.75), MeshKit.at(Vector3(wall_x + 0.45, 0.43, z + 0.27), Vector3(0, 0, 7)), stone.darkened(0.15))
+			kit.box(Vector3(0.8, 0.2, 0.8), MeshKit.at(Vector3(wall_x + 1.0, 0.13, z + 1.05), Vector3(0, 12, 7)), stone.darkened(0.12))
+			kit.sphere(0.32, MeshKit.at(Vector3(wall_x - 0.6, 0.79, z + 0.12), Vector3(0, 0, -18), Vector3(1.5, 0.18, 0.8)), moss, 0, 6, 3)
+		# Split lintels and lanterns use opposing cool and warm tones.
+		var lantern_color := Color(1.0, 0.61, 0.3) if side < 0.0 else soul
+		var arm := side * 0.42
+		kit.box(Vector3(0.12, 0.1, 0.58), MeshKit.at(Vector3(x + arm, 3.03, z)), brass.lightened(0.08))
+		kit.box(Vector3(0.42, 0.09, 0.09), MeshKit.at(Vector3(x + side * 0.61, 3.03, z)), brass)
+		kit.box(Vector3(0.3, 0.5, 0.3), MeshKit.at(Vector3(x + side * 0.66, 2.73, z)), ash_stone)
+		kit.box(Vector3(0.21, 0.31, 0.21), MeshKit.at(Vector3(x + side * 0.66, 2.74, z)), lantern_color, 0.65)
+		kit.sphere(0.11, MeshKit.at(Vector3(x + side * 0.66, 3.04, z)), lantern_color, 0.42, 6, 4)
+	# Lintels stop short of the center, leaving a clear doorway sightline.
+	for side: float in [-1.0, 1.0]:
+		kit.box(Vector3(2.25, 0.22, 0.82), MeshKit.at(Vector3(side * 3.12, 2.88, -3.9), Vector3(0, 0, side * -2)), stone.lightened(0.05))
+		kit.box(Vector3(1.92, 0.13, 0.88), MeshKit.at(Vector3(side * 3.02, 3.045, -3.9), Vector3(0, 0, side * -2)), ash_stone.lightened(0.15))
+		kit.box(Vector3(0.08, 0.035, 0.025), MeshKit.at(Vector3(side * 2.65, 2.72, -3.48)), soul.darkened(0.15), 0.28)
+	var landmark := MeshInstance3D.new()
+	landmark.name = "GraveyardArrivalGate"
+	landmark.mesh = kit.commit(Models.material("kit"))
+	landmark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(landmark)
+	_add_arrival_memorial(Vector2(-7.15, -5.7))
+
+
+func _add_arrival_memorial(center: Vector2) -> void:
+	var memorial_at := Vector2.ZERO
+	var found := false
+	for candidate: Vector2 in [center, Vector2(7.15, -5.7), Vector2(-7.15, -7.2), Vector2(7.15, -7.2)]:
+		var clear := not Obstacles.blocked(candidate, 1.2)
+		for site: Vector2 in _sites:
+			if candidate.distance_to(site) < 4.0:
+				clear = false
+				break
+		if clear:
+			memorial_at = candidate
+			found = true
+			break
+	if not found:
+		return
+	var mesh := AssetProps.mesh("rune_gravestone")
+	if mesh == null:
+		return
+	var memorial := MeshInstance3D.new()
+	memorial.name = "ArrivalMemorial"
+	memorial.mesh = mesh
+	memorial.position = Vector3(memorial_at.x, 0, memorial_at.y)
+	memorial.scale = Vector3.ONE * 0.82
+	memorial.rotation_degrees.y = 20.0
+	add_child(memorial)
 
 
 func _setup_difficulty() -> void:

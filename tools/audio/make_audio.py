@@ -570,6 +570,12 @@ def sfx():
     for i, nm in enumerate(["A5", "D6", "F#6", "A6"]):
         add(rise, bell(note(nm), 2.0, 1.0) * 0.35, 1.3 + i * 0.12)
     s["sunrise"] = soft_clip(rise, 1.1)
+    # Muted sole-and-gravel tap for the walkable sanctuary. Kept last so this
+    # added sound does not change the shared random stream used above.
+    t = t_axis(0.2)
+    grit = fft_filter(noise(len(t)), lo=85, hi=1500) * np.exp(-t / 0.035)
+    sole = np.sin(2 * np.pi * np.cumsum(105 - 45 * np.minimum(t / 0.08, 1.0)) / SR) * np.exp(-t / 0.055)
+    s["footstep"] = soft_clip(grit * 0.42 + sole * 0.58, 1.2)
     return s
 
 

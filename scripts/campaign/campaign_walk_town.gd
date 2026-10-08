@@ -12,7 +12,7 @@ const GOLD := Color(0.95, 0.79, 0.4)
 const SPEED := 6.0
 const PLAZA_RADIUS := 13.0
 const USE_RANGE := 2.4
-const CAMERA_OFFSET := Vector3(0, 11.5, 9.5)
+const CAMERA_OFFSET := Vector3(0, 14.5, 12.0)
 
 ## One station per CampaignTown service. `props` are AssetProps kinds placed
 ## around `at`; `person` adds a standing figure (Ferryman model or a robed
@@ -60,6 +60,8 @@ var _houses: Array[Vector2] = []
 var _mist: Array[MeshInstance3D] = []
 var _mist_origins: Array[Vector3] = []
 var _wisps: Array[MeshInstance3D] = []
+var _returning_votives: Array[MeshInstance3D] = []
+var _footstep_left := 0.0
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -100,6 +102,9 @@ func present(state: Dictionary) -> void:
 		_env.ambient_light_color = look["ambient"]
 		_env.fog_light_color = look["fog"]
 		_build_scatter(biome)
+	var cleared: Array = state.get("cleared_nodes", [])
+	for i in _returning_votives.size():
+		_returning_votives[i].visible = i < mini(cleared.size(), _returning_votives.size())
 	var info: Dictionary = HeroClass.data(str(state.get("hero_class", "")))
 	if info.has("look"):
 		_hero.set_body(info["look"])
@@ -138,6 +143,13 @@ func _process(delta: float) -> void:
 		return
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	_place_hero(delta, input * SPEED)
+	if input.length_squared() > 0.04:
+		_footstep_left -= delta
+		if _footstep_left <= 0.0:
+			Sound.play("footstep", 0.92 + randf() * 0.14, -2.0)
+			_footstep_left = 0.38
+	else:
+		_footstep_left = 0.0
 	_update_near()
 	if _near != "" and Input.is_action_just_pressed("interact"):
 		station_used.emit(_near)
@@ -275,12 +287,33 @@ func _build_lantern() -> void:
 	for x in [-8.74, 8.74]:
 		_blockers.append([Vector2(x, -8.75), 1.0])
 	_light(Vector3(0, 5.0, 0), SOUL, 3.0, 14.0)
+	_build_returning_votives()
 	_build_flagstones()
 	_build_houses()
 	_build_lamps()
 	_build_buildings()
 	_build_motes()
 	_build_mist()
+
+
+## A few low votives at the apse come alight as route nodes are cleared. The
+## state is read from the existing cleared_nodes list; no new progress is saved.
+func _build_returning_votives() -> void:
+	var positions := [Vector3(-2.25, 0, 3.5), Vector3(0, 0, 5.2), Vector3(2.25, 0, 3.5)]
+	for i in 3:
+		var kit := MeshKit.new()
+		kit.flat = true
+		var at := Vector3.ZERO
+		kit.cylinder(0.23, 0.3, 0.2, MeshKit.at(at + Vector3(0, 0.12, 0)), Color(0.3, 0.28, 0.24), 0, 8)
+		kit.cylinder(0.09, 0.15, 0.24, MeshKit.at(at + Vector3(0, 0.34, 0)), Color(0.2, 0.19, 0.18), 0, 6)
+		kit.sphere(0.11, MeshKit.at(at + Vector3(0, 0.53, 0)), Color(1.0, 0.61, 0.3), 1.1, 6, 4)
+		var votive := MeshInstance3D.new()
+		votive.name = "ReturningVotive_%d" % (i + 1)
+		votive.mesh = kit.commit(Models.material("kit"))
+		votive.position = positions[i]
+		votive.visible = false
+		add_child(votive)
+		_returning_votives.append(votive)
 
 
 ## Cobbled square and streets. Stones are committed in small chunks: the

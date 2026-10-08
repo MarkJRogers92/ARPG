@@ -29,6 +29,7 @@ const RULES := {
 	"levelup": [0.3, -5.0, 0.0, 1],
 	"ui_hover": [0.03, -18.0, 0.04, 2],
 	"ui_click": [0.05, -10.0, 0.0, 2],
+	"footstep": [0.16, -18.0, 0.12, 3],
 	"card_pick": [0.1, -6.0, 0.0, 1],
 	"reroll": [0.1, -8.0, 0.0, 1],
 	"dash": [0.1, -8.0, 0.08, 1],
@@ -78,6 +79,7 @@ var _intensity_target := 0.0
 var _boss_mix := 0.0
 var _boss_target := 0.0
 var _music_on := true
+var _music_fades: Dictionary = {}
 
 
 ## Effects anywhere in the game: Sound.play("gem", 1.2) (pitch scale 1.2).
@@ -130,8 +132,12 @@ static func apply_volumes() -> void:
 
 ## Starts (or crossfades to) a realm's music.
 func play_realm(realm_id: String) -> void:
-	if realm_id == _realm:
+	if realm_id == _realm and _music_on:
 		return
+	# A previous stop may still be fading these same players. Cancel every
+	# layer's old fade before starting the next realm or resuming this one.
+	for p: AudioStreamPlayer in [_calm, _drums, _boss]:
+		_cancel_music_fade(p)
 	_realm = realm_id
 	var calm := _loop("res://audio/music/%s_calm.ogg" % realm_id)
 	var drums := _loop("res://audio/music/%s_drums.ogg" % realm_id)
@@ -145,7 +151,7 @@ func play_realm(realm_id: String) -> void:
 	if _boss.stream:
 		_boss.play()
 	_calm.volume_db = -40.0
-	create_tween().tween_property(_calm, "volume_db", 0.0, 1.5)
+	_fade_music_player(_calm, 0.0, 1.5)
 
 
 ## 0 = calm (drums silent), 1 = full drums.
@@ -161,7 +167,7 @@ func set_boss(on: bool) -> void:
 func stop_music(fade := 1.0) -> void:
 	_music_on = false
 	for p in [_calm, _drums, _boss]:
-		create_tween().tween_property(p, "volume_db", -60.0, fade)
+		_fade_music_player(p, -60.0, fade)
 
 
 func _process(delta: float) -> void:
@@ -207,6 +213,20 @@ func _music_player() -> AudioStreamPlayer:
 	p.bus = "Music"
 	add_child(p)
 	return p
+
+
+func _fade_music_player(player: AudioStreamPlayer, target_db: float, duration: float) -> void:
+	_cancel_music_fade(player)
+	var tween := create_tween()
+	_music_fades[player] = tween
+	tween.tween_property(player, "volume_db", target_db, maxf(duration, 0.0))
+
+
+func _cancel_music_fade(player: AudioStreamPlayer) -> void:
+	var tween: Tween = _music_fades.get(player)
+	if tween and tween.is_running():
+		tween.kill()
+	_music_fades.erase(player)
 
 
 func _loop(path: String) -> AudioStream:
