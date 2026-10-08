@@ -112,6 +112,7 @@ func _run() -> void:
 		check(spec["starting_loadout"]["profile_snapshot"] == snapshot_before, "departure preserves captured account snapshot")
 		if not previous_result.is_empty():
 			check(not controller.settle(previous_result)["ok"], "result from an earlier attempt is rejected during the fresh departure")
+		var starting_preview: Dictionary = CampaignLoadout.preview(controller.snapshot())
 
 		shell.call("_mount_combat", spec)
 		await process_frame
@@ -127,6 +128,8 @@ func _run() -> void:
 				"borrowed battalion adds three more minions beside a deployed veteran; total=%d veterans=%d" % [army.count, army.veterans().size()])
 		var player: Player = combat.get("_player")
 		check(is_instance_valid(player), "combat Main constructs a fresh player")
+		if is_instance_valid(player):
+			_check_starting_preview_matches_player(starting_preview, player, cycles)
 		check(Elements.player == player, "combat scene binds its player to global combat helpers")
 		check(String(combat.get("_hero_class")) == String(spec["starting_loadout"]["hero_class"]), "combat uses departure hero class")
 		check(combat.get("_player").inventory.equipped.keys().size() == gear_before.size(), "combat player receives saved equipped gear")
@@ -278,6 +281,26 @@ func _depart(controller: CampaignController, add_battalion := false) -> Dictiona
 		return {}
 	var departure := controller.depart()
 	return departure.get("spec", {}) if departure.get("ok", false) else {}
+
+func _check_starting_preview_matches_player(preview: Dictionary, player: Player, cycle: int) -> void:
+	var stats: PlayerStats = player.stats
+	check(preview.has("max_hp") and is_equal_approx(float(preview.get("max_hp", -1.0)), stats.max_hp),
+		"cycle %d preview max health matches mounted combat" % cycle)
+	check(preview.has("armor") and is_equal_approx(float(preview.get("armor", -1.0)), stats.armor),
+		"cycle %d preview armor matches mounted combat" % cycle)
+	check(preview.has("move_speed") and is_equal_approx(float(preview.get("move_speed", -1.0)), stats.move_speed),
+		"cycle %d preview movement speed matches mounted combat" % cycle)
+	check(preview.has("crit_chance") and is_equal_approx(float(preview.get("crit_chance", -1.0)), stats.crit_chance),
+		"cycle %d preview critical chance matches mounted combat" % cycle)
+	check(preview.has("minion_max") and int(preview.get("minion_max", -1)) == stats.minion_max,
+		"cycle %d preview army capacity matches mounted combat" % cycle)
+	var is_reaper := String(player.get_parent().get("_hero_class")) == "reaper" and stats.powers.has("reaping") and stats.scythe_level > 0
+	var primary_damage := stats.scythe_damage if is_reaper else stats.bolt_damage
+	var primary_cooldown := stats.scythe_cooldown if is_reaper else stats.bolt_cooldown
+	check(preview.has("primary_damage") and is_equal_approx(float(preview.get("primary_damage", -1.0)), primary_damage),
+		"cycle %d preview primary attack damage matches mounted combat" % cycle)
+	check(preview.has("primary_cooldown") and is_equal_approx(float(preview.get("primary_cooldown", -1.0)), primary_cooldown),
+		"cycle %d preview primary attack cooldown matches mounted combat" % cycle)
 
 func _is_town(view: Node) -> bool:
 	return is_instance_valid(view) and view.get_script() != null and String(view.get_script().resource_path).ends_with("campaign_town.gd")
