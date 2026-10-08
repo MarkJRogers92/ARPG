@@ -27,3 +27,5 @@ The Ledger is capped at two obligations per biome: Advance Payment adds one Coll
 ## Visual identity
 
 The Last Lantern is native low-poly geometry and existing Soulbound props. Astra authored its new flagstone court, ruined apse, indigo standards and brass/cyan beacon, with warm forge light, cool soul light and drifting motes. The town renders one isolated 3D viewport; opaque service panels preserve text contrast. There are no paid media services, downloaded textures or new asset production dependencies.
+
+Overnight checkpoint 1 added presentation and player guidance only. It did not change damage, boss timing, economy, item rates, or drop quality. Its automated journey evidence remains the earlier baseline run; see `OVERNIGHT.md` for the limited focused checks and visual-review scope.

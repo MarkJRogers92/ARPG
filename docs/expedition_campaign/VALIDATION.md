@@ -25,7 +25,7 @@ $GODOT --headless --path . -s tools/campaign_tests.gd
 $GODOT --headless --path . -s tools/tests.gd
 $GODOT --headless --path . -s tools/campaign_lifecycle_test.gd
 $GODOT --headless --path . -s tools/campaign_combat_tests.gd
-$GODOT --headless --path . -s tools/campaign_ui_test.gd -- behavior
+$GODOT --headless --path . -s tools/campaign_ui_test.gd -- --screen=behavior
 $GODOT --headless --path . --fixed-fps 60 -s tools/campaign_journey_bot.gd -- 31
 ```
 

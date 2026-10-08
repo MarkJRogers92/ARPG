@@ -19,6 +19,8 @@ Campaign gear, gold, talents, specialization and up to three veterans persist. C
 
 Use Equipment and the Market to compare exact rolled gear, equip, lock favorites, mark junk, sell, buy finite stock and reforge once per item per biome. New stock appears only after a new combat clear. Full-inventory rewards wait safely in the reward tray; resolve it before departing. No departure fee or healing bill applies.
 
+The route board's **Before You Depart** panel lists required blockers separately from optional preparation and opens the service for each required action. Optional talent spending, specialization, and veteran deployment never block departure. A pending reward delivery can be retried from the campaign record after leaving.
+
 Deploy one veteran at the Crypt. Its maximum effective rank is Veteran, Hero or Legend according to the destination biome. A fallen veteran returns for a later attempt. A pledged veteran stays unavailable until its committed node is cleared.
 
 The Ferryman reserves one settlement prize. Take it or risk it at the displayed odds: 70% for the first crossing, 45% for the second. A veteran pledge adds 10 percentage points to the first; approved event bonuses are capped at 85%. The Ledger offers at most two optional bargains per biome, each showing its real boss complication. A zero-gold character can always continue without a bargain.
@@ -26,6 +28,8 @@ The Ferryman reserves one settlement prize. Take it or risk it at the displayed 
 ## Controls
 
 WASD or arrows move; Space dashes; E interacts; Tab opens inventory; K inspects talents; Q changes army stance; Esc pauses. Existing key rebinding and gamepad bindings remain available. Town buttons support keyboard focus/navigation and activation. Campaign talents are view-only during combat; change them at the town Trainer.
+
+Combat guidance names the current contract action and the guardian's existing mechanic. Seal Breach uses each marked seal; Elite Hunt's marked target arrives at five minutes; the Cursed Cache is optional; Hunt extraction is automatic. Lich wards are broken by destroying raised phylacteries, the Colossus exposes itself after fracture lines strike, and the Tyrant's meteors must be led onto cinder seals. These hints explain existing rules and do not alter combat.
 
 ## Persistence
 
