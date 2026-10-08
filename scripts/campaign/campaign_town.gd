@@ -27,6 +27,11 @@ var _delivery_button: Button
 var _service_buttons: Dictionary = {}
 var _content: VBoxContainer
 var _content_title: Label
+var _talent_inspection_footer: PanelContainer
+var _talent_inspection_title: Label
+var _talent_inspection_status: Label
+var _talent_inspection_description: Label
+var _inspected_talent_id := ""
 var _feedback: Label
 var _selected_item_id := ""
 var _selected_slot := "weapon"
@@ -192,6 +197,32 @@ func _build_center(parent: Control) -> void:
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_theme_constant_override("separation", 12)
 	scroll.add_child(_content)
+	_talent_inspection_footer = PanelContainer.new()
+	_talent_inspection_footer.visible = false
+	_talent_inspection_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_talent_inspection_footer.add_theme_stylebox_override("panel", UiStyle.box(Color(0.07, 0.08, 0.1, 0.98), Color(0.3, 0.34, 0.39, 0.72), 1, 5))
+	stack.add_child(_talent_inspection_footer)
+	var footer_margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		footer_margin.add_theme_constant_override("margin_" + side, 9 if side in ["left", "right"] else 6)
+	_talent_inspection_footer.add_child(footer_margin)
+	var footer_content := VBoxContainer.new()
+	footer_content.add_theme_constant_override("separation", 2)
+	footer_margin.add_child(footer_content)
+	var footer_heading := HBoxContainer.new()
+	footer_content.add_child(footer_heading)
+	_talent_inspection_title = UiStyle.label(15)
+	_talent_inspection_title.add_theme_color_override("font_color", UiStyle.GOLD)
+	footer_heading.add_child(_talent_inspection_title)
+	_talent_inspection_status = UiStyle.label(12)
+	_talent_inspection_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_talent_inspection_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_talent_inspection_status.add_theme_color_override("font_color", UiStyle.MUTED)
+	footer_heading.add_child(_talent_inspection_status)
+	_talent_inspection_description = UiStyle.label(12)
+	_talent_inspection_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_talent_inspection_description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	footer_content.add_child(_talent_inspection_description)
 
 
 func _build_status(parent: Control) -> void:
@@ -328,6 +359,7 @@ func _render_panel() -> void:
 	for child in _content.get_children():
 		child.queue_free()
 	var phase := str(_state.get("phase", "TOWN"))
+	_update_talent_inspection_footer()
 	if phase == "EVENT_PENDING":
 		_content_title.text = "AN EVENT ON THE ROAD"
 		_render_event()
@@ -937,7 +969,7 @@ func _render_starting_build_summary(parent: Control) -> void:
 	var primary_text := str(preview["primary_attack_label"])
 	primary_text += " · %s dmg per hit · %s s cooldown" % [
 		_format_starting_build_number(float(preview["primary_damage"])),
-		_format_starting_build_number(float(preview["primary_cooldown"])),
+		_format_starting_build_cooldown(float(preview["primary_cooldown"])),
 	]
 	var summary := UiStyle.label(13)
 	summary.text = "%s\nPrimary %s" % [" · ".join(metric_values), primary_text]
@@ -968,6 +1000,10 @@ func _format_starting_build_number(value: float) -> String:
 	return String.num(value, 1)
 
 
+func _format_starting_build_cooldown(value: float) -> String:
+	return String.num(value, 2)
+
+
 func _render_trainer() -> void:
 	var talents: Dictionary = _state.get("talents", {})
 	var allocated: Array = talents.get("allocated", [])
@@ -996,7 +1032,10 @@ func _render_trainer() -> void:
 		button.custom_minimum_size = Vector2(132, 52)
 		button.tooltip_text = "\n".join(SkillData.description_lines(id))
 		button.disabled = not owned and (not reachable or int(talents.get("points", 0)) < cost)
+		button.focus_entered.connect(_inspect_talent.bind(id, button))
+		button.mouse_entered.connect(_inspect_talent.bind(id, button))
 		tree.add_child(button)
+	_update_talent_inspection_footer()
 	var action_row := HBoxContainer.new()
 	_content.add_child(action_row)
 	action_row.add_child(_button("Free talent respec", func() -> void: _confirm_reset_talents(), Color(0.8, 0.66, 0.5)))
@@ -1007,11 +1046,66 @@ func _render_trainer() -> void:
 		_add_copy("Earn one more talent point from a successful expedition to unlock a specialization.")
 	for path: Dictionary in Specializations.paths(str(_state.get("hero_class", "battlemage"))):
 		var path_id := str(path["id"])
-		var button := _button("%s%s\n%s" % ["✓ " if specialization == path_id else "", path["name"], path["desc"]], func() -> void: _command("choose_specialization", [path_id]), path["color"])
+		var card := PanelContainer.new()
+		card.name = "SpecializationCard_" + path_id
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.add_theme_stylebox_override("panel", UiStyle.box(Color(0.055, 0.065, 0.08, 0.96), path["color"].darkened(0.48), 1, 5))
+		_content.add_child(card)
+		var card_margin := MarginContainer.new()
+		for side in ["left", "right", "top", "bottom"]:
+			card_margin.add_theme_constant_override("margin_" + side, 8 if side in ["left", "right"] else 5)
+		card.add_child(card_margin)
+		var card_content := VBoxContainer.new()
+		card_content.add_theme_constant_override("separation", 3)
+		card_margin.add_child(card_content)
+		var button := _button("%s%s" % ["✓  " if specialization == path_id else "", path["name"]], func() -> void: _command("choose_specialization", [path_id]), path["color"])
+		button.name = "SpecializationAction_" + path_id
 		_set_town_action_focus_identity(button, "specialization", path_id)
-		button.custom_minimum_size.y = 70
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.custom_minimum_size.y = 42
 		button.disabled = specialization == str(path["id"]) or not specialization_unlocked
-		_content.add_child(button)
+		card_content.add_child(button)
+		var description := _add_copy_to(card_content, str(path["desc"]), path["color"])
+		description.name = "SpecializationDescription_" + path_id
+
+
+func _inspect_talent(id: String, source: Control) -> void:
+	if not is_instance_valid(source) or source.is_queued_for_deletion() or not is_instance_valid(_content):
+		return
+	if not _content.is_ancestor_of(source) or _active_service != "trainer" or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
+		return
+	if _find_town_action_focus_target(_content, "talent", id) != source:
+		return
+	if not SkillData.NODES.has(id) or id == SkillData.ROOT:
+		return
+	_inspected_talent_id = id
+	_update_talent_inspection_footer()
+
+
+func _update_talent_inspection_footer() -> void:
+	if not is_instance_valid(_talent_inspection_footer):
+		return
+	var visible := _active_service == "trainer" and str(_state.get("phase", "TOWN")) in ["TOWN", "DEPARTURE_READY"]
+	_talent_inspection_footer.visible = visible
+	if not visible:
+		return
+	if _inspected_talent_id.is_empty() or not SkillData.NODES.has(_inspected_talent_id) or _inspected_talent_id == SkillData.ROOT:
+		for talent_id: String in SkillData.NODES:
+			if talent_id != SkillData.ROOT:
+				_inspected_talent_id = talent_id
+				break
+	if _inspected_talent_id.is_empty() or not SkillData.NODES.has(_inspected_talent_id):
+		_talent_inspection_title.text = "TALENT DETAILS"
+		_talent_inspection_status.text = ""
+		_talent_inspection_description.text = "No talents are available to inspect."
+		return
+	var definition: Dictionary = SkillData.NODES[_inspected_talent_id]
+	var talents: Dictionary = _state.get("talents", {})
+	var allocated: Array = talents.get("allocated", [])
+	var cost := int(SkillData.COSTS[definition["tier"]])
+	_talent_inspection_title.text = str(definition["name"])
+	_talent_inspection_status.text = "Cost · %d pt · %s" % [cost, "Owned" if allocated.has(_inspected_talent_id) else "Not owned"]
+	_talent_inspection_description.text = "\n".join(SkillData.description_lines(_inspected_talent_id))
 
 
 func _confirm_reset_talents() -> void:

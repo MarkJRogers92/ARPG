@@ -137,7 +137,7 @@ func _run() -> void:
 	capture_viewport.add_child(controller)
 	town.setup(controller)
 	if screen not in ["route", "route-rewards"]:
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen == "trainer-reaper" else ("route" if screen == "route-effects" else screen))))
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen in ["trainer-reaper", "trainer-inspection", "trainer-specializations"] else ("route" if screen == "route-effects" else screen))))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -192,6 +192,15 @@ func _run() -> void:
 			await process_frame
 			var pack_scroll := town._content.get_parent() as ScrollContainer
 			pack_scroll.scroll_vertical = mini(360, int(pack_scroll.get_v_scroll_bar().max_value))
+		if screen in ["trainer-inspection", "trainer-specializations"]:
+			await process_frame
+			var trainer_scroll := town._content.get_parent() as ScrollContainer
+			if screen == "trainer-inspection":
+				var inspection_button := _find_town_action_button(town, "talent", "d2")
+				if inspection_button != null:
+					inspection_button.mouse_entered.emit()
+			trainer_scroll.scroll_vertical = int(trainer_scroll.get_v_scroll_bar().max_value)
+			await process_frame
 		if screen == "comparison":
 			town._select_item("i-rare", "weapon")
 	await process_frame
@@ -338,9 +347,19 @@ func _run_behavior_test() -> void:
 		failures.append("trainer exposes a reachable affordable talent")
 	else:
 		var talent_id := str(talent_button.get_meta("town_action_focus_id", ""))
+		talent_button.grab_focus()
+		await process_frame
+		var state_before_inspection := controller.snapshot()
+		var inspected_definition: Dictionary = SkillData.NODES.get(talent_id, {})
+		if town._talent_inspection_title.text != str(inspected_definition.get("name", "")) or town._talent_inspection_description.text != "\n".join(SkillData.description_lines(talent_id)):
+			failures.append("keyboard focus shows the exact talent effect in the fixed Trainer detail footer")
+		if controller.snapshot() != state_before_inspection:
+			failures.append("inspecting a talent with keyboard focus leaves campaign state unchanged")
 		await _press_enter(talent_button)
 		if int(controller.state["talents"]["points"]) >= talent_before:
 			failures.append("trainer allocation spends points through the controller")
+		if town._talent_inspection_status.text != "Cost · %d pt · Owned" % int(SkillData.COSTS[inspected_definition["tier"]]):
+			failures.append("talent detail footer refreshes to owned after allocation")
 		var talent_focus := town.get_viewport().gui_get_focus_owner()
 		if talent_focus == null or talent_focus.get_meta("town_action_focus_kind", "") != "talent" or talent_focus.get_meta("town_action_focus_id", "") != talent_id:
 			failures.append("allocation refresh keeps focus on the same talent's refund control")
@@ -350,6 +369,8 @@ func _run_behavior_test() -> void:
 			var refund_focus := town.get_viewport().gui_get_focus_owner()
 			if int(controller.state["talents"]["points"]) <= points_after_allocation:
 				failures.append("trainer refund returns points through the controller")
+			if town._talent_inspection_status.text != "Cost · %d pt · Not owned" % int(SkillData.COSTS[inspected_definition["tier"]]):
+				failures.append("talent detail footer refreshes after refund")
 			if refund_focus == null or refund_focus.get_meta("town_action_focus_kind", "") != "talent" or refund_focus.get_meta("town_action_focus_id", "") != talent_id:
 				failures.append("refund refresh keeps focus on the same talent's allocation control")
 			talent_focus = town.get_viewport().gui_get_focus_owner()
@@ -456,6 +477,7 @@ func _run_behavior_test() -> void:
 	await _test_result_report_and_comparison(failures)
 	await _test_full_backpack_controls(failures)
 	await _test_starting_build_summary(failures)
+	await _test_talent_inspection_footer(failures)
 
 	for message: String in failures:
 		push_error("CAMPAIGN_UI_BEHAVIOR_FAIL: " + message)
@@ -486,7 +508,7 @@ func _test_starting_build_summary(failures: Array[String]) -> void:
 		failures.append("Trainer shows a baseline summary when no route is committed")
 	if _find_label(town, "HP " + _preview_number(float(baseline_preview["max_hp"]))) == null or _find_label(town, "Crit " + String.num(float(baseline_preview["crit_chance"]) * 100.0, 1) + "%") == null:
 		failures.append("Trainer renders starting health and critical chance from the preview")
-	var expected_bolts := "Primary Bolts · %s dmg per hit · %s s cooldown" % [_preview_number(float(baseline_preview["primary_damage"])), _preview_number(float(baseline_preview["primary_cooldown"]))]
+	var expected_bolts := "Primary Bolts · %s dmg per hit · %s s cooldown" % [_preview_number(float(baseline_preview["primary_damage"])), _preview_cooldown(float(baseline_preview["primary_cooldown"]))]
 	if _find_label(town, expected_bolts) == null:
 		failures.append("starting bolt attack shows its per-hit damage and cooldown")
 	var invalid_state := town._state.duplicate(true)
@@ -526,7 +548,7 @@ func _test_starting_build_summary(failures: Array[String]) -> void:
 		failures.append("rendering the updated starting build leaves equipment and talents unchanged")
 	if float(changed_preview["armor"]) <= float(baseline_preview["armor"]) or float(changed_preview["crit_chance"]) <= float(baseline_preview["crit_chance"]):
 		failures.append("preview reflects the added armor talent and equipped critical-chance affix")
-	var expected_primary := "Primary Reaping Scythe · %s dmg per hit · %s s cooldown" % [_preview_number(float(changed_preview["primary_damage"])), _preview_number(float(changed_preview["primary_cooldown"]))]
+	var expected_primary := "Primary Reaping Scythe · %s dmg per hit · %s s cooldown" % [_preview_number(float(changed_preview["primary_damage"])), _preview_cooldown(float(changed_preview["primary_cooldown"]))]
 	if _find_label(town, expected_primary) == null:
 		failures.append("Reaper summary shows its scythe damage and cooldown, not a bolt attack")
 	if int(changed_preview["stat_effect_count"]) <= 0 or _find_label(town, "Route stat modifiers included · " + ", ".join(changed_preview["stat_effect_names"])) == null:
@@ -544,6 +566,103 @@ func _test_starting_build_summary(failures: Array[String]) -> void:
 
 func _preview_number(value: float) -> String:
 	return str(roundi(value)) if is_equal_approx(value, roundf(value)) else String.num(value, 1)
+
+
+func _preview_cooldown(value: float) -> String:
+	return String.num(value, 2)
+
+
+func _test_talent_inspection_footer(failures: Array[String]) -> void:
+	var test_viewport := SubViewport.new()
+	test_viewport.size = Vector2i(1280, 720)
+	test_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(test_viewport)
+	var fixture := FixtureController.new()
+	test_viewport.add_child(fixture)
+	var town := CampaignTown.new()
+	test_viewport.add_child(town)
+	town.setup(fixture)
+	town._active_service = "trainer"
+	town._render()
+	await process_frame
+	var footer := town._talent_inspection_footer
+	var scroll := town._content.get_parent() as ScrollContainer
+	await process_frame
+	var viewport_size: Vector2 = town.get_viewport().size
+	if viewport_size != Vector2(1280, 720):
+		failures.append("Trainer specialization layout check runs in its intended 1280x720 viewport (got %s)" % viewport_size)
+	var horizontal_scroll := scroll.get_h_scroll_bar()
+	if town._content.size.x > scroll.size.x + 18.0 or horizontal_scroll.max_value - horizontal_scroll.page > 1.0:
+		failures.append("Trainer talent and specialization content fits without horizontal clipping (content %.1f, viewport %.1f, scroll range %.1f)" % [town._content.size.x, scroll.size.x, horizontal_scroll.max_value - horizontal_scroll.page])
+	for path: Dictionary in Specializations.paths(str(town._state.get("hero_class", "battlemage"))):
+		var path_id := str(path["id"])
+		var description := town._root.find_child("SpecializationDescription_" + path_id, true, false) as Label
+		var action := _find_town_action_button(town, "specialization", path_id)
+		if description == null or description.text != str(path["desc"]) or description.autowrap_mode == TextServer.AUTOWRAP_OFF:
+			failures.append("specialization %s shows its complete wrapped description" % path_id)
+		if action == null or action.get_meta("town_action_focus_id", "") != path_id:
+			failures.append("specialization %s keeps its stable action identity" % path_id)
+		elif action.disabled != (str(town._state.get("specialization", "")) == path_id or int(town._state.get("talents", {}).get("earned", 0)) <= 3):
+			failures.append("specialization %s preserves its existing disabled gating" % path_id)
+	var initial := fixture.snapshot()
+	var lower_talent := _find_town_action_button(town, "talent", "d2")
+	if lower_talent == null or lower_talent.disabled:
+		failures.append("Trainer exposes the reachable lower-grid talent for keyboard inspection")
+	else:
+		lower_talent.grab_focus()
+		await process_frame
+		if town._inspected_talent_id != "d2" or town._talent_inspection_title.text != str(SkillData.NODES["d2"]["name"]):
+			failures.append("keyboard focus identifies the matching lower-grid talent")
+		if town._talent_inspection_description.text != "\n".join(SkillData.description_lines("d2")):
+			failures.append("keyboard inspection shows SkillData's exact talent description")
+		if town._talent_inspection_status.text != "Cost · 1 pt · Not owned" or fixture.snapshot() != initial:
+			failures.append("talent inspection shows authoritative cost and ownership without changing campaign state")
+		if footer.get_parent() != scroll.get_parent():
+			failures.append("talent details stay outside the scrolling talent content")
+		var owned_talent := _find_town_action_button(town, "talent", "o1")
+		if owned_talent != null:
+			owned_talent.mouse_entered.emit()
+			if town._inspected_talent_id != "o1" or town._talent_inspection_description.text != "\n".join(SkillData.description_lines("o1")):
+				failures.append("mouse inspection updates the fixed talent detail footer")
+		if fixture.snapshot() != initial:
+			failures.append("mouse inspection leaves campaign state unchanged")
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		await process_frame
+		if not footer.visible or not footer.get_global_rect().intersects(town.get_viewport().get_visible_rect()):
+			failures.append("fixed talent detail footer remains visible while the lower grid is scrolled")
+	var stale_source := lower_talent
+	var stale_container := stale_source.get_parent() if is_instance_valid(stale_source) else null
+	var inspected_before_redraw := town._inspected_talent_id
+	town._render()
+	if is_instance_valid(stale_source):
+		if stale_source.is_queued_for_deletion() or stale_container == null or not stale_container.is_queued_for_deletion() or not town._content.is_ancestor_of(stale_source):
+			failures.append("same-service redraw leaves the stale talent button beneath its queued grid container")
+		stale_source.mouse_entered.emit()
+	if town._inspected_talent_id != inspected_before_redraw:
+		failures.append("queued talent-grid descendants cannot replace the inspected talent after a same-service redraw")
+	await process_frame
+	var service_stale_source := _find_town_action_button(town, "talent", "d2")
+	var inspected_before_navigation := town._inspected_talent_id
+	town._select_service("market")
+	if footer.visible:
+		failures.append("talent inspection footer hides when leaving Trainer for Market")
+	if is_instance_valid(service_stale_source):
+		service_stale_source.mouse_entered.emit()
+	if town._inspected_talent_id != inspected_before_navigation or footer.visible:
+		failures.append("queued talent controls cannot update the footer after service navigation")
+	await process_frame
+	town._active_service = "trainer"
+	fixture.state["phase"] = "EVENT_PENDING"
+	town._state = fixture.snapshot()
+	town._render()
+	if footer.visible:
+		failures.append("talent inspection footer hides during an event phase")
+	fixture.state["phase"] = "RESULT_PENDING"
+	town._state = fixture.snapshot()
+	town._render()
+	if footer.visible:
+		failures.append("talent inspection footer hides during a result phase")
+	test_viewport.free()
 
 
 func _test_route_reward_preview(failures: Array[String]) -> void:
@@ -1248,6 +1367,16 @@ func _test_result_report_and_comparison(failures: Array[String]) -> void:
 	empty_comparison.free()
 	town.free()
 	fixture.free()
+
+
+func _find_town_action_button(node: Node, kind: String, identity: String) -> Button:
+	if node is Button and node.get_meta("town_action_focus_kind", "") == kind and node.get_meta("town_action_focus_id", "") == identity:
+		return node as Button
+	for child: Node in node.get_children():
+		var found := _find_town_action_button(child, kind, identity)
+		if found != null:
+			return found
+	return null
 
 
 func _find_button(node: Node, text: String, prefix := false) -> Button:
