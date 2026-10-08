@@ -45,7 +45,7 @@ func _mount_town() -> void:
 		Sound.play("shrine_done", 0.85, -10.0)
 	var town_script := load("res://scripts/campaign/campaign_town.gd") as Script
 	if town_script == null:
-		_show_error("The Last Lantern town could not be loaded.", _return_title)
+		_show_error("The campaign town could not be loaded.", _return_title)
 		return
 	_view = town_script.new()
 	_view.expedition_requested.connect(_mount_combat.call_deferred)

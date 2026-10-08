@@ -15,6 +15,10 @@ var _origins: Array[Vector3] = []
 var _clock := 0.0
 var _camera: Camera3D
 var _world: Node3D
+var _lantern_scene: Node3D
+var _waystop_scene: Node3D
+var _waystop_id := ""
+var _place: Dictionary = {}
 var _environment_resource: Environment
 var _moon: DirectionalLight3D
 var _journey: Node3D
@@ -28,14 +32,21 @@ var _presented_key := ""
 ## Safe before or after _ready. Only the two presentation values are retained;
 ## no campaign data is mutated, and repeat refreshes do not rebuild geometry.
 func present(state: Dictionary) -> void:
-	set_progress(int(state.get("biome_index", 0)), bool(state.get("completed", false)))
+	_place = CampaignWaystops.resolve(state)
+	_biome_index = clampi(int(_place.get("biome_index", 0)), 0, 2)
+	_completed = bool(state.get("completed", false))
+	if is_instance_valid(_world):
+		_present_journey()
+		_apply_waystop()
 
 
 func set_progress(biome_index: int, completed := false) -> void:
 	_biome_index = clampi(biome_index, 0, 2)
 	_completed = completed
+	_place = CampaignWaystops.resolve({"biome_index": _biome_index, "completed": completed, "cleared_nodes": []})
 	if is_instance_valid(_world):
 		_present_journey()
+		_apply_waystop()
 
 
 func _ready() -> void:
@@ -77,12 +88,18 @@ func _build_world() -> void:
 	world.add_child(_camera)
 	_camera.look_at(Vector3(0, 1.1, -0.5), Vector3.UP)
 	_camera.current = true
-	_add_ground(world)
-	_add_chapel(world)
-	_add_lantern(world)
-	_add_stations(world)
-	_add_soul_motes(world)
+	_lantern_scene = Node3D.new()
+	_lantern_scene.name = "LastLanternDiorama"
+	world.add_child(_lantern_scene)
+	_add_ground(_lantern_scene)
+	_add_chapel(_lantern_scene)
+	_add_lantern(_lantern_scene)
+	_add_stations(_lantern_scene)
+	_add_soul_motes(_lantern_scene)
 	_present_journey()
+	if _place.is_empty():
+		_place = CampaignWaystops.resolve({"biome_index": _biome_index, "completed": _completed, "cleared_nodes": []})
+	_apply_waystop()
 
 
 func _frame_sanctuary() -> void:
@@ -90,6 +107,24 @@ func _frame_sanctuary() -> void:
 		# Keep the whole silhouette inside both the short 720p inset and taller
 		# desktop layouts; a service panel should never crop the lantern roof.
 		_camera.size = maxf(16.4, 8.6 * size.x / maxf(size.y, 1.0))
+
+
+func _apply_waystop() -> void:
+	if not is_instance_valid(_world):
+		return
+	var id := str(_place.get("id", ""))
+	if id != _waystop_id:
+		_waystop_id = id
+		if is_instance_valid(_waystop_scene):
+			_waystop_scene.free()
+			_waystop_scene = null
+		if str(_place.get("kind", "")) != "lantern":
+			_waystop_scene = CampaignWaystopScenery.build(_world, _place, 0.39)
+	var is_lantern := str(_place.get("kind", "")) == "lantern"
+	if is_instance_valid(_lantern_scene):
+		_lantern_scene.visible = is_lantern
+	if is_instance_valid(_journey):
+		_journey.visible = is_lantern
 
 
 func _environment() -> Environment:
@@ -279,6 +314,7 @@ func _present_journey() -> void:
 	_journey = Node3D.new()
 	_journey.name = "JourneyDressings"
 	_world.add_child(_journey)
+	_journey.visible = str(_place.get("kind", "lantern")) == "lantern"
 	var light_colors := [Color(0.65, 0.76, 1.0), Color(0.68, 0.86, 1.0), Color(1.0, 0.65, 0.48)]
 	var ambient_colors := [Color(0.53, 0.63, 0.79), Color(0.53, 0.71, 0.86), Color(0.68, 0.52, 0.57)]
 	_moon.light_color = Color(1.0, 0.86, 0.64) if _completed else light_colors[_biome_index]

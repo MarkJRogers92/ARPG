@@ -39,6 +39,9 @@ var _delivery_button: Button
 var _service_buttons: Dictionary = {}
 var _content: VBoxContainer
 var _content_title: Label
+var _place_header_title: Label
+var _place_header_subtitle: Label
+var _place_context: Label
 var _talent_inspection_footer: PanelContainer
 var _route_action_footer: PanelContainer
 var _route_action_copy: Label
@@ -172,6 +175,7 @@ func _build_walk(layout: Control) -> void:
 	_walk_hint = UiStyle.label(15)
 	_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_walk_hint.text = "%s  move     %s  use     ESC  save & leave" % ["WASD", Controls.tag("interact")]
+	_walk_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_walk_hint.modulate = Color(1, 1, 1, 0.7)
 	layout.add_child(_walk_hint)
 
@@ -211,10 +215,12 @@ func _build_header(parent: Control) -> void:
 	parent.add_child(header)
 	var title := UiStyle.label(30)
 	title.text = "THE LAST LANTERN"
+	_place_header_title = title
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	header.add_child(title)
 	var subtitle := UiStyle.label(14)
 	subtitle.text = "   SANCTUARY BETWEEN EXPEDITIONS"
+	_place_header_subtitle = subtitle
 	subtitle.modulate = Color(1, 1, 1, 0.7)
 	subtitle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(subtitle)
@@ -271,6 +277,10 @@ func _build_center(parent: Control) -> void:
 	_content_title = UiStyle.label(24)
 	_content_title.add_theme_color_override("font_color", UiStyle.GOLD)
 	title_row.add_child(_content_title)
+	_place_context = UiStyle.label(13)
+	_place_context.add_theme_color_override("font_color", UiStyle.MUTED)
+	_place_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stack.add_child(_place_context)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -425,12 +435,18 @@ func _render() -> void:
 		_sanctuary.present(_state)
 	var biome_names := ["THE HOLLOW GRAVEYARD", "THE FROZEN WASTES", "THE EMBER RIFT"]
 	var biome := clampi(int(_state.get("biome_index", 0)), 0, 2)
+	var waystop := CampaignWaystops.resolve(_state)
 	var phase := str(_state.get("phase", "TOWN"))
+	_place_header_title.text = str(waystop["name"]).to_upper()
+	_place_header_subtitle.text = "   %s  ·  STOP %d / 4" % [biome_names[biome], int(waystop["stage"]) + 1] if int(waystop["stage"]) < 4 else "   THE ROAD ENDS IN DAWN"
+	_place_context.text = str(waystop["description"])
+	if is_instance_valid(_walk_hint):
+		_walk_hint.text = "%s\n%s  move     %s  use     ESC  save & leave" % [str(waystop["arrival_line"]), "WASD", Controls.tag("interact")]
 	_abandon_button.visible = phase not in ["CAMPAIGN_COMPLETE", "ABANDONED"]
 	_delivery_button.visible = not _state.get("outbox", []).is_empty() and phase not in ["RESULT_PENDING", "CAMPAIGN_COMPLETE", "ABANDONED"]
 	var clear_count := _current_biome_clear_count(_state)
-	_status_label.text = "%s   ·   %s" % [biome_names[biome], phase.replace("_", " ")]
-	_set_named_value("Value_biome", "%s   ·   %d / 3 clears" % [biome_names[biome], clear_count])
+	_status_label.text = "%s   ·   %d / 3 CLEARS" % [phase.replace("_", " "), clear_count]
+	_set_named_value("Value_biome", "%s\n%s   ·   %d / 3 clears" % [str(waystop["name"]), biome_names[biome], clear_count])
 	_set_named_value("Value_gold", "%s G" % _number(int(_state.get("gold", 0))))
 	var talents: Dictionary = _state.get("talents", {})
 	_set_named_value("Value_talents", "%d available   ·   %d earned" % [int(talents.get("points", 0)), int(talents.get("earned", 0))])
@@ -570,6 +586,9 @@ func _set_town_action_focus_identity(control: Control, kind: String, item_id: St
 
 
 func _render_route() -> void:
+	var waystop := CampaignWaystops.resolve(_state)
+	_add_copy("%s · stop %d of 4\nVictory takes you to the next stop. Failure or retreat brings you back here." % [
+		str(waystop["name"]), int(waystop["stage"]) + 1])
 	var graph: Dictionary = _state.get("graph", {})
 	if graph.is_empty():
 		_add_copy("The route map will appear once the campaign begins.")
@@ -1628,10 +1647,15 @@ func _confirm_abandon_campaign() -> void:
 func _render_result() -> void:
 	var result: Dictionary = _state.get("result", {})
 	var success := str(result.get("outcome", "failure")) == "success"
+	var waystop := CampaignWaystops.resolve(_state)
 	var heading := UiStyle.label(32)
 	heading.text = "THE ROAD YIELDS ITS REWARD" if success else "THE ROAD CLAIMS THIS ATTEMPT"
 	heading.add_theme_color_override("font_color", Color(0.95, 0.79, 0.4) if success else Color(0.94, 0.52, 0.43))
 	_content.add_child(heading)
+	if str(result.get("outcome", "failure")) == "success":
+		_add_copy("NEXT STOP · %s\n%s" % [str(waystop["name"]), str(waystop["arrival_line"])])
+	else:
+		_add_copy("BACK AT %s\nThe same shelter waits while you prepare for another attempt." % str(waystop["name"]))
 	_render_after_action_report(result)
 	var payment := int(result.get("gold", 0))
 	var conversion := int(result.get("shard_conversion", 0))
@@ -1758,6 +1782,8 @@ func _biome_name(index: int) -> String:
 func _render_complete() -> void:
 	var pending_rewards: Array = _state.get("outbox", [])
 	_add_copy("The final gate is quiet. The three realms are free.")
+	var waystop := CampaignWaystops.resolve(_state)
+	_add_copy("ARRIVAL · %s\n%s" % [str(waystop["name"]), str(waystop["arrival_line"])])
 	var result_value: Variant = _state.get("result", {})
 	if result_value is Dictionary and not result_value.is_empty():
 		_render_after_action_report(result_value)
