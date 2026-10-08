@@ -7,6 +7,8 @@ extends CanvasLayer
 
 signal previewed(realm_id: String)
 signal chosen(realm_id: String)
+## Resume the suspended night (RunSave's data).
+signal resume_requested(data: Dictionary)
 
 const GAME_TITLE := "SOULBOUND"
 
@@ -87,6 +89,22 @@ func _build() -> void:
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.modulate = Color(1, 1, 1, 0.75)
 	column.add_child(tagline)
+	# A suspended night takes the tagline's place.
+	var saved := RunSave.read()
+	if not saved.is_empty():
+		tagline.hide()
+		var resume := Button.new()
+		resume.text = "Resume the night   ·   " + RunSave.describe(saved)
+		resume.custom_minimum_size = Vector2(560, 40)
+		resume.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		resume.add_theme_color_override("font_color", UiStyle.GOLD)
+		resume.add_theme_stylebox_override("normal", UiStyle.box(Color(0.1, 0.1, 0.12, 0.95), UiStyle.GOLD, 2, 8))
+		resume.tooltip_text = "Pick up where you left off. Starting a new night abandons it."
+		resume.pressed.connect(func() -> void:
+			Sound.play("ui_click")
+			resume_requested.emit(saved))
+		column.add_child(resume)
+		_first = resume
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 14
 	column.add_child(gap)

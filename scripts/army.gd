@@ -225,6 +225,25 @@ func _try_raise() -> void:
 
 
 ## `beyond`: room or not, it joins (claimed from a rival), up to CAPACITY.
+## Each minion's kind and rank, for a suspended night (see RunSave).
+func snapshot() -> Array:
+	var out := []
+	for k in count:
+		out.append([_type[k], _elite[k]])
+	return out
+
+
+## Raises a saved army again, quietly.
+func restore(list: Array) -> void:
+	_quiet = true
+	for m: Array in list:
+		_raise(int(m[0]), int(m[1]) == 1, int(m[1]) == 2, true)
+	_quiet = false
+
+
+var _quiet := false
+
+
 func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	if type < 0 or type >= _types.size():
 		return false
@@ -268,7 +287,8 @@ func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	Juice.flash(_pos[k], Color(0.45, 0.8, 1.0), 3.0, 6.0, 0.4)
 	Sound.play("minion_raise")
 	_slam[k] = randf_range(0.5, 1.5)
-	raised.emit("%s %s" % [t["name"], "(%s)" % ROLES[t["role"]]["label"]])
+	if not _quiet:
+		raised.emit("%s %s" % [t["name"], "(%s)" % ROLES[t["role"]]["label"]])
 	return true
 
 

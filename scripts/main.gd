@@ -82,6 +82,11 @@ var _specialists: Specialists
 var _timeline: Array[Vector3] = []
 var _sample_in := 0.0
 var _rift: RiftDirector
+## The hero class this night is played with (a resumed night keeps its own).
+var _hero_class := ""
+var _relic := ""
+## Set while a suspended night is being put back (see RunSave).
+var _resume := {}
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
 var pacts: Array = []
@@ -119,9 +124,15 @@ func _ready() -> void:
 	Juice.time_effects = true
 	MetaProgress.load_save()
 	MetaProgress.apply(_player.stats)
-	HeroClass.apply(_player, MetaProgress.current_class())
-	Relics.apply(_player, MetaProgress.current_relic(), MetaProgress.current_start_weapon())
-	_rerolls = MetaProgress.rerolls() + Relics.extra_rerolls(MetaProgress.current_relic())
+	_resume = RunSave.pending if not Realm.in_title else {}
+	RunSave.pending = {}
+	_hero_class = _resume.get("hero_class", MetaProgress.current_class())
+	var relic: String = _resume.get("relic", MetaProgress.current_relic())
+	_relic = relic
+	HeroClass.apply(_player, _hero_class)
+	# A resumed night's starting weapon is already among its saved upgrades.
+	Relics.apply(_player, relic, "" if not _resume.is_empty() else MetaProgress.current_start_weapon())
+	_rerolls = MetaProgress.rerolls() + Relics.extra_rerolls(relic)
 	var realm := Realm.data()
 	if realm["soul_bonus"] > 0.0:
 		_player.stats.add_mod("realm", "soul_chance", PlayerStats.Op.INCREASED, realm["soul_bonus"])
@@ -250,6 +261,7 @@ func _ready() -> void:
 	add_child(_pause)
 	_pause.resumed.connect(func() -> void: get_tree().paused = false)
 	_pause.settings_changed.connect(apply_settings)
+	_pause.save_and_quit.connect(_suspend)
 	_pause.quit_to_title.connect(func() -> void:
 		Realm.in_title = true
 		get_tree().paused = false
@@ -258,7 +270,15 @@ func _ready() -> void:
 		_sound.play_realm(id)
 		Realm.apply_look(self, id)
 		_mote_style = Realm.data(id)["motes"])
+	_title.resume_requested.connect(func(data: Dictionary) -> void:
+		RunSave.pending = data
+		RunSave.clear() # a night can be resumed once
+		Realm.current = data["realm"]
+		Realm.daily = data.get("daily", false)
+		Realm.in_title = false
+		get_tree().reload_current_scene())
 	_title.chosen.connect(func(id: String) -> void:
+		RunSave.clear() # a new night abandons a suspended one
 		Realm.current = id
 		Realm.in_title = false
 		get_tree().reload_current_scene())
@@ -266,6 +286,8 @@ func _ready() -> void:
 	_in_title = Realm.in_title
 	if not _in_title:
 		_begin_night()
+		if not _resume.is_empty():
+			_restore(_resume)
 	if _in_title:
 		_hud.hide()
 		_title.open()
@@ -448,6 +470,16 @@ func _market_frame(delta: float) -> void:
 ## Pacts and this night's Omen (and the Daily Night's fixed seed).
 func _begin_night() -> void:
 	pacts = MetaProgress.pacts.duplicate() if MetaProgress.any_won() and not Realm.daily else []
+	if not _resume.is_empty():
+		# A resumed night keeps the rules it began with.
+		pacts = _resume.get("pacts", [])
+		omen = _resume.get("omen", "")
+		ascension = int(_resume.get("ascension", 0))
+		RunModifiers.apply(self, pacts, omen, ascension)
+		if omen != "":
+			var ro: Dictionary = RunModifiers.OMENS[omen]
+			_hud.set_omen("%s%s" % [("ASCENSION %d  ·  " % ascension) if ascension > 0 else "", ro["name"]], ro["desc"], ro["color"], RunModifiers.heat(pacts))
+		return
 	if Realm.daily:
 		var pick := Realm.daily_pick([Realm.current])
 		seed(pick["seed"])
@@ -521,6 +553,93 @@ func _update_frenzy(delta: float) -> void:
 				{"stat": "move_speed", "op": PlayerStats.Op.INCREASED, "value": 0.05 * tier}])
 		_player.stats.recalculate()
 		_hud.set_frenzy(tier)
+
+
+## Whether the night can be saved and resumed right now: not once the final
+## boss is up or the night is won, nor mid-death.
+func can_suspend() -> bool:
+	return not _in_title and not _game_over and not won and not _bosses.final_arrived and not _rift.in_market()
+
+
+## The night as RunSave keeps it.
+func capture() -> Dictionary:
+	var stats := _player.stats
+	var gear := {}
+	for slot: String in _player.inventory.equipped:
+		gear[slot] = (_player.inventory.equipped[slot] as Item).to_dict()
+	var bag := []
+	for item: Item in _player.inventory.backpack:
+		bag.append(item.to_dict())
+	return {
+		"realm": Realm.current, "daily": Realm.daily, "hero_class": _hero_class, "relic": _relic,
+		"pacts": pacts, "omen": omen, "ascension": ascension,
+		"elapsed": elapsed, "kills": kills, "kills_by": _kills_by, "run_shards": _run_shards, "rerolls": _rerolls,
+		"spec_chosen": _spec_chosen, "pressure": _director.pressure,
+		"bosses_spawned": _bosses.spawned - (1 if _bosses.boss_alive() else 0),
+		"next_boss": minf(_bosses._next_at, elapsed + 20.0) if _bosses.boss_alive() else _bosses._next_at,
+		"pos": _player.pos2, "level": stats.level, "xp": stats.xp, "xp_to_next": stats.xp_to_next,
+		"hp_frac": stats.hp / stats.max_hp, "pending_levels": _player.pending_levels,
+		"upgrades": stats.upgrade_levels.duplicate(), "mods": RunSave.lasting_mods(stats),
+		"gear": gear, "backpack": bag, "skills": _player.skills.to_dict(),
+		"army": _army.snapshot(), "souls": _army.souls,
+		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
+		"damage_by": Elements.damage_by,
+	}
+
+
+## Puts a suspended night back (after the normal start of a night).
+func _restore(d: Dictionary) -> void:
+	var stats := _player.stats
+	elapsed = d["elapsed"]
+	_director.elapsed = elapsed
+	_director.pressure = d.get("pressure", 1.0)
+	kills = d.get("kills", 0)
+	_kills_by = d.get("kills_by", {})
+	_run_shards = d.get("run_shards", 0)
+	_rerolls = d.get("rerolls", _rerolls)
+	_spec_chosen = d.get("spec_chosen", false)
+	_bosses.spawned = d.get("bosses_spawned", 0)
+	_bosses._next_at = d.get("next_boss", _bosses._next_at)
+	_first_light_told = elapsed >= _bosses.run_length - FIRST_LIGHT
+	var at: Vector2 = d.get("pos", Vector2.ZERO)
+	_player.global_position = Vector3(at.x, _player.global_position.y, at.y)
+	stats.upgrade_levels = d.get("upgrades", {}).duplicate()
+	RunSave.restore_mods(stats, d.get("mods", []))
+	for slot: String in d.get("gear", {}):
+		_player.inventory.replace_worn(Item.from_dict(d["gear"][slot]))
+	for item: Dictionary in d.get("backpack", []):
+		_player.inventory.backpack.append(Item.from_dict(item))
+	_player.inventory.refresh_powers()
+	_player.skills.restore(d.get("skills", {"points": 0, "allocated": []}))
+	stats.level = d.get("level", 1)
+	stats.xp = d.get("xp", 0)
+	stats.xp_to_next = d.get("xp_to_next", _player.xp_for_level(stats.level))
+	stats.recalculate()
+	stats.hp = stats.max_hp * clampf(d.get("hp_frac", 1.0), 0.05, 1.0)
+	_army.restore(d.get("army", []))
+	_army.souls = d.get("souls", 0)
+	_timeline.assign(d.get("timeline", []))
+	_player.damage_taken_by = d.get("taken", {})
+	_player.last_cause = d.get("last_cause", "")
+	Elements.damage_by = d.get("damage_by", {})
+	# The horde isn't saved: a crowd fit for the hour gathers around the hero.
+	_director.populate(at, roundi(_director.crowd_target() * 0.6))
+	_player.pending_levels = d.get("pending_levels", 0)
+	_hud.toast("The night resumes...", UiStyle.GOLD)
+	if _player.pending_levels > 0:
+		_try_level_up.call_deferred()
+
+
+## Save and quit: the night is written to the run slot and the title returns.
+func _suspend() -> void:
+	if not can_suspend():
+		return
+	if RunSave.write(capture()):
+		Realm.in_title = true
+		get_tree().paused = false
+		get_tree().reload_current_scene()
+	else:
+		_hud.toast("Couldn't save the night.", Color(1.0, 0.45, 0.4))
 
 
 ## The end screen's look back: what hurt, what killed, and the night's curve.
@@ -607,6 +726,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_cancel") and not get_tree().paused:
 		Sound.play("ui_click")
+		_pause.can_save = can_suspend()
 		_open_screen(_pause)
 	elif event.is_action_pressed("inventory"):
 		_open_screen(_inventory_screen)
@@ -846,7 +966,7 @@ func _try_level_up() -> void:
 		# Level 10: choose a path (once a night) before any more cards.
 		_choosing_upgrade = true
 		get_tree().paused = true
-		_hud.show_upgrades(Specializations.cards(MetaProgress.current_class()), 0, "CHOOSE YOUR PATH",
+		_hud.show_upgrades(Specializations.cards(_hero_class), 0, "CHOOSE YOUR PATH",
 				"One path for the rest of the night   ·   1 / 2 / 3 or click")
 		return
 	while _player.pending_levels > 0:
@@ -873,8 +993,8 @@ func _on_reroll() -> void:
 func _on_upgrade_chosen(id: String) -> void:
 	if id.begins_with("spec:"):
 		_spec_chosen = true
-		var path := Specializations.find(MetaProgress.current_class(), id.substr(5))
-		Specializations.apply(_player.stats, MetaProgress.current_class(), id.substr(5))
+		var path := Specializations.find(_hero_class, id.substr(5))
+		Specializations.apply(_player.stats, _hero_class, id.substr(5))
 		_hud.toast("Your path: %s" % path.get("name", ""), path.get("color", UiStyle.GOLD))
 		Sound.play("shrine_done")
 	elif id.begins_with(Evolutions.PREFIX):

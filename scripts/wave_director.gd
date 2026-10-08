@@ -83,6 +83,21 @@ func tick(delta: float, center: Vector2) -> void:
 		swarm.spawn(EnemySwarm.random_ring_point(center, swarm.ring_min, swarm.ring_max), hp_mult, elite)
 
 
+## Raises `n` enemies of the types this hour would bring, in a ring around
+## `center` (a resumed night gets its horde back this way).
+func populate(center: Vector2, n: int) -> void:
+	var total := 0.0
+	for i in _swarms.size():
+		_weights[i] = _swarms[i].spawn_weight(elapsed)
+		total += _weights[i]
+	if total <= 0.0:
+		return
+	var hp_mult := hp_multiplier()
+	for k in n:
+		var swarm := _pick(randf() * total)
+		swarm.spawn(EnemySwarm.random_ring_point(center, 12.0, swarm.ring_max), hp_mult)
+
+
 ## Enemies per second right now.
 func spawn_rate() -> float:
 	return (base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed) * rate_scale * minf(sqrt(pressure), 1.6)

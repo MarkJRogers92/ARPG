@@ -9,9 +9,19 @@ extends CanvasLayer
 signal resumed
 signal settings_changed
 signal quit_to_title
+signal save_and_quit
+
+## Whether "Save and quit" is offered (main.gd sets it before opening).
+var can_save := true:
+	set(value):
+		can_save = value
+		if _save_button:
+			_save_button.disabled = not value
+			_save_button.tooltip_text = "" if value else "Not while the master of the realm is up."
 
 var _root: Control
 var _resume: Button
+var _save_button: Button
 var _main_box: VBoxContainer
 var _controls_box: VBoxContainer
 ## The action waiting for a key press in the Controls panel ("" for none).
@@ -124,6 +134,14 @@ func _build() -> void:
 		Sound.play("ui_click")
 		close())
 	box.add_child(_resume)
+	_save_button = Button.new()
+	_save_button.text = "Save and quit   ·   resume from the title"
+	_save_button.custom_minimum_size.y = 46
+	_save_button.add_theme_color_override("font_color", UiStyle.GOLD)
+	_save_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		save_and_quit.emit())
+	box.add_child(_save_button)
 	var quit := Button.new()
 	quit.text = "Abandon run   ·   back to the title"
 	quit.custom_minimum_size.y = 46

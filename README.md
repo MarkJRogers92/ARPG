@@ -127,6 +127,18 @@ entry to `REALMS` and its id to `ORDER`.
 the hero, each leaving a short fading trail (`scripts/visual/wisps.gd`; capped
 at 260 at once, so a huge fight stays cheap).
 
+**Save and quit.** The pause menu's *Save and quit* keeps the night in one
+slot (`user://run.save`, `scripts/run_save.gd`), and the title screen offers
+*Resume the night* in place of its tagline. It keeps the hero (level, XP,
+health, position, every lasting stat change: upgrades, evolutions, the path,
+landmark gifts), gear, skills, the clock and pressure, the boss schedule,
+the army's kinds and ranks, souls, rerolls, kills, shards and the night's
+omen, pacts and Ascension. The horde isn't saved: a crowd fit for the hour
+gathers instead, and a mid-boss in the field returns shortly. Shrines,
+goblins, chests, rifts, the Ferryman's loans and bets, the rival, frenzy and
+blessings start fresh. A saved night resumes once; starting a new one
+abandons it; and the night can't be saved once its master is up.
+
 **Why you died.** The end screen names the killing blow and what hurt most
 over the night ("SLAIN BY: Plague Bloater blast / HURT MOST BY: Ghoul 45% ·
 Meteors 20%..."), with a small chart of health and pressure through the
@@ -1008,6 +1020,7 @@ tools/balance.sh -g /path/to/godot -s "1 2 3 4" -p "greedy random" -m 10 \
 godot --headless --path . -s tools/tests.gd                      # unit tests
 godot --headless --path . -s tools/ui_test.gd                    # drives the real inventory screen
 godot --headless --path . -s tools/skill_ui_test.gd              # drives the real skill tree screen
+godot --headless --path . --fixed-fps 60 -s tools/resume_test.gd # saves a night, reloads, resumes it
 xvfb-run godot --path . --fixed-fps 60 -s tools/aim_test.gd     # mouse aim, T toggle, right stick (needs a display)
 godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd  # bot playthrough, exit 0 = ok
 godot --headless --path . -s tools/bench_swarm.gd                # simulation cost, 1k..16k enemies
