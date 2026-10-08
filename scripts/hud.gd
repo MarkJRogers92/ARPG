@@ -52,6 +52,8 @@ var _upgrade_title: Label
 var _frenzy_label: Label
 var _omen_label: Label
 var _report: Label
+var _recap_label: Label
+var _recap_chart: DeathRecap
 var _title_card: VBoxContainer
 var _title_main: Label
 var _title_sub: Label
@@ -167,6 +169,12 @@ func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 
 
 ## The run report on the end screen: damage by source, best first.
+## "Why I died": the causes line and the health / pressure chart.
+func set_recap(text: String, samples: Array[Vector3]) -> void:
+	_recap_label.text = text
+	_recap_chart.show_samples(samples)
+
+
 func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> void:
 	var total := 0.0
 	for k: String in damage_by:
@@ -662,7 +670,7 @@ func _build() -> void:
 
 	# Game over.
 	var over_box := VBoxContainer.new()
-	over_box.add_theme_constant_override("separation", 18)
+	over_box.add_theme_constant_override("separation", 12)
 	_end_title = UiStyle.label(56)
 	_end_title.text = "YOU DIED"
 	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -678,6 +686,15 @@ func _build() -> void:
 	_report.custom_minimum_size.x = 820
 	_report.modulate = Color(1, 1, 1, 0.85)
 	over_box.add_child(_report)
+	_recap_label = UiStyle.label(16)
+	_recap_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_recap_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_recap_label.custom_minimum_size.x = 820
+	_recap_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.62))
+	over_box.add_child(_recap_label)
+	_recap_chart = DeathRecap.new()
+	_recap_chart.visible = false
+	over_box.add_child(_recap_chart)
 	_shards_earned_label = UiStyle.label(20)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))

@@ -78,6 +78,9 @@ var _spec_chosen := false
 var _final_mech: FinalMechanics
 var _mid_mech: MidMechanics
 var _specialists: Specialists
+## Health and pressure through the night, for the end screen (DeathRecap).
+var _timeline: Array[Vector3] = []
+var _sample_in := 0.0
 var _rift: RiftDirector
 ## Frenzy: kills pile it up, it drains away; each tier speeds you up.
 ## This night's Pacts and Omen (see RunModifiers), and kills by enemy name.
@@ -156,7 +159,7 @@ func _ready() -> void:
 	_events.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
 	for swarm in _swarms:
 		if swarm.charger:
-			swarm.charged_hero.connect(_on_charged)
+			swarm.charged_hero.connect(_on_charged.bind(swarm))
 		if swarm.raise_interval > 0.0:
 			swarm.raise_called.connect(_on_raise_called.bind(swarm))
 	_landmarks = Landmarks.new()
@@ -349,15 +352,21 @@ func _process(delta: float) -> void:
 		hint = _rival.hint if _rival.hint != "" else (_final_mech.hint if _final_mech.hint != "" else _mid_mech.hint)
 	_hud.set_bet(hint)
 	_update_frenzy(delta)
+	_sample_in -= delta
+	if _sample_in <= 0.0:
+		_sample_in = DeathRecap.SAMPLE_EVERY
+		DeathRecap.add_sample(_timeline, elapsed, _player.stats.hp / _player.stats.max_hp, _director.pressure)
 	if _dawn_sweep > 0.0:
 		_sweep_horde(delta)
 
 	var contact_dps := 0.0
 	for swarm in _swarms:
-		contact_dps += swarm.contact_load(origin, Player.RADIUS)
+		var load := swarm.contact_load(origin, Player.RADIUS)
+		if load > 0.0:
+			contact_dps += load
+			_player.take_damage(load * delta, swarm.display_name if swarm.display_name != "" else String(swarm.name))
 	_hurt_sound -= delta
 	if contact_dps > 0.0:
-		_player.take_damage(contact_dps * delta)
 		if _hurt_sound <= 0.0:
 			_hurt_sound = 0.6
 			Sound.play("hurt", 1.0, -4.0)
@@ -514,11 +523,17 @@ func _update_frenzy(delta: float) -> void:
 		_hud.set_frenzy(tier)
 
 
+## The end screen's look back: what hurt, what killed, and the night's curve.
+func _show_recap(died: bool) -> void:
+	DeathRecap.add_sample(_timeline, elapsed, _player.stats.hp / _player.stats.max_hp, _director.pressure)
+	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline)
+
+
 ## A Lancer's charge ran into the hero.
-func _on_charged(dmg: float) -> void:
+func _on_charged(dmg: float, lancer: EnemySwarm) -> void:
 	if _player.is_dashing():
 		return
-	_player.take_damage(dmg)
+	_player.take_damage(dmg, "%s charge" % lancer.display_name)
 	Sound.play("hurt")
 	Sound.play("slam", 1.5, -8.0)
 	Juice.shake(0.3)
@@ -774,6 +789,7 @@ func _sweep_horde(delta: float) -> void:
 		get_tree().paused = true
 		_sound.stop_music(0.5)
 		Sound.play("victory")
+		_show_recap(false)
 		_hud.show_victory(Realm.data()["name"], elapsed, kills, _player.stats.level, shards)
 
 
@@ -910,4 +926,5 @@ func _death_frame(delta: float) -> void:
 	_hud.set_hurt(true, delta)
 	if _dying <= 0.0:
 		_dying = 0.0
+		_show_recap(true)
 		_hud.show_game_over(elapsed, kills, _player.stats.level, _death_shards)

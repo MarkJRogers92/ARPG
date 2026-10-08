@@ -108,7 +108,7 @@ func _land(at: Vector2, r: float) -> void:
 			Elements.source = "Hazards"
 			Elements.hit_area(at, r, 20.0 * _director.hp_multiplier(), Elements.FROST)
 			if hero_hit:
-				_player.take_damage(7.0 + t / 90.0)
+				_player.take_damage(7.0 + t / 90.0, CAUSES.get(kind, "Hazards"))
 				_player.afflict(Elements.FROST)
 			Juice.burst(at, 0.6, Color(0.8, 0.95, 1.0), 22, 6.0, 0.4, 0.5, 4.0)
 			Juice.ring(at, Color(0.55, 0.85, 1.0), 24, r / 0.35, 0.45, 0.35)
@@ -119,7 +119,7 @@ func _land(at: Vector2, r: float) -> void:
 			Elements.source = "Hazards"
 			Elements.hit_area(at, r, 40.0 * _director.hp_multiplier(), Elements.FIRE)
 			if hero_hit:
-				_player.take_damage(7.0 + t / 90.0)
+				_player.take_damage(7.0 + t / 90.0, CAUSES.get(kind, "Hazards"))
 				_player.afflict(Elements.FIRE)
 			Juice.burst(at, 0.6, Color(1.0, 0.5, 0.15), 30, 8.0, 0.55, 0.6, 6.0)
 			Juice.burst(at, 0.4, Color(0.25, 0.2, 0.2), 14, 4.0, 0.6, 1.0, 3.0)
@@ -133,6 +133,10 @@ func _land(at: Vector2, r: float) -> void:
 ## filled disc. Shared with BossDirector.
 ## A decal that warns of damage to come: drawn bolder with the Bold warnings
 ## setting (Juice.warning_color()).
+## What the death recap calls each hazard.
+const CAUSES := {"graves": "Bursting graves", "ice": "Falling ice", "meteors": "Meteors"}
+
+
 static func make_warning(parent: Node, at: Vector2, color: Color, ring: float, size: float) -> MeshInstance3D:
 	return make_decal(parent, at, Juice.warning_color(color), ring, size)
 

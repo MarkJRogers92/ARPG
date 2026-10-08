@@ -180,7 +180,7 @@ func _strike_line(line: Dictionary) -> void:
 	var along := rel.dot(dir)
 	var off := absf(rel.dot(dir.orthogonal()))
 	if along > 0.0 and along < FRACTURE_LENGTH and off < FRACTURE_WIDTH * 0.5 + Player.RADIUS and not _player.is_dashing():
-		_player.take_damage(25.0 + 10.0 * _director.hp_scale)
+		_player.take_damage(25.0 + 10.0 * _director.hp_scale, "%s's fracture" % _final.display_name)
 		Sound.play("hurt")
 	for k in 7:
 		var p := from + dir * (k + 1) * FRACTURE_LENGTH / 7.0
@@ -224,7 +224,7 @@ func _tyrant(i: int, delta: float) -> void:
 		if m["t"] >= METEOR_WINDUP:
 			var at: Vector2 = m["at"]
 			if _player.pos2.distance_to(at) <= METEOR_RADIUS + Player.RADIUS and not _player.is_dashing():
-				_player.take_damage(18.0 + 8.0 * _director.hp_scale)
+				_player.take_damage(18.0 + 8.0 * _director.hp_scale, "%s's meteors" % _final.display_name)
 			Sound.play("meteor")
 			Juice.flash(at, Color(1.0, 0.5, 0.2), 6.0, 10.0, 0.4)
 			Juice.burst(at, 0.4, Color(1.0, 0.5, 0.15), 24, 6.0, 0.5, 0.6, 5.0)

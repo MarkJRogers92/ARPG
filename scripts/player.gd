@@ -199,7 +199,7 @@ func tick(delta: float) -> void:
 	chilled = maxf(chilled - delta, 0.0)
 	if burning > 0.0:
 		burning = maxf(burning - delta, 0.0)
-		take_damage(BURN_DPS * delta)
+		take_damage(BURN_DPS * delta, "Burning")
 		if Engine.get_process_frames() % 6 == 0:
 			Juice.burst(pos2, 1.0, Elements.COLORS[Elements.FIRE], 1, 1.0, 0.35, 0.4, 2.0)
 	if chilled > 0.0 and Engine.get_process_frames() % 8 == 0:
@@ -309,11 +309,22 @@ func update_weapons(delta: float) -> void:
 		_scythe.update(delta)
 
 
-## Damage before armor; armor is applied here.
-func take_damage(amount: float) -> void:
+## Damage taken this night by cause (after armor), and the cause of the
+## latest hit: the end screen's "why I died" (see DeathRecap).
+var damage_taken_by := {}
+var last_cause := ""
+
+
+## Damage before armor; armor is applied here. `cause` names what hit, for the
+## death recap ("Ghoul", "Meteors", "Ogre Warlord's slam"...).
+func take_damage(amount: float, cause := "Other") -> void:
 	if dead or invulnerable or is_dashing():
 		return
+	var dealt := minf(amount * stats.damage_taken_factor(), stats.hp)
 	stats.hp -= amount * stats.damage_taken_factor()
+	if dealt > 0.0:
+		damage_taken_by[cause] = damage_taken_by.get(cause, 0.0) + dealt
+		last_cause = cause
 	if stats.hp <= 0.0:
 		stats.hp = 0.0
 		dead = true

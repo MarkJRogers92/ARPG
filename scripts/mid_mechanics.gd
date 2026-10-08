@@ -145,7 +145,7 @@ func _update_waves(delta: float) -> void:
 			if not w["hit"] and absf(d - w["r"]) <= QUAKE_BAND * 0.5 + Player.RADIUS:
 				w["hit"] = true
 				if not _player.is_dashing():
-					_player.take_damage(QUAKE_DAMAGE * power() + 6.0 * _director.hp_scale)
+					_player.take_damage(QUAKE_DAMAGE * power() + 6.0 * _director.hp_scale, "%s's shockwave" % _swarm.display_name)
 					Sound.play("hurt")
 					Juice.shake(0.3)
 			if w["r"] >= QUAKE_REACH:
@@ -235,7 +235,7 @@ func _update_pools(delta: float) -> void:
 				Elements.source = "Hazards"
 				Elements.hit_area(p["at"], POOL_RADIUS, 4.0 * _director.hp_multiplier(), Elements.FIRE)
 				if _player.pos2.distance_to(p["at"]) <= POOL_RADIUS + Player.RADIUS and not _player.is_dashing():
-					_player.take_damage((POOL_DPS * power() + 3.0 * _director.hp_scale) * POOL_TICK)
+					_player.take_damage((POOL_DPS * power() + 3.0 * _director.hp_scale) * POOL_TICK, "Lava pools")
 					_player.afflict(Elements.FIRE)
 		if p["t"] >= POOL_LIFE:
 			(p["ring"] as MeshInstance3D).queue_free()

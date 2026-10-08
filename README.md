@@ -127,6 +127,13 @@ entry to `REALMS` and its id to `ORDER`.
 the hero, each leaving a short fading trail (`scripts/visual/wisps.gd`; capped
 at 260 at once, so a huge fight stays cheap).
 
+**Why you died.** The end screen names the killing blow and what hurt most
+over the night ("SLAIN BY: Plague Bloater blast / HURT MOST BY: Ghoul 45% ·
+Meteors 20%..."), with a small chart of health and pressure through the
+night. Every source of damage passes its cause to `Player.take_damage`
+(contact by enemy name, shots by who fired them, slams, hazards, mid-boss
+moves, blasts, burning); `scripts/death_recap.gd` has the summary and chart.
+
 **Death.** When the hero falls, time slows, the army bursts apart minion by
 minion, the hero's souls scatter up into the dark and the hero crumples; the
 end screen comes up after a few seconds. (The night is settled at the moment

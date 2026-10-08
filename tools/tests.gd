@@ -45,6 +45,7 @@ func _finish() -> void:
 	_run(&"_test_heroes", _test_heroes())
 	_run(&"_test_reliquary", _test_reliquary())
 	_run(&"_test_accessibility", _test_accessibility())
+	_run(&"_test_death_recap", _test_death_recap())
 	_run(&"_test_events", _test_events())
 	_run(&"_test_obstacles", _test_obstacles())
 	_run(&"_test_fixes", _test_fixes())
@@ -1274,6 +1275,46 @@ func _test_accessibility() -> bool:
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
 	Controls.reset()
+	return true
+
+
+
+func _test_death_recap() -> bool:
+	print("why I died")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	player.stats.hp = 100.0
+	player.take_damage(30.0, "Ghoul")
+	player.take_damage(10.0, "Meteors")
+	player.take_damage(20.0, "Ghoul")
+	_near(player.damage_taken_by["Ghoul"], 50.0, "damage taken is kept by cause", 0.01)
+	_check(player.last_cause == "Ghoul", "with the latest cause")
+	player.take_damage(500.0, "Ogre Warlord's slam")
+	_near(player.damage_taken_by["Ogre Warlord's slam"], 40.0, "an overkill counts only the health that was left", 0.01)
+	_check(player.dead and player.last_cause == "Ogre Warlord's slam", "and names the killing blow")
+	var r := DeathRecap.ranked(player.damage_taken_by)
+	_check(r[0][0] == "Ghoul" and is_equal_approx(r[0][2], 0.5), "causes rank by damage (%s)" % [r[0]])
+	var text := DeathRecap.summary(player.damage_taken_by, player.last_cause, true)
+	_check(text.begins_with("SLAIN BY:  Ogre Warlord's slam") and "Ghoul 50%" in text, "the summary: " + text.replace("\n", " / "))
+	_check(not "SLAIN" in DeathRecap.summary(player.damage_taken_by, player.last_cause, false), "a won night isn't a death")
+	_check(DeathRecap.summary({}, "", false) == "Untouched all night.", "nor is an untouched one")
+	player.free()
+
+	# Shots remember who fired them.
+	var hero: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(hero)
+	var shots := EnemyShots.new()
+	root.add_child(shots)
+	shots.spawn(hero.pos2 + Vector2(0.2, 0), Vector2(-1, 0), 1.0, 5.0, Elements.NONE, "Frost Witch")
+	shots.step(1.0 / 60.0, hero)
+	_check(hero.damage_taken_by.has("Frost Witch's shots"), "a witch's bolt is blamed on the witch (%s)" % [hero.damage_taken_by.keys()])
+	shots.free()
+	hero.free()
+
+	var samples: Array[Vector3] = []
+	for k in DeathRecap.MAX_SAMPLES + 1:
+		DeathRecap.add_sample(samples, k * 10.0, 1.0, 1.0)
+	_check(samples.size() <= DeathRecap.MAX_SAMPLES / 2 + 1 and samples[0].x == 0.0, "a long night's timeline halves itself (%d)" % samples.size())
 	return true
 
 

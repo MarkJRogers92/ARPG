@@ -136,7 +136,7 @@ func _blast(at: Vector2, s: EnemySwarm) -> void:
 	var element := s.shot_element
 	if _player and not _player.dead and _player.pos2.distance_to(at) < r + Player.RADIUS:
 		if not _player.is_dashing():
-			_player.take_damage(s.blast_damage)
+			_player.take_damage(s.blast_damage, "%s blast" % s.display_name)
 			_player.afflict(element)
 			Sound.play("hurt")
 			Juice.shake(0.3)

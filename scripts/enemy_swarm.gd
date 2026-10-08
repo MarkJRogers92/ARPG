@@ -484,7 +484,7 @@ func step(delta: float, target: Vector2) -> void:
 				_fire[i] = fire_interval * randf_range(0.8, 1.2)
 				if d2 < fire_sq:
 					var dir := (target - p).normalized()
-					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage, shot_element)
+					shots.spawn(p + dir * radius, dir, shot_speed, shot_damage, shot_element, display_name)
 		if _afflicted[i] == 1:
 			_update_status(i, o, delta)
 		var f := _flash[i]
