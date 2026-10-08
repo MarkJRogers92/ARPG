@@ -320,7 +320,7 @@ func _build_flagstones() -> void:
 				var at := direction * along + side * across
 				_cobble(kits, Vector3(at.x, 0.07, at.y), Vector3(rng.randf_range(0.38, 0.46), rng.randf_range(0.08, 0.12), rng.randf_range(0.36, 0.44)), rng.randf_range(-15, 15), _cobble_color(rng, stone))
 			# Curbs: longer dark stones along both edges.
-			for edge in [-1.0, 1.0]:
+			for edge: float in [-1.0, 1.0]:
 				var curb := direction * along + side * (edge * 1.95)
 				_cobble(kits, Vector3(curb.x, 0.1, curb.y), Vector3(0.22, 0.16, 0.5) if direction.x == 0.0 else Vector3(0.5, 0.16, 0.22), 0.0, stone.darkened(0.35))
 			along += 0.5
@@ -420,7 +420,7 @@ func _build_lamps() -> void:
 	var index := 0
 	for direction: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1)]:
 		var side := Vector2(-direction.y, direction.x)
-		for along in [17.0, 23.0, 29.0]:
+		for along: float in [17.0, 23.0, 29.0]:
 			var edge := 1.0 if index % 2 == 0 else -1.0
 			var at := direction * along + side * (edge * 2.5)
 			_prop("lantern_post", Vector3(at.x, 0, at.y), 0.0, 1.0, false)
