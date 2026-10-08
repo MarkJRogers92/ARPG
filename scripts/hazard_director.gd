@@ -53,8 +53,8 @@ func tick(delta: float) -> void:
 
 
 func _start(at: Vector2, windup: float, radius: float, color: Color) -> void:
-	var ring := make_decal(self, at, Color(color, 0.85), 1.0, radius * 2.0)
-	var fill := make_decal(self, at, Color(color, 0.3), 0.0, radius * 2.0)
+	var ring := make_warning(self, at, Color(color, 0.85), 1.0, radius * 2.0)
+	var fill := make_warning(self, at, Color(color, 0.3), 0.0, radius * 2.0)
 	fill.scale = Vector3.ONE * 0.05
 	var falling: MeshInstance3D = null
 	if kind == "ice" or kind == "meteors":
@@ -131,6 +131,12 @@ func _land(at: Vector2, r: float) -> void:
 
 ## A circle painted on the ground (telegraphs). `ring` 1 = an outline, 0 = a
 ## filled disc. Shared with BossDirector.
+## A decal that warns of damage to come: drawn bolder with the Bold warnings
+## setting (Juice.warning_color()).
+static func make_warning(parent: Node, at: Vector2, color: Color, ring: float, size: float) -> MeshInstance3D:
+	return make_decal(parent, at, Juice.warning_color(color), ring, size)
+
+
 static func make_decal(parent: Node, at: Vector2, color: Color, ring: float, size: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()

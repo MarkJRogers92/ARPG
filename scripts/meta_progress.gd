@@ -84,7 +84,8 @@ const FALLEN_KEPT := 12
 const BESTIARY_STEPS := [100, 1000, 5000]
 const SAVE_VERSION := 3
 
-const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true}
+const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true,
+	"calm": false, "bold_telegraphs": false, "aim_assist": 0.0, "keys": {}}
 static var _loaded := false
 
 

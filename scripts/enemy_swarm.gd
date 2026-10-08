@@ -37,6 +37,8 @@ signal detonated(id: int, position: Vector2)
 ## Every swarm joins this group, which is how main.gd finds them.
 const GROUP := "enemy_swarms"
 
+## A charger's ground line.
+const CHARGE_LINE := Color(1.0, 0.25, 0.12, 0.42)
 ## The color of a mender's ring and its heal.
 const MEND_COLOR := Color(0.45, 1.0, 0.55)
 
@@ -543,7 +545,7 @@ func _make_telegraph() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(1.0, 0.25, 0.12, 0.42)
+	mat.albedo_color = Juice.warning_color(CHARGE_LINE)
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.no_depth_test = false
 	strip.material = mat
@@ -557,6 +559,12 @@ func _make_telegraph() -> void:
 	_telegraph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_telegraph.top_level = true
 	add_child(_telegraph)
+
+
+## Redraws the charge lines in the current warning style (a setting changed).
+func refresh_warnings() -> void:
+	if _telegraph:
+		((_telegraph.multimesh.mesh as PlaneMesh).material as StandardMaterial3D).albedo_color = Juice.warning_color(CHARGE_LINE)
 
 
 func _draw_telegraphs() -> void:

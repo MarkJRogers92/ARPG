@@ -109,8 +109,8 @@ func _on_mend(at: Vector2, s: EnemySwarm) -> void:
 func _on_fuse_lit(id: int, at: Vector2, s: EnemySwarm) -> void:
 	_clear_fuse(id)
 	var size := s.blast_radius * 2.0 / 0.82
-	var ring := HazardDirector.make_decal(self, at, Color(FUSE_COLOR, 0.85), 1.0, size)
-	var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.4, 0.1, 0.35), 0.0, size)
+	var ring := HazardDirector.make_warning(self, at, Color(FUSE_COLOR, 0.85), 1.0, size)
+	var fill := HazardDirector.make_warning(self, at, Color(1.0, 0.4, 0.1, 0.35), 0.0, size)
 	fill.scale = Vector3.ONE * 0.05
 	_fuses[id] = {"ring": ring, "fill": fill, "t": 0.0, "life": s.fuse_time}
 	Sound.play("telegraph", 1.4, -4.0)

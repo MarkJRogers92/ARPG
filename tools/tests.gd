@@ -44,6 +44,7 @@ func _finish() -> void:
 	_run(&"_test_army", _test_army())
 	_run(&"_test_heroes", _test_heroes())
 	_run(&"_test_reliquary", _test_reliquary())
+	_run(&"_test_accessibility", _test_accessibility())
 	_run(&"_test_events", _test_events())
 	_run(&"_test_obstacles", _test_obstacles())
 	_run(&"_test_fixes", _test_fixes())
@@ -1198,6 +1199,81 @@ func _test_reliquary() -> bool:
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled
 	MetaProgress.load_save()
+	return true
+
+
+
+func _test_accessibility() -> bool:
+	print("controls and accessibility settings")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_settings.save"
+	_wipe_save()
+	MetaProgress.load_save()
+	Controls.apply()
+	var dash := Controls.key_code("dash")
+	var use := Controls.key_code("interact")
+	_check(dash == KEY_SPACE and use == KEY_E, "default keys: Space dashes, E uses (%s, %s)" % [Controls.key_name("dash"), Controls.key_name("interact")])
+	_check(Controls.tag("interact") == "[E]", "hints name the key")
+	Controls.rebind("dash", KEY_F)
+	_check(Controls.key_code("dash") == KEY_F and Controls.tag("dash") == "[F]", "dash rebound to F, and the hint follows")
+	var pad := InputMap.action_get_events("dash").filter(func(e: InputEvent) -> bool: return e is InputEventJoypadButton)
+	_check(not pad.is_empty(), "the gamepad button stays")
+	Controls.rebind("interact", KEY_F)
+	_check(Controls.key_code("interact") == KEY_F and Controls.key_code("dash") == use, "taking a used key swaps the two")
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_F
+	_check(InputMap.event_is_action(ev, "interact") and not InputMap.event_is_action(ev, "dash"), "the InputMap agrees")
+	MetaProgress.load_save()
+	Controls.reset()
+	MetaProgress.set_setting("keys", {"dash": KEY_G})
+	Controls.apply()
+	_check(Controls.key_code("dash") == KEY_G, "saved bindings are applied at startup")
+	Controls.reset()
+	_check(Controls.key_code("dash") == KEY_SPACE and Controls.key_code("interact") == KEY_E, "reset restores the defaults")
+	_check(MetaProgress.setting("keys").is_empty(), "and forgets the saved ones")
+
+	# Calm effects and bold warnings.
+	var faint := Color(1.0, 0.3, 0.1, 0.4)
+	Juice.bold_telegraphs = false
+	_check(Juice.warning_color(faint) == faint, "warnings look as designed by default")
+	Juice.bold_telegraphs = true
+	var bold := Juice.warning_color(faint)
+	_check(bold.a >= 0.89 and bold.g > faint.g, "bold warnings are brighter and near opaque")
+	Juice.bold_telegraphs = false
+	Juice.time_effects = true
+	Juice.calm = true
+	Juice.hitstop(0.5)
+	_check(Engine.time_scale == 1.0, "calm effects: no hit-stop")
+	Juice.calm = false
+	Juice.reset()
+
+	# Aim assist: shots bend toward an enemy near the aim, not one far off it.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var swarm := EnemySwarm.new()
+	swarm.capacity = 4
+	root.add_child(swarm)
+	var swarms: Array[EnemySwarm] = [swarm]
+	player.setup(swarms, null)
+	swarm.spawn(Vector2(8, 2)) # about 14 degrees off the aim
+	swarm.spawn(Vector2(0, 8)) # 90 degrees off
+	swarm.step(0.0, Vector2(0, -30))
+	var aim := Vector2(1, 0)
+	_check(player.assisted_aim(aim, 16.0) == aim, "no assist by default")
+	player.aim_assist = 1.0
+	var bent := player.assisted_aim(aim, 16.0)
+	_near(bent.angle(), Vector2(8, 2).angle(), "full assist aims at the enemy near the aim", 0.01)
+	player.aim_assist = 0.3
+	_check(player.assisted_aim(aim, 16.0) == aim, "a weak assist leaves it alone (outside its 9 degree cone)")
+	_check(player.assisted_aim(Vector2(0.3, 1).normalized(), 16.0) != Vector2(0, 1), "and never swings to an enemy far off the aim")
+	swarm.free()
+	player.free()
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+	Controls.reset()
 	return true
 
 

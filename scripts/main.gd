@@ -100,6 +100,10 @@ var _hurt_sound := 0.0
 func _enter_tree() -> void:
 	# Before the swarms' _ready(), so they build the realm's models.
 	Realm.apply_gameplay(self)
+	# And so they draw their warnings the way the settings say.
+	MetaProgress.load_save()
+	Juice.calm = MetaProgress.setting("calm")
+	Juice.bold_telegraphs = MetaProgress.setting("bold_telegraphs")
 
 
 func _ready() -> void:
@@ -228,7 +232,7 @@ func _ready() -> void:
 	_skill_screen.setup(_player)
 	_skill_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_player.skill_points_gained.connect(func(n: int) -> void:
-		_hud.toast("+%d skill point%s  [K]" % [n, "" if n == 1 else "s"], Color(1.0, 0.85, 0.3)))
+		_hud.toast("+%d skill point%s  %s" % [n, "" if n == 1 else "s", Controls.tag("skill_tree")], Color(1.0, 0.85, 0.3)))
 	_player.mouse_aim_toggled.connect(func(on: bool) -> void:
 		_hud.toast("Aim: mouse" if on else "Aim: automatic (nearest enemy)", Color(1.0, 0.85, 0.5)))
 	_hud.restart_pressed.connect(func() -> void:
@@ -270,6 +274,14 @@ func _ready() -> void:
 func apply_settings() -> void:
 	($CameraRig as CameraRig).shake_enabled = MetaProgress.setting("shake")
 	Juice.numbers = $DamageNumbers if MetaProgress.setting("numbers") else null
+	Juice.calm = MetaProgress.setting("calm")
+	Juice.bold_telegraphs = MetaProgress.setting("bold_telegraphs")
+	_player.aim_assist = float(MetaProgress.setting("aim_assist"))
+	for swarm in _swarms:
+		swarm.refresh_warnings()
+	if _final_mech:
+		_final_mech.refresh_warnings()
+	Controls.apply()
 	Sound.apply_volumes()
 
 

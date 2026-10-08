@@ -197,8 +197,8 @@ func _spawn() -> void:
 
 
 func _start_slam(at: Vector2) -> void:
-	var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.15, 0.1, 0.8), 1.0, slam_radius * 2.0)
-	var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.25, 0.1, 0.35), 0.0, slam_radius * 2.0)
+	var ring := HazardDirector.make_warning(self, at, Color(1.0, 0.15, 0.1, 0.8), 1.0, slam_radius * 2.0)
+	var fill := HazardDirector.make_warning(self, at, Color(1.0, 0.25, 0.1, 0.35), 0.0, slam_radius * 2.0)
 	fill.scale = Vector3.ONE * 0.05
 	Sound.play("telegraph")
 	_slams.append({"at": at, "t": 0.0, "ring": ring, "fill": fill,

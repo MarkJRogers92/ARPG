@@ -67,7 +67,7 @@ func update(delta: float) -> void:
 
 func _aim() -> Vector2:
 	if _player.aim_mode != Player.Aim.AUTO:
-		return _player.aim_dir
+		return _player.assisted_aim(_player.aim_dir, _player.stats.scythe_range + 2.0)
 	var best := Vector2.ZERO
 	var best_d2 := 14.0 * 14.0
 	var from := _player.pos2

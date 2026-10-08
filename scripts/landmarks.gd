@@ -81,10 +81,10 @@ func setup(decor: WorldDecor, player: Player, director: WaveDirector, loot: Loot
 		var ring := HazardDirector.make_decal(self, Vector2.ZERO, Color(1.0, 0.82, 0.4, 0.55), 0.85, 1.0)
 		ring.visible = false
 		_rings.append(ring)
-	_ensure_input()
+	ensure_input()
 
 
-static func _ensure_input() -> void:
+static func ensure_input() -> void:
 	if InputMap.has_action("interact"):
 		return
 	InputMap.add_action("interact")
@@ -156,7 +156,7 @@ func _rescan() -> void:
 	_near_at = at
 	var info: Dictionary = INFO[_near_use]
 	var why := _unavailable(_near_use)
-	prompt = "[E]  %s  ·  %s" % [info["verb"], why if why != "" else info["hint"]]
+	prompt = "%s  %s  ·  %s" % [Controls.tag("interact"), info["verb"], why if why != "" else info["hint"]]
 	prompt_color = info["color"] if why == "" else UiStyle.MUTED
 
 
@@ -356,5 +356,5 @@ func _read(at: Vector2) -> bool:
 	_player.skills.add_points(1)
 	Sound.play("levelup", 0.8)
 	Juice.burst(at, 1.3, Color(0.8, 0.5, 1.0), 30, 3.0, 0.5, 0.9, 5.0)
-	announced.emit("Forbidden knowledge: +1 skill point [K]. The tome takes its price.", Color(0.8, 0.5, 1.0))
+	announced.emit("Forbidden knowledge: +1 skill point %s. The tome takes its price." % Controls.tag("skill_tree"), Color(0.8, 0.5, 1.0))
 	return true

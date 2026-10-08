@@ -43,7 +43,23 @@ is drawn by `tools/make_icon.py`.
 | K / gamepad Back | Open or close the skill tree (pauses the game) |
 | E / gamepad B | Use the set piece in reach (a gold ring marks usable ones) |
 | Q / gamepad LB | Switch the army's stance: Hunt, Guard, Swarm |
-| Esc | Pause: music and sound volume, screen shake, damage numbers, back to the title |
+| Esc | Pause: settings (below), Controls (rebind keys), back to the title |
+
+The keys above are the defaults. **Controls** in the pause menu rebinds the
+first key of every action (moving, dash, use, stance, inventory, skill tree,
+reroll, aim mode); taking a key another action uses swaps the two, and the
+arrow keys and gamepad stay. Hints on screen ("[E]  Open") follow the
+bindings (`scripts/controls.gd`; saved with the settings).
+
+The pause menu also has the comfort and accessibility settings:
+
+- **Calm effects** (photosensitivity): no hit-stop or slow motion, light
+  flashes at 30%, and the rift glitch at a fifth of its strength.
+- **Bold warnings**: every ground warning (hazards, boss slams, mid-boss moves,
+  meteors, bloater fuses, Lancer and Colossus lines) drawn brighter and near
+  opaque (`HazardDirector.make_warning`, `Juice.warning_color`).
+- **Aim assist** (0-100%): when aiming with the mouse or stick, bolts and
+  scythes bend toward an enemy within up to 30° of the aim.
 
 Attacks fire on their own: *Magic Bolt* shoots whenever an enemy is in range, and
 *Frost Aura* (an upgrade) damages everything around you. Aiming is twin-stick

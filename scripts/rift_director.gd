@@ -142,7 +142,7 @@ func tick(delta: float) -> void:
 				_portals.remove_at(i)
 				start_glitch()
 			else:
-				prompt = "[E]  Step through into the Night Market  ·  the night holds still while you shop" if can_open() \
+				prompt = Controls.tag("interact") + "  Step through into the Night Market  ·  the night holds still while you shop" if can_open() \
 						else "The market won't open with a boss so near"
 				if can_open() and Input.is_action_just_pressed("interact"):
 					(p["node"] as Node3D).queue_free()
@@ -153,7 +153,8 @@ func tick(delta: float) -> void:
 	if glitch_left > 0.0:
 		glitch_left -= delta
 		_glitch_mat.set_shader_parameter("time", Time.get_ticks_msec() / 1000.0)
-		_glitch_mat.set_shader_parameter("strength", clampf(minf(GLITCH_TIME - glitch_left, glitch_left) * 2.0, 0.0, 1.0))
+		_glitch_mat.set_shader_parameter("strength", clampf(minf(GLITCH_TIME - glitch_left, glitch_left) * 2.0, 0.0, 1.0)
+				* (0.2 if Juice.calm else 1.0))
 		if glitch_left <= 0.0:
 			_end_glitch()
 
@@ -286,7 +287,7 @@ func market_tick(delta: float) -> void:
 	prompt = ""
 	var here := _player.pos2 - MARKET_AT
 	if here.distance_to(Vector2(0, 5.0)) <= REACH:
-		prompt = "[E]  Return to the night"
+		prompt = Controls.tag("interact") + "  Return to the night"
 		if Input.is_action_just_pressed("interact"):
 			leave_market()
 			return
@@ -297,7 +298,7 @@ func market_tick(delta: float) -> void:
 			if _bought.has(s["id"]):
 				prompt = "%s: \"Come again, traveller.\"" % s["name"]
 			else:
-				prompt = "[E]  %s  ·  %s for %d Soul Shards (you have %d)" % [s["name"], s["offer"], s["price"], _spend.call(0)]
+				prompt = "%s  %s  ·  %s for %d Soul Shards (you have %d)" % [Controls.tag("interact"), s["name"], s["offer"], s["price"], _spend.call(0)]
 				if Input.is_action_just_pressed("interact"):
 					buy(s["id"])
 	if _market["left"] <= 10.0 and int(_market["left"] + delta) != int(_market["left"]):

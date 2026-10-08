@@ -57,6 +57,10 @@ var aim_mode := Aim.AUTO
 var mouse_aim_enabled := true
 ## Ground-plane direction the hero aims in MOUSE / STICK mode.
 var aim_dir := Vector2(0, -1)
+## Aim assist (a setting, 0..1): when aiming by hand, shots bend toward an
+## enemy within ASSIST_CONE * aim_assist of the aim.
+var aim_assist := 0.0
+const ASSIST_CONE := deg_to_rad(30.0)
 
 var _swarms: Array[EnemySwarm] = []
 var _projectiles: ProjectileSwarm
@@ -364,7 +368,7 @@ func _update_bolt(delta: float) -> void:
 	_bolt_timer = stats.bolt_cooldown
 	var aim := (target - origin).normalized()
 	if aim_mode != Aim.AUTO:
-		aim = aim_dir # aimed by hand; an enemy in range just means "fire"
+		aim = assisted_aim(aim_dir, stats.bolt_range) # aimed by hand; an enemy in range just means "fire"
 	elif velocity.is_zero_approx():
 		# Turn to face the target when standing still, so the cast reads.
 		_visual.rotation.y = atan2(-aim.x, -aim.y)
@@ -383,6 +387,36 @@ func _update_bolt(delta: float) -> void:
 			damage *= stats.crit_mult
 		_projectiles.spawn(origin, aim.rotated(angle), stats.bolt_speed,
 				damage, stats.bolt_pierce, 1.5, crit, _bolt_element())
+
+
+## `dir`, or with aim assist on, the direction to the enemy (within `reach`)
+## closest to it inside the assist cone; nearer enemies win ties.
+func assisted_aim(dir: Vector2, reach: float) -> Vector2:
+	if aim_assist <= 0.0:
+		return dir
+	var cone := ASSIST_CONE * aim_assist
+	var origin := pos2
+	var best := dir
+	var best_score := INF
+	for swarm in _swarms:
+		var n := swarm.grid.query(origin + dir * reach * 0.5, reach * 0.65 + swarm.radius)
+		var res := swarm.grid.results
+		for k in n:
+			var i := res[k]
+			if swarm.hp[i] <= 0.0:
+				continue
+			var to := swarm.pos[i] - origin
+			var d := to.length()
+			if d < 0.3 or d > reach:
+				continue
+			var off := absf(dir.angle_to(to))
+			if off > cone:
+				continue
+			var score := off / cone + d / reach * 0.5
+			if score < best_score:
+				best_score = score
+				best = to / d
+	return best
 
 
 ## Which element the next bolt (or, for the Reaper, scythe) carries: lightning with a Stormcaller weapon,

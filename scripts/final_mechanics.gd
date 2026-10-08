@@ -55,8 +55,14 @@ func setup(final: EnemySwarm, wards: EnemySwarm, player: Player, director: WaveD
 	_line_mat = StandardMaterial3D.new()
 	_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_line_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_line_mat.albedo_color = Color(0.55, 0.85, 1.0, 0.45)
+	refresh_warnings()
 	_line_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+
+## The fracture lines in the current warning style.
+func refresh_warnings() -> void:
+	if _line_mat:
+		_line_mat.albedo_color = Juice.warning_color(Color(0.55, 0.85, 1.0, 0.45))
 
 
 func kind() -> String:
@@ -205,8 +211,8 @@ func _tyrant(i: int, delta: float) -> void:
 	if _timer <= 0.0:
 		_timer = METEOR_INTERVAL
 		var at := _player.pos2
-		var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.35, 0.1, 0.8), 1.0, METEOR_RADIUS * 2.0)
-		var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.45, 0.1, 0.35), 0.0, METEOR_RADIUS * 2.0)
+		var ring := HazardDirector.make_warning(self, at, Color(1.0, 0.35, 0.1, 0.8), 1.0, METEOR_RADIUS * 2.0)
+		var fill := HazardDirector.make_warning(self, at, Color(1.0, 0.45, 0.1, 0.35), 0.0, METEOR_RADIUS * 2.0)
 		fill.scale = Vector3.ONE * 0.05
 		_meteors.append({"at": at, "t": 0.0, "ring": ring, "fill": fill})
 		Sound.play("telegraph", 1.2)

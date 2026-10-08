@@ -111,8 +111,8 @@ func _warlord(i: int, s: Dictionary, delta: float) -> void:
 		return
 	s["timer"] = maxf(QUAKE_INTERVAL - (_bosses.spawned - 1), 6.0)
 	# The wind-up shows where the wave will reach and a bright mark at his feet.
-	var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.45, 0.2, 0.55), 1.0, QUAKE_REACH * 2.0 / 0.82)
-	var mark := HazardDirector.make_decal(self, at, Color(1.0, 0.3, 0.15, 0.5), 0.0, 5.0)
+	var ring := HazardDirector.make_warning(self, at, Color(1.0, 0.45, 0.2, 0.55), 1.0, QUAKE_REACH * 2.0 / 0.82)
+	var mark := HazardDirector.make_warning(self, at, Color(1.0, 0.3, 0.15, 0.5), 0.0, 5.0)
 	_waves.append({"at": at, "t": -QUAKE_WINDUP, "r": 0.0, "hit": false, "ring": ring, "mark": mark})
 	Sound.play("telegraph", 0.8)
 	Sound.play("boss_roar", 0.9, -4.0)
@@ -136,7 +136,7 @@ func _update_waves(delta: float) -> void:
 				Juice.flash(w["at"], Color(1.0, 0.45, 0.2), 5.0, 9.0, 0.35)
 				mark.queue_free()
 				ring.queue_free()
-				ring = HazardDirector.make_decal(self, w["at"], Color(1.0, 0.5, 0.2, 0.95), 1.0, 2.0)
+				ring = HazardDirector.make_warning(self, w["at"], Color(1.0, 0.5, 0.2, 0.95), 1.0, 2.0)
 				w["ring"] = ring
 				w["mark"] = null
 			w["r"] = QUAKE_SPEED * w["t"] + 0.5
@@ -206,8 +206,8 @@ func _magma(i: int, s: Dictionary, delta: float) -> void:
 func _add_pool(at: Vector2) -> void:
 	if _pools.size() >= POOL_MAX or Obstacles.blocked(at, 0.5):
 		return
-	var ring := HazardDirector.make_decal(self, at, Color(1.0, 0.35, 0.1, 0.8), 1.0, POOL_RADIUS * 2.0)
-	var fill := HazardDirector.make_decal(self, at, Color(1.0, 0.4, 0.1, 0.3), 0.0, POOL_RADIUS * 2.0)
+	var ring := HazardDirector.make_warning(self, at, Color(1.0, 0.35, 0.1, 0.8), 1.0, POOL_RADIUS * 2.0)
+	var fill := HazardDirector.make_warning(self, at, Color(1.0, 0.4, 0.1, 0.3), 0.0, POOL_RADIUS * 2.0)
 	fill.scale = Vector3.ONE * 0.05
 	_pools.append({"at": at, "t": 0.0, "tick": 0.0, "ring": ring, "fill": fill})
 	Sound.play("telegraph", 1.3, -6.0)
