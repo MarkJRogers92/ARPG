@@ -3,7 +3,7 @@ extends MultiMeshInstance3D
 ## A horde of one enemy type.
 ##
 ## Enemies are not nodes: they are rows in flat arrays, simulated by step() and
-## drawn by a single MultiMesh. There is no physics body per enemy. Collisions
+## drawn by shared MultiMeshes (one per appearance). There is no physics body per enemy. Collisions
 ## (bullets, aura, touching the player) go through a SpatialHash instead.
 ## Add another enemy type by adding another EnemySwarm node with different
 ## exports and registering it in main.gd.
@@ -136,6 +136,9 @@ var shots: EnemyShots
 @export var spectral := false
 @export var spectral_color := Color(1.0, 0.3, 0.35)
 @export var body_height := 1.4
+## Optional authored cosmetic alternative, set by the realm before _ready().
+## An empty/unavailable model keeps every enemy on the procedural mesh.
+@export var specialist_model := ""
 ## Main skin color of the model; also tints its death burst.
 @export var color := Color(0.5, 0.62, 0.42)
 
@@ -179,6 +182,12 @@ var _afflicted := PackedByteArray()
 var _scale := PackedFloat32Array()
 var _fire := PackedFloat32Array()
 var _buffer := PackedFloat32Array()
+var _variant_layer: MultiMeshInstance3D
+var _plain_buffer := PackedFloat32Array()
+var _variant_buffer := PackedFloat32Array()
+var _appearance := PackedByteArray()
+## Cosmetic sequence only: never draw from the gameplay RNG.
+var _cosmetic_spawned := 0
 var _shadow: MultiMeshInstance3D
 var _frame := 0
 ## Chargers: state (0 stalk, 1 wind up, 2 charge, 3 recover), its timer, the
@@ -231,7 +240,7 @@ func _ready() -> void:
 	# Look: a model per type, animated in the shader (see enemy.gdshader), plus
 	# a blob shadow drawn from the same buffer.
 	var quadruped := model == "runner"
-	var mat := Models.material("enemy", {
+	var params := {
 		"height": body_height,
 		"stride_speed": minf(move_speed / body_height * 4.2, 16.0),
 		"quadruped": quadruped,
@@ -240,8 +249,34 @@ func _ready() -> void:
 		"sway": 0.04 if model in ["brute", "boss"] else 0.08,
 		"spectral": spectral,
 		"spectral_color": spectral_color,
-	}, name)
+	}
+	var mat := Models.material("enemy", params, name)
 	MultiMeshUtil.setup(self, Models.enemy(model, color, body_height), capacity, mat)
+	var variant := SpecialistModels.mesh(specialist_model, body_height)
+	if variant != null:
+		if model == "collector": _cosmetic_spawned = 1 # the first debt shows the new signature art
+		var variant_params := params.duplicate()
+		variant_params["rigid_accessories"] = true
+		variant_params["travel_gait"] = true
+		if model == "collector": variant_params["leg_width"] = 0.14 # chain stays rigid, boots still step
+		variant_params["stride"] = 0.14 if model == "bloater" else 0.16
+		variant_params["sway"] = 0.035
+		variant_params["bob"] = 0.035
+		if specialist_model in ["obsidian_guard", "magma_bloater"]:
+			# A cool edge separates coal silhouettes from red lava. Preserve the
+			# authored albedo and UV-driven warning core; don't relight the realm.
+			variant_params["rim_color"] = Color(0.55, 0.68, 0.82)
+			variant_params["rim_strength"] = 0.65
+		var variant_mat := Models.material("enemy", variant_params, name + "/" + specialist_model)
+		# MultiMeshUtil.setup sets surface zero. Both imported surfaces must
+		# deform and show the same hit/status cues; UV.x controls their glow.
+		for s in variant.get_surface_count():
+			variant.surface_set_material(s, variant_mat)
+		_variant_layer = MultiMeshUtil.add_layer(self, variant, variant_mat)
+		_variant_layer.layers = 2
+		_plain_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
+		_variant_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
+		_appearance.resize(capacity)
 	var blob := PlaneMesh.new()
 	blob.size = Vector2.ONE * radius * (2.8 if not boss else 2.2)
 	_shadow = MultiMeshUtil.add_layer(self, blob, Models.material("blob_shadow"))
@@ -294,6 +329,9 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	_afflicted[count] = 0
 	ids[count] = _next_id
 	_next_id += 1
+	if _variant_layer != null:
+		_appearance[count] = _cosmetic_spawned & 1
+		_cosmetic_spawned += 1
 	_push[count] = Vector2.ZERO
 	_advance[count] = 1.0
 	_flash[count] = 0.0
@@ -301,6 +339,7 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM] = 0.0
 	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 1] = randf() # walk cycle phase
 	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 2] = 1.0 if elite else 0.0 # glow
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 3] = 0.0 # reused rows mustn't inherit burn glow
 	var sc := _scale[count]
 	_buffer[o] = sc
 	_buffer[o + 2] = 0.0
@@ -460,10 +499,15 @@ func step(delta: float, target: Vector2) -> void:
 							_cstate[i] = 3
 							_ctime[i] = charge_recover * 1.5
 						break
+		var travelled := p.distance_to(pos[i]) if _variant_layer != null else 0.0
 		pos[i] = p
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
 		buf[o + MultiMeshUtil.OFFSET_X] = p.x
 		buf[o + MultiMeshUtil.OFFSET_Z] = p.y
+		if _variant_layer != null and _appearance[i] == 1:
+			# Opaque imported colors leave alpha available for cosmetic travel.
+			# It never changes stats, facing, collision, statuses or the old gait.
+			buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = clampf(travelled / maxf(step_len, 0.0001), 0.0, 1.0)
 		# Facing turns slowly, so each enemy refreshes it every 4th frame
 		# (inlined MultiMeshUtil.set_facing: this loop is the hot path).
 		if (i + _frame) & 3 == 0:
@@ -497,12 +541,38 @@ func step(delta: float, target: Vector2) -> void:
 		_draw_telegraphs()
 	if _aura:
 		_draw_auras()
-	var mm := multimesh
-	mm.visible_instance_count = count
+	_draw_bodies(buf)
 	_shadow.multimesh.visible_instance_count = count
 	if count > 0:
-		mm.buffer = buf
 		_shadow.multimesh.buffer = buf
+
+
+## Partition only the optional specialist swarms. Simulation, targeting and
+## shadows keep canonical row indices; each body is drawn exactly once.
+func _draw_bodies(buf: PackedFloat32Array) -> void:
+	if _variant_layer == null:
+		multimesh.visible_instance_count = count
+		if count > 0:
+			multimesh.buffer = buf
+		return
+	var plain_count := 0
+	var variant_count := 0
+	for i in count:
+		var target_buffer := _plain_buffer if _appearance[i] == 0 else _variant_buffer
+		var dest := (plain_count if _appearance[i] == 0 else variant_count) * MultiMeshUtil.FLOATS_PER_INSTANCE
+		var source := i * MultiMeshUtil.FLOATS_PER_INSTANCE
+		for k in MultiMeshUtil.FLOATS_PER_INSTANCE:
+			target_buffer[dest + k] = buf[source + k]
+		if _appearance[i] == 0:
+			plain_count += 1
+		else:
+			variant_count += 1
+	multimesh.visible_instance_count = plain_count
+	_variant_layer.multimesh.visible_instance_count = variant_count
+	if plain_count > 0:
+		multimesh.buffer = _plain_buffer
+	if variant_count > 0:
+		_variant_layer.multimesh.buffer = _variant_buffer
 
 
 ## Applies damage to enemy `i`. Safe to call while iterating query results.
@@ -723,6 +793,8 @@ func _flush_dead() -> void:
 			pos[i] = pos[last]
 			hp[i] = hp[last]
 			ids[i] = ids[last]
+			if _variant_layer != null:
+				_appearance[i] = _appearance[last]
 			_push[i] = _push[last]
 			_advance[i] = _advance[last]
 			_flash[i] = _flash[last]

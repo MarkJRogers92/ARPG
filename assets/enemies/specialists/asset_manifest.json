@@ -1,0 +1,373 @@
+{
+  "pack": "Soulbound Specialist Enemies",
+  "reference_commit": "1ff408a0dd521bf99eb7ced494f32279f0b679ec",
+  "units": "metres",
+  "coordinates": "Blender Z up +Y front; glTF/Godot Y up -Z front",
+  "hero_reference_height_m": 2.39,
+  "preview_camera": {
+    "elevation_degrees": 55,
+    "vertical_fov_degrees": 32
+  },
+  "assets": [
+    {
+      "asset": "bone_shieldbearer",
+      "title": "Bone Shieldbearer",
+      "role": "shieldbearer",
+      "biome": "Hollow Graveyard",
+      "notes": "Narrow skeleton behind a chipped coffin shield; low asymmetric mace. Defensive specialist, not a boss.",
+      "triangles": 904,
+      "materials": 2,
+      "editable_parts": 48,
+      "dimensions_godot_xyz_m": [
+        1.05,
+        1.8,
+        0.85
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.5397801399230957,
+          0.5102198719978333
+        ],
+        [
+          -0.23860116302967072,
+          0.6113988161087036
+        ],
+        [
+          0.0,
+          1.8000000715255737
+        ]
+      ],
+      "body_height_design_m": 1.8,
+      "current_role_height_parameter_m": 1.6,
+      "glb": "glb/bone_shieldbearer.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        0.42,
+        0.83,
+        0.97
+      ],
+      "emission_strength": 0.9
+    },
+    {
+      "asset": "grave_mender",
+      "title": "Grave Mender",
+      "role": "mender",
+      "biome": "Hollow Graveyard",
+      "notes": "Bent undertaker with a divided coat and crooked green healing lantern. No crown or bell.",
+      "triangles": 790,
+      "materials": 2,
+      "editable_parts": 40,
+      "dimensions_godot_xyz_m": [
+        0.95,
+        2.3,
+        0.7
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.43113863468170166,
+          0.5188613533973694
+        ],
+        [
+          -0.2778909504413605,
+          0.42210906744003296
+        ],
+        [
+          0.0,
+          2.299999952316284
+        ]
+      ],
+      "body_height_design_m": 1.8,
+      "current_role_height_parameter_m": 1.6,
+      "glb": "glb/grave_mender.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        0.35,
+        0.94,
+        0.48
+      ],
+      "emission_strength": 0.9
+    },
+    {
+      "asset": "hoarfrost_shaman",
+      "title": "Hoarfrost Shaman",
+      "role": "mender",
+      "biome": "Frozen Wastes",
+      "notes": "Thin frost healer, angular fur mantle and forked ice-bone staff; green healing focus persists across the biome.",
+      "triangles": 652,
+      "materials": 2,
+      "editable_parts": 37,
+      "dimensions_godot_xyz_m": [
+        1.1,
+        2.3,
+        0.8
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.43956688046455383,
+          0.6604331135749817
+        ],
+        [
+          -0.3510741889476776,
+          0.44892582297325134
+        ],
+        [
+          0.0,
+          2.299999952316284
+        ]
+      ],
+      "body_height_design_m": 1.8,
+      "current_role_height_parameter_m": 1.6,
+      "glb": "glb/hoarfrost_shaman.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        0.35,
+        0.94,
+        0.48
+      ],
+      "emission_strength": 0.9
+    },
+    {
+      "asset": "frost_bloater",
+      "title": "Frost Bloater",
+      "role": "bloater",
+      "biome": "Frozen Wastes",
+      "notes": "Round frozen corpse, tiny legs, sunken head and chunky belly ice. Small warm warning core marks the volatile role.",
+      "triangles": 648,
+      "materials": 2,
+      "editable_parts": 27,
+      "dimensions_godot_xyz_m": [
+        1,
+        1.35,
+        0.95
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.5,
+          0.5
+        ],
+        [
+          -0.485781192779541,
+          0.4642188549041748
+        ],
+        [
+          0.0,
+          1.350000023841858
+        ]
+      ],
+      "body_height_design_m": 1.35,
+      "current_role_height_parameter_m": 1.3,
+      "glb": "glb/frost_bloater.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        1,
+        0.58,
+        0.22
+      ],
+      "emission_strength": 0.9
+    },
+    {
+      "asset": "obsidian_guard",
+      "title": "Obsidian Guard",
+      "role": "shieldbearer",
+      "biome": "Ember Rift",
+      "notes": "Compact armored shield specialist, hexagonal shield and broken off-center crest; charcoal, rust and narrow orange seams.",
+      "triangles": 608,
+      "materials": 2,
+      "editable_parts": 29,
+      "dimensions_godot_xyz_m": [
+        1.1,
+        1.8,
+        0.85
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.6010212302207947,
+          0.49897873401641846
+        ],
+        [
+          -0.26417338848114014,
+          0.585826575756073
+        ],
+        [
+          0.0,
+          1.7999999523162842
+        ]
+      ],
+      "body_height_design_m": 1.8,
+      "current_role_height_parameter_m": 1.6,
+      "glb": "glb/obsidian_guard.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        1,
+        0.35,
+        0.065
+      ],
+      "emission_strength": 0.9
+    },
+    {
+      "asset": "magma_bloater",
+      "title": "Magma Bloater",
+      "role": "bloater",
+      "biome": "Ember Rift",
+      "notes": "Heavy coal-and-rust crust barrel belly, low broken vent, small head and restrained belly fissure. No obscuring fire plume.",
+      "triangles": 610,
+      "materials": 2,
+      "editable_parts": 26,
+      "dimensions_godot_xyz_m": [
+        1,
+        1.35,
+        1
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.5,
+          0.5
+        ],
+        [
+          -0.5128017067909241,
+          0.48719826340675354
+        ],
+        [
+          0.0,
+          1.350000023841858
+        ]
+      ],
+      "body_height_design_m": 1.35,
+      "current_role_height_parameter_m": 1.3,
+      "glb": "glb/magma_bloater.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "vertex_color_storage": "FLOAT_COLOR linear converted from sRGB",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "integration_note": "Current EnemySwarm MultiMesh requires an explicit mesh adapter. No drop-in integration promised. Current body height parameters exclude tall accessories. Validate shader deformation, collision, attacks, AI, telegraphs and horde readability in game.",
+      "emission_color_srgb": [
+        1,
+        0.35,
+        0.065
+      ],
+      "emission_strength": 0.9
+    }
+  ]
+}

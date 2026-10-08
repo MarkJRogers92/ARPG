@@ -174,6 +174,7 @@ static func apply_gameplay(main: Node, id := "") -> void:
 		var e: Dictionary = d["enemies"][swarm_name]
 		swarm.display_name = e["label"]
 		swarm.model = e["model"]
+		swarm.specialist_model = SpecialistModels.kind_for(id if not id.is_empty() else current, swarm.model)
 		swarm.color = e["color"]
 		if e.has("shot"):
 			swarm.shot_element = e["shot"]

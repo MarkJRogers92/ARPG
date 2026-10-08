@@ -1,0 +1,3 @@
+asset,role,triangles,editable_parts,width_m,height_m,depth_m,surfaces,glb,status
+ferryman,nonhostile soul broker,2159,92,1.4,2.86,1.48,2,glb/ferryman.glb,static unintegrated model
+debt_collector,debt enforcer,2494,119,1.213,2.655,0.785,2,glb/debt_collector.glb,static unintegrated model

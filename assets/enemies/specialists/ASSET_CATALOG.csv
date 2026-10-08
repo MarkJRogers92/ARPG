@@ -1,0 +1,7 @@
+title,asset,biome,role,triangles,width_m,total_height_m,depth_m,glb,status
+Bone Shieldbearer,bone_shieldbearer,Hollow Graveyard,shieldbearer,904,1.05,1.8,0.85,glb/bone_shieldbearer.glb,static unintegrated model
+Grave Mender,grave_mender,Hollow Graveyard,mender,790,0.95,2.3,0.7,glb/grave_mender.glb,static unintegrated model
+Hoarfrost Shaman,hoarfrost_shaman,Frozen Wastes,mender,652,1.1,2.3,0.8,glb/hoarfrost_shaman.glb,static unintegrated model
+Frost Bloater,frost_bloater,Frozen Wastes,bloater,648,1,1.35,0.95,glb/frost_bloater.glb,static unintegrated model
+Obsidian Guard,obsidian_guard,Ember Rift,shieldbearer,608,1.1,1.8,0.85,glb/obsidian_guard.glb,static unintegrated model
+Magma Bloater,magma_bloater,Ember Rift,bloater,610,1,1.35,1,glb/magma_bloater.glb,static unintegrated model

@@ -21,6 +21,9 @@ extends Node3D
 
 signal announced(text: String, color: Color)
 
+## Keep the original boatman selectable and use it if the authored asset is absent.
+@export var authored_model := true
+
 const FIRST_AT := 150.0
 const SECOND_AT := 420.0
 const VISIT_TIME := 75.0
@@ -117,7 +120,11 @@ func _arrive() -> bool:
 	root.position = Vector3(at.x, 0.0, at.y)
 	add_child(root)
 	var model := MeshInstance3D.new()
-	model.mesh = Models.ferryman()
+	var authored := SpecialistModels.mesh("ferryman", 2.86) if authored_model else null
+	if authored != null:
+		for surface in authored.get_surface_count():
+			authored.surface_set_material(surface, Models.kit_material())
+	model.mesh = authored if authored != null else Models.ferryman()
 	model.rotation.y = PI # face the camera
 	root.add_child(model)
 	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.55, 0.85, 1.0, 0.5), 0.9, 4.2)
