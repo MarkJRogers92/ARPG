@@ -2,7 +2,7 @@
 
 ## Expedition campaign
 
-Overnight checkpoint 4 is integrated at `131a328` on `feature/expedition-campaign-v1`: the breach HUD now explains the configured 6–7 minute seal window, including the deadline countdown when seals remain at the survival target. Integrated combat (50) and guidance (22) checks passed with exit 0 and no ERROR/WARNING. Protected player files and original `project.godot` bytes matched; no import churn. This presentation-only change did not warrant a full journey/lifecycle rerun. Fixture preview is not live-combat evidence. The hourly continuation remains active through 7:00 a.m. Chicago time; next entry is a concrete campaign friction or bug. See `docs/expedition_campaign/OVERNIGHT.md`.
+Overnight checkpoint 5 is integrated at `cb7b961` on `feature/expedition-campaign-v1`: Market and Armory show backpack usage/capacity; full-pack Buy and Unequip are disabled with space-making guidance, and Market offers an Equipment shortcut. Equip/swap stays available; Claim still requires a free slot. Integrated campaign UI checks passed with exit 0 and no errors/warnings; protected player files and original `project.godot` bytes matched, with no import churn. Full journey/lifecycle was not rerun for this UI-only change. The 720p preview is a fixture, not live-play evidence. Overnight work remains active through 7:00 a.m. Chicago time. See `docs/expedition_campaign/OVERNIGHT.md`.
 
 Feature work is integrated on `feature/expedition-campaign-v1`, based on `3fe4ea0`. Task commits: `125043d`, `d0196d9`, `4be1500`, `a35ee41`, `3b67fec`, `aede952`, and `473d471`. Campaign core, combat/UI integration, persistence and Classic compatibility checks are recorded in `docs/expedition_campaign/VALIDATION.md`.
 

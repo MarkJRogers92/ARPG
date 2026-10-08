@@ -22,3 +22,8 @@ Integrated at `9211a01`. Route previews clarify scaled base gold before event/sh
 ## 2026-10-08 — Overnight checkpoint 4
 
 Integrated at `131a328`. Breach guidance now follows configured survival/deadline values, shows a countdown for incomplete seals after the survival target, and keeps extraction guidance when all seals are closed. Both breach aliases are covered; deadline-free specs invent none. Parent review prompted tests that assert successful completion. Integrated combat (50) and guidance (22) checks passed, exit 0 with no ERROR/WARNING. Parent inspected a 720p fixture, not live-combat proof. Protected player files and original `project.godot` bytes matched; no import churn. No full journey/lifecycle rerun for the two-method presentation change. Details: `docs/expedition_campaign/OVERNIGHT.md`.
+
+
+## 2026-10-08 — Overnight checkpoint 5
+
+Integrated at `cb7b961`. Market and Armory show backpack usage/capacity; Buy and Unequip are blocked at capacity with guidance, while valid Equip/swap remains available. Market links to Equipment when full, and sidebar selection refreshes its highlight on render. Integrated UI checks passed with exit 0 and no errors/warnings, including the existing real-controller workflow, action gates, freeing space, navigation, and render-state preservation. Parent inspected a 720p fixture, not live-play evidence. Protected player-file states and original `project.godot` bytes matched; no import churn. No full journey/lifecycle rerun for this UI-only change. Details: `docs/expedition_campaign/OVERNIGHT.md`.
