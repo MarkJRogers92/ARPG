@@ -16,7 +16,19 @@ const SERVICES := [
 	{"id": "ledger", "label": "THE LEDGER", "glyph": "⌖"},
 ]
 
+## -1 auto (walkable town except headless test runs), 0 classic menu, 1 walkable.
+static var walk_mode := -1
+## Phases whose panel must stay on screen until the player resolves it.
+const FORCED_PANEL_PHASES := ["EVENT_PENDING", "RESULT_PENDING", "CAMPAIGN_COMPLETE"]
+
 var _controller: Node
+var _walk: CampaignWalkTown
+var _panel_open := false
+var _backdrop_rect: ColorRect
+var _veil: ColorRect
+var _body_row: HBoxContainer
+var _walk_hint: Label
+var _walk_spacer: Control
 var _state: Dictionary = {}
 var _active_service := "route"
 var _sanctuary: CampaignBackdrop
@@ -72,7 +84,7 @@ func setup(controller: Node) -> void:
 	_state = _controller.snapshot()
 	_render()
 	# Put keyboard and gamepad users on a meaningful control as soon as the town opens.
-	if is_inside_tree() and _service_buttons.has(_active_service):
+	if is_inside_tree() and _service_buttons.has(_active_service) and _body_row.is_visible_in_tree():
 		(_service_buttons[_active_service] as Button).grab_focus()
 
 
@@ -82,6 +94,10 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if str(_state.get("phase", "")) in ["EVENT_PENDING", "RESULT_PENDING"]:
+			get_viewport().set_input_as_handled()
+			return
+		if is_instance_valid(_walk) and _panel_open:
+			_close_panel()
 			get_viewport().set_input_as_handled()
 			return
 		if _active_service != "route":
@@ -99,11 +115,13 @@ func _build() -> void:
 	_root.theme = UiStyle.theme()
 	add_child(_root)
 	var backdrop := ColorRect.new()
+	_backdrop_rect = backdrop
 	backdrop.color = Color(0.028, 0.042, 0.065)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(backdrop)
 	var veil := ColorRect.new()
+	_veil = veil
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
 	veil.color = Color(0.015, 0.018, 0.035, 0.34)
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -118,6 +136,7 @@ func _build() -> void:
 	frame.add_child(layout)
 	_build_header(layout)
 	var body := HBoxContainer.new()
+	_body_row = body
 	body.add_theme_constant_override("separation", 14)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	layout.add_child(body)
@@ -128,6 +147,61 @@ func _build() -> void:
 	_feedback.custom_minimum_size.y = 24
 	_feedback.add_theme_color_override("font_color", Color(1.0, 0.72, 0.48))
 	layout.add_child(_feedback)
+	if walking_enabled():
+		_build_walk(layout)
+
+
+static func walking_enabled() -> bool:
+	return walk_mode == 1 or (walk_mode == -1 and DisplayServer.get_name() != "headless")
+
+
+## The walkable sanctuary sits behind this CanvasLayer; service panels become
+## overlays opened at their stations (see docs/expedition_campaign/WALKABLE_TOWN.md).
+func _build_walk(layout: Control) -> void:
+	_walk = CampaignWalkTown.new()
+	_walk.name = "WalkableSanctuary"
+	add_child(_walk)
+	_walk.station_used.connect(_open_station)
+	_backdrop_rect.visible = false
+	if is_instance_valid(_sanctuary):
+		_sanctuary.visible = false
+	_walk_spacer = Control.new()
+	_walk_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_walk_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(_walk_spacer)
+	_walk_hint = UiStyle.label(15)
+	_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_walk_hint.text = "%s  move     %s  use     ESC  save & leave" % ["WASD", Controls.tag("interact")]
+	_walk_hint.modulate = Color(1, 1, 1, 0.7)
+	layout.add_child(_walk_hint)
+
+
+func _open_station(id: String) -> void:
+	_active_service = id
+	_panel_open = true
+	_render()
+	if _service_buttons.has(id):
+		(_service_buttons[id] as Button).grab_focus.call_deferred()
+
+
+func _close_panel() -> void:
+	_panel_open = false
+	_render()
+	get_viewport().gui_release_focus()
+
+
+## Walk mode: the panel row shows only while a service is open or a phase
+## demands an answer; otherwise the hero walks the plaza.
+func _apply_walk_layout() -> void:
+	if not is_instance_valid(_walk):
+		return
+	var panel_visible := _panel_open or str(_state.get("phase", "TOWN")) in FORCED_PANEL_PHASES
+	_body_row.visible = panel_visible
+	_veil.visible = panel_visible
+	_walk_spacer.visible = not panel_visible
+	_walk_hint.visible = not panel_visible
+	_walk.walking = not panel_visible
+	_walk.present(_state)
 
 
 func _build_header(parent: Control) -> void:
@@ -321,6 +395,7 @@ func _section(title: String, key: String) -> Control:
 
 func _select_service(id: String) -> void:
 	_active_service = id
+	_panel_open = true
 	_render()
 
 
@@ -344,6 +419,7 @@ func _on_error(message: String) -> void:
 func _render() -> void:
 	if not is_instance_valid(_root):
 		return
+	_apply_walk_layout()
 	if is_instance_valid(_sanctuary):
 		_sanctuary.present(_state)
 	var biome_names := ["THE HOLLOW GRAVEYARD", "THE FROZEN WASTES", "THE EMBER RIFT"]
@@ -1529,6 +1605,7 @@ func _resolve_event_choice(choice_id: String) -> void:
 	var response := _command("resolve_event", [choice_id, "", _event_selection.duplicate(true)])
 	if response.get("ok", false) and event_id == "honest_ferryman" and choice_id == "view":
 		_active_service = "ledger"
+		_panel_open = true
 		_render()
 
 
