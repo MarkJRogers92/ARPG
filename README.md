@@ -18,12 +18,32 @@ build into Applications and opens it; run it again any time to update.
 curl -fL -o /tmp/Soulbound.zip https://github.com/MarkJRogers92/ARPG/releases/download/mac-latest/Soulbound.zip && rm -rf /Applications/Soulbound.app && ditto -xk /tmp/Soulbound.zip /Applications && open /Applications/Soulbound.app
 ```
 
-After that it's an ordinary app (Launchpad, Spotlight, the Dock). The build
-comes from `.github/workflows/mac-build.yml`: every change to the main branch
-runs the tests, exports the app (`export_presets.cfg`, a universal build,
-ad-hoc signed) and replaces the `mac-latest` release. Saves are shared with
-the editor (`config/custom_user_dir_name` keeps the old folder name). The icon
-is drawn by `tools/make_icon.py`.
+After that it's an ordinary app (Launchpad, Spotlight, the Dock).
+
+**On Windows, without Godot:** download
+[Soulbound-windows.zip](https://github.com/MarkJRogers92/ARPG/releases/download/windows-latest/Soulbound-windows.zip),
+extract it anywhere and run `Soulbound.exe`. The exe isn't code-signed, so
+SmartScreen may warn: choose **More info**, then **Run anyway**. Download it
+again to update.
+
+**On Linux (x86_64), without Godot:** this installs or updates into `~/Soulbound`
+and starts the game:
+
+```bash
+curl -fL -o /tmp/Soulbound-linux.zip https://github.com/MarkJRogers92/ARPG/releases/download/linux-latest/Soulbound-linux.zip && unzip -o /tmp/Soulbound-linux.zip -d ~/Soulbound && ~/Soulbound/Soulbound.x86_64
+```
+
+The builds come from `.github/workflows/build.yml`: every push to the
+repository's default branch (`claude/focused-fermat-m7jhtk`; `main` is listed
+too), or a manual run, runs the tests once, exports all three presets in
+`export_presets.cfg` (Mac: a universal build, ad-hoc signed; Windows and Linux:
+x86_64, a single executable with the game data embedded) and replaces the
+`mac-latest`, `windows-latest` and `linux-latest` releases. Each release follows
+the pattern `https://github.com/MarkJRogers92/ARPG/releases/download/<tag>/<asset>`.
+A web build (Compatibility renderer) is possible but needs a performance check
+first: thousands of MultiMesh enemies in a browser. Saves are shared with the
+editor (`config/custom_user_dir_name` keeps the old folder name). The icon is
+drawn by `tools/make_icon.py`.
 
 **From the editor:**
 
