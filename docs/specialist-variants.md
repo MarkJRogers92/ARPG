@@ -1,6 +1,6 @@
 # Soulbound authored character integration
 
-The six approved specialist enemies and the subsequently approved Ferryman/Collector pair are integrated into the actual Soulbound runtime. The specialist and Collector populations retain both authored and original procedural appearances. Other enemy roles, environments, player art and combat values are unchanged. This is local work only: no push, merge, release or deployment.
+The six approved specialist enemies and the subsequently approved Ferryman/Collector pair are integrated into the actual Soulbound runtime. The specialist and Collector populations retain both authored and original procedural appearances. Other enemy roles, environments, player art and combat values are unchanged. This report records the local validation delivered before publication. Mark subsequently authorized GitHub upload, merge and app update; the PR and existing Build workflow record that release.
 
 ## Repository and source
 
@@ -79,4 +79,4 @@ Run `tools/preview_specialists.sh` from this worktree. It copies the runtime int
 
 Production changes are confined to `scenes/main.tscn` (Collector appearance setting), `scripts/enemy_swarm.gd`, `scripts/ferryman.gd`, `scripts/realm.gd`, `shaders/enemy.gdshader`, the new `scripts/visual/specialist_models.gd` adapter, and `assets/enemies/{specialists,signatures}/`. Tests/QA/launcher live in `tools/`; provenance, this report and the plan live in `docs/` and the asset folders. The delivery manifest lists the exact local commit and every changed path. The evidence ZIP contains that commit as a binary Git patch, this report, selected full-game stills, raw metrics and logs.
 
-Remaining limits: no uninterrupted full-night manual playthrough, no final motion video, and performance measured only on this Mac. Ember's existing dark-on-lava presentation remains a broader art limitation. No release was created or installed.
+Remaining limits: no uninterrupted full-night manual playthrough, no final motion video, and performance measured only on this Mac. Ember's existing dark-on-lava presentation remains a broader art limitation. No release was created or installed during these local validation runs.
