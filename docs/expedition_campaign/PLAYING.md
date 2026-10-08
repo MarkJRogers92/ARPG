@@ -23,6 +23,8 @@ After an expedition, the results recap shows its outcome, recorded damage causes
 
 The route board's **Before You Depart** panel lists required blockers separately from optional preparation and opens the service for each required action. Optional talent spending, specialization, and veteran deployment never block departure. A pending reward delivery can be retried from the campaign record after leaving.
 
+Available route previews show base gold scaled by biome before event adjustments or shard conversion. Cursed Cache may add a scaled optional bonus. Short routes award one talent point; early finales award three; the last finale awards none. A Rare prize assigned to a specific node remains reserved with the Ferryman until claimed, while the final Legendary prize is banked. Veiled routes do not reveal their reward details.
+
 Deploy one veteran at the Crypt. Its maximum effective rank is Veteran, Hero or Legend according to the destination biome. A fallen veteran returns for a later attempt. A pledged veteran stays unavailable until its committed node is cleared.
 
 The Ferryman reserves one settlement prize. Take it or risk it at the displayed odds: 70% for the first crossing, 45% for the second. A veteran pledge adds 10 percentage points to the first; approved event bonuses are capped at 85%. The Ledger offers at most two optional bargains per biome, each showing its real boss complication. A zero-gold character can always continue without a bargain.

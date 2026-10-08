@@ -29,4 +29,16 @@ Integrated at `c221155`. The results recap records cause, objectives, progressio
 
 Parent reviewed the actual diff through two correction rounds and inspected the 720p results view and 1080p comparison view. Screenshots are fixture visuals, not live-play proof. Integrated import exited 0; campaign UI behavior passed; lifecycle passed 116 checks with zero failures. Shutdown still reported 20 ObjectDB instances and 7 resources in use; no `SCRIPT ERROR` occurred. The parent restored 53 generated `.glb.import` sidecars; all six original player-file fingerprints and original `project.godot` bytes match the checkpoint. Gameplay, economy, and save controller behavior are unchanged apart from four optional report fields. A full journey or balance matrix was not repeated.
 
-The hourly continuation remains active through 7:00 a.m. Chicago time. Next, use a read-only review of the actual route/reward flow to identify any confirmed discoverability friction; If concrete friction appears, implement and verify one bounded improvement within the existing authorization. If none appears, retain the accepted improvements and avoid speculative changes. No external release action is authorized.
+The hourly continuation remains active through 7:00 a.m. Chicago time. No external release action is authorized.
+
+## Accepted checkpoint 3 — route reward terms
+
+Integrated at `9211a01` on `feature/expedition-campaign-v1`. Available route previews now show catalog base gold scaled by biome and label it as the pre-event, pre-shard-conversion amount. Cursed Cache shows its optional scaled bonus. Short routes show +1 talent; early finales show +3; the last finale shows 0. Rare prizes for the displayed slot are labeled as reserved for the Ferryman, while the finale Legendary prize is labeled as banked.
+
+Veiled routes remain veiled, and existing availability, reveal, selection, and commit behavior is preserved. Changes are limited to route view/UI tests; no controller, catalog, economy, gameplay, or save changes, and no new art. The parent reviewed the actual diff, requested and verified a state-preservation test correction, and integrated the behavior. Integrated UI passed with exit 0 and no ERROR/WARNING in `work/route-choice/integrated-ui.log`; focused tests cover all three finale biomes, cache bonus, reveal/veil/unavailable commit, and unchanged supplied state. Parent inspected 720p and 1080p fixture previews; these are not live-play evidence. The full journey was not repeated because this is a view-only change; prior 116-check lifecycle evidence belongs to checkpoint 2.
+
+[720p route preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/route-rewards-720.png) · [1080p route preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/route-rewards-1080.png)
+
+Root `project.godot` bytes and all six protected player files matched the original snapshot; no import churn remains from this pass. The next bounded opportunity is to inspect one concrete combat/objective feedback moment or town friction against current state before proposing changes. Do not duplicate active work. The hourly task remains active until 7:00 a.m. Chicago time.
+
+Checkpoint 3 ownership is closed: native Luna implemented; parent Sol independently reviewed and integrated. Jev advice was unavailable; no external classification was requested. No active worker package remains.
