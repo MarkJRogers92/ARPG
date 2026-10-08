@@ -137,7 +137,7 @@ func _run() -> void:
 	capture_viewport.add_child(controller)
 	town.setup(controller)
 	if screen != "route" and screen != "route-rewards":
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen == "comparison" else screen))
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else screen))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -156,6 +156,8 @@ func _run() -> void:
 			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}]}, "cost": 60, "biome": 0}
 		elif screen == "market-full":
 			_fill_fixture_backpack(controller)
+		elif screen == "equipment-tools":
+			_fill_equipment_tools_fixture(controller)
 		elif screen == "result":
 			controller.state["phase"] = "RESULT_PENDING"
 			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "reserved_prize": "reserved-01", "biome_complete": false, "campaign_complete": false,
@@ -171,6 +173,16 @@ func _run() -> void:
 			controller.state["inventory"]["items"]["i-rare"]["data"]["affixes"] = [{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.15}, {"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 4.0}]
 		town._state = controller.snapshot()
 		town._render()
+		if screen == "equipment-tools":
+			await process_frame
+			var options := _find_option_buttons(town)
+			options[0].item_selected.emit(ItemData.SLOTS.find("weapon") + 1)
+			await process_frame
+			options = _find_option_buttons(town)
+			options[1].item_selected.emit(1)
+			await process_frame
+			var pack_scroll := town._content.get_parent() as ScrollContainer
+			pack_scroll.scroll_vertical = mini(360, int(pack_scroll.get_v_scroll_bar().max_value))
 		if screen == "comparison":
 			town._select_item("i-rare", "weapon")
 	await process_frame
@@ -213,6 +225,7 @@ func _run_behavior_test() -> void:
 	await process_frame
 	await _test_keyboard_entry(town, failures)
 	_test_real_snapshot_rendering(town, controller, failures)
+	await _test_equipment_tools(failures)
 
 	# Exercise the market and equipment commands through actual UI button callbacks.
 	(town._service_buttons["market"] as Button).pressed.emit()
@@ -582,6 +595,160 @@ func _fill_fixture_backpack(controller: FixtureController) -> void:
 		record["data"]["name"] = "Capacity Fixture %02d" % backpack.size()
 		items[item_id] = record
 		backpack.append(item_id)
+
+
+func _fill_equipment_tools_fixture(controller: FixtureController) -> void:
+	var inventory: Dictionary = controller.state["inventory"]
+	var items: Dictionary = inventory["items"]
+	var backpack: Array = inventory["backpack"]
+	backpack.clear()
+	inventory["tray"] = ["i-rare"]
+	var slots: Array = ItemData.SLOTS
+	for index in range(Inventory.BACKPACK_SIZE):
+		var item_id := "i-tool-%02d" % index
+		var slot := str(slots[index % slots.size()])
+		var record: Dictionary = items["i-junk"].duplicate(true)
+		record["id"] = item_id
+		record["locked"] = index == 0
+		record["junk"] = index == 1
+		record["data"]["slot"] = slot
+		record["data"]["rarity"] = index % 4
+		record["data"]["ilvl"] = 20 + index % 5
+		record["data"]["name"] = "Gear %02d" % (index % 8)
+		items[item_id] = record
+		backpack.append(item_id)
+
+
+func _test_equipment_tools(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	_fill_equipment_tools_fixture(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(fixture)
+	town._active_service = "pack"
+	town._state = fixture.snapshot()
+	var original_state: Dictionary = town._state.duplicate(true)
+	town._render()
+	await process_frame
+	var inventory: Dictionary = town._state["inventory"]
+	var items: Dictionary = inventory["items"]
+	if inventory["backpack"].size() != Inventory.BACKPACK_SIZE or inventory["tray"] != ["i-rare"]:
+		failures.append("equipment fixture shows a full 24-item bag beside a visible reward tray")
+	var options := _find_option_buttons(town)
+	if options.size() < 2 or options[0].item_count != ItemData.SLOTS.size() + 1 or options[1].item_count != 4:
+		failures.append("equipment controls expose all slot filters and four local sort choices")
+	else:
+		var weapon_filter_index := ItemData.SLOTS.find("weapon") + 1
+		options[0].grab_focus()
+		options[0].item_selected.emit(weapon_filter_index)
+		await process_frame
+		if town.get_viewport().gui_get_focus_owner() != town._pack_filter_dropdown:
+			failures.append("slot filter keeps keyboard focus on its replacement control")
+		if _find_label(town, "Showing 4 of 24") == null:
+			failures.append("slot filter reports the rendered subset count")
+		var weapon_rows := _backpack_rows(town)
+		var expected_weapon_rows: Array[String] = []
+		for index in range(Inventory.BACKPACK_SIZE):
+			if index % ItemData.SLOTS.size() == ItemData.SLOTS.find("weapon"):
+				var item_id := "i-tool-%02d" % index
+				expected_weapon_rows.append(_gear_row_text(item_id, items[item_id]))
+		if weapon_rows != expected_weapon_rows:
+			failures.append("slot dropdown renders only weapon rows in bag order")
+		options = _find_option_buttons(town)
+		options[1].grab_focus()
+		options[1].item_selected.emit(1)
+		await process_frame
+		if town.get_viewport().gui_get_focus_owner() != town._pack_sort_dropdown:
+			failures.append("sort dropdown keeps keyboard focus on its replacement control")
+		if town._pack_slot_filter != "weapon" or town._pack_sort != "rarity":
+			failures.append("filter and sort controls update only the armory view")
+		var expected_sorted_weapon_rows: Array[String] = []
+		for rarity in [3, 2, 1, 0]:
+			for index in range(Inventory.BACKPACK_SIZE):
+				if index % 4 == rarity and index % ItemData.SLOTS.size() == ItemData.SLOTS.find("weapon"):
+					var item_id := "i-tool-%02d" % index
+					expected_sorted_weapon_rows.append(_gear_row_text(item_id, items[item_id]))
+		if _backpack_rows(town) != expected_sorted_weapon_rows:
+			failures.append("rarity dropdown renders matching gear by rarity with stable ID ties")
+		if _find_label(town, "Ashen Oath") == null:
+			failures.append("reward tray remains rendered while backpack filtering and sorting are active")
+		options = _find_option_buttons(town)
+		options[1].item_selected.emit(2)
+		await process_frame
+		var expected_ilvl_rows: Array[String] = []
+		for index in [18, 12, 6, 0]:
+			var item_id := "i-tool-%02d" % index
+			expected_ilvl_rows.append(_gear_row_text(item_id, items[item_id]))
+		if _backpack_rows(town) != expected_ilvl_rows:
+			failures.append("item-level dropdown renders matching gear in descending level order")
+		options = _find_option_buttons(town)
+		options[1].item_selected.emit(3)
+		await process_frame
+		var expected_name_rows: Array[String] = []
+		for index in [0, 18, 12, 6]:
+			var item_id := "i-tool-%02d" % index
+			expected_name_rows.append(_gear_row_text(item_id, items[item_id]))
+		if _backpack_rows(town) != expected_name_rows:
+			failures.append("name dropdown renders matching gear alphabetically with ID ties")
+		options = _find_option_buttons(town)
+		options[0].item_selected.emit(0)
+		await process_frame
+		options = _find_option_buttons(town)
+		options[1].item_selected.emit(0)
+		await process_frame
+	var worn_button := _find_button(town, "Weapon   ·   Moonlit Dirk")
+	if worn_button != null:
+		worn_button.pressed.emit()
+	await process_frame
+	var unequip := _find_button(town, "Unequip")
+	if unequip == null or not unequip.disabled:
+		failures.append("full backpack keeps unequip blocked regardless of backpack view state")
+	var hidden_selection := _find_button(town, "Gear 02", true)
+	if hidden_selection != null:
+		hidden_selection.pressed.emit()
+	await process_frame
+	options = _find_option_buttons(town)
+	options[0].item_selected.emit(ItemData.SLOTS.find("weapon") + 1)
+	await process_frame
+	if _find_label(town, "outside this backpack filter") == null:
+		failures.append("filtered-out selection remains inspectable with a clear explanation")
+	if _find_button(town, "Claim") == null or not _find_button(town, "Claim").disabled:
+		failures.append("full backpack keeps reward claim blocked while filtering")
+	if town._state != original_state:
+		failures.append("equipment filtering and sorting leave the supplied inventory snapshot unchanged")
+	for item_id: String in fixture.state["inventory"]["backpack"]:
+		fixture.state["inventory"]["items"][item_id]["data"]["slot"] = "weapon"
+	fixture.changed.emit(fixture.snapshot())
+	await process_frame
+	options = _find_option_buttons(town)
+	options[0].item_selected.emit(ItemData.SLOTS.find("helm") + 1)
+	await process_frame
+	if _find_label(town, "Showing 0 of 24") == null or not _backpack_rows(town).is_empty():
+		failures.append("empty slot filter renders no backpack rows and reports zero matches")
+	if _find_label(town, "Ashen Oath") == null:
+		failures.append("no-match backpack filter keeps reward tray rendered")
+	options = _find_option_buttons(town)
+	options[0].item_selected.emit(0)
+	await process_frame
+	if _find_button(town, "Gear 00", true) == null or not _find_button(town, "Gear 00", true).text.begins_with("◆ "):
+		failures.append("locked gear remains visible with its lock mark")
+	if _find_button(town, "Gear 01", true) == null or not _find_button(town, "Gear 01", true).text.begins_with("× "):
+		failures.append("junk gear remains visible with its junk mark")
+	if _find_label(town, "slot filters never hide rewards") == null:
+		failures.append("crowded backpack explains where unfiltered reward-tray items remain")
+	var selected_row := _find_button(town, "Gear 02", true)
+	if selected_row != null:
+		selected_row.pressed.emit()
+	await process_frame
+	fixture.state["inventory"]["backpack"].erase("i-tool-02")
+	fixture.state["inventory"]["items"].erase("i-tool-02")
+	fixture.changed.emit(fixture.snapshot())
+	await process_frame
+	if not town._selected_item_id.is_empty():
+		failures.append("selection clears safely when its item disappears from current inventory")
+	town.free()
+	fixture.free()
 
 
 func _test_event_and_retryable_abandon(failures: Array[String]) -> void:
@@ -1007,6 +1174,30 @@ func _find_label(node: Node, text: String) -> Label:
 		if found != null:
 			return found
 	return null
+
+
+func _find_option_buttons(node: Node) -> Array[OptionButton]:
+	var found: Array[OptionButton] = []
+	if node is OptionButton:
+		found.append(node as OptionButton)
+	for child: Node in node.get_children():
+		found.append_array(_find_option_buttons(child))
+	return found
+
+
+func _backpack_rows(node: Node) -> Array[String]:
+	var rows: Array[String] = []
+	if node is Button and (node as Button).text.contains("Gear "):
+		rows.append((node as Button).text)
+	for child: Node in node.get_children():
+		rows.append_array(_backpack_rows(child))
+	return rows
+
+
+func _gear_row_text(item_id: String, record: Dictionary) -> String:
+	var mark := "◆ " if bool(record.get("locked", false)) else ("× " if bool(record.get("junk", false)) else "")
+	var data: Dictionary = record.get("data", {})
+	return "%s%s  ·  %s" % [mark, data.get("name", data.get("base_name", "Item")), ItemData.rarity_name(int(data.get("rarity", 0)))]
 
 
 func _find_route_view(node: Node) -> CampaignRouteView:

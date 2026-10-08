@@ -30,6 +30,10 @@ var _content_title: Label
 var _feedback: Label
 var _selected_item_id := ""
 var _selected_slot := "weapon"
+var _pack_slot_filter := "all"
+var _pack_sort := "bag"
+var _pack_filter_dropdown: OptionButton
+var _pack_sort_dropdown: OptionButton
 var _clause_slot := "weapon"
 var _clause_offer := 0
 var _event_selection: Dictionary = {}
@@ -520,8 +524,49 @@ func _render_pack() -> void:
 	_add_subtitle(item_column, "BACKPACK · %d / %d" % [backpack.size(), Inventory.BACKPACK_SIZE])
 	if backpack_full:
 		_add_copy_to(item_column, "Backpack full. Free a slot to buy, claim, or unequip gear; sell or discard an item here.", UiStyle.MUTED)
-	for item_id_variant: Variant in backpack:
-		var item_id := str(item_id_variant)
+	var pack_tools := HBoxContainer.new()
+	pack_tools.add_theme_constant_override("separation", 6)
+	item_column.add_child(pack_tools)
+	var slot_filter := OptionButton.new()
+	_pack_filter_dropdown = slot_filter
+	slot_filter.add_item("All slots")
+	for slot: Variant in ItemData.SLOTS:
+		slot_filter.add_item(ItemData.SLOT_NAMES.get(slot, str(slot)))
+	var selected_filter := 0
+	if _pack_slot_filter != "all":
+		selected_filter = ItemData.SLOTS.find(_pack_slot_filter) + 1
+	if selected_filter >= 0:
+		slot_filter.select(selected_filter)
+	slot_filter.tooltip_text = "Filter backpack by equipment slot. Rewards stay visible below."
+	slot_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slot_filter.item_selected.connect(_on_pack_filter_selected)
+	pack_tools.add_child(slot_filter)
+	var sort_order := OptionButton.new()
+	_pack_sort_dropdown = sort_order
+	for label in ["Bag order", "Rarity", "Item level", "Name"]:
+		sort_order.add_item(label)
+	var sort_options := ["bag", "rarity", "ilvl", "name"]
+	sort_order.select(maxi(0, sort_options.find(_pack_sort)))
+	sort_order.tooltip_text = "Change how backpack gear is listed. This affects only this view."
+	sort_order.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sort_order.item_selected.connect(_on_pack_sort_selected)
+	pack_tools.add_child(sort_order)
+	var filtered_ids := _pack_item_ids(backpack, items)
+	var visible_ids: Array[String] = []
+	for item_id: String in filtered_ids:
+		var record: Dictionary = items.get(item_id, {})
+		if _pack_slot_filter == "all" or str(record.get("data", {}).get("slot", "weapon")) == _pack_slot_filter:
+			visible_ids.append(item_id)
+	var count := UiStyle.label(12)
+	count.text = "Showing %d of %d" % [visible_ids.size(), backpack.size()]
+	count.modulate = Color(1, 1, 1, 0.62)
+	item_column.add_child(count)
+	var tray_hint := UiStyle.label(12)
+	tray_hint.text = "Reward tray: %d unclaimed below the backpack; slot filters never hide rewards." % tray.size()
+	tray_hint.modulate = Color(0.68, 0.82, 0.9, 0.9)
+	tray_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	item_column.add_child(tray_hint)
+	for item_id: String in visible_ids:
 		var rec: Dictionary = items.get(item_id, {})
 		var mark := "◆ " if bool(rec.get("locked", false)) else ("× " if bool(rec.get("junk", false)) else "")
 		var b := _button("%s%s  ·  %s" % [mark, _item_name(rec), _rarity_text(rec)], func() -> void: _select_item(item_id, str(rec.get("data", {}).get("slot", "weapon"))), _rarity_color(rec))
@@ -550,8 +595,12 @@ func _render_pack() -> void:
 	detail_column.custom_minimum_size.x = 280
 	columns.add_child(detail_column)
 	_add_subtitle(detail_column, "COMPARE & MANAGE")
+	if not _selected_item_id.is_empty() and not _inventory_has_item(inventory, _selected_item_id):
+		_selected_item_id = ""
 	var selected: Dictionary = items.get(_selected_item_id, {})
 	_add_item_detail(detail_column, selected)
+	if not _selected_item_id.is_empty() and not visible_ids.has(_selected_item_id) and backpack.has(_selected_item_id):
+		_add_copy_to(detail_column, "Selected item is outside this backpack filter. Clear the slot filter to see it in the list.", UiStyle.MUTED)
 	var worn_id := str(equipped.get(_selected_slot, ""))
 	var worn: Dictionary = items.get(worn_id, {})
 	if not _selected_item_id.is_empty() and worn_id != _selected_item_id:
@@ -591,6 +640,54 @@ func _render_pack() -> void:
 	detail_column.add_child(sale)
 	if _state.get("reforge", {}) is Dictionary and not (_state.get("reforge", {}) as Dictionary).is_empty():
 		_render_reforge(detail_column)
+
+
+func _on_pack_filter_selected(index: int) -> void:
+	_pack_slot_filter = "all" if index == 0 else str(ItemData.SLOTS[index - 1])
+	_render_panel()
+	if is_instance_valid(_pack_filter_dropdown):
+		_pack_filter_dropdown.grab_focus.call_deferred()
+
+
+func _on_pack_sort_selected(index: int) -> void:
+	_pack_sort = ["bag", "rarity", "ilvl", "name"][index]
+	_render_panel()
+	if is_instance_valid(_pack_sort_dropdown):
+		_pack_sort_dropdown.grab_focus.call_deferred()
+
+
+func _pack_item_ids(backpack: Array, items: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for item_id_value: Variant in backpack:
+		ids.append(str(item_id_value))
+	if _pack_sort == "bag":
+		return ids
+	ids.sort_custom(func(a: String, b: String) -> bool:
+		var a_record: Dictionary = items.get(a, {})
+		var b_record: Dictionary = items.get(b, {})
+		var a_data: Dictionary = a_record.get("data", {})
+		var b_data: Dictionary = b_record.get("data", {})
+		var a_value: Variant
+		var b_value: Variant
+		match _pack_sort:
+			"rarity":
+				a_value = int(a_data.get("rarity", 0))
+				b_value = int(b_data.get("rarity", 0))
+			"ilvl":
+				a_value = int(a_data.get("ilvl", 0))
+				b_value = int(b_data.get("ilvl", 0))
+			"name":
+				a_value = str(a_data.get("name", a_data.get("base_name", "Item"))).to_lower()
+				b_value = str(b_data.get("name", b_data.get("base_name", "Item"))).to_lower()
+		if a_value == b_value:
+			return a < b
+		return a_value > b_value if _pack_sort != "name" else a_value < b_value
+	)
+	return ids
+
+
+func _inventory_has_item(inventory: Dictionary, item_id: String) -> bool:
+	return inventory.get("items", {}).has(item_id) and (inventory.get("backpack", []).has(item_id) or inventory.get("tray", []).has(item_id) or inventory.get("equipped", {}).values().has(item_id))
 
 
 func _select_item(item_id: String, slot: String) -> void:
