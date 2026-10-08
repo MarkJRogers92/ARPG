@@ -314,7 +314,13 @@ func objective_text() -> String:
 		return "Survive until the guardian arrives at 15:00" if not _bosses.final_arrived else "Defeat the biome guardian"
 	match contract_id:
 		"seal_breach", "breach":
-			return "Seals: %d / 3  ·  survive to 6:00" % seals
+			if seals >= 3:
+				return "All seals closed  ·  survive until extraction"
+			if _wave != null and _wave.elapsed >= duration and deadline > 0.0:
+				return "Seals: %d / 3  ·  close the rest by %s" % [seals, _format_time(deadline)]
+			if _wave != null and _wave.elapsed >= duration:
+				return "Seals: %d / 3  ·  close the remaining marked seals" % seals
+			return "Seals: %d / 3  ·  close all and survive to %s" % [seals, _format_time(duration)]
 		"elite_hunt":
 			if elite_dead:
 				return "Marked elite defeated  ·  hold to extraction"
@@ -339,6 +345,8 @@ func clock_text(elapsed: float) -> String:
 		return "BIOME GUARDIAN ARRIVES IN  %s" % _format_time(maxf(900.0 - elapsed, 0.0))
 	if contract_id == "elite_hunt" and _elite_spawned and not elite_dead:
 		return "ELITE DEADLINE  %s" % _format_time(maxf(deadline - elapsed, 0.0))
+	if contract_id in ["seal_breach", "breach"] and seals < 3 and elapsed >= duration and deadline > 0.0:
+		return "SEAL DEADLINE  %s" % _format_time(maxf(deadline - elapsed, 0.0))
 	return "%s  /  %s" % [_format_time(elapsed), _format_time(duration)]
 
 

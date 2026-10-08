@@ -106,9 +106,23 @@ func _capture_guidance(width: int, height: int, output: String, variant: String)
 	capture_viewport.add_child(Hud.new())
 	container.add_child(capture_viewport)
 	var hud := capture_viewport.get_child(0) as Hud
+	var wave: WaveDirector
+	var director: ExpeditionDirector
 	if variant == "contract":
 		hud.set_expedition("Seals: 1 / 3  ·  survive to 6:00", "02:18  /  06:00")
 		hud.set_campaign_guidance(CampaignGuidance.contract_action("breach", 1, false, false, false, false))
+	elif variant == "seal-deadline":
+		wave = WaveDirector.new()
+		wave.elapsed = 398.0
+		director = ExpeditionDirector.new()
+		director.contract_id = "breach"
+		var breach: Dictionary = CampaignCatalog.CONTRACTS["breach"]
+		director.duration = float(breach["duration"])
+		director.deadline = float(breach["deadline"])
+		director.seals = 1
+		director._wave = wave
+		hud.set_expedition(director.objective_text(), director.clock_text(wave.elapsed))
+		hud.set_campaign_guidance(director.guidance_text())
 	else:
 		hud.set_expedition("Defeat the biome guardian", "SLAY THE LICH KING")
 		hud.refresh_extras(12, 0.0, "The Lich King", 0.68)
@@ -126,3 +140,6 @@ func _capture_guidance(width: int, height: int, output: String, variant: String)
 		_check(false, "guidance screenshot saved at %s" % output)
 	else:
 		print("GUIDANCE SCREENSHOT %dx%d %s" % [width, height, output])
+	if variant == "seal-deadline":
+		director.free()
+		wave.free()

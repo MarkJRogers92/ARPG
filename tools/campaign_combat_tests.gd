@@ -31,6 +31,7 @@ func _director(contract: String, mission_duration: float, mission_deadline: floa
 
 func _run() -> void:
 	_test_breach_boundaries()
+	_test_breach_deadline_feedback()
 	_test_elite_boundaries()
 	_test_marked_elite_marker_tracks_target()
 	await _test_borrowed_battalion_schedule()
@@ -72,6 +73,78 @@ func _test_breach_boundaries() -> void:
 	_check(director._site_complete(0), "claimed seal site remains completed")
 	_check(not director._site_complete(1) and not director._site_complete(2), "one site cannot satisfy or skip the remaining seals")
 	director.free()
+
+
+func _test_breach_deadline_feedback() -> void:
+	for contract in ["breach", "seal_breach"]:
+		var director := _director(contract, 180.0, 240.0)
+		var wave := WaveDirector.new()
+		director._wave = wave
+		director.seals = 1
+		wave.elapsed = 179.0
+		_check(director.objective_text().contains("survive to 3:00") and
+				director.clock_text(wave.elapsed) == "2:59  /  3:00",
+				"%s shows seal work and survival target before duration" % contract)
+
+		wave.elapsed = 180.0
+		_check(director.objective_text().contains("close the rest by 4:00") and
+				director.clock_text(wave.elapsed) == "SEAL DEADLINE  1:00",
+				"%s exposes configured seal deadline at exact duration" % contract)
+		wave.elapsed = 240.0
+		_check(director.objective_text().contains("close the rest by 4:00") and
+				director.clock_text(wave.elapsed) == "SEAL DEADLINE  0:00",
+				"%s shows the exact deadline boundary without inventing extra time" % contract)
+		_check(not director.arbitrate_frame(240.0, false, false),
+				"%s remains active at the exact deadline for its existing arbitration rule" % contract)
+		_check(director.arbitrate_frame(240.01, false, false) and
+				director.result.get("outcome") == "failure",
+				"%s still fails just after the deadline" % contract)
+		director.free()
+		wave.free()
+
+		director = _director(contract, 180.0, 240.0)
+		wave = WaveDirector.new()
+		director._wave = wave
+		director.seals = 3
+		wave.elapsed = 180.0
+		_check(director.objective_text() == "All seals closed  ·  survive until extraction" and
+				director.clock_text(wave.elapsed) == "3:00  /  3:00" and
+				director.arbitrate_frame(180.0, false, false) and
+				director.result.get("outcome") == "success",
+				"%s preserves completion at duration" % contract)
+		director.free()
+		wave.free()
+
+		director = _director(contract, 180.0, 240.0)
+		director.seals = 3
+		_check(director.arbitrate_frame(240.0, false, false) and
+				director.result.get("outcome") == "success",
+				"%s still succeeds at the exact deadline when seals are complete" % contract)
+		director.free()
+
+	var no_deadline := _director("breach", 180.0, 0.0)
+	var no_deadline_wave := WaveDirector.new()
+	no_deadline._wave = no_deadline_wave
+	no_deadline.seals = 1
+	no_deadline_wave.elapsed = 180.0
+	_check(no_deadline.objective_text().contains("close the remaining marked seals") and
+			not no_deadline.objective_text().contains("by 4:00") and
+			not no_deadline.clock_text(180.0).contains("DEADLINE"),
+			"breach without a configured deadline does not invent one")
+	no_deadline.free()
+	no_deadline_wave.free()
+
+	var hunt := _director("hunt", 180.0, 0.0)
+	_check(hunt.objective_text() == "Survive to 5:00  ·  extraction is automatic" and
+			hunt.clock_text(180.0) == "3:00  /  3:00",
+			"hunt objective and clock are unchanged")
+	hunt.free()
+
+	var elite := _director("elite_hunt", 180.0, 240.0)
+	elite._elite_spawned = true
+	_check(elite.clock_text(180.0) == "ELITE DEADLINE  1:00",
+			"elite deadline clock is unchanged")
+	elite.free()
 
 
 func _test_elite_boundaries() -> void:
