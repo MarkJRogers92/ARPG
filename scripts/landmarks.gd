@@ -128,7 +128,7 @@ func usable_near(at: Vector2, radius: float) -> Array:
 	return out
 
 
-func tick(delta: float) -> void:
+func tick(delta: float, allow_interaction := true) -> void:
 	if _player == null:
 		return
 	_scan -= delta
@@ -136,7 +136,7 @@ func tick(delta: float) -> void:
 		_scan = 0.15
 		_rescan()
 	_update_bells()
-	if _near_key != "" and Input.is_action_just_pressed("interact"):
+	if allow_interaction and _near_key != "" and Input.is_action_just_pressed("interact"):
 		use_nearest()
 
 

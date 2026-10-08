@@ -440,6 +440,7 @@ func _finish_expedition_frame() -> void:
 	if _expedition_terminal or _expedition == null:
 		return
 	_expedition_terminal = true
+	_hud.set_prompt("")
 	_game_over = true
 	_sound.stop_music(0.5)
 	Engine.time_scale = 1.0
@@ -559,7 +560,8 @@ func _process(delta: float) -> void:
 			_events.tick(delta)
 		else:
 			_events._update_blessing(delta)
-		_landmarks.tick(delta)
+		var objective_interaction := _campaign and _expedition != null and not _expedition.interaction_prompt().is_empty()
+		_landmarks.tick(delta, not objective_interaction)
 		if not _campaign:
 			_ferryman.tick(delta)
 			_rift.tick(delta)
@@ -568,9 +570,6 @@ func _process(delta: float) -> void:
 	_events.shards = 0
 	_landmarks.shards = 0
 	_ferryman.shards = 0
-	var prompt := _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
-	var prompt_color := RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
-	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 	var hint := "" if _campaign else _ferryman.bet_text
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
@@ -620,6 +619,17 @@ func _process(delta: float) -> void:
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 	if _campaign:
 		_expedition.tick_objectives(delta)
+	var prompt := ""
+	var prompt_color := Color.WHITE
+	if _campaign and _expedition != null:
+		var objective_prompt := _expedition.interaction_prompt()
+		if not objective_prompt.is_empty():
+			prompt = String(objective_prompt["text"])
+			prompt_color = objective_prompt["color"]
+	if prompt == "" and (not _campaign or (not _expedition_terminal and not _player.dead)):
+		prompt = _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
+		prompt_color = RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 
 	if not won or _endless:
 		if not _campaign:

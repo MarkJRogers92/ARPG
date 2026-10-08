@@ -5,6 +5,13 @@ extends SceneTree
 class CampaignCombatTestRoot extends Node3D:
 	var _campaign_final_boss_dead := false
 
+class LandmarkInteractionProbe extends Landmarks:
+	var used := false
+
+	func use_nearest() -> bool:
+		used = true
+		return true
+
 var checks := 0
 var failures := 0
 
@@ -20,6 +27,20 @@ func _check(value: bool, label: String) -> void:
 		printerr("FAIL: " + label)
 
 
+func _prompt_player(at := Vector2.ZERO) -> Player:
+	var player_scene := load("res://scenes/player.tscn") as PackedScene
+	var player := player_scene.instantiate() as Player
+	root.add_child(player)
+	player.position = Vector3(at.x, 0.0, at.y)
+	return player
+
+
+func _clear_prompt_visuals(director: ExpeditionDirector) -> void:
+	for visual: Node3D in director._visuals:
+		visual.free()
+	director._visuals.clear()
+
+
 func _director(contract: String, mission_duration: float, mission_deadline: float) -> ExpeditionDirector:
 	var director := ExpeditionDirector.new()
 	director.contract_id = contract
@@ -30,6 +51,7 @@ func _director(contract: String, mission_duration: float, mission_deadline: floa
 
 
 func _run() -> void:
+	await _test_objective_prompts()
 	_test_breach_boundaries()
 	_test_breach_deadline_feedback()
 	_test_elite_boundaries()
@@ -38,6 +60,106 @@ func _run() -> void:
 	_test_finale_and_death_priority()
 	print("CAMPAIGN COMBAT TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
 	quit(0 if failures == 0 else 1)
+
+
+func _test_objective_prompts() -> void:
+	Landmarks.ensure_input()
+	var director := _director("breach", 360.0, 420.0)
+	var player := _prompt_player()
+	director._player = player
+	director._sites = [Vector2(5.0, 0.0), Vector2.ZERO, Vector2(2.0, 0.0)]
+	director._site_claimed = [true, false, false]
+	director._visuals = [Node3D.new(), Node3D.new(), Node3D.new()]
+	var wave := WaveDirector.new()
+	director._wave = wave
+	var prompt := director.interaction_prompt()
+	_check(prompt.get("text", "").contains("SEAL 2 / 3") and prompt.get("color") == ExpeditionDirector.OBJECTIVE_COLOR,
+			"breach prompt names the nearest incomplete seal at the interaction radius")
+	var landmark := LandmarkInteractionProbe.new()
+	root.add_child(landmark)
+	landmark._player = player
+	landmark._near_key = "overlapping-landmark"
+	landmark._scan = 0.15
+	Input.action_press("interact")
+	await process_frame
+	_check(Input.is_action_just_pressed("interact"), "objective overlap fixture has a fresh interact press")
+	landmark.tick(0.01)
+	_check(landmark.used, "an ungated landmark would consume the same fresh interact press")
+	landmark.used = false
+	landmark.tick(0.01, director.interaction_prompt().is_empty())
+	director.tick_objectives(0.01)
+	var claimed := 1 if director._site_claimed[1] else -1
+	_check(claimed == 1 and director._site_claimed == [true, true, false] and director.seals == 1 and not landmark.used,
+			"one interact claims the prompted seal and suppresses an overlapping landmark use")
+	_check(director.interaction_prompt().get("text", "").contains("SEAL 3 / 3"),
+			"claiming a seal immediately advances the prompt to the next usable seal")
+	Input.action_release("interact")
+	landmark.free()
+	wave.free()
+	_clear_prompt_visuals(director)
+	director._sites = [Vector2.ZERO]
+	director._site_claimed = [false]
+	director._visuals = [Node3D.new()]
+	player.position = Vector3(2.6, 0.0, 0.0)
+	_check(not director.interaction_prompt().is_empty(), "objective prompt includes the exact 2.6-unit boundary")
+	player.position = Vector3(2.6001, 0.0, 0.0)
+	_check(director.interaction_prompt().is_empty(), "objective prompt hides just beyond the 2.6-unit boundary")
+	player.position = Vector3(0.0, 0.0, 0.0)
+	_clear_prompt_visuals(director)
+	director._sites = [Vector2(-1.0, 0.0), Vector2(1.0, 0.0)]
+	director._site_claimed = [false, false]
+	director._visuals = [Node3D.new(), Node3D.new()]
+	_check(director.interaction_prompt().get("text", "").contains("SEAL 2 / 3"),
+			"an exact-distance tie preserves the existing later-site selection")
+	player.dead = true
+	_check(director.interaction_prompt().is_empty(), "dead players receive no objective prompt")
+	player.dead = false
+	director.terminal = true
+	_check(director.interaction_prompt().is_empty(), "terminal missions receive no objective prompt")
+	_clear_prompt_visuals(director)
+	director.free()
+	player.free()
+
+	for contract in ["elite_hunt", "hunt", "finale"]:
+		director = _director(contract, 300.0, 0.0)
+		director._player = _prompt_player()
+		director._sites = [Vector2.ZERO]
+		_check(director.interaction_prompt().is_empty(), "%s does not advertise a non-interactive objective" % contract)
+		director._player.free()
+		director.free()
+
+	director = _director("seal_breach", 360.0, 420.0)
+	director._player = _prompt_player()
+	director._sites = [Vector2.ZERO]
+	director._site_claimed = [false]
+	_check(director.interaction_prompt().get("text", "").contains("SEAL 1 / 3"),
+			"seal_breach alias uses the seal interaction prompt")
+	director._player.free()
+	director.free()
+
+	director = _director("cursed_cache", 360.0, 0.0)
+	var cache_player := _prompt_player()
+	director._player = cache_player
+	director._sites = [Vector2.ZERO]
+	director.cache_enabled = true
+	var original_events := InputMap.action_get_events("interact").duplicate()
+	InputMap.action_erase_events("interact")
+	var remapped_key := InputEventKey.new()
+	remapped_key.physical_keycode = KEY_Q
+	InputMap.action_add_event("interact", remapped_key)
+	Controls._tags.clear()
+	var cache_prompt := director.interaction_prompt()
+	_check(cache_prompt.get("text", "").contains("cursed cache") and cache_prompt.get("text", "").contains("summons guardians") and
+			cache_prompt.get("text", "").contains("[Q]") and cache_prompt.get("color") == ExpeditionDirector.CACHE_COLOR,
+			"cursed cache prompt explains its optional risk and follows the remapped key")
+	InputMap.action_erase_events("interact")
+	for event: InputEvent in original_events:
+		InputMap.action_add_event("interact", event)
+	Controls._tags.clear()
+	director.cache_claimed = true
+	_check(director.interaction_prompt().is_empty(), "claimed cache prompt is hidden")
+	director.free()
+	cache_player.free()
 
 
 func _test_breach_boundaries() -> void:

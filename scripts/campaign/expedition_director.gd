@@ -196,17 +196,44 @@ func tick_objectives(_delta: float) -> void:
 		_tick_ledger(_wave.elapsed)
 	_tick_unfinished(_wave.elapsed)
 	if Input.is_action_just_pressed("interact"):
-		var nearest := -1
-		var nearest_distance := 2.6 * 2.6
-		for i in _sites.size():
-			if _site_complete(i):
-				continue
-			var distance := _player.pos2.distance_squared_to(_sites[i])
-			if distance <= nearest_distance:
-				nearest = i
-				nearest_distance = distance
-		if nearest >= 0:
-			_complete_site(nearest)
+		interact_with_nearest_site()
+
+
+## The prompt and the interact action use the same eligible nearest site so the
+## player always claims the objective named by the HUD.
+func interaction_prompt() -> Dictionary:
+	var nearest := _nearest_interactable_site()
+	if nearest < 0:
+		return {}
+	var key := Controls.tag("interact")
+	if contract_id in ["seal_breach", "breach"]:
+		return {"text": "Close %s  ·  %s" % [_site_label(nearest), key], "color": OBJECTIVE_COLOR}
+	return {"text": "Open cursed cache  ·  summons guardians  ·  %s" % key, "color": CACHE_COLOR}
+
+
+func interact_with_nearest_site() -> int:
+	var nearest := _nearest_interactable_site()
+	if nearest >= 0:
+		_complete_site(nearest)
+	return nearest
+
+
+func _nearest_interactable_site() -> int:
+	if terminal or _player == null or _player.dead:
+		return -1
+	if contract_id not in ["seal_breach", "breach", "cursed_cache"]:
+		return -1
+	var nearest := -1
+	var nearest_distance := 2.6 * 2.6
+	for i in _sites.size():
+		if _site_complete(i):
+			continue
+		var distance := _player.pos2.distance_squared_to(_sites[i])
+		# Keep the original <= tie behavior: the later site wins an exact tie.
+		if distance <= nearest_distance:
+			nearest = i
+			nearest_distance = distance
+	return nearest
 
 
 func _spawn_hunt_pressure_wave() -> void:

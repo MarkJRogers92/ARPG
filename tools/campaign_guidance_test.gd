@@ -72,6 +72,7 @@ func _run() -> void:
 			CampaignGuidance.guardian_hint("unknown", "", 0) == "",
 			"unknown guardian data yields no invented advice")
 	await _test_title_card_positions()
+	await _test_objective_prompt_rendering()
 	var args := OS.get_cmdline_user_args()
 	if args.size() >= 4 and args[0] == "--capture":
 		await _capture_guidance(int(args[1]), int(args[2]), args[3], args[4] if args.size() > 4 else "guardian")
@@ -93,6 +94,27 @@ func _test_title_card_positions() -> void:
 	await process_frame
 
 
+func _test_objective_prompt_rendering() -> void:
+	var hud := Hud.new()
+	root.add_child(hud)
+	await process_frame
+	var director := ExpeditionDirector.new()
+	director.contract_id = "cursed_cache"
+	director.cache_enabled = true
+	director._player = (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	root.add_child(director._player)
+	director._sites = [Vector2.ZERO]
+	var prompt: Dictionary = director.interaction_prompt()
+	hud.set_prompt(String(prompt.get("text", "")), prompt.get("color", Color.WHITE))
+	_check(hud._prompt_label.visible and hud._prompt_label.text == prompt.get("text", "") and
+			hud._prompt_label.get_theme_color("font_color") == prompt.get("color", Color.WHITE),
+			"HUD displays the exact objective prompt text and color returned by the director")
+	director._player.free()
+	director.free()
+	hud.queue_free()
+	await process_frame
+
+
 func _capture_guidance(width: int, height: int, output: String, variant: String) -> void:
 	root.size = Vector2i(width, height)
 	var container := SubViewportContainer.new()
@@ -108,7 +130,21 @@ func _capture_guidance(width: int, height: int, output: String, variant: String)
 	var hud := capture_viewport.get_child(0) as Hud
 	var wave: WaveDirector
 	var director: ExpeditionDirector
-	if variant == "contract":
+	if variant == "objective":
+		director = ExpeditionDirector.new()
+		director.contract_id = "cursed_cache"
+		director.cache_enabled = true
+		director._player = (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+		root.add_child(director._player)
+		director._sites = [Vector2.ZERO]
+		var prompt: Dictionary = director.interaction_prompt()
+		hud.set_expedition("Cursed cache: optional  ·  survive to 6:00", "02:18  /  06:00")
+		hud.set_campaign_guidance("Optional risk: opening the cache summons guardians.")
+		hud.set_prompt(String(prompt.get("text", "")), prompt.get("color", Color.WHITE))
+		_check(hud._prompt_label.visible and hud._prompt_label.text == prompt.get("text", "") and
+				hud._prompt_label.get_theme_color("font_color") == prompt.get("color", Color.WHITE),
+			"720p objective fixture shows the exact director prompt and matching objective color")
+	elif variant == "contract":
 		hud.set_expedition("Seals: 1 / 3  ·  survive to 6:00", "02:18  /  06:00")
 		hud.set_campaign_guidance(CampaignGuidance.contract_action("breach", 1, false, false, false, false))
 	elif variant == "seal-deadline":
@@ -143,3 +179,6 @@ func _capture_guidance(width: int, height: int, output: String, variant: String)
 	if variant == "seal-deadline":
 		director.free()
 		wave.free()
+	elif variant == "objective":
+		director._player.free()
+		director.free()

@@ -76,7 +76,12 @@ func _run() -> void:
 		var failed_expedition: ExpeditionDirector = failed_main.get("_expedition")
 		failed_expedition.result = {"campaign_id": retry_spec["campaign_id"], "node_id": retry_spec["node_id"],
 			"attempt_id": retry_spec["attempt_id"], "outcome": "failure", "elapsed": 1.0, "objectives": {}}
+		var failed_hud: Hud = failed_main.get("_hud")
+		failed_hud.set_prompt("test failure prompt", Color.WHITE)
+		failed_main.get("_player").dead = true
+		check(failed_hud._prompt_label.visible, "visible interaction prompt is seeded before the failure result")
 		failed_main.call("_finish_expedition_frame")
+		check(not failed_hud._prompt_label.visible, "death result clears the interaction prompt during the return ritual")
 		stale_failure_result = failed_main.get("_expedition_result").duplicate(true)
 		failed_main.call("_emit_expedition_result")
 		await process_frame
@@ -173,7 +178,11 @@ func _run() -> void:
 		expedition.result = {"campaign_id": spec["campaign_id"], "node_id": spec["node_id"], "attempt_id": spec["attempt_id"],
 			"outcome": "success", "elapsed": float(spec["duration"]), "objectives": result_objectives}
 		combat.get("_director").elapsed = float(spec["duration"])
+		var combat_hud: Hud = combat.get("_hud")
+		combat_hud.set_prompt("test success prompt", Color.WHITE)
+		check(combat_hud._prompt_label.visible, "visible interaction prompt is seeded before the success result")
 		combat.call("_finish_expedition_frame")
+		check(not combat_hud._prompt_label.visible, "success result clears the interaction prompt during the return ritual")
 		previous_result = combat.get("_expedition_result").duplicate(true)
 		var report: Dictionary = previous_result.get("report", {})
 		check(report.get("died") == false and report.get("objectives") == result_objectives,
