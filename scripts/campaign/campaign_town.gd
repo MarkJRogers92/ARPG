@@ -177,6 +177,7 @@ func _build_walk(layout: Control) -> void:
 
 
 func _open_station(id: String) -> void:
+	Sound.play("ui_click", 0.88, -7.0)
 	_active_service = id
 	_panel_open = true
 	_render()
@@ -633,6 +634,7 @@ func _activate_route_action() -> void:
 			return
 		var response: Dictionary = _command("depart")
 		if response.get("ok", false):
+			Sound.play("ui_click", 0.82, -3.0)
 			expedition_requested.emit(response.get("spec", {}))
 	elif _route_preview_can_choose and not _route_preview_id.is_empty():
 		_choose_route(_route_preview_id)

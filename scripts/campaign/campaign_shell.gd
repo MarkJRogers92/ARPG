@@ -6,10 +6,16 @@ var controller: CampaignController
 var _view: Node
 var _pending_result := {}
 var _error_layer: CanvasLayer
+var _campaign_sound: Sound
 
 func _ready() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
+	# The town is a separate scene from Main, so give it the same bus-aware
+	# audio manager. Combat mounts its own manager and takes the static handle.
+	_campaign_sound = Sound.new()
+	_campaign_sound.name = "CampaignSound"
+	add_child(_campaign_sound)
 	controller = CampaignController.new()
 	add_child(controller)
 	var response := controller.create() if new_requested else controller.load_campaign()
@@ -31,6 +37,12 @@ func _clear_view() -> void:
 
 func _mount_town() -> void:
 	_clear_view()
+	Sound.instance = _campaign_sound
+	var biome := clampi(int(controller.state.get("biome_index", 0)), 0, Realm.ORDER.size() - 1)
+	_campaign_sound.play_realm(Realm.ORDER[biome])
+	_campaign_sound.set_intensity(0.0)
+	if str(controller.state.get("phase", "")) in ["RESULT_PENDING", "CAMPAIGN_COMPLETE"]:
+		Sound.play("shrine_done", 0.85, -10.0)
 	var town_script := load("res://scripts/campaign/campaign_town.gd") as Script
 	if town_script == null:
 		_show_error("The Last Lantern town could not be loaded.", _return_title)
@@ -42,6 +54,7 @@ func _mount_town() -> void:
 	_view.setup(controller)
 
 func _mount_combat(spec: Dictionary) -> void:
+	_campaign_sound.stop_music(0.65)
 	_clear_view()
 	Realm.in_title = false
 	Realm.daily = false
@@ -74,6 +87,7 @@ func _forfeit_pending() -> void:
 	_settle_pending()
 
 func _return_title() -> void:
+	_campaign_sound.stop_music(0.4)
 	_clear_view()
 	Realm.in_title = true
 	Realm.daily = false

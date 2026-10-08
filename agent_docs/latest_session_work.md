@@ -1,5 +1,7 @@
 # Latest session work
 
+Current preview checkpoint: `preview/last-lantern-expedition-polish`, based on merged town `6768024`. See `docs/expedition_campaign/POLISH_PREVIEW.md` and the final entry below. Earlier status paragraphs describe historical work, not this preview branch.
+
 ## Expedition campaign — 2026-10-08
 
 Current status: local Market and departure UI fixes are accepted at `c7ec967` on `fix/campaign-market-departure`, based on published PR #25 (`fb69741`). See the final entry below. Overnight automation remains PAUSED; historical schedule notes describe earlier checkpoints only.
@@ -41,3 +43,8 @@ Mark explicitly renewed implementation after the overnight cutoff. Starting HEAD
 ## Market and departure controls — October 8
 
 Current local integration: `c7ec967` on `fix/campaign-market-departure`, based on published `fb69741` (PR #25 merged). Market rows now display details from `entry.item.data` and compare against worn gear; the purchased-copy label is disabled. The route board stays above preparation and a persistent footer outside the center scroller presents preview/committed **Choose** or **Depart**, retaining existing event/departure blockers and offering the relevant town service when blocked. Integrated Godot 4.7.2 UI behavior passed with clean exit and no errors/warnings; see `work/market-route-clarity-evidence/integrated-ui.log`. Real-controller checks covered generated market records, one purchase, save/reload, and purchased state. Route resume was fixture state only, not a disk reload; existing real-controller event/departure checks remain. Parent inspected 720p fixture images, not live-play evidence. Original project bytes and six save states matched the fresh checkpoint. No art, save/economy/controller changes, push, or release. Running PID 61300 remains untouched; next entry is Save & Leave, close game, reopen existing launcher, Continue Campaign.
+
+
+## 2026-10-08 — Last Lantern polish preview
+
+Local branch `preview/last-lantern-expedition-polish` starts at Claude's merged town `6768024`. Added wider walk-town framing, footsteps and bus-aware town/transition audio, first-Graveyard gate/causeway and arrival guidance, and cleared-node votives. No save schema, economy or balance changes. Native Luna implemented; independent Sol reviewed and accepted the audio fade-race correction. Forced-walk, first-arrival, repeated-audio, UI behavior, lifecycle (145), and combat (66) checks passed; parent real Hunt completed 300 simulated seconds and settled successfully in a full-profile fixture. Parent inspected 720p renders. Shutdown resource warnings remain; see `docs/expedition_campaign/POLISH_PREVIEW.md` for exact limits and evidence. Original files/saves preserved. No push/merge/release. Next: user playtest using the isolated preview launcher.
