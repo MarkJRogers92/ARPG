@@ -483,7 +483,10 @@ func _finish_expedition_frame() -> void:
 		candidate.erase("slot")
 	_expedition_result["veteran"] = candidate
 	_expedition_result["report"] = {"kills": kills, "level": _player.stats.level, "realm": Realm.current,
-		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false))}
+		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
+		"died": _player.dead, "last_cause": _player.last_cause,
+		"damage_taken_by": _player.damage_taken_by.duplicate(true),
+		"objectives": _expedition_result.get("objectives", {}).duplicate(true)}
 	_expedition_result = _expedition_result.duplicate(true)
 	_hud.toast("Extraction secured." if _expedition_result.get("outcome", "") == "success" else "The expedition is lost.",
 		UiStyle.GOLD if _expedition_result.get("outcome", "") == "success" else Color(1.0, 0.45, 0.4))

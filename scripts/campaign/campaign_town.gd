@@ -544,16 +544,15 @@ func _render_pack() -> void:
 		tray_actions.add_child(_button("Sell", func() -> void: _command("sell_items", [[item_id], false]), Color(0.88, 0.75, 0.48)))
 		tray_actions.add_child(_button("Discard", func() -> void: _confirm_discard(item_id), Color(0.9, 0.55, 0.46)))
 	var detail_column := VBoxContainer.new()
-	detail_column.custom_minimum_size.x = 230
+	detail_column.custom_minimum_size.x = 280
 	columns.add_child(detail_column)
 	_add_subtitle(detail_column, "COMPARE & MANAGE")
 	var selected: Dictionary = items.get(_selected_item_id, {})
 	_add_item_detail(detail_column, selected)
 	var worn_id := str(equipped.get(_selected_slot, ""))
 	var worn: Dictionary = items.get(worn_id, {})
-	if not _selected_item_id.is_empty() and not worn_id.is_empty() and worn_id != _selected_item_id:
-		_add_copy_to(detail_column, "VERSUS WORN", UiStyle.MUTED)
-		_add_item_detail(detail_column, worn)
+	if not _selected_item_id.is_empty() and worn_id != _selected_item_id:
+		_add_item_comparison(detail_column, worn, selected)
 	if not _selected_item_id.is_empty():
 		var in_backpack := backpack.has(_selected_item_id)
 		var in_tray := tray.has(_selected_item_id)
@@ -654,6 +653,11 @@ func _render_market() -> void:
 		var buy := _button("Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
 		buy.disabled = id.is_empty() or int(_state.get("gold", 0)) < price
 		row.add_child(buy)
+		var slot := str(data.get("slot", ""))
+		if ItemData.SLOTS.has(slot):
+			var worn_id := str(_state.get("inventory", {}).get("equipped", {}).get(slot, ""))
+			var worn: Dictionary = _state.get("inventory", {}).get("items", {}).get(worn_id, {})
+			_add_item_comparison(_content, worn, {"data": data})
 	if stock.is_empty():
 		_add_copy("The shelves are bare. A new shipment comes after the next expedition.")
 	if _selected_item_id.is_empty():
@@ -784,10 +788,20 @@ func _render_ferryman() -> void:
 		_wager_node_id = node_id
 		_wager_pledge = false
 	var prizes: Array = wager.get("prizes", [])
-	_add_subtitle(_content, "THE STAKE · RESERVED FROM YOUR EXPEDITION REWARD")
+	var status := str(wager.get("status", ""))
+	if status in ["open", "won"]:
+		_add_subtitle(_content, "THE STAKE · RESERVED FROM YOUR EXPEDITION REWARD")
+	elif status == "taken":
+		_add_subtitle(_content, "PRIZE TAKEN · BANKED IN YOUR CAMPAIGN INVENTORY")
+	elif status == "lost":
+		_add_subtitle(_content, "THE FERRYMAN'S PRIZE WAS FORFEITED")
 	for prize: Variant in prizes:
 		if prize is Dictionary:
+			_add_copy("Reserved prize · not yet banked or owned" if status in ["open", "won"] else ("Prize taken · banked" if status == "taken" else "Prize record"))
 			_add_item_detail(_content, prize)
+			var slot := str(prize.get("data", {}).get("slot", ""))
+			var worn_id := str(_state.get("inventory", {}).get("equipped", {}).get(slot, ""))
+			_add_item_comparison(_content, _state.get("inventory", {}).get("items", {}).get(worn_id, {}), prize)
 	var stage := int(wager.get("stage", 0))
 	_add_copy("%s\n%s" % ["First crossing" if stage == 0 else "Second crossing · both prizes at stake", wager.get("detail", "The Ferryman's odds are fixed before the coin is tossed.")])
 	var odds := UiStyle.label(19)
@@ -800,7 +814,6 @@ func _render_ferryman() -> void:
 	odds.text = "Chance: %d%%" % roundi(shown_chance * 100.0)
 	odds.add_theme_color_override("font_color", UiStyle.GOLD)
 	_content.add_child(odds)
-	var status := str(wager.get("status", "open"))
 	if status in ["open", "won"]:
 		if stage == 0:
 			var pledge_button := _button("%s · pledge veteran for +10%%" % ("✓" if _wager_pledge else "◇"), func() -> void:
@@ -989,32 +1002,135 @@ func _render_result() -> void:
 	heading.text = "THE ROAD YIELDS ITS REWARD" if success else "THE ROAD CLAIMS THIS ATTEMPT"
 	heading.add_theme_color_override("font_color", Color(0.95, 0.79, 0.4) if success else Color(0.94, 0.52, 0.43))
 	_content.add_child(heading)
-	_add_copy(str(result.get("report", {}).get("summary", "The settlement is saved. Review the tray before you continue.")))
-	_add_copy("Combat time: %s" % _duration(float(result.get("elapsed", 0))))
-	_add_copy("Gold earned: %d G   ·   Soul Shard conversion: %d   ·   Talent points: +%d" % [int(result.get("gold", 0)), int(result.get("shard_conversion", 0)), int(result.get("talent_points", 0))])
+	_render_after_action_report(result)
+	var payment := int(result.get("gold", 0))
+	var conversion := int(result.get("shard_conversion", 0))
+	_add_copy("Gold banked from this result: +%d G   ·   contract / bonus %d G + shard conversion %d G" % [payment + conversion, payment, conversion])
+	_add_copy("Talent points earned: +%d" % int(result.get("talent_points", 0)))
+	_content.add_child(_button("Continue to town", func() -> void: _command("acknowledge_result"), UiStyle.GOLD))
+	if not bool(result.get("campaign_complete", false)):
+		_add_subtitle(_content, "OR GO STRAIGHT TO")
+		var shortcuts := GridContainer.new()
+		shortcuts.columns = 2
+		shortcuts.add_theme_constant_override("h_separation", 8)
+		shortcuts.add_theme_constant_override("v_separation", 6)
+		shortcuts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_content.add_child(shortcuts)
+		for service: Dictionary in [{"id": "trainer", "label": "Visit Trainer"}, {"id": "pack", "label": "Review Equipment"}, {"id": "ferryman", "label": "Visit Ferryman"}, {"id": "roster", "label": "Visit Crypt"}]:
+			var shortcut := _button(str(service["label"]), _acknowledge_and_open.bind(str(service["id"])), UiStyle.GOLD)
+			shortcut.custom_minimum_size.y = 34
+			shortcuts.add_child(shortcut)
 	var tray: Array = _state.get("inventory", {}).get("tray", [])
 	var items: Dictionary = _state.get("inventory", {}).get("items", {})
-	var reward_ids: Array = result.get("items", [])
+	var reward_ids := _result_reward_ids(result, items)
 	if not reward_ids.is_empty():
-		_add_subtitle(_content, "REWARDS BANKED")
+		_add_subtitle(_content, "GEAR BANKED · CLAIM TRAY ITEMS BEFORE DEPARTURE")
 		for item_id_value: Variant in reward_ids:
 			var record: Dictionary = items.get(str(item_id_value), {})
 			if not record.is_empty():
-				_add_copy(_summary(record.get("data", {})))
-	if not str(result.get("reserved_prize", "")).is_empty():
-		_add_copy("A reserved expedition prize is waiting at the Ferryman's table.")
+				_add_item_detail(_content, record)
+				var slot := str(record.get("data", {}).get("slot", ""))
+				var worn_id := str(_state.get("inventory", {}).get("equipped", {}).get(slot, ""))
+				_add_item_comparison(_content, items.get(worn_id, {}), record)
+	var wager: Dictionary = _state.get("wager", {})
+	var reserved_id := str(result.get("reserved_prize", ""))
+	if not reserved_id.is_empty() and not wager.get("prizes", []).is_empty():
+		_add_subtitle(_content, "RESERVED AT THE FERRYMAN · NOT BANKED OR OWNED")
+		for prize_value: Variant in wager.get("prizes", []):
+			if prize_value is Dictionary and str(prize_value.get("id", "")) == reserved_id:
+				var prize: Dictionary = prize_value
+				_add_item_detail(_content, prize)
+				var slot := str(prize.get("data", {}).get("slot", ""))
+				var worn_id := str(_state.get("inventory", {}).get("equipped", {}).get(slot, ""))
+				_add_item_comparison(_content, items.get(worn_id, {}), prize)
 	_add_subtitle(_content, "UNCLAIMED TRAY · %d item%s" % [tray.size(), "" if tray.size() == 1 else "s"])
 	if not tray.is_empty():
 		_add_copy("After continuing, compare, claim, sell, or discard tray rewards in the Armory before choosing another route.")
 	if not _state.get("outbox", []).is_empty():
 		_add_copy("Some account rewards are waiting to be recorded. Your expedition result is safely saved; you can retry here.")
 		_content.add_child(_button("Retry account reward delivery", func() -> void: _command("deliver_outbox"), Color(0.62, 0.82, 0.93)))
-	_content.add_child(_button("Continue to town", func() -> void: _command("acknowledge_result"), UiStyle.GOLD))
+
+
+func _render_after_action_report(result: Dictionary) -> void:
+	var report_value: Variant = result.get("report", {})
+	var report: Dictionary = report_value if report_value is Dictionary else {}
+	var objectives_value: Variant = report.get("objectives", {})
+	var objectives: Dictionary = objectives_value if objectives_value is Dictionary else {}
+	var outcome := str(result.get("outcome", "failure"))
+	var contract_id := str(report.get("contract_id", ""))
+	var contract: Dictionary = CampaignCatalog.CONTRACTS.get(contract_id, {})
+	var realm_id := str(report.get("realm", ""))
+	var realm: Dictionary = Realm.REALMS.get(realm_id, {})
+	var has_structured_report := report.has("kills") or report.has("level") or report.has("realm") or report.has("contract_id")
+	if has_structured_report:
+		var summary := "Kills: %d   ·   expedition level: %d   ·   realm: %s   ·   contract: %s   ·   combat time: %s" % [
+			int(report.get("kills", 0)), int(report.get("level", 1)), str(realm.get("name", realm_id.replace("_", " ").capitalize() if not realm_id.is_empty() else "Unknown")),
+			str(contract.get("name", contract_id.replace("_", " ").capitalize() if not contract_id.is_empty() else "Unknown")), _duration(float(result.get("elapsed", 0)))]
+		_add_copy(summary)
+	else:
+		var legacy_summary: Variant = report.get("summary", "")
+		_add_copy(str(legacy_summary) if legacy_summary is String and not legacy_summary.is_empty() else "No expedition report details were saved.")
+		_add_copy("Combat time: %s" % _duration(float(result.get("elapsed", 0))))
+	var died_value: Variant = report.get("died")
+	var damage_value: Variant = report.get("damage_taken_by")
+	if died_value is bool and damage_value is Dictionary:
+		var died: bool = died_value
+		var damage := _valid_damage_report(damage_value)
+		var last_value: Variant = report.get("last_cause", "")
+		var last_cause := str(last_value) if last_value is String else ""
+		var has_damage := false
+		for amount: Variant in damage.values():
+			if float(amount) > 0.0:
+				has_damage = true
+				break
+		if has_damage:
+			_add_copy(DeathRecap.summary(damage, last_cause, died))
+	if not bool(result.get("biome_complete", false)) and contract_id == "breach" and objectives.get("seals") is int and int(objectives["seals"]) >= 0:
+		_add_copy("Seal objective: %d / 3" % int(objectives["seals"]))
+	elif not bool(result.get("biome_complete", false)) and contract_id == "elite_hunt" and objectives.get("elite_dead") is bool:
+		_add_copy("Marked elite: %s" % ("defeated" if objectives["elite_dead"] else "not defeated"))
+	elif contract_id == "cursed_cache" and objectives.get("cache_claimed") is bool:
+		_add_copy("Cursed cache: %s" % ("claimed" if objectives["cache_claimed"] else "not claimed"))
+	if outcome == "success":
+		if bool(result.get("campaign_complete", false)):
+			_add_copy("Campaign complete: all three realms are cleared.")
+		elif bool(result.get("biome_complete", false)):
+			_add_copy("Realm cleared. The next realm is unlocked: %s." % _biome_name(int(_state.get("biome_index", 0))))
+		else:
+			_add_copy("Contract settled successfully. This route node is now cleared.")
+	else:
+		_add_copy(_failure_explanation(outcome, report, contract_id, float(result.get("elapsed", 0))))
+
+
+func _failure_explanation(outcome: String, report: Dictionary, contract_id: String, elapsed: float) -> String:
+	if outcome == "retreat":
+		return "You retreated before the contract settled. No contract gold, shard conversion, talent point, or route progress was banked."
+	if report.get("died") is bool and bool(report["died"]):
+		return "The expedition ended when you fell. Contract rewards and route progress were not banked."
+	var contract: Dictionary = CampaignCatalog.CONTRACTS.get(contract_id, {})
+	var deadline := float(contract.get("deadline", 0.0))
+	if report.get("died") is bool and not bool(report["died"]) and deadline > 0.0 and elapsed >= deadline:
+		return "The contract deadline passed while you were still alive. Contract rewards and route progress were not banked."
+	return "The contract did not settle successfully. Contract rewards and route progress were not banked."
+
+
+func _acknowledge_and_open(service_id: String) -> void:
+	var response := _command("acknowledge_result")
+	if not response.get("ok", false):
+		return
+	_select_service(service_id)
+
+
+func _biome_name(index: int) -> String:
+	return ["The Hollow Graveyard", "The Frozen Wastes", "The Ember Rift"][clampi(index, 0, 2)]
 
 
 func _render_complete() -> void:
 	var pending_rewards: Array = _state.get("outbox", [])
 	_add_copy("The final gate is quiet. The three realms are free.")
+	var result_value: Variant = _state.get("result", {})
+	if result_value is Dictionary and not result_value.is_empty():
+		_render_after_action_report(result_value)
 	if pending_rewards.is_empty():
 		_add_copy("Your completion, earned Soul Shards, and unlocked content are recorded to your profile.")
 	else:
@@ -1047,6 +1163,8 @@ func _add_copy_to(parent: Control, text: String, color: Color) -> Label:
 	var label := UiStyle.label(13)
 	label.text = text
 	label.add_theme_color_override("font_color", color)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(label)
 	return label
 
@@ -1079,12 +1197,112 @@ func _add_item_detail(parent: Control, record: Dictionary) -> void:
 	var meta := UiStyle.label(12)
 	meta.text = "%s · item level %d · value %d G%s" % [_rarity_text(record), int(data.get("ilvl", 1)), int(record.get("valuation", 0)), " · LOCKED" if bool(record.get("locked", false)) else ""]
 	meta.modulate = Color(1, 1, 1, 0.62)
+	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(meta)
-	for modifier: Variant in data.get("implicit", []) + data.get("affixes", []):
-		if modifier is Dictionary:
-			_add_copy_to(parent, _modifier_text(modifier), Color(0.7, 0.82, 0.98))
 	if not str(data.get("power", "")).is_empty():
-		_add_copy_to(parent, "Legendary power · %s" % str(data["power"]).replace("_", " "), Color(1.0, 0.7, 0.35))
+		var power_id := str(data["power"])
+		var power: Dictionary = ItemData.POWERS.get(power_id, {})
+		_add_copy_to(parent, "Legendary power · %s: %s" % [power_id.replace("_", " ").capitalize(), str(power.get("desc", "Power description unavailable."))], Color(1.0, 0.7, 0.35))
+	for modifier: Variant in ItemComparison.rows({}, data):
+		if modifier is Dictionary:
+			_add_copy_to(parent, ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"])), Color(0.7, 0.82, 0.98))
+
+
+func _add_item_comparison(parent: Control, current_record: Dictionary, offered_record: Dictionary) -> void:
+	var offered_data: Dictionary = offered_record.get("data", {})
+	if offered_data.is_empty():
+		return
+	var current_data: Dictionary = current_record.get("data", {})
+	var slot := str(offered_data.get("slot", current_data.get("slot", "")))
+	_add_subtitle(parent, "ITEM MODIFIERS · %s" % ItemData.SLOT_NAMES.get(slot, slot).to_upper())
+	if current_data.is_empty():
+		_add_comparison_copy(parent, "Worn: empty slot")
+	else:
+		_add_comparison_copy(parent, "Worn: %s" % _item_name(current_record))
+	_add_comparison_copy(parent, "Offered: %s" % _item_name(offered_record))
+	var rows := ItemComparison.rows(current_data, offered_data)
+	if rows.is_empty():
+		_add_comparison_copy(parent, "No stat modifiers on either item.")
+	else:
+		for row: Dictionary in rows:
+			var current := "—" if is_zero_approx(float(row["current"])) else ItemComparison.format_value(str(row["stat"]), int(row["op"]), float(row["current"]))
+			var offered := "—" if is_zero_approx(float(row["offered"])) else ItemComparison.format_value(str(row["stat"]), int(row["op"]), float(row["offered"]))
+			_add_comparison_copy(parent, "%s  →  %s" % [current, offered])
+	var current_power := str(current_data.get("power", ""))
+	var offered_power := str(offered_data.get("power", ""))
+	if not current_power.is_empty() or not offered_power.is_empty():
+		_add_comparison_copy(parent, _comparison_power_text("Worn", current_data))
+		_add_comparison_copy(parent, _comparison_power_text("Offered", offered_data))
+
+
+func _comparison_power_text(which: String, data: Dictionary) -> String:
+	var power_id := str(data.get("power", ""))
+	if power_id.is_empty():
+		return "%s legendary power: None" % which
+	var power: Dictionary = ItemData.POWERS.get(power_id, {})
+	return "%s legendary power · %s: %s" % [which, power_id.replace("_", " ").capitalize(), str(power.get("desc", "Description unavailable."))]
+
+
+func _add_comparison_copy(parent: Control, text: String) -> Label:
+	var label := UiStyle.label(14)
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.modulate = Color(1, 1, 1, 0.76)
+	parent.add_child(label)
+	return label
+
+
+func _valid_damage_report(value: Variant) -> Dictionary:
+	var valid: Dictionary = {}
+	if not value is Dictionary:
+		return valid
+	for key: Variant in value:
+		var amount: Variant = value[key]
+		if (amount is int or amount is float) and is_finite(float(amount)) and float(amount) >= 0.0:
+			valid[str(key)] = float(amount)
+	return valid
+
+
+func _result_reward_ids(result: Dictionary, items: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	var outcome := str(result.get("outcome", ""))
+	var reserved_id := str(result.get("reserved_prize", ""))
+	if outcome != "success":
+		return ids
+	var listed_items_value: Variant = result.get("items", [])
+	var listed_items: Array = listed_items_value if listed_items_value is Array else []
+	for item_id_value: Variant in listed_items:
+		var item_id := str(item_id_value)
+		if items.has(item_id) and item_id != reserved_id and not ids.has(item_id):
+			ids.append(item_id)
+	var departure_value: Variant = _state.get("departure", {})
+	var departure: Dictionary = departure_value if departure_value is Dictionary else {}
+	var loadout_value: Variant = departure.get("starting_loadout", {})
+	var loadout: Dictionary = loadout_value if loadout_value is Dictionary else {}
+	var starting_value: Variant = loadout.get("inventory", {})
+	var starting: Dictionary = starting_value if starting_value is Dictionary else {}
+	if not starting.get("equipped") is Dictionary or not starting.get("backpack") is Array:
+		return ids
+	var original: Dictionary = {}
+	var worn_value: Variant = starting.get("equipped", {})
+	var worn: Dictionary = worn_value if worn_value is Dictionary else {}
+	var bag_value: Variant = starting.get("backpack", [])
+	var bag: Array = bag_value if bag_value is Array else []
+	var starting_data: Array = worn.values() + bag
+	for data: Variant in starting_data:
+		if data is Dictionary:
+			var id := str(data.get("campaign_id", ""))
+			if not id.is_empty():
+				original[id] = true
+	for item_id_value: Variant in items:
+		var item_id := str(item_id_value)
+		if not original.has(item_id) and item_id != reserved_id and not ids.has(item_id):
+			ids.append(item_id)
+	# Legacy reports and fixtures without a departure snapshot use the explicit
+	# settlement reward list above as their available source.
+	return ids
 
 
 func _add_info_card(parent: Control, title: String, benefit: String, consequence: String) -> void:

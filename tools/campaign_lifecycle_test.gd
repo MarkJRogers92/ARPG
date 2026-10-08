@@ -172,6 +172,11 @@ func _run() -> void:
 		combat.get("_director").elapsed = float(spec["duration"])
 		combat.call("_finish_expedition_frame")
 		previous_result = combat.get("_expedition_result").duplicate(true)
+		var report: Dictionary = previous_result.get("report", {})
+		check(report.get("died") == false and report.get("objectives") == result_objectives,
+			"campaign result report includes survival state and a copy of settled objectives")
+		check(report.get("damage_taken_by") is Dictionary and report.get("last_cause") is String,
+			"campaign result report includes serializable damage causes and last cause")
 		combat.call("_emit_expedition_result")
 		await process_frame
 		await process_frame

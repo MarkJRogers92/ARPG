@@ -9,6 +9,7 @@ class FixtureController:
 	var state: Dictionary = {}
 	var abandon_response := {"ok": true, "error": ""}
 	var delivery_response := {"ok": true, "error": ""}
+	var acknowledge_response := {"ok": true, "error": ""}
 
 	func _init() -> void:
 		state = {
@@ -74,6 +75,13 @@ class FixtureController:
 			changed.emit(snapshot())
 		return delivery_response.duplicate(true)
 
+	func acknowledge_result(_operation_id := "") -> Dictionary:
+		if not acknowledge_response.get("ok", false):
+			return acknowledge_response.duplicate(true)
+		state["phase"] = "CAMPAIGN_COMPLETE" if state.get("completed", false) else "TOWN"
+		changed.emit(snapshot())
+		return acknowledge_response.duplicate(true)
+
 	func _record(id: String, name: String, slot: String, rarity: int, affix: String, locked: bool, junk: bool) -> Dictionary:
 		return {"id": id, "data": {"slot": slot, "base_name": name, "name": name, "rarity": rarity, "ilvl": 9, "implicit": [{"stat": "max_hp", "op": PlayerStats.Op.ADD, "value": 8}], "affixes": [{"id": "fixture", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.1}], "power": ""}, "locked": locked, "junk": junk, "valuation": 100}
 
@@ -129,7 +137,7 @@ func _run() -> void:
 	capture_viewport.add_child(controller)
 	town.setup(controller)
 	if screen != "route":
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else screen
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("pack" if screen == "comparison" else screen)
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -148,14 +156,21 @@ func _run() -> void:
 			controller.state["reforge"] = {"item_id": "i-rare", "old": controller.state["inventory"]["items"]["i-rare"]["data"], "new": {"slot": "weapon", "name": "Ashen Oath, Recast", "base_name": "Ashen Oath", "rarity": 3, "ilvl": 9, "implicit": [], "affixes": [{"id": "recast", "stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.18}]}, "cost": 60, "biome": 0}
 		elif screen == "result":
 			controller.state["phase"] = "RESULT_PENDING"
-			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "report": {"summary": "The seals are closed. A pack of rare gear came home with you."}}
+			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "reserved_prize": "reserved-01", "biome_complete": false, "campaign_complete": false,
+				"report": {"contract_id": "breach", "kills": 84, "level": 7, "realm": "graveyard", "died": false, "last_cause": "Bone Lancer", "damage_taken_by": {"Bone Lancer": 45.0, "Graves": 22.0}, "objectives": {"seals": 3}}}
 			controller.state["inventory"]["tray"] = ["i-rare", "i-junk"]
+			controller.state["wager"] = {"prizes": [{"id": "reserved-01", "data": {"slot": "helm", "name": "Crown of the Last Bell", "base_name": "Crown", "rarity": 3, "ilvl": 12, "implicit": [{"stat": "armor", "op": PlayerStats.Op.ADD, "value": 8.0}], "affixes": [{"stat": "aura_radius", "op": PlayerStats.Op.INCREASED, "value": 0.2}], "power": "winter_crown"}}]}
 		elif screen in ["complete", "complete_pending"]:
 			controller.state["phase"] = "CAMPAIGN_COMPLETE"
 			if screen == "complete_pending":
 				controller.state["outbox"] = [{"id": "fixture:pending", "shards": 5}]
+		if screen == "comparison":
+			controller.state["inventory"]["items"]["i-rare"]["data"]["power"] = "stormcaller"
+			controller.state["inventory"]["items"]["i-rare"]["data"]["affixes"] = [{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.15}, {"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 4.0}]
 		town._state = controller.snapshot()
 		town._render()
+		if screen == "comparison":
+			town._select_item("i-rare", "weapon")
 	await process_frame
 	await process_frame
 	await process_frame
@@ -366,6 +381,7 @@ func _run_behavior_test() -> void:
 							failures.append("confirmed abandon commits through the controller before returning to title")
 	await _test_event_and_retryable_abandon(failures)
 	await _test_route_preparation_panel(failures)
+	await _test_result_report_and_comparison(failures)
 
 	for message: String in failures:
 		push_error("CAMPAIGN_UI_BEHAVIOR_FAIL: " + message)
@@ -513,6 +529,173 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	await process_frame
 	if _find_button(town, "Open Veterans") != null:
 		failures.append("an empty Crypt does not create a preparation action with no available veteran")
+	town.free()
+	fixture.free()
+
+
+func _test_result_report_and_comparison(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(fixture)
+	fixture.state["phase"] = "RESULT_PENDING"
+	fixture.state["result"] = {"outcome": "failure", "elapsed": 420.0, "gold": 0, "shard_conversion": 0,
+		"talent_points": 0, "items": ["i-rare"], "report": {"contract_id": "elite_hunt", "kills": 9,
+		"level": 4, "realm": "graveyard", "died": false, "last_cause": "Old prior hit", "damage_taken_by": {"wolf": 4.0, "bad": INF},
+		"objectives": {"elite_dead": false}}}
+	fixture.acknowledge_response = {"ok": false, "error": "Fixture acknowledgment failed."}
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	if _find_label(town, "expedition level: 4") == null or _find_label(town, "No contract gold") != null:
+		failures.append("result report shows expedition details without inventing a failure recap")
+	if _find_label(town, "SLAIN BY:") != null:
+		failures.append("timeout-style failure does not turn the last prior hit into a death recap")
+	if _find_label(town, "contract did not settle") == null and _find_label(town, "deadline passed") == null:
+		failures.append("failure result explains why the expedition did not settle")
+	var trainer := _find_button(town, "Visit Trainer")
+	if trainer == null:
+		failures.append("result exposes a Trainer shortcut with a player-facing label")
+	else:
+		var shortcut_grid: GridContainer
+		for child: Node in town._content.get_children():
+			if child is GridContainer and (child as GridContainer).columns == 2:
+				shortcut_grid = child as GridContainer
+				break
+		if shortcut_grid == null or shortcut_grid.get_child_count() != 4:
+			failures.append("result shortcuts use a compact two-column grid")
+		trainer.pressed.emit()
+		await process_frame
+		if fixture.state["phase"] != "RESULT_PENDING" or town._active_service == "trainer" or town._feedback.text != "Fixture acknowledgment failed.":
+			failures.append("failed result acknowledgment keeps the result screen visible")
+	fixture.acknowledge_response = {"ok": true, "error": ""}
+	trainer = _find_button(town, "Visit Trainer")
+	if trainer != null:
+		trainer.pressed.emit()
+		await process_frame
+		if fixture.state["phase"] == "RESULT_PENDING" or town._active_service != "trainer":
+			failures.append("successful acknowledgment opens the selected town service afterward")
+	fixture.state["result"] = {"outcome": "success", "gold": 100, "shard_conversion": 5, "talent_points": 1,
+		"items": ["i-rare"], "report": {"contract_id": "hunt", "kills": 9, "level": 4, "realm": "graveyard"}}
+	fixture.state["phase"] = "RESULT_PENDING"
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	trainer = _find_button(town, "Visit Trainer")
+	var gear_heading := _find_label(town, "GEAR BANKED")
+	var shortcuts_index := town._content.get_children().find(trainer.get_parent()) if trainer != null else -1
+	if trainer == null or gear_heading == null or shortcuts_index < 0 or shortcuts_index > town._content.get_children().find(gear_heading):
+		failures.append("successful result places its shortcut grid above the banked gear list")
+	var current := {"implicit": [{"stat": "armor", "op": PlayerStats.Op.ADD, "value": 10.0}],
+		"affixes": [{"stat": "armor", "op": PlayerStats.Op.ADD, "value": 5.0},
+			{"stat": "armor", "op": PlayerStats.Op.INCREASED, "value": 0.1},
+			{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.2},
+			{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.5}]}
+	var offered := {"implicit": [{"stat": "armor", "op": PlayerStats.Op.ADD, "value": 8.0}],
+		"affixes": [{"stat": "armor", "op": PlayerStats.Op.INCREASED, "value": 0.3},
+			{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.1},
+			{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.1}]}
+	var totals := ItemComparison.modifiers(current)
+	var rows := ItemComparison.rows(current, offered)
+	if not is_equal_approx(float(totals["armor:%d" % PlayerStats.Op.ADD]), 15.0) or not is_equal_approx(float(totals["damage:%d" % PlayerStats.Op.MORE]), 0.8):
+		failures.append("item comparison aggregates only matching stat and operation, with multiplicative MORE")
+	if rows.size() != 3 or not is_equal_approx(float(ItemComparison.modifiers(offered)["damage:%d" % PlayerStats.Op.MORE]), 0.21):
+		failures.append("comparison rows preserve operation distinctions and combine MORE factors correctly")
+	if not ItemComparison.modifiers({"power": "soul_lantern"}).has("soul_chance:%d" % PlayerStats.Op.MORE):
+		failures.append("comparison includes stat modifiers granted by legendary powers")
+	var add_text := ItemComparison.format_value("crit_chance", PlayerStats.Op.ADD, 0.05)
+	var increased_text := ItemComparison.format_value("crit_chance", PlayerStats.Op.INCREASED, 0.05)
+	if add_text == increased_text or not add_text.begins_with("Added · ") or not increased_text.begins_with("Increased · "):
+		failures.append("percentage rows visibly distinguish ADD from INCREASED semantics")
+	if not town._comparison_power_text("Worn", {"power": "stormcaller"}).contains(ItemData.POWERS["stormcaller"]["desc"]) or not town._comparison_power_text("Offered", {"power": "stormcaller"}).contains(ItemData.POWERS["stormcaller"]["desc"]):
+		failures.append("comparison describes the worn and offered legendary powers separately")
+	var power_only_comparison := VBoxContainer.new()
+	town.add_child(power_only_comparison)
+	town._add_item_comparison(power_only_comparison,
+		{"data": {"slot": "amulet", "name": "Heart of Storms", "implicit": [], "affixes": [], "power": "heart_of_storms"}},
+		{"data": {"slot": "amulet", "name": "Heart of Storms II", "implicit": [], "affixes": [], "power": "heart_of_storms"}})
+	if _find_label(power_only_comparison, ItemData.POWERS["heart_of_storms"]["desc"]) == null:
+		failures.append("comparison keeps nonnumeric legendary powers visible when there are no modifier rows")
+	power_only_comparison.free()
+	var old_result := {"outcome": "failure", "report": {"contract_id": "hunt"}}
+	if not town._result_reward_ids(old_result, fixture.state["inventory"]["items"]).is_empty():
+		failures.append("failed attempts never claim banked field gear")
+	fixture.state["phase"] = "RESULT_PENDING"
+	fixture.state["result"] = {"outcome": "retreat", "elapsed": 12.0, "report": {"summary": "We turned back safely.", "contract_id": "hunt"}}
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	if _find_label(town, "Untouched all night") != null:
+		failures.append("legacy reports without damage fields do not invent an untouched-night recap")
+	fixture.state["phase"] = "RESULT_PENDING"
+	fixture.state["result"] = {"outcome": "success", "reserved_prize": "reserved-id", "items": [], "report": {}}
+	fixture.state["wager"] = {"prizes": [{"id": "reserved-id", "data": {"slot": "weapon", "implicit": [], "affixes": [], "power": ""}}]}
+	fixture.state["inventory"]["items"]["reserved-id"] = fixture.state["wager"]["prizes"][0]
+	town._state = fixture.snapshot()
+	var rewards := town._result_reward_ids(fixture.state["result"], fixture.state["inventory"]["items"])
+	if rewards.has("reserved-id"):
+		failures.append("Ferryman-reserved prize stays outside banked reward comparison")
+	fixture.state["phase"] = "TOWN"
+	fixture.state["wager"]["status"] = "open"
+	town._state = fixture.snapshot()
+	town._active_service = "ferryman"
+	town._render()
+	if _find_label(town, "Reserved prize · not yet banked or owned") == null:
+		failures.append("open Ferryman prize is labeled reserved")
+	fixture.state["wager"]["status"] = "won"
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "Reserved prize · not yet banked or owned") == null:
+		failures.append("won but untaken Ferryman prize remains labeled reserved")
+	fixture.state["wager"]["status"] = "taken"
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "PRIZE TAKEN · BANKED") == null:
+		failures.append("taken Ferryman prize is labeled banked")
+	fixture.state["wager"]["status"] = "lost"
+	fixture.state["wager"]["prizes"] = []
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "PRIZE WAS FORFEITED") == null:
+		failures.append("lost Ferryman prize is labeled forfeited")
+	fixture.state["phase"] = "RESULT_PENDING"
+	fixture.state["result"] = {"outcome": "failure", "elapsed": 500.0, "report": {"contract_id": "breach"}}
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "Seal objective:") != null or _find_label(town, "contract deadline passed") != null:
+		failures.append("legacy result omits unknown objectives and needs a recorded alive state before inferring a deadline")
+	fixture.state["result"]["report"] = {"contract_id": "cursed_cache"}
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "Cursed cache:") != null:
+		failures.append("legacy report does not invent an unopened cache when its objective is missing")
+	fixture.state["result"]["elapsed"] = 420.0
+	fixture.state["result"]["report"] = {"contract_id": "elite_hunt", "died": false}
+	town._state = fixture.snapshot()
+	town._render()
+	if _find_label(town, "contract deadline passed while you were still alive") == null or _find_label(town, "Marked elite:") != null:
+		failures.append("deadline explanation requires recorded survival and elapsed deadline while omitting unknown elite details")
+	fixture.state["completed"] = true
+	fixture.state["result"] = {"outcome": "success", "campaign_complete": true, "report": {"contract_id": "finale", "kills": 100, "level": 9, "realm": "ember_rift"}}
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	if _find_button(town, "Visit ", true) != null or _find_button(town, "Review Equipment") != null:
+		failures.append("final campaign result does not offer service shortcuts around completion")
+	var final_continue := _find_button(town, "Continue to town")
+	if final_continue != null:
+		final_continue.pressed.emit()
+		await process_frame
+		if fixture.state["phase"] != "CAMPAIGN_COMPLETE" or town._content_title.text != "THE ROAD ENDS IN DAWN":
+			failures.append("final victory acknowledgment presents the campaign completion screen")
+	var before_comparison := town._state.duplicate(true)
+	var empty_comparison := VBoxContainer.new()
+	town.add_child(empty_comparison)
+	town._add_item_comparison(empty_comparison, {}, {"data": {"slot": "weapon", "name": "Test Blade", "implicit": [], "affixes": [], "power": ""}})
+	if _find_label(empty_comparison, "Worn: empty slot") == null or town._state != before_comparison:
+		failures.append("empty-slot comparison is clear and read-only")
+	empty_comparison.free()
 	town.free()
 	fixture.free()
 
