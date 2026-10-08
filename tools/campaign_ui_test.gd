@@ -136,8 +136,8 @@ func _run() -> void:
 	var controller := FixtureController.new()
 	capture_viewport.add_child(controller)
 	town.setup(controller)
-	if screen != "route" and screen != "route-rewards":
-		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else screen))
+	if screen not in ["route", "route-rewards"]:
+		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen == "trainer-reaper" else ("route" if screen == "route-effects" else screen))))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
 			controller.state["event"] = {"id": "dead_man_inventory", "title": "Dead Man's Inventory", "description": "A dead traveler offers a replacement from the pack you carried in. Choose the item to trade before you commit.", "offers": {"i-rare": controller.state["inventory"]["items"]["i-rare"]}, "choices": [{"id": "trade", "label": "Trade the selected item", "description": "Receive the displayed offer.", "cost_text": "Consumes the selected backpack item"}, {"id": "leave", "label": "Leave the inventory", "description": "Keep what you have.", "cost_text": "No cost"}]}
@@ -158,6 +158,8 @@ func _run() -> void:
 			_fill_fixture_backpack(controller)
 		elif screen == "equipment-tools":
 			_fill_equipment_tools_fixture(controller)
+		elif screen == "trainer-reaper":
+			controller.state["hero_class"] = "reaper"
 		elif screen == "result":
 			controller.state["phase"] = "RESULT_PENDING"
 			controller.state["result"] = {"outcome": "success", "elapsed": 360.0, "gold": 110, "shard_conversion": 12, "talent_points": 1, "items": ["i-rare"], "reserved_prize": "reserved-01", "biome_complete": false, "campaign_complete": false,
@@ -171,6 +173,13 @@ func _run() -> void:
 		if screen == "comparison":
 			controller.state["inventory"]["items"]["i-rare"]["data"]["power"] = "stormcaller"
 			controller.state["inventory"]["items"]["i-rare"]["data"]["affixes"] = [{"stat": "damage", "op": PlayerStats.Op.MORE, "value": 0.15}, {"stat": "bolt_damage", "op": PlayerStats.Op.ADD, "value": 4.0}]
+		if screen == "route-effects":
+			controller.state["phase"] = "DEPARTURE_READY"
+			controller.state["selected_node"] = "g-1-a"
+			controller.state["effects"] = [{"id": "quiet_bell", "node_id": "g-1-a", "mods": [
+				{"stat": "armor", "op": PlayerStats.Op.INCREASED, "value": 0.25},
+				{"stat": "max_hp", "op": PlayerStats.Op.INCREASED, "value": 0.10},
+			]}]
 		town._state = controller.snapshot()
 		town._render()
 		if screen == "equipment-tools":
@@ -446,6 +455,7 @@ func _run_behavior_test() -> void:
 	await _test_route_preparation_panel(failures)
 	await _test_result_report_and_comparison(failures)
 	await _test_full_backpack_controls(failures)
+	await _test_starting_build_summary(failures)
 
 	for message: String in failures:
 		push_error("CAMPAIGN_UI_BEHAVIOR_FAIL: " + message)
@@ -455,6 +465,85 @@ func _run_behavior_test() -> void:
 	town.free()
 	print("CAMPAIGN_UI_BEHAVIOR %s" % ["FAILED" if not failures.is_empty() else "PASSED"])
 	quit(1 if not failures.is_empty() else 0)
+
+
+func _test_starting_build_summary(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town.setup(fixture)
+	town._active_service = "trainer"
+	town._state = fixture.snapshot()
+	var baseline_before := town._state.duplicate(true)
+	var baseline_preview: Dictionary = CampaignLoadout.preview(town._state)
+	var after_baseline_preview := town._state.duplicate(true)
+	town._render()
+	await process_frame
+	if town._state != baseline_before or after_baseline_preview != baseline_before:
+		failures.append("starting-build preview and Trainer render leave baseline campaign input unchanged")
+	if _find_label(town, "STARTING BUILD") == null or _find_label(town, "Baseline · no route committed") == null:
+		failures.append("Trainer shows a baseline summary when no route is committed")
+	if _find_label(town, "HP " + _preview_number(float(baseline_preview["max_hp"]))) == null or _find_label(town, "Crit " + String.num(float(baseline_preview["crit_chance"]) * 100.0, 1) + "%") == null:
+		failures.append("Trainer renders starting health and critical chance from the preview")
+	var expected_bolts := "Primary Bolts · %s dmg per hit · %s s cooldown" % [_preview_number(float(baseline_preview["primary_damage"])), _preview_number(float(baseline_preview["primary_cooldown"]))]
+	if _find_label(town, expected_bolts) == null:
+		failures.append("starting bolt attack shows its per-hit damage and cooldown")
+	var invalid_state := town._state.duplicate(true)
+	invalid_state["hero_class"] = "unknown-class"
+	town._state = invalid_state
+	town._render()
+	await process_frame
+	if _find_label(town, "Starting build summary unavailable.") == null:
+		failures.append("empty loadout preview renders a safe unavailable message")
+	town._state = baseline_before.duplicate(true)
+	town._render()
+	await process_frame
+	fixture.state["phase"] = "DEPARTURE_READY"
+	fixture.state["selected_node"] = "g-1-a"
+	fixture.state["effects"] = [{"id": "borrowed_battalion", "node_id": "g-1-a", "minions": 3}]
+	town._state = fixture.snapshot()
+	var committed_preview: Dictionary = CampaignLoadout.preview(town._state)
+	town._render()
+	await process_frame
+	if int(committed_preview["effect_count"]) != 1 or int(committed_preview["stat_effect_count"]) != 0 or _find_label(town, "Committed route · no added starting stat modifiers") == null:
+		failures.append("non-stat route effects do not get described as starting stat modifiers")
+	fixture.state["phase"] = "DEPARTURE_READY"
+	fixture.state["hero_class"] = "reaper"
+	fixture.state["talents"]["allocated"].append("d2")
+	fixture.state["talents"]["points"] -= 1
+	fixture.state["inventory"]["items"]["i-weapon"]["data"]["affixes"].append({"id": "fixture_crit", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.05})
+	fixture.state["effects"] = [{"id": "quiet_bell", "node_id": "g-1-a", "mods": [
+		{"stat": "armor", "op": PlayerStats.Op.INCREASED, "value": 0.25},
+		{"stat": "max_hp", "op": PlayerStats.Op.INCREASED, "value": 0.10},
+	]}]
+	town._state = fixture.snapshot()
+	var equipped_before := town._state.duplicate(true)
+	var changed_preview: Dictionary = CampaignLoadout.preview(town._state)
+	town._render()
+	await process_frame
+	if town._state != equipped_before:
+		failures.append("rendering the updated starting build leaves equipment and talents unchanged")
+	if float(changed_preview["armor"]) <= float(baseline_preview["armor"]) or float(changed_preview["crit_chance"]) <= float(baseline_preview["crit_chance"]):
+		failures.append("preview reflects the added armor talent and equipped critical-chance affix")
+	var expected_primary := "Primary Reaping Scythe · %s dmg per hit · %s s cooldown" % [_preview_number(float(changed_preview["primary_damage"])), _preview_number(float(changed_preview["primary_cooldown"]))]
+	if _find_label(town, expected_primary) == null:
+		failures.append("Reaper summary shows its scythe damage and cooldown, not a bolt attack")
+	if int(changed_preview["stat_effect_count"]) <= 0 or _find_label(town, "Route stat modifiers included · " + ", ".join(changed_preview["stat_effect_names"])) == null:
+		failures.append("Trainer summary identifies included effects from the committed route")
+	if _find_label(town, "Armor " + _preview_number(float(changed_preview["armor"]))) == null or _find_label(town, "Army capacity " + str(int(changed_preview["minion_max"]))) == null:
+		failures.append("updated Trainer summary reflects equipped gear, talent, and class values")
+	town._active_service = "route"
+	town._render()
+	await process_frame
+	if _find_label(town, expected_primary) == null or _find_label(town, "Route stat modifiers included · " + ", ".join(changed_preview["stat_effect_names"])) == null:
+		failures.append("route preparation shows the same previewed starting build and route effect")
+	town.free()
+	fixture.free()
+
+
+func _preview_number(value: float) -> String:
+	return str(roundi(value)) if is_equal_approx(value, roundf(value)) else String.num(value, 1)
 
 
 func _test_route_reward_preview(failures: Array[String]) -> void:

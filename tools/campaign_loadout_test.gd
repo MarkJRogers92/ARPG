@@ -35,6 +35,8 @@ func _test_fixture(fixture: Dictionary) -> void:
 	_check(int(preview["effect_count"]) == fixture["effect_count"], "%s preview includes current-node effects only" % fixture["hero"])
 	_check(String(preview["selected_node_id"]) == "route", "%s preview reports selected route node" % fixture["hero"])
 	_check(String(preview["primary_attack_label"]) == fixture["attack"], "%s preview identifies its actual base attack" % fixture["hero"])
+	_check(int(preview["stat_effect_count"]) == fixture["stat_effect_count"], "%s preview counts only current-node stat effects" % fixture["hero"])
+	_check(preview["stat_effect_names"] == fixture["stat_effect_names"], "%s preview names current-node stat effects in order" % fixture["hero"])
 	for key: String in fixture["expected"]:
 		var expected: float = fixture["expected"][key]
 		_check(is_equal_approx(float(preview[key]), expected), "%s preview %s matches pre-extraction baseline" % [fixture["hero"], key])
@@ -92,7 +94,8 @@ func _fixtures() -> Array[Dictionary]:
 		"talents":{"points":2, "allocated":["d1"]}, "specialization":"executioner"}
 	var reaper_effect := {"id":"quiet_bell", "node_id":"route", "mods":[{"stat":"armor", "op":PlayerStats.Op.INCREASED, "value":0.25},
 		{"stat":"max_hp", "op":PlayerStats.Op.INCREASED, "value":0.1}]}
-	var reaper_state := _state("reaper", reaper_loadout, [reaper_effect, _off_route_effect()])
+	var borrowed_effect := {"id":"borrowed_battalion", "node_id":"route", "minions":3}
+	var reaper_state := _state("reaper", reaper_loadout, [borrowed_effect, reaper_effect, _off_route_effect()])
 
 	var mage_loadout := {"hero_class":"battlemage", "profile_snapshot":{"mods":[], "relic":"winter_tear", "start_weapon":"aura", "cards":{}},
 		"inventory":{"equipped":{}, "backpack":[]}, "talents":{"points":3, "allocated":["a1"]}, "specialization":"sniper"}
@@ -102,13 +105,14 @@ func _fixtures() -> Array[Dictionary]:
 		"inventory":{"equipped":{}, "backpack":[]}, "talents":{"points":3, "allocated":["d1"]}, "specialization":"champions"}
 	var necro_state := _state("necromancer", necro_loadout, [])
 	return [
-		{"hero":"reaper", "state":reaper_state, "loadout":reaper_loadout, "effects":[reaper_effect], "effect_count":1, "effect_name":"The Quiet Bell",
+		{"hero":"reaper", "state":reaper_state, "loadout":reaper_loadout, "effects":[reaper_effect], "effect_count":2, "effect_name":"Borrowed Battalion",
+			"stat_effect_count":1, "stat_effect_names":["The Quiet Bell"],
 			"attack":"Reaping Scythe", "power":"reaping", "gear_power":"stormcaller", "start_weapon_id":"lightning", "start_weapon_stat":"lightning_level", "start_weapon_effective_level":1.0, "class_weapon_stat":"scythe_level", "skill":"d1", "has_gear":true,
 			"expected":{"max_hp":190.4, "armor":37.5, "move_speed":6.6, "crit_chance":0.15, "minion_max":2.0, "primary_damage":29.376, "primary_cooldown":1.15740740740741}},
-		{"hero":"battlemage", "state":mage_state, "loadout":mage_loadout, "effects":[], "effect_count":0, "effect_name":"",
+		{"hero":"battlemage", "state":mage_state, "loadout":mage_loadout, "effects":[], "effect_count":0, "effect_name":"", "stat_effect_count":0, "stat_effect_names":[],
 			"attack":"Bolts", "power":"winter_crown", "start_weapon_id":"aura", "start_weapon_stat":"aura_level", "start_weapon_effective_level":3.0, "skill":"a1", "has_gear":false,
 			"expected":{"max_hp":100.0, "armor":0.0, "move_speed":6.0, "crit_chance":0.05, "minion_max":2.0, "primary_damage":14.0, "primary_cooldown":0.454545454545455}},
-		{"hero":"necromancer", "state":necro_state, "loadout":necro_loadout, "effects":[], "effect_count":0, "effect_name":"",
+		{"hero":"necromancer", "state":necro_state, "loadout":necro_loadout, "effects":[], "effect_count":0, "effect_name":"", "stat_effect_count":0, "stat_effect_names":[],
 			"attack":"Bolts", "power":"lich_shroud", "start_weapon_id":"scythe", "start_weapon_stat":"scythe_level", "start_weapon_effective_level":1.0, "skill":"d1", "has_gear":false,
 			"expected":{"max_hp":74.2, "armor":0.0, "move_speed":6.0, "crit_chance":0.05, "minion_max":3.0, "primary_damage":11.475, "primary_cooldown":0.5}},
 	]

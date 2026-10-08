@@ -65,6 +65,13 @@ static func preview(state: Dictionary) -> Dictionary:
 	}
 	if not selected_effects.is_empty():
 		result["selected_effect_name"] = _effect_name(selected_effects[0])
+	var stat_effect_names: Array[String] = []
+	for effect: Dictionary in selected_effects:
+		var mods: Variant = effect.get("mods", [])
+		if mods is Array and not mods.is_empty():
+			stat_effect_names.append(_effect_name(effect))
+	result["stat_effect_count"] = stat_effect_names.size()
+	result["stat_effect_names"] = stat_effect_names
 	if hero_class == "reaper" and stats.powers.has("reaping") and stats.scythe_level > 0:
 		result["primary_attack_label"] = "Reaping Scythe"
 		result["primary_damage"] = stats.scythe_damage

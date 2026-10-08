@@ -478,6 +478,7 @@ func _render_preparation_panel(selected_node_id: String) -> void:
 		var definition: Dictionary = CampaignCatalog.CLAUSES.get(clause_id, {})
 		clauses.append(str(definition.get("name", clause_value.get("name", clause_id.replace("_", " ").capitalize()) if clause_value is Dictionary else clause_id.replace("_", " ").capitalize())))
 	_add_preparation_copy(panel, "Ledger obligations · %s" % (", ".join(clauses) if not clauses.is_empty() else "none"), UiStyle.MUTED)
+	_render_starting_build_summary(panel)
 	var blockers := _departure_blockers()
 	if not blockers.is_empty():
 		_add_copy_to(panel, "REQUIRED BEFORE DEPARTURE", Color(0.96, 0.67, 0.48))
@@ -914,6 +915,59 @@ func _render_market() -> void:
 			_render_reforge(_content)
 
 
+func _render_starting_build_summary(parent: Control) -> void:
+	var preview: Dictionary = CampaignLoadout.preview(_state)
+	if preview.is_empty():
+		var unavailable := UiStyle.label(11)
+		unavailable.text = "Starting build summary unavailable."
+		unavailable.modulate = UiStyle.MUTED
+		parent.add_child(unavailable)
+		return
+	var heading := UiStyle.label(12)
+	heading.text = "STARTING BUILD"
+	heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	parent.add_child(heading)
+	var metric_values := [
+		"HP %s" % _format_starting_build_number(float(preview["max_hp"])),
+		"Armor %s" % _format_starting_build_number(float(preview["armor"])),
+		"Move %s" % _format_starting_build_number(float(preview["move_speed"])),
+		"Crit %s%%" % String.num(float(preview["crit_chance"]) * 100.0, 1),
+		"Army capacity %d" % int(preview["minion_max"]),
+	]
+	var primary_text := str(preview["primary_attack_label"])
+	primary_text += " · %s dmg per hit · %s s cooldown" % [
+		_format_starting_build_number(float(preview["primary_damage"])),
+		_format_starting_build_number(float(preview["primary_cooldown"])),
+	]
+	var summary := UiStyle.label(13)
+	summary.text = "%s\nPrimary %s" % [" · ".join(metric_values), primary_text]
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary.modulate = Color(1.0, 1.0, 1.0, 0.84)
+	parent.add_child(summary)
+	var route_copy := "Baseline · no route committed. Values are before temporary upgrades or conditional combat bonuses."
+	var selected_node_id := str(preview["selected_node_id"])
+	var stat_effect_count := int(preview["stat_effect_count"])
+	if not selected_node_id.is_empty():
+		if stat_effect_count > 0:
+			var names: PackedStringArray = []
+			for effect_name: Variant in preview["stat_effect_names"]:
+				names.append(str(effect_name))
+			route_copy = "Route stat modifiers included · %s. Values are before temporary upgrades or conditional combat bonuses." % ", ".join(names)
+		else:
+			route_copy = "Committed route · no added starting stat modifiers. Values are before temporary upgrades or conditional combat bonuses."
+	var note := UiStyle.label(11)
+	note.text = route_copy
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.modulate = UiStyle.MUTED
+	parent.add_child(note)
+
+func _format_starting_build_number(value: float) -> String:
+	if is_equal_approx(value, roundf(value)):
+		return str(roundi(value))
+	return String.num(value, 1)
+
+
 func _render_trainer() -> void:
 	var talents: Dictionary = _state.get("talents", {})
 	var allocated: Array = talents.get("allocated", [])
@@ -922,6 +976,7 @@ func _render_trainer() -> void:
 	points.text = "%d talent points available   ·   %d / 18 earned" % [int(talents.get("points", 0)), int(talents.get("earned", 0))]
 	points.add_theme_color_override("font_color", UiStyle.GOLD)
 	_content.add_child(points)
+	_render_starting_build_summary(_content)
 	var tree := GridContainer.new()
 	tree.columns = 4
 	tree.add_theme_constant_override("h_separation", 7)
