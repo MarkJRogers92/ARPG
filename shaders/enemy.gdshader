@@ -18,6 +18,13 @@ uniform float bob = 0.05;
 uniform float sway = 0.08;
 // Four-legged gait: diagonal legs move together.
 uniform bool quadruped = false;
+// Authored specialist shields and staff bases stay rigid. The procedural
+// models retain their existing gait; only low vertices under the hips swing.
+uniform bool rigid_accessories = false;
+uniform float leg_width = 0.2;
+// Only imported specialists use instance color alpha as movement intensity.
+// They remain opaque; this shader never writes ALPHA.
+uniform bool travel_gait = false;
 uniform vec3 rim_color : source_color = vec3(1.0, 0.55, 0.45);
 uniform float rim_strength = 0.35;
 uniform bool spectral = false;
@@ -34,22 +41,32 @@ void vertex() {
 	float t = TIME * stride_speed + INSTANCE_CUSTOM.y * 6.2831853;
 	float h = VERTEX.y / height;
 	float swing = sin(t);
+	float motion = travel_gait ? COLOR.a : 1.0;
 
 	// Legs: swing forward / back around the hip, opposite sides out of phase.
 	float leg = clamp(1.0 - h / leg_height, 0.0, 1.0);
+	if (rigid_accessories) {
+		leg *= (abs(VERTEX.x) < height * leg_width && VERTEX.z > -height * 0.1) ? 1.0 : 0.0;
+	}
 	float side = sign(VERTEX.x);
 	if (quadruped) {
 		side *= sign(VERTEX.z);
 	}
-	VERTEX.z += swing * side * leg * stride * height;
-	VERTEX.y += max(0.0, swing * side) * leg * 0.08 * height;
+	VERTEX.z += swing * side * leg * stride * height * motion;
+	// Forward is -Z: lift the foot while it returns forward, plant it
+	// during the backward stroke. Keep the procedural cycle unchanged.
+	float lift = travel_gait ? max(0.0, -cos(t) * side) : max(0.0, swing * side);
+	VERTEX.y += lift * leg * 0.08 * height * motion;
 
 	// Body: rock side to side around the feet and bob on every step.
-	float rock = swing * sway;
+	float rock = swing * sway * motion;
 	float c = cos(rock);
 	float s = sin(rock);
 	VERTEX.xy = vec2(VERTEX.x * c - VERTEX.y * s, VERTEX.x * s + VERTEX.y * c);
-	VERTEX.y += abs(cos(t)) * bob * height;
+	VERTEX.y += abs(cos(t)) * bob * height * motion;
+	if (travel_gait) {
+		VERTEX.z -= VERTEX.y * 0.07 * motion; // slight forward travel lean
+	}
 
 	// Hit: a quick swell and a white flash.
 	v_flash = INSTANCE_CUSTOM.x;

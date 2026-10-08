@@ -1,0 +1,17 @@
+# Six specialist cosmetic variants
+
+Approved scope: keep the old procedural enemies and add the six checksum-verified GLBs as cosmetic alternatives. Preserve stats, collision, wave counts, gameplay RNG, existing art, lighting and role effects. No push, merge or release.
+
+After local delivery, Mark authorized upload to GitHub, merge and app update. The publication follows the repository's existing Build workflow; the original local-only boundary above describes the implementation phase.
+
+- [x] Add adapter regression tests, observe failure, then implement `SpecialistModels.mesh(kind, body_height)` and `kind_for(realm, model)`. Cache extracted geometry; preserve every surface, linear vertex colors and the exact UV.x emission mask. Scale from catalog body height (1.8 m shields/healers, 1.35 m bloaters), not staff-inclusive bounds. Invalid/absent variants return null and use the old model.
+- [x] Add mixed-batch regression tests, observe failure, then attach one additional body MultiMesh only to the two affected swarms in each realm. Alternate a separate cosmetic spawn counter, store each assignment through swap-removal, and partition the canonical simulation buffer into two compact render buffers. Keep existing shadows, heal rings, block glints, fuse warnings, statuses, elites and spectral effects. Actual role capacities are 60 shields, 6 healers, 40 bloaters; no per-enemy nodes.
+- [x] Inspect fixture and full-game pixels, then add only necessary imported-accessory gait/presentation parameters. Test old and new mechanics, all materials, capacity/fallback/removal/recycling, unchanged RNG and untouched roles. Verify movement, block, heal, fuse, damage/status and elite cues in the actual main scene at its existing camera; label supplied-fixture evidence separately. Evaluate new Ember models on lava without global relighting.
+- [x] Compare simulation and rendered horde cost against the procedural baseline; run the full unit suite and relevant UI/smoke/resume checks. Use a separate preview save directory and provide a launcher that copies runtime files into an ignored preview project, preserving the installed app/save.
+- [x] Obtain independent review of the actual diff, fix substantive findings, verify fresh imports, restore unrelated engine-generated import metadata. Prepare a local commit and evidence package with exact files/results and measured limitations.
+
+Approved extension: add the two signature characters supplied in Downloads (Ferryman and Debt Collector), reusing the same adapter. Preserve the original Ferryman fallback, alternating Collector appearances, encounter lighting and loan/seizure/return mechanics. Review found six chain vertices entering the shared foot mask; a Collector-only narrower mask fixes this and is covered by a regression check. The final local commit identity and evidence package are recorded in the delivery manifest.
+
+Files: six GLBs plus source catalog under `assets/enemies/specialists/`; new `scripts/visual/specialist_models.gd`; scoped changes to `scripts/enemy_swarm.gd`, `scripts/realm.gd`, and (only if required) `shaders/enemy.gdshader`; tests/QA/preview tooling in `tools/`; integration evidence in `docs/specialist-variants.md`.
+
+Review focus: mixed survivor populations after swap-removal; invalid asset fallback; every surface receiving effects without double tint/emission; low shield/staff vertices remaining rigid during gait; Ember readability and the additional batch/copy cost. All require tests or actual rendered measurements before acceptance.

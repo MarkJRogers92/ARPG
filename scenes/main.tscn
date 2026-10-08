@@ -254,6 +254,7 @@ loot_chance = 1.0
 loot_quality = 1.5
 captor = true
 model = "collector"
+specialist_model = "debt_collector"
 display_name = "Debt Collector"
 body_height = 2.2
 color = Color(0.14, 0.12, 0.16, 1)

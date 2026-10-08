@@ -1,0 +1,115 @@
+{
+  "pack": "Soulbound Signature Characters",
+  "reference_commit": "5983ee15200ad84d73601196c420876bb7999462",
+  "units": "metres",
+  "coordinates": "Blender Z up +Y front; glTF/Godot Y up -Z front",
+  "hero_reference_height_m": 2.39,
+  "preview_camera": {
+    "elevation_degrees": 55,
+    "vertical_fov_degrees": 32
+  },
+  "assets": [
+    {
+      "asset": "ferryman",
+      "title": "The Ferryman",
+      "role": "nonhostile soul broker",
+      "biome": "Hollow Graveyard",
+      "notes": "Hooded gaunt boatman on a lashed raft. Working oar, hanging soul lantern, offered coin and layered travelling coat.",
+      "triangles": 2159,
+      "materials": 2,
+      "editable_parts": 92,
+      "dimensions_godot_xyz_m": [
+        1.4000000357627869,
+        2.859999895095825,
+        1.4800000190734863
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.6800000071525574,
+          0.7200000286102295
+        ],
+        [
+          -0.8199999928474426,
+          0.6600000262260437
+        ],
+        [
+          0.0,
+          2.859999895095825
+        ]
+      ],
+      "glb": "glb/ferryman.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "emission_strength": 0.55
+    },
+    {
+      "asset": "debt_collector",
+      "title": "The Debt Collector",
+      "role": "debt enforcer",
+      "biome": "Hollow Graveyard",
+      "notes": "Tall hat, gaunt face, open ledger and chain preserve current character identity. Long layered coat.",
+      "triangles": 2494,
+      "materials": 2,
+      "editable_parts": 119,
+      "dimensions_godot_xyz_m": [
+        1.2134807705879211,
+        2.6549999713897705,
+        0.7854807674884796
+      ],
+      "bounds_blender_xyz_m": [
+        [
+          -0.6840000152587891,
+          0.5294807553291321
+        ],
+        [
+          -0.25600001215934753,
+          0.5294807553291321
+        ],
+        [
+          0.0,
+          2.6549999713897705
+        ]
+      ],
+      "glb": "glb/debt_collector.glb",
+      "status": "static unintegrated model",
+      "rigged": false,
+      "animated": false,
+      "collision": false,
+      "texture_free": true,
+      "vertex_color_attribute": "COLOR_0",
+      "glow_uv_x": 0.72,
+      "forward_godot": "-Z",
+      "up_godot": "+Y",
+      "ground_pivot": true,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "root_scale": [
+        1,
+        1,
+        1
+      ],
+      "emission_strength": 0.55
+    }
+  ]
+}
