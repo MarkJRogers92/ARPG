@@ -28,11 +28,12 @@ Game: Soulbound, a Godot 4.6 survivors-like (see `README.md`).
   (SmartScreen will warn).
 - The Reaper is slower than the Battlemage in the first minutes and stronger later
   (by design so far; buff its start if players find it sluggish).
-- **The final boss isn't being killed.** In the balance re-run no bot run (16 runs,
-  all realms) killed the final boss within 4 minutes after dawn, and the code from
-  before this work (3 Graveyard seeds) didn't either; the README's older table had
-  the Graveyard won 4 of 4. Likely from the army / pressure tuning before this
-  work. See the README's Balance section for where to look.
+- **The final boss takes longer than 4 minutes after dawn.** The game has no
+  time limit there, but the balance runs stop at 19:00, and none of the 16 killed
+  the boss by then (nor did the code from before this work, 3 Graveyard seeds); the
+  README's older table had it falling 50-70 s after dawn. Run with `-m 30` to see
+  whether and when the bot wins. Likely from the army / pressure tuning before
+  this work. See the README's Balance section.
 - Not built: gamepad rebinding, saving during the final fight, a web build, LODs.
 
 ## Setting up a fresh session

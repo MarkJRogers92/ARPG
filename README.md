@@ -990,7 +990,8 @@ Graveyard and 2 in the other realms (`tools/balance.sh -m 19 -o DIR realm=...`):
 | The Frozen Wastes | survives to 19:00 in 2 of 2; level ~65 | 1 of 2 (one died at 6.2 min) |
 | The Ember Rift | survives to 19:00 in 2 of 2; level ~75 | 0 of 2 (died at 6.5 and 17.4 min) |
 
-**No run killed the final boss** in the 4 minutes after dawn, in any realm.
+**No run killed the final boss** in the 4 minutes after dawn the runs allow,
+in any realm (the game itself has no time limit there).
 The same runs on the code from before these features (3 Graveyard seeds) didn't
 either, so the change came earlier, with the tuning that tied the army to the
 hero's power and moved pressure to 5:00 (an earlier table had the damage-first
