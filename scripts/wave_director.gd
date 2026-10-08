@@ -51,6 +51,34 @@ var _swarms: Array[EnemySwarm] = []
 var _weights: Array[float] = []
 var _accum := 0.0
 var _elite_accum := 0.0
+## Campaign missions keep the real elapsed clock above, while enemy age is a
+## separately tuned, capped input to the wave and HP curves.
+var expedition_profile := false
+var _profile_age_rate := 1.0
+var _profile_age_cap := 900.0
+
+
+func configure_expedition(profile: Dictionary) -> void:
+	expedition_profile = true
+	_profile_age_rate = maxf(float(profile.get("age_rate", 1.0)), 0.01)
+	_profile_age_cap = maxf(float(profile.get("growth_cap", 900.0)), 1.0)
+	base_rate = 0.48
+	rate_growth = 0.0045
+	rate_acceleration = 0.000004
+	hp_growth_seconds = 600.0
+	hp_squared_seconds = 330.0
+	hp_scale = float(profile.get("hp_scale", 1.0))
+	rate_scale = float(profile.get("spawn_rate", 1.0))
+	pressure = 1.0
+	pressure_start = INF
+	elite_start_time = 45.0
+	elites_per_minute = 1.0
+	elites_per_minute_growth = 0.12
+	elites_per_minute_max = 2.0
+
+
+func profile_age() -> float:
+	return minf(elapsed * _profile_age_rate, _profile_age_cap) if expedition_profile else elapsed
 
 
 func setup(swarms: Array[EnemySwarm]) -> void:
@@ -60,6 +88,7 @@ func setup(swarms: Array[EnemySwarm]) -> void:
 
 func tick(delta: float, center: Vector2) -> void:
 	elapsed += delta
+	var age := profile_age()
 	_elite_accum = minf(_elite_accum + elite_rate() / 60.0 * delta, 3.0)
 	_accum = minf(_accum + spawn_rate() * delta, max_spawn_per_frame + 1.0)
 	var n := mini(int(_accum), max_spawn_per_frame)
@@ -69,7 +98,7 @@ func tick(delta: float, center: Vector2) -> void:
 
 	var total := 0.0
 	for i in _swarms.size():
-		_weights[i] = _swarms[i].spawn_weight(elapsed)
+		_weights[i] = _swarms[i].spawn_weight(age)
 		total += _weights[i]
 	if total <= 0.0:
 		return
@@ -88,7 +117,7 @@ func tick(delta: float, center: Vector2) -> void:
 func populate(center: Vector2, n: int) -> void:
 	var total := 0.0
 	for i in _swarms.size():
-		_weights[i] = _swarms[i].spawn_weight(elapsed)
+		_weights[i] = _swarms[i].spawn_weight(profile_age())
 		total += _weights[i]
 	if total <= 0.0:
 		return
@@ -100,32 +129,38 @@ func populate(center: Vector2, n: int) -> void:
 
 ## Enemies per second right now.
 func spawn_rate() -> float:
-	return (base_rate + rate_growth * elapsed + rate_acceleration * elapsed * elapsed) * rate_scale * minf(sqrt(pressure), 1.6)
+	var age := profile_age()
+	return (base_rate + rate_growth * age + rate_acceleration * age * age) * rate_scale * minf(sqrt(pressure), 1.6)
 
 
 ## Elites per minute right now.
 func elite_rate() -> float:
-	if elapsed < elite_start_time:
+	var age := profile_age()
+	if age < elite_start_time:
 		return 0.0
-	return minf(elites_per_minute + elites_per_minute_growth * (elapsed - elite_start_time) / 60.0, elites_per_minute_max)
+	return minf(elites_per_minute + elites_per_minute_growth * (age - elite_start_time) / 60.0, elites_per_minute_max)
 
 
 func hp_multiplier() -> float:
-	var mult := 1.0 + elapsed / hp_growth_seconds
+	var age := profile_age()
+	var mult := 1.0 + age / hp_growth_seconds
 	if hp_squared_seconds > 0.0:
-		mult += pow(elapsed / hp_squared_seconds, 2.0)
+		mult += pow(age / hp_squared_seconds, 2.0)
 	return mult * hp_scale * pressure
 
 
 ## How many enemies should be alive around the hero at this point of the
 ## night, for pressure to stay put.
 func crowd_target() -> float:
-	return 40.0 + elapsed * 0.45
+	return 40.0 + profile_age() * 0.45
 
 
 ## Called every frame by main.gd with the hero's health (0..1) and how many
 ## enemies are alive.
 func update_pressure(delta: float, hero_hp: float, alive: int) -> void:
+	if expedition_profile:
+		pressure = 1.0
+		return
 	if elapsed < pressure_start:
 		return
 	if hero_hp < 0.45:

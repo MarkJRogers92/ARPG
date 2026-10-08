@@ -22,6 +22,12 @@ var can_save := true:
 var _root: Control
 var _resume: Button
 var _save_button: Button
+var _quit_button: Button
+var _campaign_notice: Label
+var campaign_mode := false:
+	set(value):
+		campaign_mode = value
+		_campaign_labels()
 var _main_box: VBoxContainer
 var _controls_box: VBoxContainer
 ## The action waiting for a key press in the Controls panel ("" for none).
@@ -142,7 +148,13 @@ func _build() -> void:
 		Sound.play("ui_click")
 		save_and_quit.emit())
 	box.add_child(_save_button)
+	_campaign_notice = UiStyle.label(14)
+	_campaign_notice.text = "This expedition will restart from its saved departure."
+	_campaign_notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_campaign_notice.custom_minimum_size.x = 440
+	box.add_child(_campaign_notice)
 	var quit := Button.new()
+	_quit_button = quit
 	quit.text = "Abandon run   ·   back to the title"
 	quit.custom_minimum_size.y = 46
 	quit.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5))
@@ -150,6 +162,15 @@ func _build() -> void:
 		Sound.play("ui_click")
 		quit_to_title.emit())
 	box.add_child(quit)
+	_campaign_labels()
+
+
+func _campaign_labels() -> void:
+	if _save_button:
+		_save_button.text = "Save and quit   ·   restart from departure" if campaign_mode else "Save and quit   ·   resume from the title"
+	if _quit_button:
+		_quit_button.text = "Retreat   ·   return to town, lose unbanked loot" if campaign_mode else "Abandon run   ·   back to the title"
+	if _campaign_notice: _campaign_notice.visible = campaign_mode
 
 
 func _slider(text: String, key: String) -> Control:

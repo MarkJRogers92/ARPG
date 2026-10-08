@@ -117,6 +117,9 @@ var _deeds := PackedInt32Array()
 var _rank := PackedByteArray()
 var _vname: Array[String] = []
 var _crypt := PackedInt32Array()
+var _campaign_id: Array[String] = []
+## Campaign-only ceiling for veteran promotion. -1 preserves Classic.
+var campaign_rank_cap := -1
 var _tag: Array = []
 
 var stance := "hunt"
@@ -147,6 +150,7 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_rank.resize(CAPACITY)
 	_vname.resize(CAPACITY)
 	_crypt.resize(CAPACITY)
+	_campaign_id.resize(CAPACITY)
 	_tag.resize(CAPACITY)
 	for s in swarms:
 		var t := {
@@ -281,6 +285,7 @@ func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	_rank[k] = 0
 	_vname[k] = ""
 	_crypt[k] = -1
+	_campaign_id[k] = ""
 	_tag[k] = null
 	Juice.ring(_pos[k], Color(0.45, 0.8, 1.0), 24, 5.0, 0.45, 0.5)
 	Juice.burst(_pos[k], 0.3, Color(0.6, 0.9, 1.0), 18, 1.5, 0.45, 0.9, 6.0)
@@ -407,7 +412,8 @@ func _expendable() -> int:
 ## Credits minion `k` with `kills`, promoting it when it earns a rank.
 func credit(k: int, kills: int) -> void:
 	_deeds[k] += kills
-	while _rank[k] < RANKS.size() - 1 and _deeds[k] >= RANKS[_rank[k] + 1]["kills"]:
+	var rank_ceiling := RANKS.size() - 1 if campaign_rank_cap < 0 else mini(campaign_rank_cap, RANKS.size() - 1)
+	while _rank[k] < rank_ceiling and _deeds[k] >= RANKS[_rank[k] + 1]["kills"]:
 		_promote(k)
 
 
@@ -455,15 +461,20 @@ func _update_tag(k: int) -> void:
 ## Everything that makes minion `k` a veteran, to keep or bring back.
 func _veteran_record(k: int) -> Dictionary:
 	var t: Dictionary = _types[_type[k]]
-	return {"crypt": _crypt[k], "name": _vname[k], "swarm": String(t["swarm"].name), "label": t["name"], "role": t["role"],
+	var record := {"crypt": _crypt[k], "name": _vname[k], "swarm": String(t["swarm"].name), "label": t["name"], "role": t["role"],
 			"elite": _elite[k], "deeds": _deeds[k], "rank": _rank[k], "slot": k}
+	if _campaign_id[k] != "":
+		record["campaign_id"] = _campaign_id[k]
+	return record
 
 
 func _make_veteran(k: int, rec: Dictionary) -> void:
 	_vname[k] = rec["name"]
 	_deeds[k] = rec["deeds"]
 	_crypt[k] = rec.get("crypt", -1)
-	var rank := clampi(rec["rank"], 0, RANKS.size() - 1)
+	_campaign_id[k] = String(rec.get("campaign_id", ""))
+	var rank_ceiling := RANKS.size() - 1 if campaign_rank_cap < 0 else mini(campaign_rank_cap, RANKS.size() - 1)
+	var rank := clampi(rec["rank"], 0, rank_ceiling)
 	_rank[k] = rank
 	_max_hp[k] *= RANKS[rank]["power"]
 	_hp[k] = _max_hp[k]
@@ -716,6 +727,7 @@ func _remove(k: int, died: bool, refill := true) -> void:
 		_rank[k] = _rank[last]
 		_vname[k] = _vname[last]
 		_crypt[k] = _crypt[last]
+		_campaign_id[k] = _campaign_id[last]
 		_tag[k] = _tag[last]
 		_tag[last] = null
 	count = last

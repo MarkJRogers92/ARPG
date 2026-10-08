@@ -18,6 +18,12 @@ const NODE_SIZES := {
 	SkillData.Tier.KEYSTONE: 68.0,
 }
 
+## Campaign combat permits build inspection; durable changes belong to town.
+var read_only := false:
+	set(value):
+		read_only = value
+		if _tree and _root: _refresh()
+
 var _tree: SkillTree
 
 var _root: Control
@@ -26,6 +32,7 @@ var _buttons := {}
 var _points_label: Label
 var _details: RichTextLabel
 var _reset_button: Button
+var _hint: Label
 var _shown := SkillData.ROOT
 var _message := ""
 
@@ -76,6 +83,10 @@ func _input(event: InputEvent) -> void:
 
 func _on_node_pressed(id: String) -> void:
 	_shown = id
+	if read_only:
+		_message = ""
+		_show_details()
+		return
 	if _tree.is_allocated(id):
 		_message = ""
 	elif not _tree.is_reachable(id):
@@ -101,6 +112,11 @@ func _on_node_input(event: InputEvent, id: String) -> void:
 	if not refund:
 		return
 	_shown = id
+	if read_only:
+		_message = ""
+		_show_details()
+		get_viewport().set_input_as_handled()
+		return
 	if _tree.is_allocated(id) and id != SkillData.ROOT and not _tree.can_refund(id):
 		_message = "[color=#e08a7e]Other nodes depend on this one. Refund those first.[/color]"
 		_show_details()
@@ -111,6 +127,7 @@ func _on_node_input(event: InputEvent, id: String) -> void:
 
 
 func _on_reset_pressed() -> void:
+	if read_only: return
 	_message = ""
 	_tree.reset()
 
@@ -120,9 +137,11 @@ func _on_reset_pressed() -> void:
 func _refresh() -> void:
 	for id: String in _buttons:
 		_style_button(_buttons[id], id)
-	_points_label.text = "Skill points: %d" % _tree.points
+	_points_label.text = ("Unspent in town: %d" if read_only else "Skill points: %d") % _tree.points
+	_hint.text = "Manage campaign talents at the town Trainer · K / Esc: close" if read_only else "Click: allocate     Right-click / Backspace: refund     K / Esc: close"
 	_points_label.modulate = Color(1.0, 0.85, 0.3) if _tree.points > 0 else Color(0.75, 0.78, 0.85)
-	_reset_button.disabled = _tree.spent() == 0
+	_reset_button.disabled = read_only or _tree.spent() == 0
+	_reset_button.text = "Manage talents at the town Trainer" if read_only else "Reset all (refund every point)"
 	_canvas.queue_redraw()
 	_show_details()
 
@@ -144,7 +163,10 @@ func _show_details() -> void:
 		text += "[color=#b8bcc8]%s[/color]\n" % def["note"]
 
 	text += "\n"
-	if _shown == SkillData.ROOT:
+	if read_only:
+		text += ("[color=#7ee08a]Owned[/color]\n" if _tree.is_allocated(_shown) else "[color=#8a8f9c]Not allocated[/color]\n")
+		text += "\n[color=#e0c07e]Manage campaign talents at the town Trainer.[/color]\n"
+	elif _shown == SkillData.ROOT:
 		pass
 	elif _tree.is_allocated(_shown):
 		text += "[color=#7ee08a]Owned[/color]  [color=#8a8f9c]- right-click to refund[/color]\n"
@@ -271,6 +293,7 @@ func _build() -> void:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
 	var hint := UiStyle.label(15)
+	_hint = hint
 	hint.text = "Click: allocate     Right-click / Backspace: refund     K / Esc: close"
 	hint.modulate = Color(1, 1, 1, 0.55)
 	header.add_child(hint)

@@ -76,10 +76,10 @@ func _build() -> void:
 	var column := VBoxContainer.new()
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 6)
 	_root.add_child(column)
 
-	var title := UiStyle.label(76)
+	var title := UiStyle.label(64)
 	title.text = GAME_TITLE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -108,7 +108,7 @@ func _build() -> void:
 		column.add_child(resume)
 		_first = resume
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 14
+	gap.custom_minimum_size.y = 8
 	column.add_child(gap)
 
 	# Heroes: pick one, or buy one with Soul Shards.
@@ -147,6 +147,30 @@ func _build() -> void:
 	gap3.custom_minimum_size.y = 2
 	column.add_child(gap3)
 
+	var campaigns := HBoxContainer.new()
+	campaigns.alignment = BoxContainer.ALIGNMENT_CENTER
+	campaigns.add_theme_constant_override("separation", 12)
+	column.add_child(campaigns)
+	var campaign_new := Button.new()
+	campaign_new.text = "New Expedition Campaign"
+	campaign_new.custom_minimum_size = Vector2(350, 44)
+	campaign_new.add_theme_color_override("font_color", UiStyle.GOLD)
+	campaign_new.tooltip_text = "A persistent adventurer across three realms. Short expeditions, town services, and biome bosses."
+	campaign_new.pressed.connect(_new_campaign)
+	campaigns.add_child(campaign_new)
+	var campaign_continue := Button.new()
+	campaign_continue.text = "Continue Campaign"
+	campaign_continue.custom_minimum_size = Vector2(260, 44)
+	campaign_continue.disabled = not CampaignSave.exists()
+	campaign_continue.tooltip_text = "Town and results are saved. An active expedition restarts from its departure checkpoint."
+	campaign_continue.pressed.connect(func() -> void: _open_campaign(false))
+	campaigns.add_child(campaign_continue)
+	if _first == null: _first = campaign_new
+	var classic_label := UiStyle.label(14)
+	classic_label.text = "CLASSIC NIGHT  ·  choose a realm"
+	classic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	classic_label.modulate.a = 0.65
+	column.add_child(classic_label)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 22)
@@ -158,7 +182,7 @@ func _build() -> void:
 			_first = card
 
 	var gap2 := Control.new()
-	gap2.custom_minimum_size.y = 8
+	gap2.custom_minimum_size.y = 4
 	column.add_child(gap2)
 	var bottom := HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -657,7 +681,7 @@ func _class_button(id: String) -> Button:
 	var picked := MetaProgress.hero_class == id
 	var accent: Color = d["accent"]
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(200, 54)
+	b.custom_minimum_size = Vector2(200, 48)
 	if picked:
 		b.text = "✓ " + d["name"]
 	elif unlocked:
@@ -686,7 +710,7 @@ func _realm_card(id: String) -> Button:
 	var unlocked := MetaProgress.is_unlocked(id)
 	var won := MetaProgress.is_won(id)
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(330, 330)
+	card.custom_minimum_size = Vector2(330, 280)
 	card.disabled = not unlocked
 	card.pivot_offset = card.custom_minimum_size * 0.5
 	var normal := UiStyle.box(Color(0.06, 0.06, 0.08, 0.92), accent.darkened(0.5), 2, 12)
@@ -719,7 +743,7 @@ func _realm_card(id: String) -> Button:
 	col.offset_top = 18
 	col.offset_right = -20
 	col.offset_bottom = -18
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", 6)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(col)
 
@@ -816,3 +840,26 @@ func _fill_crypt() -> void:
 		fallen.modulate = Color(0.75, 0.75, 0.85)
 		fallen.text = "\n".join(lines)
 		_crypt_box.add_child(fallen)
+
+
+func _new_campaign() -> void:
+	if not CampaignSave.exists():
+		_open_campaign(true)
+		return
+	var confirm := ConfirmationDialog.new()
+	confirm.title = "Replace expedition campaign?"
+	confirm.dialog_text = "Start a fresh campaign with the selected hero? Current campaign equipment, Gold, talents and route progress will be replaced. Earned account rewards are retained."
+	confirm.ok_button_text = "Start new campaign"
+	confirm.confirmed.connect(func() -> void:
+		confirm.queue_free()
+		_open_campaign(true))
+	confirm.canceled.connect(confirm.queue_free)
+	add_child(confirm)
+	confirm.popup_centered(Vector2i(580, 190))
+
+
+func _open_campaign(new_campaign: bool) -> void:
+	Sound.play("ui_click")
+	CampaignShell.new_requested = new_campaign
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/campaign.tscn")

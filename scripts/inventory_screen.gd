@@ -24,6 +24,7 @@ var _icons: ItemIcons
 
 var _selected: Item
 var _selected_worn := false
+var _campaign_combat := false
 
 
 func _ready() -> void:
@@ -35,9 +36,10 @@ func _ready() -> void:
 	_root.hide()
 
 
-func setup(player: Player) -> void:
+func setup(player: Player, campaign_combat := false) -> void:
 	_inventory = player.inventory
 	_stats = player.stats
+	_campaign_combat = campaign_combat
 	_inventory.changed.connect(func() -> void:
 		if is_open():
 			_refresh())
@@ -76,7 +78,7 @@ func _on_equip_pressed() -> void:
 
 
 func _on_discard_pressed() -> void:
-	if _selected != null and not _selected_worn:
+	if not _campaign_combat and _selected != null and not _selected_worn:
 		var item := _selected
 		_selected = null
 		_inventory.discard(item)
@@ -138,7 +140,8 @@ func _refresh() -> void:
 func _show_details() -> void:
 	_equip_button.disabled = _selected == null
 	_equip_button.text = "Unequip" if _selected_worn else "Equip"
-	_discard_button.disabled = _selected == null or _selected_worn
+	_discard_button.disabled = _campaign_combat or _selected == null or _selected_worn
+	_discard_button.tooltip_text = "Banked campaign gear can only be discarded in town." if _campaign_combat else ""
 	_icons.show_item(_selected)
 	if _selected == null:
 		_details.text = "[color=#8a8f9c]Select an item.[/color]"

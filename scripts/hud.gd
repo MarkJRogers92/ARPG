@@ -72,6 +72,8 @@ var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
+var _expedition_label: Label
+var _campaign_guidance_label: Label
 
 
 func _ready() -> void:
@@ -160,10 +162,12 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 
 
 ## A boss arrives: its name across the screen for a moment.
-func title_card(boss_name: String, subtitle: String, color: Color) -> void:
+func title_card(boss_name: String, subtitle: String, color: Color, campaign_arrival := false) -> void:
 	_title_main.text = boss_name.to_upper()
 	_title_main.add_theme_color_override("font_color", color)
 	_title_sub.text = subtitle
+	_title_card.offset_top = -140 if campaign_arrival else -300
+	_title_card.offset_bottom = -30 if campaign_arrival else -190
 	var t := _title_card.create_tween()
 	_title_card.scale = Vector2(1.15, 1.15)
 	_title_card.pivot_offset = _title_card.size * 0.5
@@ -230,6 +234,22 @@ func set_night(progress: float, glow: float, on := true) -> void:
 ## The Ferryman's side bet countdown ("" hides it).
 func set_bet(text: String) -> void:
 	_bet_label.text = text
+
+
+## Campaign objective and contract/finale clock.
+func set_expedition(objective: String, clock: String) -> void:
+	_clock_text = clock
+	_clock_color = UiStyle.GOLD
+	_time_label.text = clock
+	_expedition_label.text = objective
+	_expedition_label.visible = objective != ""
+	_night.visible = false
+
+
+## Optional campaign field guidance and the active guardian's mechanic.
+func set_campaign_guidance(text: String) -> void:
+	_campaign_guidance_label.text = text
+	_campaign_guidance_label.visible = text != ""
 
 
 ## The interact prompt at the bottom ("" hides it).
@@ -465,6 +485,27 @@ func _build() -> void:
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
 	root.add_child(_time_label)
+	_expedition_label = UiStyle.label(15)
+	_expedition_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_expedition_label.offset_top = 58
+	_expedition_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_expedition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_expedition_label.add_theme_color_override("font_color", Color(0.58, 0.88, 1.0))
+	_expedition_label.visible = false
+	root.add_child(_expedition_label)
+	_campaign_guidance_label = UiStyle.label(14)
+	_campaign_guidance_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_campaign_guidance_label.offset_top = 184
+	_campaign_guidance_label.offset_left = -560
+	_campaign_guidance_label.offset_right = 560
+	_campaign_guidance_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_campaign_guidance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_campaign_guidance_label.add_theme_color_override("font_color", Color(0.86, 0.84, 0.77))
+	_campaign_guidance_label.add_theme_constant_override("outline_size", 4)
+	_campaign_guidance_label.add_theme_color_override("font_outline_color", Color(0.08, 0.07, 0.06, 0.92))
+	_campaign_guidance_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_campaign_guidance_label.hide()
+	root.add_child(_campaign_guidance_label)
 	# Under it, the night's arc: the moon crossing toward dawn.
 	_night = _NightArc.new()
 	_night.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)

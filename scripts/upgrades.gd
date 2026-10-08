@@ -240,10 +240,10 @@ static func level_of(id: String, stats: PlayerStats) -> int:
 ## [{id, name, level, max, title, desc}], where level is the one you'd reach.
 ## Falls back to a heal if the pool runs dry. A weapon ready to evolve (see
 ## Evolutions) always takes the first place.
-static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
+static func roll(stats: PlayerStats, n := 3, unlocked_snapshot: Variant = null) -> Array[Dictionary]:
 	var pool: Array[String] = []
 	for id: String in DEFS:
-		if level_of(id, stats) < DEFS[id]["max"] and offered(id, stats):
+		if level_of(id, stats) < DEFS[id]["max"] and offered(id, stats, unlocked_snapshot):
 			pool.append(id)
 	pool.shuffle()
 
@@ -273,13 +273,17 @@ static func roll(stats: PlayerStats, n := 3) -> Array[Dictionary]:
 
 
 ## Whether this hero can be offered card `id` at all (see `bolt` and `only`).
-static func offered(id: String, stats: PlayerStats) -> bool:
+static func offered(id: String, stats: PlayerStats, unlocked_snapshot: Variant = null) -> bool:
 	var def: Dictionary = DEFS[id]
 	var reaper := stats.powers.has("reaping")
 	if reaper and def.get("bolt", false):
 		return false
-	if def.has("unlock") and not MetaProgress.card_unlocked(id):
-		return false
+	if def.has("unlock"):
+		var unlocked := MetaProgress.card_unlocked(id)
+		if unlocked_snapshot is Dictionary:
+			unlocked = bool(unlocked_snapshot.get(id, false))
+		if not unlocked:
+			return false
 	return not def.has("only") or stats.powers.has(def["only"])
 
 

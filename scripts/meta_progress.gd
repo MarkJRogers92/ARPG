@@ -90,6 +90,13 @@ const SAVE_VERSION := 3
 
 const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true,
 	"calm": false, "bold_telegraphs": false, "aim_assist": 0.0, "keys": {}}
+## Campaign account rewards and their exact-once receipts are one profile write.
+static var campaign_receipts := {}
+static var campaign_completions: Array = []
+## Preserve fields written by newer compatible builds during legacy saves.
+static var _extra_save_fields := {}
+## Test-only write failure injection, never enabled by gameplay.
+static var campaign_fail_save := false
 static var _loaded := false
 
 
@@ -117,13 +124,19 @@ static func load_save() -> void:
 	weapons = {}
 	start_weapon = ""
 	cards = {}
+	campaign_receipts = {}
+	campaign_completions = []
+	_extra_save_fields = {}
 	if disabled:
 		return
-	var data = _read(save_path)
-	if not (data is Dictionary):
-		# A broken or missing save: fall back to the last good one.
-		data = _read(save_path + ".bak")
+	var data: Variant = null
+	for suffix in ["", ".rollback", ".previous", ".bak"]:
+		data = _read(save_path + suffix)
+		if data is Dictionary: break
 	if data is Dictionary:
+		_extra_save_fields = data.duplicate(true)
+		if data.get("campaign_receipts", {}) is Dictionary: campaign_receipts = data.get("campaign_receipts", {}).duplicate(true)
+		if data.get("campaign_completions", []) is Array: campaign_completions = data.get("campaign_completions", []).duplicate(true)
 		shards = int(data.get("shards", 0))
 		var saved = data.get("ranks", {})
 		if saved is Dictionary:
@@ -193,33 +206,65 @@ static func _known(saved: Variant, known: Variant) -> Dictionary:
 static func _read(path: String) -> Variant:
 	if not FileAccess.file_exists(path):
 		return null
-	var file := FileAccess.open(path, FileAccess.READ)
-	return file.get_var() if file else null
+	var data = CampaignSave.read_variant(path)
+	return data if _valid_snapshot(data) else null
+
+
+## The shared writer uses the same compatibility check as profile loading,
+## so a malformed primary dictionary cannot replace a valid recovery backup.
+static func _valid_snapshot(data: Variant) -> bool:
+	if not data is Dictionary: return false
+	if not data.get("shards", 0) is int or data.get("shards", 0) < 0 or not data.get("ranks", {}) is Dictionary or not data.get("bestiary", {}) is Dictionary or not data.get("campaign_receipts", {}) is Dictionary: return false
+	for id in data.get("campaign_receipts", {}):
+		if not id is String or data["campaign_receipts"][id] != true: return false
+	return true
 
 
 ## Writes the save safely: to a temporary file first, then swapped in, with
 ## the previous save kept as a backup, so a crash mid-write loses nothing.
-static func save() -> void:
-	if disabled:
-		return
-	var tmp := save_path + ".tmp"
-	var file := FileAccess.open(tmp, FileAccess.WRITE)
-	if file == null:
-		return
-	file.store_var({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
+static func _snapshot() -> Dictionary:
+	var data := _extra_save_fields.duplicate(true)
+	data.merge({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
 			"settings": settings, "classes": classes, "hero_class": hero_class,
 			"bestiary": bestiary, "pacts": pacts, "daily": daily, "daily_runs": daily_runs,
 			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
 			"ascension": ascension, "ascension_unlocked": ascension_unlocked,
 			"nemesis": nemesis, "nemeses_slain": nemeses_slain,
-			"relics": relics, "relic": relic, "weapons": weapons, "start_weapon": start_weapon, "cards": cards})
-	file.close()
-	var dir := DirAccess.open(save_path.get_base_dir())
-	if dir == null:
-		return
-	if FileAccess.file_exists(save_path):
-		dir.rename(save_path.get_file(), save_path.get_file() + ".bak")
-	dir.rename(tmp.get_file(), save_path.get_file())
+			"relics": relics, "relic": relic, "weapons": weapons, "start_weapon": start_weapon, "cards": cards,
+			"campaign_receipts": campaign_receipts, "campaign_completions": campaign_completions}, true)
+	return data.duplicate(true)
+
+
+static func save() -> void:
+	if disabled: return
+	CampaignSave.atomic_write(save_path, _snapshot(), "", _valid_snapshot)
+
+
+## Apply shards, successful-attempt Bestiary kills and a completion record in
+## one durable write. A replayed campaign backup/outbox cannot pay twice.
+static func apply_campaign_receipt(receipt: Dictionary) -> bool:
+	_ensure_loaded()
+	var id = receipt.get("id", "")
+	if not id is String or id == "" or not receipt.get("shards") is int or receipt["shards"] < 0 or not receipt.get("kills") is Dictionary: return false
+	if campaign_receipts.has(id): return true
+	for count in receipt["kills"].values():
+		if not count is int or count < 0: return false
+	if campaign_fail_save: return false
+	var next := _snapshot()
+	next["shards"] += receipt["shards"]
+	for kind in receipt["kills"]:
+		if not kind is String: return false
+		next["bestiary"][kind] = int(next["bestiary"].get(kind, 0)) + receipt["kills"][kind]
+	next["campaign_receipts"][id] = true
+	if receipt.get("completed", false):
+		next["campaign_completions"].append({"campaign_id": receipt.get("campaign_id", ""), "hero_class": receipt.get("hero_class", ""), "receipt_id": id})
+	if not disabled and not CampaignSave.atomic_write(save_path, next, "", _valid_snapshot): return false
+	shards = next["shards"]
+	bestiary = next["bestiary"]
+	campaign_receipts = next["campaign_receipts"]
+	campaign_completions = next["campaign_completions"]
+	_extra_save_fields = next
+	return true
 
 
 ## Counts a night's kills in the Bestiary: {name: kills}. Returns the names
