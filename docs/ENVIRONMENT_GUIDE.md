@@ -1,7 +1,9 @@
-# Building environments in Soulbound
+# Building environments in Soulbound — suggestions
 
-A recipe for any agent (Astra, Luna, Sol, Claude) adding a walkable or
-decorative 3D space. Worked example: `scripts/campaign/campaign_walk_town.gd`.
+Optional pointers, not rules. These are notes from building the walkable town
+that may save time for anyone (Astra, Luna, Sol, Claude) adding a 3D space.
+Use what helps; your own approach and judgment come first. Worked example:
+`scripts/campaign/campaign_walk_town.gd`.
 
 ## 1. Everything is code; no asset pipeline needed
 
@@ -30,7 +32,7 @@ for a small framed vignette (like `CampaignBackdrop`) can be reused by
 parenting it under a scaled `Node3D` (the walk town scales the Lantern ×1.6
 and apse ×1.9).
 
-## 3. Composition checklist
+## 3. Composition ideas
 
 1. Ground layers: earth plane → stone/cobbles → inlays. Build cobbles from
    many small boxes with slight random size, rotation and shade (plus ~12% moss).
@@ -41,7 +43,7 @@ and apse ×1.9).
 5. Life: drifting motes, mist sheets, idle bob on NPCs, wisps.
 6. Collision: circle blockers `[center, radius]` plus a radius clamp.
 
-## 4. Light on a budget (important)
+## 4. Light on a budget
 
 The project renders with **gl_compatibility**:
 - each mesh receives at most **8** lights, and the scene renders at most
@@ -60,7 +62,7 @@ The project renders with **gl_compatibility**:
 - The CI test suite runs headless and never loads campaign UI, so CI passing
   does **not** prove a town script compiles.
 
-## 6. Verify before shipping (works without a display)
+## 6. One way to verify without a display
 
 ```
 godot --headless --path . --import
