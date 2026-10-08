@@ -54,6 +54,7 @@ func _finish() -> void:
 	_run(&"_test_minion_roles", _test_minion_roles())
 	_run(&"_test_specialists", _test_specialists())
 	_run(&"_test_specialist_enemies", _test_specialist_enemies())
+	_run(&"_test_new_powers", _test_new_powers())
 	_run(&"_test_ferryman", _test_ferryman())
 	_run(&"_test_new_tools", _test_new_tools())
 	_run(&"_test_final_mechanics", _test_final_mechanics())
@@ -2082,6 +2083,143 @@ func _test_specialist_enemies() -> bool:
 	Elements.player = null
 	Elements.source = "Other"
 	for n: Node in [spec, grunts, shields, menders, bloaters, director, player]:
+		n.free()
+	return true
+
+
+
+func _test_new_powers() -> bool:
+	print("grave spikes, wisps, brimstone, power-ups")
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	var foes := EnemySwarm.new()
+	foes.capacity = 32
+	foes.max_hp = 10000.0
+	foes.move_speed = 0.0
+	root.add_child(foes)
+	var swarms: Array[EnemySwarm] = [foes]
+	Elements.swarms = swarms
+	Elements.player = player
+	var bolts := ProjectileSwarm.new()
+	root.add_child(bolts)
+	player.setup(swarms, bolts)
+	# Only the new weapons fire: no Magic Bolt (the Reaper's flag turns it off).
+	player.stats.innate_powers["reaping"] = 1
+	player.inventory.refresh_powers()
+	for k in 6:
+		foes.spawn(Vector2(3.0 + k * 1.2, 0.0))
+	foes.step(0.0, Vector2(0, -30))
+	var hurt := func() -> int:
+		var n := 0
+		for k in foes.count:
+			if foes.hp[k] < 10000.0:
+				n += 1
+		return n
+	var run := func(frames: int) -> void:
+		for f in frames:
+			player.update_weapons(1.0 / 60.0)
+			Elements.flush()
+			foes.step(0.0, Vector2(0, -30))
+	var reset := func() -> void:
+		for k in foes.count:
+			foes.hp[k] = 10000.0
+			foes.chill[k] = 0.0
+			foes.burn[k] = 0.0
+
+	# Each new weapon is a card, an evolution, a starting weapon, and it hurts.
+	for id: String in ["spikes", "wisps", "trail"]:
+		_check(Upgrades.DEFS.has(id) and not Evolutions.for_weapon(id).is_empty(), "%s is a card with an evolution" % id)
+		_check(id in Relics.WEAPONS, "and a starting weapon")
+	Upgrades.apply("spikes", player.stats)
+	run.call(150)
+	_check(player.stats.spikes_level == 1 and hurt.call() >= 2, "Grave Spikes spear several enemies (%d)" % hurt.call())
+	player.stats.remove_source(Upgrades.SOURCE)
+	player.stats.upgrade_levels.clear()
+	player.stats.recalculate()
+	run.call(60)
+	reset.call()
+	Upgrades.apply("wisps", player.stats)
+	run.call(180)
+	var chilled := 0
+	for k in foes.count:
+		if foes.chill[k] > 0.0:
+			chilled += 1
+	_check(hurt.call() >= 1 and chilled >= 1, "wisps hunt enemies down and chill them (%d hurt, %d chilled)" % [hurt.call(), chilled])
+	player.stats.remove_source(Upgrades.SOURCE)
+	player.stats.upgrade_levels.clear()
+	player.stats.recalculate()
+	run.call(240)
+	reset.call()
+	Upgrades.apply("trail", player.stats)
+	# Walk through the line of enemies: the trail is laid behind.
+	for f in 120:
+		player.global_position = Vector3(2.0 + f * 0.07, player.global_position.y, 0.0)
+		player.update_weapons(1.0 / 60.0)
+		Elements.flush()
+		foes.step(0.0, Vector2(0, -30))
+	var burning := 0
+	for k in foes.count:
+		if foes.burn[k] > 0.0:
+			burning += 1
+	_check(burning >= 3, "the Brimstone Trail sets what it passes alight (%d)" % burning)
+	_check(player.stats.hero_power >= 1.0, "the army's power link counts the new weapons")
+	player.stats.remove_source(Upgrades.SOURCE)
+	player.stats.upgrade_levels.clear()
+	player.stats.recalculate()
+	player.global_position = Vector3.ZERO
+
+	# Power-ups.
+	var gems := GemSwarm.new()
+	root.add_child(gems)
+	var powers := PowerUps.new()
+	root.add_child(powers)
+	powers.setup(player, null, [gems] as Array[GemSwarm])
+	var told: Array[String] = []
+	powers.announced.connect(func(t: String, _c: Color) -> void: told.append(t))
+	var dmg := player.stats.bolt_damage
+	powers.drop("bloodlust", player.pos2)
+	powers.tick(0.1)
+	_check(powers.on_ground() == 0 and player.stats.bolt_damage > dmg * 1.4, "Bloodlust: walk over it, hit harder (%.1f -> %.1f)" % [dmg, player.stats.bolt_damage])
+	_check(powers.status()[0].begins_with("◆ Bloodlust"), "and the HUD counts it down")
+	powers.tick(11.0)
+	_near(player.stats.bolt_damage, dmg, "then it wears off", 0.01)
+	var hp := player.stats.hp
+	powers.drop("aegis", player.pos2)
+	powers.tick(0.1)
+	player.take_damage(50.0, "Ghoul")
+	_near(player.stats.hp, hp, "Aegis: no damage at all")
+	player.tick(5.5) # the shield counts down with the hero
+	powers.tick(0.1)
+	var before := player.stats.hp
+	player.take_damage(10.0, "Ghoul")
+	_check(player.stats.hp < before, "until it runs out")
+	gems.drop(Vector2(25, 0), 1)
+	powers.drop("vortex", player.pos2)
+	powers.tick(0.1)
+	for f in 120:
+		gems.step(1.0 / 60.0, player.pos2, 1.0)
+	_check(gems.count == 0, "Vortex: a gem across the field flies in")
+	reset.call()
+	powers.drop("frost_bomb", player.pos2)
+	powers.tick(0.1)
+	var frozen := 0
+	for k in foes.count:
+		if foes.chill[k] > 0.0 and foes.hp[k] < 10000.0:
+			frozen += 1
+	_check(frozen == foes.count, "Frost Bomb: everything near is hurt and chilled (%d of %d)" % [frozen, foes.count])
+	_check(told.size() == 4, "each power-up announces itself")
+	var dropped := 0
+	for k in 200:
+		powers.on_kill(Vector2(50, 50), true)
+		dropped = powers.on_ground()
+	_check(dropped <= PowerUps.MAX_ON_GROUND, "never more than %d on the ground" % PowerUps.MAX_ON_GROUND)
+	var stats_mods := RunSave.lasting_mods(player.stats)
+	_check(stats_mods.all(func(m: Dictionary) -> bool: return m["source"] != PowerUps.SOURCE), "Bloodlust isn't saved with a night")
+
+	Elements.swarms = []
+	Elements.player = null
+	Elements.source = "Other"
+	for n: Node in [powers, gems, foes, bolts, player]:
 		n.free()
 	return true
 

@@ -303,6 +303,31 @@ enemy once on the way out and once on the way back, and the return cut does
 tolls (fewer with ranks) it rings: a shockwave around you that hurts
 everything in reach and hurls the horde back. Its own kills don't refill it.
 
+**Grave Spikes** (level-up card): every couple of seconds the ground cracks
+under the nearest few enemies (3, more with ranks) and a cluster of bone
+spikes bursts up a moment later, hurting everything on it, then sinks back.
+
+**Wisp Lantern** (level-up card): frost wisps drift out from you in a ring,
+then turn and home in on the nearest enemy, trailing light. Each bursts on
+the first enemy it touches, hurting and chilling it (so lightning shatters
+what the wisps chilled).
+
+**Brimstone Trail** (level-up card): you leave patches of burning ground
+behind you as you walk. Each burns for a few seconds, setting the horde in
+it alight; standing still lays nothing, so lead the horde through it.
+
+**Power-ups** (`scripts/power_ups.gd`): now and then the dead leave one
+behind, floating over a colored ring (elites 15% of the time; any kill
+rarely, at most one every 25 s, and never more than four on the ground). Walk
+over it:
+
+- **Bloodlust** (red): +50% damage, weapons 30% faster, +15% speed, 10 s.
+- **Vortex** (violet): every XP gem and soul on the ground flies to you.
+- **Frost Bomb** (blue): hurts and chills everything within 16 m.
+- **Aegis** (gold): a golden bubble; nothing hurts you for 5 s.
+
+The timed ones count down under the clock. They aren't saved with a night.
+
 **Evolutions** (`scripts/evolutions.gd`): max out a weapon and take its
 catalyst card (any rank), and the next level-up offers a golden **EVOLUTION**
 card for it. Each happens once a night; a weapon's card names its pair from
@@ -318,6 +343,9 @@ two ranks before max.
 | Reaping Scythe | Soul Harvest | **Death's Harvest**: +2 scythes, +80% damage, +4 m, +30% souls |
 | Funeral Bell | Soul Legion | **Requiem**: tolls 10 kills sooner, ×2 damage, +4 m |
 | Arcane Nova | Vitality | **Supernova**: +60% radius, ×2 damage, 30% more often |
+| Grave Spikes | Regeneration | **Ossuary**: +3 spikes, +60% damage, 40% wider, 30% more often |
+| Wisp Lantern | Frostbite | **Will-o'-the-Wisp**: +4 wisps, +60% damage, 40% more often |
+| Brimstone Trail | Kindling | **Path of Cinders**: ×2 burn, 50% wider, burns 2 s longer |
 
 **Paths:** at level 10 each hero chooses one of three paths for the night,
 shown as cards (`scripts/specializations.gd`):
@@ -1124,7 +1152,9 @@ scripts/
   spatial_hash.gd      Grid hash: radius queries + density push
   multimesh_util.gd    MultiMesh setup / buffer helpers
   player.gd            Movement, aiming, dash, Magic Bolt, Frost Aura, XP, levels
-  abilities/           Chain Lightning, Spirit Blades, Arcane Nova, Obol, Reaping Scythe, Funeral Bell
+  abilities/           Chain Lightning, Spirit Blades, Arcane Nova, Obol, Reaping Scythe, Funeral Bell,
+                       Grave Spikes, Wisp Lantern, Brimstone Trail
+  power_ups.gd         Bloodlust, Vortex, Frost Bomb, Aegis: drops, pickup, effects
   enemy_shots.gd       Fireballs from ranged enemies (each remembers who fired it)
   boss_director.gd     When bosses come, and their telegraphed slam
   mid_mechanics.gd     Each realm's mid-boss move: shockwave, rime armor, lava pools

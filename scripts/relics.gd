@@ -49,7 +49,7 @@ const DEFS := {
 const ORDER := ["glass_skull", "lodestone", "bone_dice", "iron_heart", "soul_censer", "winter_tear", "cinder_heart"]
 
 ## Weapon cards a night can start with, and what each costs to unlock once.
-const WEAPONS := ["aura", "lightning", "orbit", "obol", "scythe", "nova", "bell"]
+const WEAPONS := ["aura", "lightning", "orbit", "obol", "scythe", "nova", "bell", "spikes", "wisps", "trail"]
 const WEAPON_COST := 20
 
 

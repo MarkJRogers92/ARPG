@@ -46,6 +46,7 @@ var _boss_bar: ProgressBar
 var _marker_canvas: Control
 var _marker_items: Array = []
 var _blessing_label: Label
+var _power_label: Label
 var _prompt_label: Label
 var _bet_label: Label
 var _upgrade_title: Label
@@ -139,6 +140,14 @@ func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_h
 	if _boss_box.visible:
 		_boss_label.text = boss_name
 		_boss_bar.value = boss_health
+
+
+## The timed power-ups in effect ("" hides it).
+func set_power(text: String, color: Color) -> void:
+	_power_label.visible = text != ""
+	if _power_label.visible:
+		_power_label.text = text
+		_power_label.add_theme_color_override("font_color", color)
 
 
 ## The shrine blessing in effect ("" hides it) and its seconds left.
@@ -563,6 +572,9 @@ func _build() -> void:
 	_blessing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blessing_label.hide()
 	root.add_child(_blessing_label)
+	_power_label = _blessing_label.duplicate()
+	_power_label.offset_top = 150
+	root.add_child(_power_label)
 
 	# Under the army bar: this night's omen (and pact heat).
 	_omen_label = UiStyle.label(14)

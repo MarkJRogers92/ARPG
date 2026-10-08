@@ -26,7 +26,7 @@ static var pending := {}
 
 ## Stat sources rebuilt at the start of every night, or that only last a
 ## moment: never saved.
-const REBUILT := ["meta", "class", "relic", "realm", "omen", "pact", "ascension", "frenzy", "shrine", "loan"]
+const REBUILT := ["meta", "class", "relic", "realm", "omen", "pact", "ascension", "frenzy", "shrine", "loan", "powerup"]
 
 
 static func exists() -> bool:

@@ -120,6 +120,39 @@ const DEFS := {
 		"name": "Catalyst", "desc": "Shatter, Melt and Overload deal 30% more", "max": 4, "unlock": 30, "icon": "frostbite",
 		"mods": [{"stat": "reaction_damage", "op": _MORE, "value": 0.3}],
 	},
+	"spikes": {
+		"name": "Grave Spikes", "desc": "Bone spikes burst up under 3 nearby enemies",
+		"desc_next": "+1 spike, +25% damage, faster", "max": 5,
+		"first_mods": [{"stat": "spikes_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "spikes_level", "op": _ADD, "value": 1.0},
+			{"stat": "spikes_count", "op": _ADD, "value": 1.0},
+			{"stat": "spikes_damage", "op": _MORE, "value": 0.25},
+			{"stat": "spikes_rate", "op": _MORE, "value": 0.12},
+		],
+	},
+	"wisps": {
+		"name": "Wisp Lantern", "desc": "Frost wisps hunt down enemies and chill them",
+		"desc_next": "+1 wisp, +25% damage, faster", "max": 5,
+		"first_mods": [{"stat": "wisp_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "wisp_level", "op": _ADD, "value": 1.0},
+			{"stat": "wisp_count", "op": _ADD, "value": 1.0},
+			{"stat": "wisp_damage", "op": _MORE, "value": 0.25},
+			{"stat": "wisp_rate", "op": _MORE, "value": 0.10},
+		],
+	},
+	"trail": {
+		"name": "Brimstone Trail", "desc": "You leave burning ground behind you",
+		"desc_next": "+30% burn, 15% wider, +0.5 s", "max": 5,
+		"first_mods": [{"stat": "trail_level", "op": _ADD, "value": 1.0}],
+		"mods": [
+			{"stat": "trail_level", "op": _ADD, "value": 1.0},
+			{"stat": "trail_dps", "op": _MORE, "value": 0.30},
+			{"stat": "trail_radius", "op": _MORE, "value": 0.15},
+			{"stat": "trail_life", "op": _ADD, "value": 0.5},
+		],
+	},
 	"bell": {
 		"name": "Funeral Bell", "desc": "Every 30 kills near you, a bell tolls: a shockwave that hurls the horde back",
 		"desc_next": "-4 kills per toll, +35% damage, +1 m radius", "max": 5,
