@@ -25,6 +25,7 @@ func _initialize() -> void:
 	_run(&"_test_skill_points", _test_skill_points())
 	_run(&"_test_new_weapons", _test_new_weapons())
 	_run(&"_test_meta_progress", _test_meta_progress())
+	_run(&"_test_daily_codes", _test_daily_codes())
 	_run(&"_test_elite_rate", _test_elite_rate())
 	_run(&"_test_legendaries", _test_legendaries())
 	_run(&"_test_realms", _test_realms())
@@ -759,6 +760,58 @@ func _test_meta_progress() -> bool:
 	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
 	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + a sixth of the root of the kills")
 	_check(MetaProgress.run_bonus(1140.0, 254884) < 200, "a huge night no longer pays thousands (%d)" % MetaProgress.run_bonus(1140.0, 254884))
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+	return true
+
+
+func _test_daily_codes() -> bool:
+	print("daily codes and history")
+	var code := DailyCode.encode("2026-10-08", 12345, 1432, true, "reaper")
+	_check(code.begins_with("SB-20261008-K12345-T1432-W-REA-") and code.length() == 35, "a readable code (%s)" % code)
+	var parts := DailyCode.decode(code)
+	_check(parts.get("date") == "2026-10-08" and parts.get("kills") == 12345 and parts.get("seconds") == 1432
+			and parts.get("won") == true and parts.get("class") == "reaper", "the code decodes to its result (%s)" % parts)
+	_check(parts.get("seed") == Realm.daily_pick(["graveyard"], "2026-10-08")["seed"], "with that day's seed")
+	_check(DailyCode.decode("  " + code.to_lower() + " ") == parts, "case and spaces are forgiven")
+	for id: String in HeroClass.ORDER:
+		var c := DailyCode.encode("2025-01-31", 7, 65, false, id)
+		_check(DailyCode.decode(c).get("class") == id and DailyCode.decode(c).get("won") == false, "every hero round-trips (%s)" % id)
+	_check(DailyCode.decode(code.replace("K12345", "K92345")).is_empty(), "more kills: the checksum catches it")
+	_check(DailyCode.decode(code.replace("20261008", "20261009")).is_empty(), "another day: caught")
+	_check(DailyCode.decode(code.replace("-W-", "-L-")).is_empty(), "won/lost flipped: caught")
+	var typo := code.substr(0, code.length() - 1) + ("A" if not code.ends_with("A") else "B")
+	_check(DailyCode.decode(typo).is_empty(), "a checksum typo: caught")
+	for bad in ["", "SB", "XX-20261008-K1-T1-W-REA-0000", "SB-20261308-K1-T1-W-REA-0000", "SB-20261008-K-T1-W-REA-0000",
+			"SB-20261008-K1-T1-W-XYZ-0000", "SB-20261008-Kx1-T1-W-REA-0000", code + "-0"]:
+		_check(DailyCode.decode(bad).is_empty(), "malformed code rejected (%s)" % bad)
+
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_daily.save"
+	_wipe_save()
+	# A save from before the history loads with an empty one.
+	var old := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	old.store_var({"version": 3, "shards": 40, "daily": {"2026-10-07": 99}})
+	old.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 40 and MetaProgress.daily.get("2026-10-07") == 99, "an old save still loads")
+	_check(MetaProgress.daily_runs.is_empty(), "with no Daily history")
+	for i in MetaProgress.DAILY_KEPT + 5:
+		var date := "2026-09-%02d" % (i % 28 + 1)
+		MetaProgress.add_daily_run({"date": date, "kills": i, "seconds": 60, "won": false, "class": "battlemage",
+				"code": DailyCode.encode(date, i, 60, false, "battlemage")})
+	_check(MetaProgress.daily_runs.size() == MetaProgress.DAILY_KEPT, "the history keeps the last %d" % MetaProgress.DAILY_KEPT)
+	_check(MetaProgress.daily_runs[0]["kills"] == 5, "dropping the oldest first")
+	MetaProgress.add_daily_run({"date": "2026-10-08", "kills": 50, "seconds": 900, "won": true, "class": "reaper", "code": code}, true)
+	_check(MetaProgress.daily_runs.size() == MetaProgress.DAILY_KEPT and MetaProgress.daily_runs[-1]["kills"] == 50,
+			"replace_last updates the newest entry")
+	MetaProgress.load_save()
+	_check(MetaProgress.daily_runs.size() == MetaProgress.DAILY_KEPT and MetaProgress.daily_runs[-1]["code"] == code,
+			"the history survives a reload")
+	_check(not DailyCode.decode(MetaProgress.daily_runs[0]["code"]).is_empty(), "saved codes still decode")
 	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled

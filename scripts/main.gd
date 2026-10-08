@@ -41,6 +41,8 @@ const DEATH_TIME := 2.6
 var _dying := 0.0
 var _death_shards := 0
 var _first_light_told := false
+## This Daily Night is already in the history (won, then went on past dawn).
+var _daily_logged := false
 ## First Light: the last stretch of the night, when the sun starts to rise.
 const FIRST_LIGHT := 150.0
 const DAWN_SWEEP := 4.0
@@ -512,10 +514,17 @@ func _settle_run(seconds: float) -> int:
 	MetaProgress.add_shards(shards)
 	for kind: String in MetaProgress.record_kills(_kills_by):
 		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
+	var code := ""
 	if Realm.daily:
 		if MetaProgress.record_daily(Realm.today(), kills):
 			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
-	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen)
+		# The shareable code, on the end screen and in the Daily history.
+		var hero := MetaProgress.current_class()
+		code = DailyCode.encode(Realm.today(), kills, roundi(elapsed), won, hero)
+		MetaProgress.add_daily_run({"date": Realm.today(), "kills": kills, "seconds": roundi(elapsed), "won": won,
+				"class": hero, "code": code}, _daily_logged)
+		_daily_logged = true
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code)
 	_rest_veterans()
 	return shards
 

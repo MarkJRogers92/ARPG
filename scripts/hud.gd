@@ -63,6 +63,9 @@ var _altar: AltarPanel
 var _end_title: Label
 var _endless_button: Button
 var _restart_button: Button
+## Copies the Daily Night's code (only shown after one).
+var _code_button: Button
+var _daily_code := ""
 var _clock_text := ""
 var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
@@ -175,7 +178,9 @@ func set_recap(text: String, samples: Array[Vector3]) -> void:
 	_recap_chart.show_samples(samples)
 
 
-func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> void:
+## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
+## button to copy it.
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "") -> void:
 	var total := 0.0
 	for k: String in damage_by:
 		total += damage_by[k]
@@ -191,7 +196,11 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String) -> v
 		extras.append("Omen: %s" % RunModifiers.OMENS[omen]["name"])
 	if heat > 0:
 		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
+	if daily_code != "":
+		extras.append("Daily code: " + daily_code)
 	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
+	_daily_code = daily_code
+	_code_button.visible = daily_code != ""
 
 
 ## The Frenzy tier next to the kill count (0 hides it).
@@ -714,6 +723,12 @@ func _build() -> void:
 	var realms := _end_button("Choose realm")
 	realms.pressed.connect(realms_pressed.emit)
 	buttons.add_child(realms)
+	_code_button = _end_button("Copy daily code", UiStyle.GOLD)
+	_code_button.visible = false
+	_code_button.pressed.connect(func() -> void:
+		DisplayServer.clipboard_set(_daily_code)
+		toast("Copied: " + _daily_code, UiStyle.GOLD))
+	buttons.add_child(_code_button)
 	_game_over_root = _make_overlay(root, over_box, true)
 	_game_over_root.visibility_changed.connect(func() -> void:
 		if _game_over_root.visible:
