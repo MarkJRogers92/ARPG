@@ -4,6 +4,8 @@
 
 Mark requested continued feature development through the morning. Target cutoff: 6:00 a.m. America/Chicago, October 8. Mark shortened the deadline at approximately 4:03 a.m.; this overrides all older 7:00 a.m. continuation notes below. Quarter-hour follow-ups are attached to this chat as `soulbound-overnight-improvements`, with a schedule ending at the cutoff. Continue safe bounded packages; do not start new work after the cutoff. No push, merge, release, deployment, installed-app replacement, purchases, or paid generation.
 
+Schedule and queue statements in earlier checkpoint entries record their status at that time. The final cutoff entry below is the current state.
+
 ## Starting checkpoint
 
 - Repository: `/Users/markrogers/ARPG`, branch `feature/expedition-campaign-v1`, HEAD `4c641f3`.
@@ -72,7 +74,7 @@ Parent reviewed the actual diffs and screenshots; native Sol reviewed the shared
 All packages are closed. Until 6:00 a.m. Chicago time, follow-ups should inspect current state, then implement and verify one useful bounded improvement when justified; no package is currently owned or queued. At cutoff, start no new implementation, record a safe final checkpoint, and pause the automation. Do not repeat journey/lifecycle checks without a relevant code change. No push, merge, release, deployment, purchase, paid generation, or installed-app replacement is authorized. Final preservation check confirmed original `project.godot` bytes and all six protected player-file states match. Saved automation readback confirms the bounded quarter-hour schedule remains active through the cutoff.
 
 
-## Current accepted checkpoint — 5:17–5:30 a.m.
+## Previous accepted checkpoint — 5:17–5:30 a.m.
 
 Integrated at `762d7ac` on `feature/expedition-campaign-v1`, based on `18943da`. Ledger displays full details for the selected offer and compares it with the worn item while retaining slot/index acceptance and keyboard focus. Recruitment displays incoming veteran details with readable role, rank cap, kills, and nights; pledged veterans cannot be replaced, and confirmation names both veterans. The focused UI behavior run passed (`CAMPAIGN_UI_BEHAVIOR PASSED`, exit 0, no warnings/errors), including exact selected-offer and replacement IDs and cancel-without-change checks. Parent Sol reviewed the actual diffs and fixtures. Fixture previews are not live-play evidence.
 
@@ -82,3 +84,10 @@ Native Luna implemented the two packages in isolated Ledger and roster worktrees
 - [Ledger worn-item comparison](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/ledger-comparison-720.png)
 - [Veteran recruitment preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/veteran-recruitment-720.png)
 - [Play Soulbound Campaign.command](</Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/Play Soulbound Campaign.command>)
+
+
+## Final overnight cutoff — reforge recovery
+
+Accepted at `1c72f95` on `feature/expedition-campaign-v1`. The UI now treats pending reforge values as complete item records, compares original and reforged stats/powers, and shows rarity, level, and the already-paid fee. Market displays pending choices after resume even when local selection is empty. The focus/scroll correction waits for a process frame, rechecks the target and focus ownership, then captures, toggles, scrolls, and restores focus synchronously; it holds no shared property across an await. Native Sol consultant review caught an overlap race in the first helper version; the worker repaired it, and parent acceptance verified the two-restores-before-next-frame full-row test.
+
+Integrated final UI runs passed at 720p and with configured 1920×1080 arguments, with no errors or warnings. The latter is not an independent physical viewport measurement. Save/reload tests confirm exact old/new inventory records and gold, one paid fee, and no duplicate items. Post-test checks confirmed original `project.godot` bytes and all six protected save fingerprints. The inspected `reforge-recovery-720.png` is a fixture, not live-play proof. No real-profile test or release was performed. Earlier lifecycle shutdown warnings (12 ObjectDB instances and 6 resources) remain unresolved and were not rerun. No controller, economy, save-format, or art changes. All implementation is closed with nothing queued; the quarter-hour automation was successfully paused at 6:00 a.m. Chicago time. Logs: `work/reforge-recovery-integrated-final-720.log` and `work/reforge-recovery-integrated-final-1080.log`.
