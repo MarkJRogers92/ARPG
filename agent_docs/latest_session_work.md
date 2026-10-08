@@ -2,9 +2,7 @@
 
 ## Expedition campaign — 2026-10-08
 
-Current deadline: **6:00 a.m. America/Chicago, October 8**, shortened by Mark at approximately 4:03 a.m. The automation cutoff and prompt are updated; older 7:00 a.m. notes below are superseded.
-
-Interim schedule and queued-work notes below record their checkpoint state; the final cutoff entry is current.
+Current status: implementation was explicitly renewed after the 6:00 a.m. cutoff and integrated at `996ba37`. Overnight automation remains PAUSED and was not restarted. Historical schedule notes below describe earlier checkpoints only.
 
 - Feature branch: `feature/expedition-campaign-v1`; base `3fe4ea0`.
 - Task commits: `125043d`, `d0196d9`, `4be1500`, `a35ee41`, `3b67fec`, `aede952`, `473d471`.
@@ -34,3 +32,8 @@ Interim schedule and queued-work notes below record their checkpoint state; the 
 ## Final overnight cutoff — reforge recovery
 
 Accepted at commit `1c72f95` on `feature/expedition-campaign-v1`. Reforge choices render full original/reforged item records with stat/power comparison, rarity, level, and paid fee; Market shows pending choices after resume even when local selection is empty. Parent diff review and integrated 720p and configured 1920×1080 UI runs passed without errors or warnings. Save/reload checks confirm exact old/new inventory records and gold, a single paid fee, and no duplicates. The 1080p invocation is not an independent physical viewport measurement; `reforge-recovery-720.png` is a fixture, not live-play proof. After tests, original `project.godot` bytes and all six protected save fingerprints matched. No controller, economy, save-format, or art changes. Earlier lifecycle shutdown warnings (12 ObjectDB instances and 6 resources) remain unresolved and were not rerun; no real-profile test or release was performed. The quarter-hour automation is PAUSED as of 6:00 a.m. Chicago time; implementation is closed. Logs: `work/reforge-recovery-integrated-final-720.log` and `work/reforge-recovery-integrated-final-1080.log`.
+
+
+## Morning continuation — October 8
+
+Mark explicitly renewed implementation after the overnight cutoff. Starting HEAD was `beccb9b`; integrated commit is `996ba37` on `feature/expedition-campaign-v1`. Nearby seal and Cursed Cache prompts use the same nearest eligible site as the current rebound interaction key; cache prompts warn that guardians appear. Objective interactions take priority over nearby landmarks, preventing one press from activating both. Prompts clear during the return ritual after success or death; dead fallback guidance is suppressed. No art/models, balance, economy, or save changes. Native Luna implemented; native Sol independently reviewed the actual diff and found terminal/test issues; parent verified corrections and byte identity of all six integrated files. Jev `routing_advice` was unavailable; work followed the native plan. Integrated combat (66) and guidance (23) checks passed; same-source lifecycle checks passed 145/145 but process exit retained 12 ObjectDB and 6 resource warnings. Audio harness experiments did not resolve them; Ogg playback as their cause and any player-visible leak remain unproven. Six protected save states and original `project.godot` were verified unchanged after integration. The 720p fixture was inspected, not live-play evidence; the existing 12-mission automated journey remains baseline evidence and was not rerun. No art generation, paid action, or release. Next: playtest early-campaign prompt readability and build balance. Logs: `/Users/markrogers/Documents/Codex/2026-10-07/ple/work/morning_checkpoint/combat.log`, `guidance.log`, and `lifecycle.log`.
