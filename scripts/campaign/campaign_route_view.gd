@@ -4,6 +4,7 @@ extends VBoxContainer
 ## explicit action commits the route through the campaign controller.
 
 signal choose_requested(node_id: String)
+signal preview_changed(node_id: String, route_title: String, can_choose: bool, committed_id: String, committed_title: String)
 
 const DEPTH_TITLES := ["APPROACH", "THE VEIL", "DEEP ROAD", "BIOME FINALE"]
 const PATH := Color(0.45, 0.62, 0.67, 0.55)
@@ -28,6 +29,7 @@ var _heading: Label
 var _map: Control
 var _lines_layer: Control
 var _node_columns: HBoxContainer
+var show_confirm_button := true
 
 
 func _ready() -> void:
@@ -98,6 +100,7 @@ func _build() -> void:
 			choose_requested.emit(_selected_id)
 	)
 	add_child(_confirm)
+	_confirm.visible = show_confirm_button
 
 
 func _build_map() -> void:
@@ -191,6 +194,7 @@ func _update_preview() -> void:
 	if _selected_id.is_empty() or not _nodes.has(_selected_id):
 		_details.text = "Choose a glowing node to inspect its contract, danger, reward and attached event."
 		_confirm.disabled = true
+		preview_changed.emit("", "", false, _committed_id, _node_title(_nodes[_committed_id]) if _nodes.has(_committed_id) else "")
 		return
 	var node: Dictionary = _nodes[_selected_id]
 	var contract := str(node.get("contract", "Finale" if int(node.get("depth", 0)) == 4 else "Hunt"))
@@ -217,6 +221,8 @@ func _update_preview() -> void:
 		_details.text = "%s · %s\n%s · %s%s\n%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), contract_name.to_upper(), danger, event_text, reward_copy, _route_status_copy()]
 	_confirm.text = "Route committed" if _committed else "Choose this route"
 	_confirm.disabled = _committed or not _is_available(_selected_id)
+	var committed_title := _node_title(_nodes[_committed_id]) if _nodes.has(_committed_id) else ""
+	preview_changed.emit(_selected_id, _node_title(node), not _committed and _is_available(_selected_id), _committed_id, committed_title)
 
 
 func _clear_reward_copy(node: Dictionary, contract_record: Dictionary, contract: String, biome: int) -> String:

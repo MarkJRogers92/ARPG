@@ -12,6 +12,7 @@ class FixtureController:
 	var acknowledge_response := {"ok": true, "error": ""}
 	var ledger_offers: Array = []
 	var last_clause_accept: Array = []
+	var depart_calls := 0
 
 	func _init() -> void:
 		state = {
@@ -34,9 +35,9 @@ class FixtureController:
 				{"id": "vet-02", "name": "Morrow", "role": "Arcanist", "rank": 1, "deeds": "Returned with a stolen standard.", "pledge_node": ""},
 			], "deployed_veteran": "vet-01", "graph": _graph(), "selected_node": "",
 			"cleared_nodes": [], "clauses": [], "effects": [], "event": {}, "event_count": 0,
-			"shop": {"stock": [
-				{"id": "stock-01", "price": 50, "data": {"name": "Graveglass Wand", "base_name": "Wand", "slot": "weapon", "rarity": 1, "ilvl": 7, "implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.12}], "affixes": [], "power": ""}},
-			]}, "shop_generation": 1, "wager": {}, "reforge": {}, "veteran_candidate": {},
+			"shop": [
+				{"id": "stock-01", "item": {"id": "stock-01", "data": {"name": "Graveglass Wand", "base_name": "Wand", "slot": "weapon", "rarity": 1, "ilvl": 7, "implicit": [{"stat": "bolt_damage", "op": PlayerStats.Op.INCREASED, "value": 0.12}], "affixes": [{"id": "keen", "stat": "crit_chance", "op": PlayerStats.Op.ADD, "value": 0.03}], "power": "stormcaller"}, "valuation": 50}, "price": 50, "purchased": false},
+			], "shop_generation": 1, "wager": {}, "reforge": {}, "veteran_candidate": {},
 			"departure": {}, "result": {}, "receipts": {}, "successful_nodes": 1, "outbox": [], "item_serial": 4, "attempt_serial": 1, "completed": false,
 		}
 
@@ -53,6 +54,7 @@ class FixtureController:
 		return {"ok": true, "operation_id": "fixture"}
 
 	func depart(_operation_id := "") -> Dictionary:
+		depart_calls += 1
 		return {"ok": true, "spec": {"node_id": state.get("selected_node", "g-1-a")}}
 
 	func clause_offers(_slot: String) -> Array:
@@ -285,11 +287,31 @@ func _run_behavior_test() -> void:
 	await _test_reforge_pending_after_reload(temp_root, failures)
 	await _test_veteran_recruitment_details(temp_root, failures)
 	await _test_equipment_tools(failures)
+	await _test_market_fixture_power(failures)
 
 	# Exercise the market and equipment commands through actual UI button callbacks.
 	(town._service_buttons["market"] as Button).pressed.emit()
 	await process_frame
 	var buy_button := _find_button(root, "Buy ·", true)
+	var shop_stock: Array = controller.state.get("shop", [])
+	if shop_stock.is_empty() or not shop_stock[0].get("item", {}).get("data", {}).has("name"):
+		failures.append("real controller market stock uses serialized item records")
+	else:
+		var first_stock: Dictionary = shop_stock[0]
+		var stock_record: Dictionary = first_stock["item"]
+		var stock_data: Dictionary = stock_record["data"]
+		var stock_detail := _find_label(root, str(stock_data.get("name", "")))
+		var expected_meta := "%s · %s · item level %d" % [ItemData.rarity_name(int(stock_data.get("rarity", 0))), ItemData.SLOT_NAMES.get(str(stock_data.get("slot", "")), str(stock_data.get("slot", ""))), int(stock_data.get("ilvl", 1))]
+		if stock_detail == null or _find_label(root, expected_meta) == null or _find_label(root, ItemData.SLOT_NAMES.get(str(stock_data.get("slot", "")), "")) == null:
+			failures.append("market shows the serialized stock item's name, rarity, slot, and level")
+		var equipped_id := str(controller.state["inventory"]["equipped"].get(str(stock_data.get("slot", "")), ""))
+		var equipped_record: Dictionary = controller.state["inventory"]["items"].get(equipped_id, {})
+		for modifier: Dictionary in ItemComparison.rows(equipped_record.get("data", {}), stock_data):
+			var expected_line := "%s  →  %s" % ["—" if is_zero_approx(float(modifier["current"])) else ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["current"])), "—" if is_zero_approx(float(modifier["offered"])) else ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"]))]
+			if _find_label(root, expected_line) == null:
+				failures.append("market comparison uses the exact serialized stock record for %s" % str(modifier["stat"]))
+		if not str(stock_data.get("power", "")).is_empty() and _find_label(root, town._comparison_power_text("Offered", stock_data)) == null:
+			failures.append("market comparison describes the serialized stock item's legendary power")
 	if buy_button == null:
 		failures.append("market stock renders a buy action")
 	else:
@@ -301,6 +323,35 @@ func _run_behavior_test() -> void:
 		else:
 			var purchased_id := str(backpack[-1])
 			var purchased: Dictionary = controller.state["inventory"]["items"][purchased_id]
+			var purchased_stock: Dictionary = {}
+			for stock_entry: Dictionary in controller.state["shop"]:
+				if str(stock_entry.get("id", "")) == str(purchased.get("id", "")):
+					purchased_stock = stock_entry
+					break
+			if purchased_stock.is_empty() or purchased_stock.get("item", {}) != purchased:
+				failures.append("purchase stores an exact copy of its serialized market record")
+			var reloaded_controller := CampaignController.new()
+			root.add_child(reloaded_controller)
+			var reload_response: Dictionary = reloaded_controller.load_campaign()
+			if not reload_response.get("ok", false):
+				failures.append("purchased market stock reloads from the isolated campaign save")
+			else:
+				var reloaded_stock: Dictionary = {}
+				for stock_entry: Dictionary in reloaded_controller.state.get("shop", []):
+					if str(stock_entry.get("id", "")) == str(purchased_stock.get("id", "")):
+						reloaded_stock = stock_entry
+						break
+				if not bool(reloaded_stock.get("purchased", false)) or reloaded_stock.get("item", {}) != purchased:
+					failures.append("save reload preserves purchased status and the exact market item record")
+				town._state = reloaded_controller.snapshot()
+				town._render()
+				await process_frame
+				var purchased_button := _find_town_action_button(town, "market_stock", str(purchased_stock.get("id", "")))
+				if purchased_button == null or not purchased_button.disabled or purchased_button.text != "Purchased":
+					failures.append("reloaded purchased stock is visibly unavailable for repurchase")
+				town._state = controller.snapshot()
+				town._render()
+			await process_frame
 			var purchase_focus := town.get_viewport().gui_get_focus_owner()
 			var purchase_focus_is_action: bool = purchase_focus != null and purchase_focus.get_meta("town_action_focus_kind", "") == "market_stock" and not (purchase_focus as BaseButton).disabled
 			var purchase_focus_is_sidebar: bool = purchase_focus == town._service_buttons["market"]
@@ -474,7 +525,7 @@ func _run_behavior_test() -> void:
 				failures.append("event choice resolves the route checkpoint")
 		var departure_signal: Array[Dictionary] = []
 		town.expedition_requested.connect(func(spec: Dictionary) -> void: departure_signal.append(spec))
-		var depart_button := _find_button(root, "Depart for the committed route")
+		var depart_button := _find_button(root, "Depart for committed route")
 		if depart_button == null or depart_button.disabled:
 			failures.append("resolved route exposes departure button")
 		else:
@@ -1172,6 +1223,52 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	var town := CampaignTown.new()
 	root.add_child(town)
 	town.setup(fixture)
+	await process_frame
+	var route_footer := town._route_action_footer
+	var fresh_state := fixture.snapshot()
+	town._render()
+	await process_frame
+	if fixture.snapshot() != fresh_state:
+		failures.append("rendering the route map and its persistent action leaves campaign state unchanged")
+	if not route_footer.is_visible_in_tree() or route_footer.get_global_rect().end.y > 720:
+		failures.append("fresh 720p town keeps the route action visible without scrolling")
+	var route_view := _find_route_view(town)
+	if route_view == null:
+		failures.append("route map renders inside the scroll area")
+	else:
+		route_view._preview("g-1-b")
+		if not town._route_action_copy.text.contains("Preview ·") or not town._route_action_copy.text.contains("ELITE"):
+			failures.append("persistent route action follows the currently previewed node")
+		var choose_button := town._route_action_button
+		if choose_button.disabled or choose_button.text != "Choose this route":
+			failures.append("fresh route preview exposes one explicit commit action")
+		else:
+			choose_button.pressed.emit()
+			await process_frame
+			await process_frame
+			if str(fixture.state.get("selected_node", "")) != "g-1-b" or str(fixture.state.get("phase", "")) != "DEPARTURE_READY":
+				failures.append("persistent route action explicitly commits only the currently previewed node")
+			if not town._route_action_copy.text.contains("Committed route") or town._route_action_button.text != "Depart for committed route" or town._route_action_button.disabled:
+				failures.append("resumed departure-ready town shows the committed route and available departure action")
+			fixture.state["phase"] = "EVENT_PENDING"
+			fixture.state["event"] = {"id": "quiet_bell", "title": "Quiet Bell", "choices": []}
+			town._state = fixture.snapshot()
+			town._render()
+			await process_frame
+			town._activate_route_action()
+			if fixture.depart_calls != 0 or not town._departure_blockers().any(func(blocker: Dictionary) -> bool: return str(blocker.get("text", "")).contains("Resolve the road event")):
+				failures.append("route action keeps the existing event-before-departure gate")
+			fixture.state["phase"] = "DEPARTURE_READY"
+			fixture.state["event"] = {}
+			town._state = fixture.snapshot()
+			town._render()
+			await process_frame
+			if not route_footer.is_visible_in_tree() or route_footer.get_global_rect().end.y > 720 or town._route_action_button.disabled:
+				failures.append("resumed 720p departure-ready town keeps its actionable footer on screen")
+			else:
+				town._route_action_button.pressed.emit()
+			if fixture.depart_calls != 1:
+				failures.append("committed route departs through the existing controller command exactly once")
 	fixture.state["phase"] = "DEPARTURE_READY"
 	fixture.state["selected_node"] = "g-1-a"
 	fixture.state["inventory"]["tray"] = ["i-rare"]
@@ -1194,9 +1291,9 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	var blockers := town._departure_blockers()
 	if blockers.size() < 3 or not blockers.any(func(entry: Dictionary) -> bool: return str(entry.get("text", "")).contains("reward") or str(entry.get("text", "")).contains("tray")):
 		failures.append("route preparation distinguishes required tray and service decisions")
-	var depart := _find_button(town, "Depart for the committed route")
-	if depart == null or not depart.disabled:
-		failures.append("committed route is not marked ready while required preparation blocks departure")
+	var blocked_action := town._route_action_button
+	if blocked_action.text != "Open Armory" or blocked_action.disabled:
+		failures.append("committed route footer exposes its required preparation action while departure is blocked")
 	if _find_button(town, "Open Trainer") == null:
 		failures.append("unspent talents and unlocked specialization remain actionable optional choices")
 	if _find_button(town, "Open Veterans") != null or _find_label(town, "Morrow is available in the Crypt") != null:
@@ -1210,12 +1307,10 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 		failures.append("route preparation names the current ledger obligations")
 	if mission_label != null and mission_label.autowrap_mode != TextServer.AUTOWRAP_WORD_SMART:
 		failures.append("mission copy wraps within the preparation panel")
-	var armory := _find_button(town, "Open Armory")
-	if armory != null:
-		armory.pressed.emit()
-		await process_frame
-		if town._active_service != "pack":
-			failures.append("required reward-tray action opens the existing Armory service")
+	blocked_action.pressed.emit()
+	await process_frame
+	if town._active_service != "pack" or fixture.depart_calls != 1:
+		failures.append("persistent blocker action opens the Armory without bypassing departure requirements")
 	fixture.state["inventory"]["tray"] = []
 	fixture.state["reforge"] = {}
 	fixture.state["wager"] = {}
@@ -1227,7 +1322,7 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	if not town._departure_blockers().is_empty():
 		failures.append("pending profile delivery is not mislabeled as a departure blocker")
 	var delivery_copy := _find_label(town, "Profile rewards still await delivery")
-	depart = _find_button(town, "Depart for the committed route")
+	var depart := _find_button(town, "Depart for committed route")
 	if delivery_copy == null or depart == null or depart.disabled:
 		failures.append("pending profile delivery is disclosed while legal departure remains available")
 	town._state["phase"] = "RESULT_PENDING"
@@ -1251,6 +1346,33 @@ func _test_route_preparation_panel(failures: Array[String]) -> void:
 	await process_frame
 	if _find_button(town, "Open Veterans") != null:
 		failures.append("an empty Crypt does not create a preparation action with no available veteran")
+	town.free()
+	fixture.free()
+
+
+func _test_market_fixture_power(failures: Array[String]) -> void:
+	var fixture := FixtureController.new()
+	root.add_child(fixture)
+	var town := CampaignTown.new()
+	root.add_child(town)
+	town._active_service = "market"
+	town._state = fixture.snapshot()
+	town._render()
+	await process_frame
+	var stock: Dictionary = fixture.state["shop"][0]
+	var record: Dictionary = stock["item"]
+	var data: Dictionary = record["data"]
+	var power_description := str(ItemData.POWERS["stormcaller"]["desc"])
+	if _find_label(town, power_description) == null:
+		failures.append("market item detail shows a known legendary power description")
+	if _find_label(town, town._comparison_power_text("Offered", data)) == null:
+		failures.append("market worn comparison includes the exact stock record's legendary power")
+	var worn_id := str(fixture.state["inventory"]["equipped"].get(str(data["slot"]), ""))
+	var worn: Dictionary = fixture.state["inventory"]["items"].get(worn_id, {})
+	for modifier: Dictionary in ItemComparison.rows(worn.get("data", {}), data):
+		var expected := "%s  →  %s" % ["—" if is_zero_approx(float(modifier["current"])) else ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["current"])), "—" if is_zero_approx(float(modifier["offered"])) else ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"]))]
+		if _find_label(town, expected) == null:
+			failures.append("market fixture comparison includes serialized stock modifier %s" % str(modifier["stat"]))
 	town.free()
 	fixture.free()
 
