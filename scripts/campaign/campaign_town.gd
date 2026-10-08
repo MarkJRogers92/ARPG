@@ -28,6 +28,14 @@ var _service_buttons: Dictionary = {}
 var _content: VBoxContainer
 var _content_title: Label
 var _talent_inspection_footer: PanelContainer
+var _route_action_footer: PanelContainer
+var _route_action_copy: Label
+var _route_action_base_copy := ""
+var _route_action_button: Button
+var _route_preview_id := ""
+var _route_preview_can_choose := false
+var _route_committed_id := ""
+var _route_blocker_service := ""
 var _talent_inspection_title: Label
 var _talent_inspection_status: Label
 var _talent_inspection_description: Label
@@ -197,6 +205,26 @@ func _build_center(parent: Control) -> void:
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_theme_constant_override("separation", 12)
 	scroll.add_child(_content)
+	_route_action_footer = PanelContainer.new()
+	_route_action_footer.visible = false
+	_route_action_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_route_action_footer.add_theme_stylebox_override("panel", UiStyle.box(Color(0.075, 0.085, 0.105, 0.99), Color(0.77, 0.59, 0.3, 0.95), 1, 6))
+	stack.add_child(_route_action_footer)
+	var route_footer_margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		route_footer_margin.add_theme_constant_override("margin_" + side, 10 if side in ["left", "right"] else 6)
+	_route_action_footer.add_child(route_footer_margin)
+	var route_footer_row := HBoxContainer.new()
+	route_footer_row.add_theme_constant_override("separation", 12)
+	route_footer_margin.add_child(route_footer_row)
+	_route_action_copy = UiStyle.label(13)
+	_route_action_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_route_action_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	route_footer_row.add_child(_route_action_copy)
+	_route_action_button = Button.new()
+	_route_action_button.custom_minimum_size = Vector2(250, 44)
+	_route_action_button.pressed.connect(_activate_route_action)
+	route_footer_row.add_child(_route_action_button)
 	_talent_inspection_footer = PanelContainer.new()
 	_talent_inspection_footer.visible = false
 	_talent_inspection_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -359,6 +387,10 @@ func _render_panel() -> void:
 	for child in _content.get_children():
 		child.queue_free()
 	var phase := str(_state.get("phase", "TOWN"))
+	_route_action_footer.visible = _active_service == "route" and phase in ["TOWN", "DEPARTURE_READY"]
+	_route_preview_id = ""
+	_route_preview_can_choose = false
+	_route_committed_id = str(_state.get("selected_node", ""))
 	_update_talent_inspection_footer()
 	if phase == "EVENT_PENDING":
 		_content_title.text = "AN EVENT ON THE ROAD"
@@ -467,25 +499,67 @@ func _render_route() -> void:
 		return
 	var route_view := CampaignRouteView.new()
 	route_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	route_view.show_confirm_button = false
 	route_view.choose_requested.connect(_choose_route)
+	route_view.preview_changed.connect(_on_route_preview_changed)
 	var selected := str(_state.get("selected_node", ""))
-	_render_preparation_panel(selected)
 	_content.add_child(route_view)
 	var available: Array = _controller.available_routes()
 	route_view.present(_state, available)
+	_render_preparation_panel(selected)
+	_refresh_route_action()
 	var ready := _departure_blockers().is_empty()
-	var action := _button("Depart for the committed route", func() -> void:
-		if not ready:
+	if ready:
+		var delivery_pending: bool = not _state.get("outbox", []).is_empty()
+		_add_copy("Departure checks passed. %s" % ("Profile rewards still await delivery; you may leave and retry delivery from the campaign record." if delivery_pending else "The route is committed; combat starts from a fresh expedition build."))
+
+
+func _on_route_preview_changed(node_id: String, route_title: String, can_choose: bool, committed_id: String, committed_title: String) -> void:
+	_route_preview_id = node_id
+	_route_preview_can_choose = can_choose
+	_route_committed_id = committed_id
+	var title := route_title if not route_title.is_empty() else "No route selected"
+	if not committed_id.is_empty():
+		var committed_name := committed_title if not committed_title.is_empty() else committed_id
+		_route_action_base_copy = "Preview · %s\nCommitted route · %s" % [title, committed_name] if node_id != committed_id else "Committed route · %s" % committed_name
+	else:
+		_route_action_base_copy = "Preview · %s\nYour preview is free; choose it to commit this expedition." % title
+	_refresh_route_action()
+
+
+func _refresh_route_action() -> void:
+	if not is_instance_valid(_route_action_button):
+		return
+	if not _route_committed_id.is_empty():
+		var blockers := _departure_blockers()
+		_route_blocker_service = str(blockers[0].get("service", "")) if not blockers.is_empty() else ""
+		if blockers.is_empty():
+			_route_action_button.text = "Depart for committed route"
+			_route_action_button.disabled = false
+			_route_action_copy.text = _route_action_base_copy + "\nReady to depart."
+		else:
+			_route_action_button.text = "Open %s" % str(blockers[0].get("label", "Preparation")) if not _route_blocker_service.is_empty() else "Departure blocked"
+			_route_action_button.disabled = _route_blocker_service.is_empty()
+			_route_action_copy.text = _route_action_base_copy + "\nDeparture blocked · " + str(blockers[0].get("text", "Preparation required."))
+	else:
+		_route_action_copy.text = _route_action_base_copy
+		_route_action_button.text = "Choose this route"
+		_route_action_button.disabled = not _route_preview_can_choose or _route_preview_id.is_empty()
+
+
+func _activate_route_action() -> void:
+	if not _route_committed_id.is_empty():
+		var blockers := _departure_blockers()
+		if not blockers.is_empty():
+			var service := str(blockers[0].get("service", ""))
+			if not service.is_empty():
+				_select_service(service)
 			return
 		var response: Dictionary = _command("depart")
 		if response.get("ok", false):
 			expedition_requested.emit(response.get("spec", {}))
-	, Color(0.3, 0.62, 0.72))
-	action.disabled = not ready or selected.is_empty()
-	_content.add_child(action)
-	if ready:
-		var delivery_pending: bool = not _state.get("outbox", []).is_empty()
-		_add_copy("Departure checks passed. %s" % ("Profile rewards still await delivery; you may leave and retry delivery from the campaign record." if delivery_pending else "The route is committed; combat starts from a fresh expedition build."))
+	elif _route_preview_can_choose and not _route_preview_id.is_empty():
+		_choose_route(_route_preview_id)
 
 
 func _render_preparation_panel(selected_node_id: String) -> void:
@@ -943,25 +1017,28 @@ func _render_market() -> void:
 	for entry: Variant in stock:
 		var stock_item: Dictionary = entry if entry is Dictionary else {}
 		var id := str(stock_item.get("id", stock_item.get("stock_id", "")))
-		var data: Dictionary = stock_item.get("data", stock_item.get("item", {}))
+		var item_value: Variant = stock_item.get("item", {})
+		var item_record: Dictionary = item_value if item_value is Dictionary else {}
+		var data_value: Variant = item_record.get("data", stock_item.get("data", {}))
+		var data: Dictionary = data_value if data_value is Dictionary else {}
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 		_content.add_child(row)
-		var description := _summary(data)
-		var label := UiStyle.label(15)
-		label.text = description
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(label)
+		var item_details := VBoxContainer.new()
+		item_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(item_details)
+		_add_item_detail(item_details, item_record if not item_record.is_empty() else {"data": data, "valuation": stock_item.get("valuation", 0)})
 		var price := int(stock_item.get("price", stock_item.get("valuation", 0)))
-		var buy := _button("Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
+		var purchased := bool(stock_item.get("purchased", false))
+		var buy := _button("Purchased" if purchased else "Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
 		_set_town_action_focus_identity(buy, "market_stock", id)
-		buy.disabled = id.is_empty() or backpack_full or int(_state.get("gold", 0)) < price
+		buy.disabled = purchased or id.is_empty() or backpack_full or int(_state.get("gold", 0)) < price
 		row.add_child(buy)
 		var slot := str(data.get("slot", ""))
 		if ItemData.SLOTS.has(slot):
 			var worn_id := str(_state.get("inventory", {}).get("equipped", {}).get(slot, ""))
 			var worn: Dictionary = _state.get("inventory", {}).get("items", {}).get(worn_id, {})
-			_add_item_comparison(_content, worn, {"data": data})
+			_add_item_comparison(_content, worn, item_record if not item_record.is_empty() else {"data": data})
 	if stock.is_empty():
 		_add_copy("The shelves are bare. A new shipment comes after the next expedition.")
 	if _selected_item_id.is_empty():
@@ -1667,7 +1744,7 @@ func _add_item_detail(parent: Control, record: Dictionary) -> void:
 	title.add_theme_color_override("font_color", _rarity_color(record))
 	parent.add_child(title)
 	var meta := UiStyle.label(12)
-	meta.text = "%s · item level %d · value %d G%s" % [_rarity_text(record), int(data.get("ilvl", 1)), int(record.get("valuation", 0)), " · LOCKED" if bool(record.get("locked", false)) else ""]
+	meta.text = "%s · %s · item level %d · value %d G%s" % [_rarity_text(record), ItemData.SLOT_NAMES.get(str(data.get("slot", "")), str(data.get("slot", ""))), int(data.get("ilvl", 1)), int(record.get("valuation", 0)), " · LOCKED" if bool(record.get("locked", false)) else ""]
 	meta.modulate = Color(1, 1, 1, 0.62)
 	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
