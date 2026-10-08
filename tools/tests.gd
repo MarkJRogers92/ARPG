@@ -43,6 +43,7 @@ func _finish() -> void:
 	_run(&"_test_elements", _test_elements())
 	_run(&"_test_army", _test_army())
 	_run(&"_test_heroes", _test_heroes())
+	_run(&"_test_reliquary", _test_reliquary())
 	_run(&"_test_events", _test_events())
 	_run(&"_test_obstacles", _test_obstacles())
 	_run(&"_test_fixes", _test_fixes())
@@ -1116,6 +1117,87 @@ func _test_heroes() -> bool:
 	swarm.free()
 	projectiles.free()
 	player.free()
+	return true
+
+
+
+func _test_reliquary() -> bool:
+	print("the Reliquary")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_relics.save"
+	_wipe_save()
+	# An old (version 2) save loads with an empty Reliquary.
+	var old := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	old.store_var({"version": 2, "shards": 100, "ranks": {"vigor": 1}})
+	old.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 100 and MetaProgress.rank("vigor") == 1, "a version 2 save still loads")
+	_check(MetaProgress.relic == "" and MetaProgress.relics.is_empty() and MetaProgress.cards.is_empty(), "with an empty Reliquary")
+
+	# Relics: bought with shards, or earned with stars; one carried.
+	_check(not MetaProgress.relic_owned("glass_skull"), "relics start unowned")
+	_check(MetaProgress.buy_relic("glass_skull") and MetaProgress.shards == 70, "buying a relic spends its shards")
+	MetaProgress.carry_relic("glass_skull")
+	_check(not MetaProgress.buy_relic("soul_censer"), "a star relic can't be bought")
+	MetaProgress.carry_relic("soul_censer")
+	_check(MetaProgress.relic == "glass_skull", "nor carried before it's earned")
+	MetaProgress.bestiary = {"Ghoul": 5000, "Ogre": 1000}
+	_check(MetaProgress.relic_owned("soul_censer") and not MetaProgress.relic_owned("winter_tear"), "five stars earn the Soul Censer, not more")
+
+	# Starting weapons and lost lore.
+	_check(not MetaProgress.weapon_unlocked("aura"), "starting weapons start locked")
+	_check(MetaProgress.buy_weapon("aura") and MetaProgress.shards == 70 - Relics.WEAPON_COST, "unlocking one costs shards")
+	MetaProgress.pick_weapon("aura")
+	MetaProgress.pick_weapon("lightning")
+	_check(MetaProgress.start_weapon == "aura", "a locked weapon can't be picked")
+	var stats := PlayerStats.new()
+	var offered := {}
+	for k in 400:
+		for c: Dictionary in Upgrades.roll(stats, 3):
+			offered[c["id"]] = true
+	_check(not offered.has("deadly_aim") and not offered.has("bulwark"), "lost lore isn't offered before it's learned")
+	_check(MetaProgress.buy_card("bulwark"), "learning a card")
+	offered.clear()
+	for k in 400:
+		for c: Dictionary in Upgrades.roll(stats, 3):
+			offered[c["id"]] = true
+	_check(offered.has("bulwark") and not offered.has("deadly_aim"), "puts it in the pool (and only it)")
+	var shards := MetaProgress.shards
+	MetaProgress.load_save()
+	_check(MetaProgress.relic == "glass_skull" and MetaProgress.start_weapon == "aura" and MetaProgress.card_unlocked("bulwark")
+			and MetaProgress.shards == shards, "the Reliquary survives a reload")
+
+	# Applied to a hero: mods, powers, rerolls, the weapon card.
+	var player: Player = load("res://scenes/player.tscn").instantiate()
+	root.add_child(player)
+	HeroClass.apply(player, "battlemage")
+	var hp := player.stats.max_hp
+	var bolt := player.stats.bolt_damage
+	Relics.apply(player, "glass_skull", "aura")
+	_near(player.stats.max_hp, hp * 0.7, "the Glass Skull costs 30% max health", 0.01)
+	_near(player.stats.bolt_damage, bolt * 1.35, "for 35% more damage", 0.01)
+	_check(player.stats.aura_level == 1 and Upgrades.level_of("aura", player.stats) == 1, "the starting weapon is a card already taken")
+	_near(player.stats.hp, player.stats.max_hp, "the night starts at full health")
+	HeroClass.apply(player, "battlemage")
+	Relics.apply(player, "soul_censer", "")
+	_check(player.stats.powers.has("soul_lantern"), "a power relic grants its power")
+	_check(Relics.extra_rerolls("bone_dice") == 3 and Relics.extra_rerolls("glass_skull") == 0, "Bone Dice give rerolls")
+	for id: String in Relics.ORDER:
+		var d := Relics.data(id)
+		_check(d.has("name") and d.has("desc") and (d.has("cost") or d.has("stars")), "%s is complete" % id)
+		if d.has("power"):
+			_check(ItemData.POWERS.has(d["power"]), "%s grants a real power" % id)
+	for id: String in Relics.WEAPONS:
+		_check(Upgrades.DEFS.has(id) and Upgrades.DEFS[id].has("first_mods"), "%s is a weapon card" % id)
+	player.free()
+
+	MetaProgress.disabled = true
+	_check(MetaProgress.current_relic() == "" and MetaProgress.current_start_weapon() == "", "bots and tests carry nothing")
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
 	return true
 
 

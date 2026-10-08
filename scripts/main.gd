@@ -113,7 +113,8 @@ func _ready() -> void:
 	MetaProgress.load_save()
 	MetaProgress.apply(_player.stats)
 	HeroClass.apply(_player, MetaProgress.current_class())
-	_rerolls = MetaProgress.rerolls()
+	Relics.apply(_player, MetaProgress.current_relic(), MetaProgress.current_start_weapon())
+	_rerolls = MetaProgress.rerolls() + Relics.extra_rerolls(MetaProgress.current_relic())
 	var realm := Realm.data()
 	if realm["soul_bonus"] > 0.0:
 		_player.stats.add_mod("realm", "soul_chance", PlayerStats.Op.INCREASED, realm["soul_bonus"])

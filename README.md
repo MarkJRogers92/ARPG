@@ -704,6 +704,25 @@ run). They're saved in `user://meta.save` (`meta_progress.gd`; the costs are
 there too). To start over, delete that file: on macOS it's in
 `~/Library/Application Support/Godot/app_userdata/ARPG/`.
 
+**The Reliquary** (title screen, next to the hero's description) is where
+shards go beyond the Altar (`scripts/relics.gd`):
+
+- **Relics.** Carry one into each night. Bought once with shards: Glass Skull
+  (+35% damage, 30% less health), Lodestone (double pickup radius, +40% magic
+  find, a little slower), Bone Dice (+3 rerolls, 10% less XP), Iron Heart (+30
+  armor, +40% health, 15% less damage). Earned with Bestiary stars: Soul Censer
+  (5 ★, the Soul Lantern's power), Winter's Tear (10 ★, Endless Winter's) and
+  Cinder Heart (15 ★, the Ring of Embers').
+- **Starting weapon.** Unlock a weapon card for 20 shards and begin every
+  night with it taken (rank 1, so it levels and evolves as usual).
+- **Lost lore.** Level-up cards that only enter the pool once learned:
+  Deadly Aim (crit), Bulwark (armor) and Catalyst (reactions)
+  (`unlock` in `Upgrades.DEFS`).
+
+The picks and purchases are saved with the rest (save version 3; older saves
+load with an empty Reliquary). Bots and tests carry nothing unless told to
+(`relic=` / `weapon=` in `balance_bot.gd`).
+
 **Feel.** Damage numbers (crits are big and gold; only one in five ordinary hits
 shows a number, to keep it readable), screen shake on big hits, real light from
 explosions, dash trails, drifting embers, and a sky that changes over the run:

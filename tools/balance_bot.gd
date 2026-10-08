@@ -9,6 +9,8 @@ extends SceneTree
 ##   policy     greedy | tank | random
 ##   overrides  realm=<id> plays that realm (see Realm.REALMS; default graveyard)
 ##              class=<id> plays that hero class (see HeroClass; default battlemage)
+##              relic=<id> carries that relic, weapon=<id> starts with that
+##              weapon card (see Relics; default none)
 ##              ascension=<n> plays at that Ascension (see RunModifiers)
 ##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
@@ -77,6 +79,10 @@ func _initialize() -> void:
 			Realm.current = o.substr(6)
 		elif o.begins_with("class="):
 			MetaProgress.forced_class = o.substr(6)
+		elif o.begins_with("relic="):
+			MetaProgress.forced_relic = o.substr(6)
+		elif o.begins_with("weapon="):
+			MetaProgress.forced_weapon = o.substr(7)
 		elif o.begins_with("omen="):
 			RunModifiers.forced_omen = o.substr(5)
 		elif o.begins_with("ascension="):
@@ -127,7 +133,8 @@ func _setup() -> void:
 		_rarities[item.rarity] += 1)
 	for o in _overrides:
 		if not o.begins_with("base.") and not o.begins_with("realm=") and not o.begins_with("class=") \
-				and not o.begins_with("omen=") and not o.begins_with("ascension="):
+				and not o.begins_with("omen=") and not o.begins_with("ascension=") and not o.begins_with("relic=") \
+				and not o.begins_with("weapon="):
 			_apply_override(o)
 
 
