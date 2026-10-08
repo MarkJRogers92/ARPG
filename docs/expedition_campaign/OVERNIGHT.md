@@ -2,7 +2,7 @@
 
 ## Authority and deadline
 
-Mark requested continued feature development through the morning. Target cutoff: 6:00 a.m. America/Chicago, October 8. Mark shortened the deadline at approximately 4:03 a.m.; this overrides all older 7:00 a.m. continuation notes below. Hourly follow-ups are attached to this chat as `soulbound-overnight-improvements`, with a schedule ending at the cutoff. Continue safe bounded packages; do not start new work after the cutoff. No push, merge, release, deployment, installed-app replacement, purchases, or paid generation.
+Mark requested continued feature development through the morning. Target cutoff: 6:00 a.m. America/Chicago, October 8. Mark shortened the deadline at approximately 4:03 a.m.; this overrides all older 7:00 a.m. continuation notes below. Quarter-hour follow-ups are attached to this chat as `soulbound-overnight-improvements`, with a schedule ending at the cutoff. Continue safe bounded packages; do not start new work after the cutoff. No push, merge, release, deployment, installed-app replacement, purchases, or paid generation.
 
 ## Starting checkpoint
 
@@ -70,3 +70,15 @@ Work since starting HEAD `370204c` is integrated on `feature/expedition-campaign
 Parent reviewed the actual diffs and screenshots; native Sol reviewed the shared assembler and stacking behavior. Integrated checks passed: props, combat 50, loadout 98, talent UI, and lifecycle 137 checks with zero failures. Lifecycle shutdown still reported 12 ObjectDB instances and 6 resources in use. Import exited 0 without `SCRIPT ERROR`; 53 generated import sidecars were restored. Fixtures show UI state, not live-play performance or player acceptance. The `f1fef28` source baseline was run after the shared assembler extraction, so it is not a pre-change run. The build preview reconstructs ephemeral runtime item IDs and advances the counter, but does not mutate saved state. No gameplay balance/economy tuning or save-format change was made.
 
 All packages are closed. Until 6:00 a.m. Chicago time, follow-ups should inspect current state, then implement and verify one useful bounded improvement when justified; no package is currently owned or queued. At cutoff, start no new implementation, record a safe final checkpoint, and pause the automation. Do not repeat journey/lifecycle checks without a relevant code change. No push, merge, release, deployment, purchase, paid generation, or installed-app replacement is authorized. Final preservation check confirmed original `project.godot` bytes and all six protected player-file states match. Saved automation readback confirms the bounded quarter-hour schedule remains active through the cutoff.
+
+
+## Current accepted checkpoint — 5:17–5:30 a.m.
+
+Integrated at `762d7ac` on `feature/expedition-campaign-v1`, based on `18943da`. Ledger displays full details for the selected offer and compares it with the worn item while retaining slot/index acceptance and keyboard focus. Recruitment displays incoming veteran details with readable role, rank cap, kills, and nights; pledged veterans cannot be replaced, and confirmation names both veterans. The focused UI behavior run passed (`CAMPAIGN_UI_BEHAVIOR PASSED`, exit 0, no warnings/errors), including exact selected-offer and replacement IDs and cancel-without-change checks. Parent Sol reviewed the actual diffs and fixtures. Fixture previews are not live-play evidence.
+
+Native Luna implemented the two packages in isolated Ledger and roster worktrees; parent Sol reviewed the actual diffs, requested a Ledger keyboard/test correction, then integrated both packages. Jev routing advice was unavailable; the work used native assignments. Both ownerships are closed. The commit changes only `scripts/campaign/campaign_town.gd` and `tools/campaign_ui_test.gd`. No controller, economy, save, or art changes were made. After integrated UI, original `project.godot` bytes and all six protected player-file fingerprints matched; the pre-existing local `project.godot` modification remains preserved. Earlier lifecycle shutdown warnings (12 ObjectDB instances and 6 resources in use) remain unresolved; lifecycle checks were not repeated for this view-only pass. No new implementation is queued. Quarter-hour follow-ups remain active through 6:00 a.m. Chicago time and may inspect current state or complete justified bounded work; at 6:00 stop new implementation and pause the automation. No push or release action is authorized.
+
+- [Ledger selected-offer preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/ledger-offers-720.png)
+- [Ledger worn-item comparison](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/ledger-comparison-720.png)
+- [Veteran recruitment preview](/Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/veteran-recruitment-720.png)
+- [Play Soulbound Campaign.command](</Users/markrogers/Documents/Codex/2026-10-07/ple/outputs/Play Soulbound Campaign.command>)
