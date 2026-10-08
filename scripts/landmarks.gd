@@ -194,6 +194,8 @@ func _unavailable(use: String) -> String:
 			if _player.stats.hp >= _player.stats.max_hp - 0.5:
 				return "you're already rested"
 		"rift":
+			if campaign_mode:
+				return "the Night Market is closed to campaign expeditions"
 			if rift == null or not rift.can_open():
 				return "it won't open with a boss so near"
 	return ""

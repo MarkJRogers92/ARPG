@@ -63,7 +63,15 @@ func _settle_pending() -> void:
 		_pending_result = {}
 		_mount_town()
 	else:
-		_show_error(response["error"], _settle_pending, "Retry saving result")
+		_show_error(response["error"], _settle_pending, "Retry saving result", _forfeit_pending, "Return to town (forfeit this result)")
+
+## Escape hatch for a result that can never validate: bank it as a failure,
+## which keeps the committed route and banked gear for a retry.
+func _forfeit_pending() -> void:
+	var forfeited := _pending_result.duplicate(true)
+	forfeited["outcome"] = "failure"
+	_pending_result = forfeited
+	_settle_pending()
 
 func _return_title() -> void:
 	_clear_view()
@@ -73,7 +81,7 @@ func _return_title() -> void:
 	Engine.time_scale = 1.0
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
-func _show_error(message: String, retry: Callable, button_text := "Back to title") -> void:
+func _show_error(message: String, retry: Callable, button_text := "Back to title", secondary := Callable(), secondary_text := "") -> void:
 	if _error_layer: _error_layer.free()
 	_error_layer = CanvasLayer.new()
 	_error_layer.layer = 100
@@ -111,4 +119,13 @@ func _show_error(message: String, retry: Callable, button_text := "Back to title
 		_error_layer = null
 		retry.call_deferred())
 	box.add_child(button)
+	if secondary.is_valid():
+		var other := Button.new()
+		other.text = secondary_text
+		other.custom_minimum_size.y = 40
+		other.pressed.connect(func() -> void:
+			_error_layer.queue_free()
+			_error_layer = null
+			secondary.call_deferred())
+		box.add_child(other)
 	button.grab_focus.call_deferred()

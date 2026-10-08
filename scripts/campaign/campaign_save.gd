@@ -10,6 +10,13 @@ static var last_error := ""
 static func exists() -> bool:
 	return FileAccess.file_exists(path) or FileAccess.file_exists(path + ".bak") or FileAccess.file_exists(path + ".previous") or FileAccess.file_exists(path + ".rollback")
 
+## A save that Continue can open: present and not abandoned. Damaged files
+## still count so the player sees the recovery message.
+static func resumable() -> bool:
+	if not exists(): return false
+	var data := read()
+	return data.is_empty() or data.get("phase", "") != "ABANDONED"
+
 static func read() -> Dictionary:
 	last_error = ""
 	for suffix in ["", ".rollback", ".previous", ".bak"]:

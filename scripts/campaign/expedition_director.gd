@@ -466,7 +466,7 @@ func _spawn_cache_guardians(at: Vector2) -> void:
 			grunts.spawn(at + Vector2.from_angle(TAU * i / 4.0) * 3.6, _wave.hp_multiplier())
 	var hud := _main.get_node_or_null("Hud")
 	if hud:
-		hud.call("toast", "The cursed cache wakes its guardian and hungry dead.", CACHE_COLOR)
+		hud.call("toast", "The cursed cache wakes its guardian and hungry dead.  +%d G on extraction" % (50 * (int(spec.get("biome_index", 0)) + 1)), CACHE_COLOR)
 
 
 func _spawn_specialist(at: Vector2, elite: bool) -> void:

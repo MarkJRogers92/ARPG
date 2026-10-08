@@ -30,6 +30,8 @@ func _commit(next: Dictionary) -> Dictionary:
 
 func _command(kind: String, operation_id: String, arguments: Array, action: Callable, town_only := true) -> Dictionary:
 	if state.is_empty(): return _error("No campaign is loaded.")
+	# Generated IDs are never repeated, so only caller-supplied IDs keep a receipt.
+	var keep_receipt := operation_id != ""
 	if operation_id == "": operation_id = "%s:op:%d:%s" % [state["campaign_id"], state["revision"] + 1, kind]
 	var signature := kind + ":" + var_to_str(arguments)
 	if state["receipts"].has(operation_id):
@@ -42,7 +44,7 @@ func _command(kind: String, operation_id: String, arguments: Array, action: Call
 	if not response.get("ok", false): return _error(response.get("error", "Command could not complete."))
 	response["operation_id"] = operation_id
 	response["error"] = ""
-	next["receipts"][operation_id] = {"signature": signature, "response": response.duplicate(true)}
+	if keep_receipt: next["receipts"][operation_id] = {"signature": signature, "response": response.duplicate(true)}
 	var saved := _commit(next)
 	return response if saved["ok"] else saved
 
@@ -409,7 +411,8 @@ func buy_item(stock_id: String, operation_id := "") -> Dictionary:
 			if entry["id"] != stock_id: continue
 			if entry["purchased"]: return {"ok": false, "error": "That copy has already been purchased."}
 			if next["gold"] < entry["price"]: return {"ok": false, "error": "Not enough campaign Gold."}
-			if next["inventory"]["backpack"].size() >= Inventory.BACKPACK_SIZE: return {"ok": false, "error": "Make backpack space before buying."}
+			var slot_filled: bool = next["inventory"]["equipped"].has(entry["item"]["data"]["slot"])
+			if slot_filled and next["inventory"]["backpack"].size() >= Inventory.BACKPACK_SIZE: return {"ok": false, "error": "Make backpack space before buying."}
 			next["gold"] -= entry["price"]
 			entry["purchased"] = true
 			_store(next, entry["item"])
