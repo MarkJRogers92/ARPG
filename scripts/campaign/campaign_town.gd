@@ -68,6 +68,11 @@ var _event_selection: Dictionary = {}
 var _wager_pledge := false
 var _wager_node_id := ""
 var _stolen_offers: Array = []
+var _mara_dialogue: PanelContainer
+var _mara_title: Label
+var _mara_copy: Label
+var _mara_choices: VBoxContainer
+var _mara_dialogue_open := false
 
 
 func _ready() -> void:
@@ -97,6 +102,10 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if str(_state.get("phase", "")) in ["EVENT_PENDING", "RESULT_PENDING"]:
+			get_viewport().set_input_as_handled()
+			return
+		if _mara_dialogue_open:
+			_close_mara_dialogue()
 			get_viewport().set_input_as_handled()
 			return
 		if is_instance_valid(_walk) and _panel_open:
@@ -152,6 +161,7 @@ func _build() -> void:
 	layout.add_child(_feedback)
 	if walking_enabled():
 		_build_walk(layout)
+		_build_mara_dialogue()
 
 
 static func walking_enabled() -> bool:
@@ -165,6 +175,7 @@ func _build_walk(layout: Control) -> void:
 	_walk.name = "WalkableSanctuary"
 	add_child(_walk)
 	_walk.station_used.connect(_open_station)
+	_walk.mara_used.connect(_open_mara_dialogue)
 	_backdrop_rect.visible = false
 	if is_instance_valid(_sanctuary):
 		_sanctuary.visible = false
@@ -195,6 +206,42 @@ func _close_panel() -> void:
 	get_viewport().gui_release_focus()
 
 
+func _build_mara_dialogue() -> void:
+	_mara_dialogue = PanelContainer.new()
+	_mara_dialogue.name = "MaraConversation"
+	_mara_dialogue.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_mara_dialogue.anchor_left = 0.24
+	_mara_dialogue.anchor_right = 0.76
+	_mara_dialogue.anchor_top = 0.64
+	_mara_dialogue.anchor_bottom = 0.97
+	_mara_dialogue.offset_left = 0
+	_mara_dialogue.offset_right = 0
+	_mara_dialogue.offset_top = 0
+	_mara_dialogue.offset_bottom = -12
+	_mara_dialogue.add_theme_stylebox_override("panel", UiStyle.box(Color(0.035, 0.038, 0.048, 0.97), Color(0.58, 0.43, 0.25), 2, 8))
+	_mara_dialogue.visible = false
+	_root.add_child(_mara_dialogue)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 16)
+	_mara_dialogue.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 7)
+	margin.add_child(column)
+	_mara_title = UiStyle.label(19)
+	_mara_title.text = "MARA VENN  ·  GRAVEDIGGER"
+	_mara_title.add_theme_color_override("font_color", UiStyle.GOLD)
+	column.add_child(_mara_title)
+	_mara_copy = UiStyle.label(16)
+	_mara_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mara_copy.custom_minimum_size.y = 44
+	_mara_copy.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(_mara_copy)
+	_mara_choices = VBoxContainer.new()
+	_mara_choices.add_theme_constant_override("separation", 4)
+	column.add_child(_mara_choices)
+
+
 ## Walk mode: the panel row shows only while a service is open or a phase
 ## demands an answer; otherwise the hero walks the plaza.
 func _apply_walk_layout() -> void:
@@ -202,11 +249,91 @@ func _apply_walk_layout() -> void:
 		return
 	var panel_visible := _panel_open or str(_state.get("phase", "TOWN")) in FORCED_PANEL_PHASES
 	_body_row.visible = panel_visible
-	_veil.visible = panel_visible
+	_veil.visible = panel_visible or _mara_dialogue_open
+	_veil.color.a = 0.34 if panel_visible else (0.12 if _mara_dialogue_open else 0.0)
 	_walk_spacer.visible = not panel_visible
-	_walk_hint.visible = not panel_visible
-	_walk.walking = not panel_visible
+	_walk_hint.visible = not panel_visible and not _mara_dialogue_open
+	_walk.walking = not panel_visible and not _mara_dialogue_open
 	_walk.present(_state)
+	if is_instance_valid(_walk._camp_life):
+		_walk._camp_life.set_talk_prompt(_walk._camp_talk_enabled, _walk._hero_pos, _walk.walking)
+	if is_instance_valid(_mara_dialogue):
+		_mara_dialogue.visible = _mara_dialogue_open
+		if _mara_dialogue_open and (panel_visible or not _mara_available()):
+			_mara_dialogue_open = false
+			_mara_dialogue.visible = false
+			_walk.walking = not panel_visible
+			_walk_hint.visible = not panel_visible
+			_veil.visible = panel_visible
+			_veil.color.a = 0.34 if panel_visible else 0.0
+
+
+func _mara_available() -> bool:
+	if str(_state.get("phase", "")) != "TOWN":
+		return false
+	var place := CampaignWaystops.resolve(_state)
+	return int(place.get("biome_index", -1)) == 0 and int(place.get("stage", -1)) == 1 and str(place.get("kind", "")) == "camp"
+
+
+func _open_mara_dialogue() -> void:
+	if not is_instance_valid(_walk) or _panel_open or _mara_dialogue_open or not _mara_available():
+		return
+	Sound.play("ui_click", 0.88, -7.0)
+	_mara_dialogue_open = true
+	_set_mara_page("intro")
+	_apply_walk_layout()
+	if _mara_choices.get_child_count() > 0:
+		call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
+func _set_mara_page(page: String) -> void:
+	for child: Node in _mara_choices.get_children():
+		_mara_choices.remove_child(child)
+		child.queue_free()
+	var buttons: Array[Dictionary]
+	match page:
+		"ahead":
+			_mara_copy.text = "Follow the old bell road north. Bellwether's crossing is still standing, though its tower rings at the wrong hours. If you hear the bells twice, keep to the stones."
+			buttons = [{"text": "Ask something else", "page": "intro"}, {"text": "Leave", "page": "close"}]
+		"stay":
+			_mara_copy.text = "Someone has to tend the plots and keep the lamps lit. The crew buried here were our neighbors before they were names on a stone. We won't leave them in the dark."
+			buttons = [{"text": "Ask something else", "page": "intro"}, {"text": "Leave", "page": "close"}]
+		_:
+			_mara_copy.text = "Mara wipes soot from her gloves. “I'm Mara Venn. I keep the lamps and graves, so the road can stay clear for you.”"
+			buttons = [{"text": "What lies ahead?", "page": "ahead"}, {"text": "Why stay here?", "page": "stay"}, {"text": "Leave", "page": "close"}]
+	for choice: Dictionary in buttons:
+		var button := Button.new()
+		button.text = str(choice["text"])
+		button.custom_minimum_size.y = 35
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.pressed.connect(_mara_choice.bind(str(choice["page"])))
+		_mara_choices.add_child(button)
+
+
+func _mara_choice(page: String) -> void:
+	if page == "close":
+		_close_mara_dialogue()
+	else:
+		_set_mara_page(page)
+		if _mara_choices.get_child_count() > 0:
+			call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
+func _focus_mara_choice_if_open(button: Button) -> void:
+	if _mara_dialogue_open and is_instance_valid(button) and button.is_inside_tree():
+		button.grab_focus()
+
+
+func _close_mara_dialogue() -> void:
+	_mara_dialogue_open = false
+	if is_instance_valid(_mara_dialogue):
+		_mara_dialogue.visible = false
+	if is_instance_valid(_walk):
+		_walk.walking = not (_panel_open or str(_state.get("phase", "TOWN")) in FORCED_PANEL_PHASES)
+		_walk_hint.visible = not _panel_open and str(_state.get("phase", "TOWN")) not in FORCED_PANEL_PHASES
+		_veil.visible = _panel_open or str(_state.get("phase", "TOWN")) in FORCED_PANEL_PHASES
+		_veil.color.a = 0.34 if _veil.visible else 0.0
+	get_viewport().gui_release_focus()
 
 
 func _build_header(parent: Control) -> void:

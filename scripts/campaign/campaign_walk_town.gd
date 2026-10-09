@@ -5,6 +5,7 @@ extends Node3D
 ## opens the matching existing service panel. It owns no campaign state.
 
 signal station_used(service_id: String)
+signal mara_used
 
 const SOUL := Color(0.34, 0.86, 1.0)
 const EMBER := Color(1.0, 0.57, 0.24)
@@ -74,6 +75,8 @@ var _lantern_houses: Array[Vector2] = []
 var _waystop: Dictionary = {}
 var _waystop_id := ""
 var _lighting_kind := ""
+var _camp_life: CampaignCampLife
+var _camp_talk_enabled := false
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -127,6 +130,14 @@ func present(state: Dictionary) -> void:
 	var place := CampaignWaystops.resolve(state)
 	if str(place.get("id", "")) != _waystop_id:
 		_switch_waystop(place)
+	_camp_talk_enabled = str(state.get("phase", "TOWN")) == "TOWN" \
+		and int(place.get("biome_index", -1)) == 0 \
+		and int(place.get("stage", -1)) == 1 \
+		and str(place.get("kind", "")) == "camp" \
+		and is_instance_valid(_camp_life)
+	if is_instance_valid(_camp_life):
+		_camp_life.set_talk_prompt(_camp_talk_enabled and _near == "", _hero_pos, walking)
+		_update_near(false)
 	var lighting_kind := str(place.get("kind", ""))
 	if biome != _biome or completed != _completed_presentation or lighting_kind != _lighting_kind:
 		_biome = biome
@@ -167,6 +178,7 @@ func _switch_waystop(place: Dictionary) -> void:
 	if is_instance_valid(_destination_world):
 		_destination_world.free()
 		_destination_world = null
+	_camp_life = null
 	var is_lantern := str(place.get("kind", "")) == "lantern"
 	if is_instance_valid(_lantern_world):
 		_lantern_world.visible = is_lantern
@@ -176,6 +188,11 @@ func _switch_waystop(place: Dictionary) -> void:
 		_houses = _lantern_houses.duplicate()
 	if not is_lantern:
 		_destination_world = CampaignWaystopScenery.build(self, place)
+		if int(place.get("biome_index", -1)) == 0 and int(place.get("stage", -1)) == 1 and str(place.get("kind", "")) == "camp":
+			_camp_life = CampaignCampLife.new()
+			_destination_world.add_child(_camp_life)
+			_blockers.append([CampaignCampLife.MARA_AT, 0.48])
+			_camp_life.mara_used.connect(func() -> void: mara_used.emit())
 		for blocker: Array in CampaignWaystopScenery.walk_blockers(_destination_world):
 			_blockers.append(blocker)
 		# A returning traveler arrives at the south marker, facing the northbound
@@ -244,7 +261,7 @@ func _place_hero(delta: float, velocity := Vector2.ZERO) -> void:
 	_camera.look_at(target, Vector3.UP)
 
 
-func _update_near() -> void:
+func _update_near(allow_interaction := true) -> void:
 	var best := ""
 	var best_distance := USE_RANGE
 	for station: Dictionary in STATIONS:
@@ -253,15 +270,19 @@ func _update_near() -> void:
 		if distance <= best_distance:
 			best = station["id"]
 			best_distance = distance
-	if best == _near:
-		return
-	_near = best
-	for station: Dictionary in STATIONS:
-		var label: Label3D = _labels[station["id"]]
-		var active: bool = station["id"] == _near
-		label.text = ("[%s]  %s" % [Controls.tag("interact"), station["label"]]) if active else str(station["label"]).get_slice("  ·  ", 0)
-		label.modulate = Color.WHITE if active else Color(1, 1, 1, 0.72)
-		label.font_size = 64 if active else 48
+	if best != _near:
+		_near = best
+		for station: Dictionary in STATIONS:
+			var label: Label3D = _labels[station["id"]]
+			var active: bool = station["id"] == _near
+			label.text = ("[%s]  %s" % [Controls.tag("interact"), station["label"]]) if active else str(station["label"]).get_slice("  ·  ", 0)
+			label.modulate = Color.WHITE if active else Color(1, 1, 1, 0.72)
+			label.font_size = 64 if active else 48
+	if is_instance_valid(_camp_life):
+		var can_talk := _camp_talk_enabled and _near == "" and walking
+		_camp_life.set_talk_prompt(can_talk, _hero_pos, walking)
+		if allow_interaction and can_talk and _camp_life.can_talk_from(_hero_pos) and Input.is_action_just_pressed("interact"):
+			_camp_life.talk()
 
 
 # --- building the plaza ---------------------------------------------------------------
