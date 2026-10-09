@@ -861,8 +861,8 @@ func _realm_card(id: String) -> Button:
 	var status := _menu_label(16)
 	if not unlocked:
 		var prev: String = Realm.ORDER[Realm.index(id) - 1]
-		status.text = "Locked: conquer %s first" % Realm.data(prev)["name"]
-		status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		status.text = "Locked · Conquer Night %d first" % Realm.index(id)
+		card.tooltip_text = "Conquer %s to unlock this realm." % Realm.data(prev)["name"]
 		status.modulate = Color(1, 1, 1, 0.5)
 	elif won:
 		var best := MetaProgress.endless_best(id)

@@ -11,7 +11,7 @@ extends SceneTree
 ## each menu fits its viewport):
 ##   godot --headless --path . -s tools/menu_polish_ui_test.gd -- --screen=behavior
 ##
-## Screens: title-none, title-valid, title-damaged, title-abandoned, pause,
+## Screens: title-none, title-locked, title-valid, title-damaged, title-abandoned, pause,
 ## pause-campaign, inventory, inventory-full, behavior.
 ## Every fixture writes only to a unique user:// name; the real save slots are
 ## never opened, read or written.
@@ -169,6 +169,12 @@ func _run_screenshot(screen: String, width: int, height: int, output: String, mi
 	container.add_child(viewport)
 	var main: Node = null
 	match screen:
+		"title-locked":
+			_clear_slots()
+			MetaProgress.disabled = false
+			MetaProgress.load_save()
+			Realm.in_title = true
+			main = await _mount_into(viewport)
 		"title-none":
 			_clear_slots()
 			Realm.in_title = true
@@ -245,12 +251,36 @@ func _settle(viewport: SubViewport) -> void:
 
 func _run_behavior(width: int, height: int) -> void:
 	root.size = Vector2i(width, height)
+	await _behavior_locked_realms(height)
 	await _behavior_title(height)
 	await _behavior_pause()
 	await _behavior_inventory(height)
 	for message: String in _failures:
 		push_error("MENU_POLISH_BEHAVIOR_FAIL: " + message)
 	print("MENU_POLISH_BEHAVIOR %s" % ["FAILED" if not _failures.is_empty() else "PASSED"])
+
+
+func _behavior_locked_realms(height: int) -> void:
+	_clear_slots()
+	MetaProgress.disabled = false
+	MetaProgress.load_save()
+	Realm.in_title = true
+	var main: Node = await _mount_main()
+	var title := main.get_node("TitleScreen") as TitleScreen
+	title.open()
+	for i in 4:
+		await process_frame
+	_check(_content_min_height(title._root) <= float(height), "locked title fits viewport")
+	for i in range(1, Realm.ORDER.size()):
+		var label := _find_label_containing(title, "Locked · Conquer Night %d first" % i)
+		_check(label != null, "locked realm identifies prerequisite Night %d" % i)
+		if label != null:
+			var card := label.get_parent().get_parent() as Button
+			_check(card.disabled, "locked realm remains unavailable")
+			_check(card.get_global_rect().encloses(label.get_global_rect()), "locked status stays inside its card")
+			_check(label.get_line_count() == 1, "locked status fits on one line")
+	main.free()
+	MetaProgress.disabled = true
 
 
 func _behavior_title(height: int) -> void:
