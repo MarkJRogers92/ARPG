@@ -1243,6 +1243,8 @@ func _render_pack() -> void:
 		tray_actions.add_child(_button("Discard", func() -> void: _confirm_discard(item_id), Color(0.9, 0.55, 0.46)))
 	var detail_column := VBoxContainer.new()
 	detail_column.custom_minimum_size.x = 280
+	detail_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_column.size_flags_stretch_ratio = 0.9
 	columns.add_child(detail_column)
 	_add_subtitle(detail_column, "COMPARE & MANAGE")
 	if not _selected_item_id.is_empty() and not _inventory_has_item(inventory, _selected_item_id):
@@ -2252,23 +2254,32 @@ func _add_item_detail(parent: Control, record: Dictionary) -> void:
 	if data.is_empty():
 		_add_copy_to(parent, "Select an item to inspect it.", UiStyle.MUTED)
 		return
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel",
+			CampaignMenuStyle.card_box(CampaignMenuStyle.SURFACE, _rarity_color(record).darkened(0.45), 1, 6, 8))
+	parent.add_child(card)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	card.add_child(box)
 	var title := CampaignMenuStyle.label(16)
 	title.text = _item_name(record)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_color_override("font_color", _rarity_color(record))
-	parent.add_child(title)
+	box.add_child(title)
 	var meta := CampaignMenuStyle.label(12)
 	meta.text = "%s · %s · item level %d · value %d G%s" % [_rarity_text(record), ItemData.SLOT_NAMES.get(str(data.get("slot", "")), str(data.get("slot", ""))), int(data.get("ilvl", 1)), int(record.get("valuation", 0)), " · LOCKED" if bool(record.get("locked", false)) else ""]
-	meta.modulate = Color(1, 1, 1, 0.62)
+	meta.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(meta)
+	box.add_child(meta)
 	if not str(data.get("power", "")).is_empty():
 		var power_id := str(data["power"])
 		var power: Dictionary = ItemData.POWERS.get(power_id, {})
-		_add_copy_to(parent, "Legendary power · %s: %s" % [power_id.replace("_", " ").capitalize(), str(power.get("desc", "Power description unavailable."))], Color(1.0, 0.7, 0.35))
+		_add_copy_to(box, "★ Legendary power · %s: %s" % [power_id.replace("_", " ").capitalize(), str(power.get("desc", "Power description unavailable."))], Color(1.0, 0.72, 0.42))
 	for modifier: Variant in ItemComparison.rows({}, data):
 		if modifier is Dictionary:
-			_add_copy_to(parent, ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"])), Color(0.7, 0.82, 0.98))
+			_add_copy_to(box, ItemComparison.format_value(str(modifier["stat"]), int(modifier["op"]), float(modifier["offered"])), Color(0.78, 0.86, 0.96))
 
 
 func _add_item_comparison(parent: Control, current_record: Dictionary, offered_record: Dictionary, current_label := "Worn", offered_label := "Offered") -> void:
@@ -2277,25 +2288,35 @@ func _add_item_comparison(parent: Control, current_record: Dictionary, offered_r
 		return
 	var current_data: Dictionary = current_record.get("data", {})
 	var slot := str(offered_data.get("slot", current_data.get("slot", "")))
-	_add_subtitle(parent, "ITEM MODIFIERS · %s" % ItemData.SLOT_NAMES.get(slot, slot).to_upper())
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel",
+			CampaignMenuStyle.card_box(Color("161f28"), CampaignMenuStyle.BRONZE_SOFT, 1, 6, 8))
+	parent.add_child(card)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	card.add_child(box)
+	_add_subtitle(box, "ITEM MODIFIERS · %s" % ItemData.SLOT_NAMES.get(slot, slot).to_upper())
 	if current_data.is_empty():
-		_add_comparison_copy(parent, "%s: empty slot" % current_label)
+		_add_comparison_copy(box, "%s: empty slot" % current_label)
 	else:
-		_add_comparison_copy(parent, "%s: %s" % [current_label, _item_name(current_record)])
-	_add_comparison_copy(parent, "%s: %s" % [offered_label, _item_name(offered_record)])
+		_add_comparison_copy(box, "%s: %s" % [current_label, _item_name(current_record)])
+	_add_comparison_copy(box, "%s: %s" % [offered_label, _item_name(offered_record)])
 	var rows := ItemComparison.rows(current_data, offered_data)
 	if rows.is_empty():
-		_add_comparison_copy(parent, "No stat modifiers on either item.")
+		_add_comparison_copy(box, "No stat modifiers on either item.")
 	else:
 		for row: Dictionary in rows:
-			var current := "—" if is_zero_approx(float(row["current"])) else ItemComparison.format_value(str(row["stat"]), int(row["op"]), float(row["current"]))
-			var offered := "—" if is_zero_approx(float(row["offered"])) else ItemComparison.format_value(str(row["stat"]), int(row["op"]), float(row["offered"]))
-			_add_comparison_copy(parent, "%s  →  %s" % [current, offered])
+			var stat := str(row["stat"])
+			var op := int(row["op"])
+			var current := "—" if is_zero_approx(float(row["current"])) else ItemComparison.format_value(stat, op, float(row["current"]))
+			var offered := "—" if is_zero_approx(float(row["offered"])) else ItemComparison.format_value(stat, op, float(row["offered"]))
+			var tint := CampaignMenuStyle.comparison_color(stat, op, float(row["current"]), float(row["offered"]))
+			_add_comparison_copy(box, "%s  →  %s" % [current, offered], tint)
 	var current_power := str(current_data.get("power", ""))
 	var offered_power := str(offered_data.get("power", ""))
 	if not current_power.is_empty() or not offered_power.is_empty():
-		_add_comparison_copy(parent, _comparison_power_text(current_label, current_data))
-		_add_comparison_copy(parent, _comparison_power_text(offered_label, offered_data))
+		_add_comparison_copy(box, _comparison_power_text(current_label, current_data), Color(1.0, 0.72, 0.42))
+		_add_comparison_copy(box, _comparison_power_text(offered_label, offered_data), Color(1.0, 0.72, 0.42))
 
 
 func _comparison_power_text(which: String, data: Dictionary) -> String:
@@ -2306,12 +2327,12 @@ func _comparison_power_text(which: String, data: Dictionary) -> String:
 	return "%s legendary power · %s: %s" % [which, power_id.replace("_", " ").capitalize(), str(power.get("desc", "Description unavailable."))]
 
 
-func _add_comparison_copy(parent: Control, text: String) -> Label:
+func _add_comparison_copy(parent: Control, text: String, color := Color(1, 1, 1, 0.76)) -> Label:
 	var label := CampaignMenuStyle.label(14)
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.modulate = Color(1, 1, 1, 0.76)
+	label.add_theme_color_override("font_color", color)
 	parent.add_child(label)
 	return label
 
