@@ -3172,6 +3172,7 @@ func _test_nemesis() -> bool:
 	var thralls: EnemySwarm = main.get_node("Thralls")
 	rival.arrive()
 	var first_hp := swarm.hp[0]
+	var first_world_hp_multiplier := (main.get_node("WaveDirector") as WaveDirector).hp_multiplier()
 	var first_name := rival.rival_name
 	_check(rival.rank == 0, "the first rival is no one's nemesis yet")
 	rival.stolen = 12
@@ -3192,7 +3193,10 @@ func _test_nemesis() -> bool:
 	thralls = main.get_node("Thralls")
 	rival.arrive()
 	_check(rival.rival_name == first_name and rival.rank == 1, "the nemesis returns by name")
-	_check(swarm.hp[0] > first_hp * 1.3 and thralls.alive_count() == 4, "a rank tougher, with more thralls")
+	var second_world_hp_multiplier := (main.get_node("WaveDirector") as WaveDirector).hp_multiplier()
+	_check(swarm.hp[0] / second_world_hp_multiplier > (first_hp / first_world_hp_multiplier) * 1.3,
+			"a rank tougher, accounting for this night's Omen")
+	_check(thralls.alive_count() == 4, "a rank returns with one more initial thrall")
 	rival.hero_fell()
 	_check(MetaProgress.nemesis["rank"] == 2 and MetaProgress.nemesis["escapes"] == 2, "outliving the hero ranks it up too")
 	main.free()
