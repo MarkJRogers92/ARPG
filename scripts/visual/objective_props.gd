@@ -12,7 +12,7 @@ static var _meshes: Dictionary = {}
 ## Append after the existing label: ExpeditionDirector retains child index 2.
 static func attach(holder: Node3D, site_id: String, color: Color) -> MeshInstance3D:
 	var kind := "seal" if site_id.begins_with("seal_") else site_id
-	if kind not in ["seal", "cache", "elite"]:
+	if kind not in ["seal", "cache", "elite", "lantern_recovery"]:
 		return null
 	var key := kind + ":" + color.to_html()
 	if not _meshes.has(key):
@@ -23,6 +23,7 @@ static func attach(holder: Node3D, site_id: String, color: Color) -> MeshInstanc
 			"seal": _seal(kit, color)
 			"cache": _cache(kit, color)
 			"elite": _elite(kit, color)
+			"lantern_recovery": _lantern(kit, color)
 		_meshes[key] = kit.commit(Models.material("kit"))
 	var prop := MeshInstance3D.new()
 	prop.name = "ObjectiveProp"
@@ -87,3 +88,15 @@ static func _elite(kit: MeshKit, ember: Color) -> void:
 		kit.sphere(0.065, MeshKit.at(at + Vector3(0, 0.2, 0)), ember, 0.8, 6, 3)
 	for z in [-0.44, 0.44]:
 		kit.box(Vector3(0.15, 0.19, 0.055), MeshKit.at(Vector3(0, 2.42, z), Vector3(0, 0, 45)), ember, 0.85)
+
+
+static func _lantern(kit: MeshKit, soul: Color) -> void:
+	# A small brass field lamp, visibly different from campaign seals and caches.
+	kit.box(Vector3(0.56, 0.1, 0.48), MeshKit.at(Vector3(0, 0.1, 0)), BRASS)
+	kit.box(Vector3(0.38, 0.62, 0.32), MeshKit.at(Vector3(0, 0.48, 0)), Color(0.14, 0.22, 0.27))
+	for x in [-0.2, 0.2]:
+		for z in [-0.16, 0.16]:
+			kit.box(Vector3(0.045, 0.62, 0.045), MeshKit.at(Vector3(x, 0.48, z)), BRASS.lightened(0.18))
+	kit.box(Vector3(0.5, 0.08, 0.44), MeshKit.at(Vector3(0, 0.83, 0)), BRASS)
+	kit.torus(0.19, 0.24, MeshKit.at(Vector3(0, 1.06, 0), Vector3(90, 0, 0)), BRASS.lightened(0.24), 0.0, 10)
+	kit.sphere(0.14, MeshKit.at(Vector3(0, 0.49, 0), Vector3.ZERO, Vector3(0.75, 1.5, 0.75)), soul, 1.1, 8, 5)

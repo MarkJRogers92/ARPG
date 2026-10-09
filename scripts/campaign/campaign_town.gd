@@ -73,6 +73,7 @@ var _mara_title: Label
 var _mara_copy: Label
 var _mara_choices: VBoxContainer
 var _mara_dialogue_open := false
+var _story_dialogue_id := ""
 
 
 func _ready() -> void:
@@ -101,7 +102,7 @@ func _input(event: InputEvent) -> void:
 		if _state.get("phase", "") == "CAMPAIGN_COMPLETE":
 			get_viewport().set_input_as_handled()
 			return
-		if str(_state.get("phase", "")) in ["EVENT_PENDING", "RESULT_PENDING"]:
+		if str(_state.get("phase", "")) == "RESULT_PENDING" or (str(_state.get("phase", "")) == "EVENT_PENDING" and not _mara_dialogue_open):
 			get_viewport().set_input_as_handled()
 			return
 		if _mara_dialogue_open:
@@ -176,6 +177,7 @@ func _build_walk(layout: Control) -> void:
 	add_child(_walk)
 	_walk.station_used.connect(_open_station)
 	_walk.mara_used.connect(_open_mara_dialogue)
+	_walk.story_used.connect(_open_story_dialogue)
 	_backdrop_rect.visible = false
 	if is_instance_valid(_sanctuary):
 		_sanctuary.visible = false
@@ -185,7 +187,7 @@ func _build_walk(layout: Control) -> void:
 	layout.add_child(_walk_spacer)
 	_walk_hint = UiStyle.label(15)
 	_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_walk_hint.text = "%s  move     %s  use     ESC  save & leave" % ["WASD", Controls.tag("interact")]
+	_walk_hint.text = "%s  move     %s  use     ESC  back     Save & Leave  exit" % ["WASD", Controls.tag("interact")]
 	_walk_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_walk_hint.modulate = Color(1, 1, 1, 0.7)
 	layout.add_child(_walk_hint)
@@ -210,10 +212,12 @@ func _build_mara_dialogue() -> void:
 	_mara_dialogue = PanelContainer.new()
 	_mara_dialogue.name = "MaraConversation"
 	_mara_dialogue.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_mara_dialogue.anchor_left = 0.24
-	_mara_dialogue.anchor_right = 0.76
-	_mara_dialogue.anchor_top = 0.64
-	_mara_dialogue.anchor_bottom = 0.97
+	var viewport_height := maxf(get_viewport().get_visible_rect().size.y, 1.0)
+	var dialogue_height := clampf(viewport_height * 0.56, 385.0, 600.0)
+	_mara_dialogue.anchor_left = 0.18
+	_mara_dialogue.anchor_right = 0.82
+	_mara_dialogue.anchor_top = maxf(0.04, 1.0 - dialogue_height / viewport_height)
+	_mara_dialogue.anchor_bottom = 0.98
 	_mara_dialogue.offset_left = 0
 	_mara_dialogue.offset_right = 0
 	_mara_dialogue.offset_top = 0
@@ -223,10 +227,11 @@ func _build_mara_dialogue() -> void:
 	_root.add_child(_mara_dialogue)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 16)
+		margin.add_theme_constant_override("margin_" + side, 14)
 	_mara_dialogue.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 7)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 6)
 	margin.add_child(column)
 	_mara_title = UiStyle.label(19)
 	_mara_title.text = "MARA VENN  ·  GRAVEDIGGER"
@@ -234,9 +239,15 @@ func _build_mara_dialogue() -> void:
 	column.add_child(_mara_title)
 	_mara_copy = UiStyle.label(16)
 	_mara_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_mara_copy.custom_minimum_size.y = 44
-	_mara_copy.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_mara_copy)
+	_mara_copy.custom_minimum_size = Vector2(0, 54)
+	_mara_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var copy_scroll := ScrollContainer.new()
+	copy_scroll.custom_minimum_size.y = 82
+	copy_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	copy_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(copy_scroll)
+	copy_scroll.add_child(_mara_copy)
 	_mara_choices = VBoxContainer.new()
 	_mara_choices.add_theme_constant_override("separation", 4)
 	column.add_child(_mara_choices)
@@ -259,7 +270,7 @@ func _apply_walk_layout() -> void:
 		_walk._camp_life.set_talk_prompt(_walk._camp_talk_enabled, _walk._hero_pos, _walk.walking)
 	if is_instance_valid(_mara_dialogue):
 		_mara_dialogue.visible = _mara_dialogue_open
-		if _mara_dialogue_open and (panel_visible or not _mara_available()):
+		if _mara_dialogue_open and ((panel_visible and str(_state.get("phase", "")) != "EVENT_PENDING") or (not _mara_available() if _story_dialogue_id == "" else not _story_available(_story_dialogue_id))):
 			_mara_dialogue_open = false
 			_mara_dialogue.visible = false
 			_walk.walking = not panel_visible
@@ -269,16 +280,28 @@ func _apply_walk_layout() -> void:
 
 
 func _mara_available() -> bool:
-	if str(_state.get("phase", "")) != "TOWN":
+	if str(_state.get("phase", "")) not in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"]:
 		return false
 	var place := CampaignWaystops.resolve(_state)
 	return int(place.get("biome_index", -1)) == 0 and int(place.get("stage", -1)) == 1 and str(place.get("kind", "")) == "camp"
+
+
+func _story_available(story_id: String) -> bool:
+	if str(_state.get("phase", "")) not in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"]: return false
+	var place := CampaignWaystops.resolve(_state)
+	match story_id:
+		"whitepass_aid": return str(place.get("id", "")) == "waystop:frozen_wastes:0"
+		"sledwright_repair": return str(place.get("id", "")) == "waystop:frozen_wastes:1"
+		"redwake_trade": return str(place.get("id", "")) == "waystop:ember_rift:1"
+	return false
 
 
 func _open_mara_dialogue() -> void:
 	if not is_instance_valid(_walk) or _panel_open or _mara_dialogue_open or not _mara_available():
 		return
 	Sound.play("ui_click", 0.88, -7.0)
+	_story_dialogue_id = ""
+	_mara_title.text = "MARA VENN  ·  GRAVEDIGGER"
 	_mara_dialogue_open = true
 	_set_mara_page("intro")
 	_apply_walk_layout()
@@ -298,9 +321,27 @@ func _set_mara_page(page: String) -> void:
 		"stay":
 			_mara_copy.text = "Someone has to tend the plots and keep the lamps lit. The crew buried here were our neighbors before they were names on a stone. We won't leave them in the dark."
 			buttons = [{"text": "Ask something else", "page": "intro"}, {"text": "Leave", "page": "close"}]
+		"lantern":
+			var lantern_status := str(_state.get("stories", {}).get("lantern_recovery", {}).get("status", "offered"))
+			match lantern_status:
+				"accepted":
+					_mara_copy.text = "It is the brass lamp with blue glass, lost where the old grave road folds around a broken bell. It is an optional find on your next expedition. If extraction closes without it, the road moves on and my crew will hang the empty hook in its place."
+					buttons = [{"text": "I will look for it", "page": "stay_lantern"}, {"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"complete":
+					_mara_copy.text = "You brought the lamp all this way. The crew has it burning above the graves again; its blue flame can be seen from Bellwether. I put a little road money in the message pouch for you."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"missed":
+					_mara_copy.text = "The road closed before the brass lamp came home. We hung its empty hook on the next shelter's post, so the story could travel with you. It will not cost you another expedition."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"declined":
+					_mara_copy.text = "I understand. The empty hook can wait for another pair of hands. The road is yours to prepare for either way."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				_:
+					_mara_copy.text = "A brass lantern with blue glass went missing from our last grave patrol. The search is optional; you can find its marker during one expedition, and picking it up costs no time or gold. If extraction closes first, the errand ends and its empty hook travels onward."
+					buttons = [{"text": "Accept optional lantern errand", "page": "accept_lantern"}, {"text": "Leave it for another traveler", "page": "decline_lantern"}, {"text": "Back to Mara", "page": "intro"}]
 		_:
 			_mara_copy.text = "Mara wipes soot from her gloves. “I'm Mara Venn. I keep the lamps and graves, so the road can stay clear for you.”"
-			buttons = [{"text": "What lies ahead?", "page": "ahead"}, {"text": "Why stay here?", "page": "stay"}, {"text": "Leave", "page": "close"}]
+			buttons = [{"text": "What lies ahead?", "page": "ahead"}, {"text": "Why stay here?", "page": "stay"}, {"text": "The missing brass lantern", "page": "lantern"}, {"text": "Leave", "page": "close"}]
 	for choice: Dictionary in buttons:
 		var button := Button.new()
 		button.text = str(choice["text"])
@@ -311,7 +352,12 @@ func _set_mara_page(page: String) -> void:
 
 
 func _mara_choice(page: String) -> void:
-	if page == "close":
+	if page == "accept_lantern" or page == "decline_lantern":
+		var response := _command("choose_story", ["lantern_recovery", "accept" if page == "accept_lantern" else "decline"])
+		if bool(response.get("ok", false)):
+			_set_mara_page("lantern")
+			if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+	elif page == "close":
 		_close_mara_dialogue()
 	else:
 		_set_mara_page(page)
@@ -319,13 +365,130 @@ func _mara_choice(page: String) -> void:
 			call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
 
 
+func _open_story_dialogue(story_id: String) -> void:
+	if not is_instance_valid(_walk) or _panel_open or _mara_dialogue_open or not _story_available(story_id): return
+	_story_dialogue_id = story_id
+	_mara_dialogue_open = true
+	Sound.play("ui_click", 0.88, -7.0)
+	_set_story_page("intro")
+	_apply_walk_layout()
+	if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
+func _set_story_page(page: String) -> void:
+	for child: Node in _mara_choices.get_children():
+		_mara_choices.remove_child(child)
+		child.queue_free()
+	var title := ""
+	var copy := ""
+	var buttons: Array[Dictionary] = []
+	var stories: Dictionary = _state.get("stories", {})
+	match _story_dialogue_id:
+		"whitepass_aid":
+			title = "HESSA VALE  ·  WHITEPASS REFUGEE"
+			var saved: Dictionary = stories.get("whitepass_aid", {})
+			if str(saved.get("choice", "")) != "":
+				match str(saved.get("choice", "")):
+					"donate": copy = "The lamp oil is packed with Hessa's bitter fire tonic. She raises the signal for her brother and presses the small flask into your hand."
+					"signal": copy = "The brazier is braced and burning cleanly. Hessa's brother spots it through the snow; she hands you the spare armor straps for the road."
+					_: copy = "Hessa thanks you for hearing her out and turns back to the cold brazier. She keeps watch for her brother alone."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Hessa Vale has been stranded above the pass since the bridge ice broke. Her brother is guiding a supply train down from the ridge; she is trying to keep a signal brazier alive until they find the refuge."
+				buttons = [{"text": "Ask how to help", "page": "help"}, {"text": "Not now · no cost", "page": "decline"}]
+			elif page == "help":
+				copy = "Hessa can brew a bitter fire tonic for 8 gold (+8% damage), or you can help brace the brazier for free (+8% armor). Either benefit lasts through your next road until it is cleared."
+				buttons = [{"text": "Give 8 gold · fire tonic · +8% damage", "choice": "donate"}, {"text": "Brace the signal · free · +8% armor", "choice": "signal"}, {"text": "Not now · no cost", "page": "decline"}]
+			else:
+				copy = "Hessa understands. She waits beside the cold signal brazier and keeps watching the ridge."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+		"sledwright_repair":
+			title = "ELIAN RUSK  ·  SLEDWRIGHT"
+			var saved: Dictionary = stories.get("sledwright_repair", {})
+			if str(saved.get("choice", "")) != "":
+				if str(saved.get("choice", "")) == "iron": copy = "The iron shoe sits true beneath the runner. Elian wipes his hands, then gives you the hammer for luck."
+				elif str(saved.get("choice", "")) == "canvas": copy = "The canvas wraps hold after your test. Elian gives you the spare rope, pleased to have another pair of hands on the work."
+				else: copy = "Elian sets the cracked runner aside and returns to his crew. The sled can wait until the next stop."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Elian Rusk kneels beside a runner split along its outer shoe. “If I send this sled up with a cracked rail, it will turn downhill by itself. Give me a moment and an honest answer.”"
+				buttons = [{"text": "Inspect the runner together", "page": "inspect"}, {"text": "Leave it · no cost", "page": "decline"}]
+			elif page == "inspect":
+				copy = "The split runs under the front crossbar. An iron shoe costs 15 gold (+8% move speed). The free canvas splint takes your hands to lash and test (+10% armor). Either benefit lasts through your next road until it is cleared."
+				buttons = [{"text": "Fit iron shoe · 15 gold · +8% move speed", "choice": "iron"}, {"text": "Help lash and test canvas · free · +10% armor", "page": "test_canvas"}, {"text": "Leave it · no cost", "page": "decline"}]
+			elif page == "test_canvas":
+				copy = "You pull the line taut while Elian leans his weight against the sled. The canvas holds; he asks you to keep the runner steady for one final test."
+				buttons = [{"text": "Hold fast · test passes · finish repair", "choice": "canvas"}, {"text": "Step away · leave repair open", "page": "inspect"}]
+			else:
+				copy = "Elian shrugs without offense. The runner can wait until you decide which line to take."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+		"redwake_trade":
+			title = "JUNO CALDER  ·  REDWAKE FACTOR"
+			var saved: Dictionary = stories.get("redwake_trade", {})
+			if str(saved.get("status", "open")) == "played":
+				var won := bool(saved.get("won", false))
+				copy = "The sealed crate is opened. %s Juno folds the convoy tally and turns back to the road." % ("Thirty-two gold came back: after the 15-gold stake, your net is +17 gold." if won else "The heat split the cargo; the 15-gold stake is gone. Your net is -15 gold.")
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif str(saved.get("status", "open")) == "declined":
+				copy = "Juno has closed the offer without taking a coin. The caravan rolls on; the trade will not be offered again."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Juno Calder has one sealed crate left after a lava-road ambush. She taps its scorched lid and says the cargo was meant for a convoy caught beyond the cinder flats. She asks if you want to inspect it before making an offer."
+				buttons = [{"text": "Inspect the scorched cargo", "page": "inspect"}, {"text": "Decline this trade for good · free", "choice": "decline"}]
+			else:
+				copy = "The crate holds heatproof glass and a pouch of coin. Juno offers one disclosed gamble: stake 15 gold for a 60% chance to receive 32 back (+17 net); otherwise the cargo is lost and your net is -15. No hidden fee, and the draw happens only once."
+				buttons = [{"text": "Take the 15-gold trade · 60% · +17 / -15 net", "choice": "play"}, {"text": "Decline this trade for good · free", "choice": "decline"}]
+		_:
+			copy = "The road offers nothing more to settle here."
+			buttons = [{"text": "Close the conversation", "page": "close"}]
+	_mara_title.text = title
+	_mara_copy.text = copy
+	for choice: Dictionary in buttons:
+		var button := Button.new()
+		button.text = str(choice["text"])
+		var required_gold := 0
+		if _story_dialogue_id == "whitepass_aid" and choice.get("choice", "") == "donate": required_gold = 8
+		elif _story_dialogue_id == "sledwright_repair" and choice.get("choice", "") == "iron": required_gold = 15
+		elif _story_dialogue_id == "redwake_trade" and choice.get("choice", "") == "play": required_gold = 15
+		if required_gold > int(_state.get("gold", 0)):
+			button.disabled = true
+			button.text += " · need %d G" % required_gold
+		button.custom_minimum_size.y = 35
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.pressed.connect(_story_choice.bind(choice))
+		_mara_choices.add_child(button)
+
+
+func _story_choice(choice: Dictionary) -> void:
+	if choice.has("choice"):
+		var response := _command("choose_story", [_story_dialogue_id, str(choice["choice"])])
+		if bool(response.get("ok", false)):
+			_set_story_page("outcome")
+			if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+	else:
+		match str(choice.get("page", "")):
+			"close": _close_mara_dialogue()
+			"decline": _set_story_page("decline") if _story_dialogue_id != "" else _set_mara_page("intro")
+			_: _set_story_page(str(choice.get("page", "intro")))
+		if _mara_dialogue_open and _mara_choices.get_child_count() > 0:
+			call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
 func _focus_mara_choice_if_open(button: Button) -> void:
-	if _mara_dialogue_open and is_instance_valid(button) and button.is_inside_tree():
+	if not _mara_dialogue_open: return
+	if is_instance_valid(button) and button.is_inside_tree() and not button.disabled:
 		button.grab_focus()
+		return
+	for child: Node in _mara_choices.get_children():
+		var choice := child as Button
+		if choice != null and not choice.disabled and choice.visible:
+			choice.grab_focus()
+			return
 
 
 func _close_mara_dialogue() -> void:
 	_mara_dialogue_open = false
+	_story_dialogue_id = ""
 	if is_instance_valid(_mara_dialogue):
 		_mara_dialogue.visible = false
 	if is_instance_valid(_walk):
@@ -716,6 +879,7 @@ func _render_route() -> void:
 	var waystop := CampaignWaystops.resolve(_state)
 	_add_copy("%s · stop %d of 4\nVictory takes you to the next stop. Failure or retreat brings you back here." % [
 		str(waystop["name"]), int(waystop["stage"]) + 1])
+	_render_story_journal()
 	var graph: Dictionary = _state.get("graph", {})
 	if graph.is_empty():
 		_add_copy("The route map will appear once the campaign begins.")
@@ -1748,6 +1912,12 @@ func _render_event() -> void:
 	if choices.is_empty():
 		_add_copy("The event offers a safe route onward. The choice record remains attached to the campaign save.")
 		_content.add_child(_button("Leave the event", func() -> void: _command("resolve_event", ["leave"])))
+	for story_id: String in ["lantern_recovery", "whitepass_aid", "sledwright_repair", "redwake_trade"]:
+		var available := _mara_available() if story_id == "lantern_recovery" else _story_available(story_id)
+		if not available: continue
+		var speaker := str({"lantern_recovery": "Mara", "whitepass_aid": "Hessa", "sledwright_repair": "Elian", "redwake_trade": "Juno"}[story_id])
+		var talk := _button("Speak with %s before leaving the event" % speaker, func() -> void: _open_mara_dialogue() if story_id == "lantern_recovery" else _open_story_dialogue(story_id), UiStyle.GOLD)
+		_content.add_child(talk)
 
 
 func _resolve_event_choice(choice_id: String) -> void:
@@ -1784,6 +1954,8 @@ func _render_result() -> void:
 	else:
 		_add_copy("BACK AT %s\nThe same shelter waits while you prepare for another attempt." % str(waystop["name"]))
 	_render_after_action_report(result)
+	if str(result.get("story_message", "")) != "":
+		_add_copy(str(result["story_message"]))
 	var payment := int(result.get("gold", 0))
 	var conversion := int(result.get("shard_conversion", 0))
 	_add_copy("Gold banked from this result: +%d G   ·   contract / bonus %d G + shard conversion %d G" % [payment + conversion, payment, conversion])
@@ -1830,6 +2002,36 @@ func _render_result() -> void:
 	if not _state.get("outbox", []).is_empty():
 		_add_copy("Some account rewards are waiting to be recorded. Your expedition result is safely saved; you can retry here.")
 		_content.add_child(_button("Retry account reward delivery", func() -> void: _command("deliver_outbox"), Color(0.62, 0.82, 0.93)))
+
+
+func _render_story_journal() -> void:
+	var stories: Dictionary = _state.get("stories", {})
+	if stories.is_empty(): return
+	var entries: Array[String] = []
+	var lantern: Dictionary = stories.get("lantern_recovery", {})
+	match str(lantern.get("status", "offered")):
+		"accepted": entries.append("Mara's errand · lantern marked on the current route")
+		"complete": entries.append("Mara's lantern · recovered; +25 G banked; blue flame carried north")
+		"missed": entries.append("Mara's lantern · left behind; empty hook carried north")
+		"declined": entries.append("Mara's lantern · left for another traveler")
+	var whitepass: Dictionary = stories.get("whitepass_aid", {})
+	match str(whitepass.get("choice", "")):
+		"donate": entries.append("Whitepass · 8 G for lamp oil; fire tonic adds 8% damage on the next uncleared route")
+		"signal": entries.append("Whitepass · brazier braced; 8% armor support on the next uncleared route")
+		"declined": entries.append("Whitepass · Hessa will wait beside the signal brazier")
+	var repair: Dictionary = stories.get("sledwright_repair", {})
+	match str(repair.get("choice", "")):
+		"iron": entries.append("Sledwright · 15 G iron shoe fitted; 8% move speed support on the next uncleared route")
+		"canvas": entries.append("Sledwright · canvas splint lashed and tested; 10% armor support on the next uncleared route")
+		"declined": entries.append("Sledwright · repair left to Elian's crew")
+	var trade: Dictionary = stories.get("redwake_trade", {})
+	if str(trade.get("status", "open")) == "played":
+		entries.append("Redwake · one 15 G stake at 60%; %s (net %s%d G)" % ["crate paid 32 G" if trade.get("won", false) else "cargo lost", "+" if int(trade.get("net", 0)) > 0 else "", abs(int(trade.get("net", 0)))])
+	elif str(trade.get("status", "open")) == "declined":
+		entries.append("Redwake · offer declined without cost")
+	if entries.is_empty(): return
+	_add_subtitle(_content, "SETTLEMENT JOURNAL")
+	_add_copy("\n".join(entries))
 
 
 func _render_after_action_report(result: Dictionary) -> void:

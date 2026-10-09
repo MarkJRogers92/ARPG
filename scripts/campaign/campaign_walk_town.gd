@@ -4,8 +4,11 @@ extends Node3D
 ## at its station. Presentation only; it emits station_used and CampaignTown
 ## opens the matching existing service panel. It owns no campaign state.
 
+const SettlementStoryLife = preload("res://scripts/campaign/campaign_story_life.gd")
+
 signal station_used(service_id: String)
 signal mara_used
+signal story_used(story_id: String)
 
 const SOUL := Color(0.34, 0.86, 1.0)
 const EMBER := Color(1.0, 0.57, 0.24)
@@ -77,6 +80,8 @@ var _waystop_id := ""
 var _lighting_kind := ""
 var _camp_life: CampaignCampLife
 var _camp_talk_enabled := false
+var _story_life: Variant
+var _story_talk_enabled := false
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -138,6 +143,10 @@ func present(state: Dictionary) -> void:
 	if is_instance_valid(_camp_life):
 		_camp_life.set_talk_prompt(_camp_talk_enabled and _near == "", _hero_pos, walking)
 		_update_near(false)
+	_story_talk_enabled = str(state.get("phase", "TOWN")) in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"] and _story_id_for_place(place) != ""
+	if is_instance_valid(_story_life):
+		_story_life.apply_stories(state.get("stories", {}))
+		_story_life.set_prompt(_story_talk_enabled and _near == "", _hero_pos, walking)
 	var lighting_kind := str(place.get("kind", ""))
 	if biome != _biome or completed != _completed_presentation or lighting_kind != _lighting_kind:
 		_biome = biome
@@ -179,6 +188,7 @@ func _switch_waystop(place: Dictionary) -> void:
 		_destination_world.free()
 		_destination_world = null
 	_camp_life = null
+	_story_life = null
 	var is_lantern := str(place.get("kind", "")) == "lantern"
 	if is_instance_valid(_lantern_world):
 		_lantern_world.visible = is_lantern
@@ -188,6 +198,13 @@ func _switch_waystop(place: Dictionary) -> void:
 		_houses = _lantern_houses.duplicate()
 	if not is_lantern:
 		_destination_world = CampaignWaystopScenery.build(self, place)
+		_story_life = SettlementStoryLife.new()
+		_story_life.name = "SettlementStories"
+		_story_life.configure(place, {})
+		_destination_world.add_child(_story_life)
+		_story_life.story_used.connect(func(story_id: String) -> void: story_used.emit(story_id))
+		if not _story_life._story_id.is_empty():
+			_blockers.append([Vector2(_story_life._base_position.x, _story_life._base_position.z), 0.48])
 		if int(place.get("biome_index", -1)) == 0 and int(place.get("stage", -1)) == 1 and str(place.get("kind", "")) == "camp":
 			_camp_life = CampaignCampLife.new()
 			_destination_world.add_child(_camp_life)
@@ -283,6 +300,19 @@ func _update_near(allow_interaction := true) -> void:
 		_camp_life.set_talk_prompt(can_talk, _hero_pos, walking)
 		if allow_interaction and can_talk and _camp_life.can_talk_from(_hero_pos) and Input.is_action_just_pressed("interact"):
 			_camp_life.talk()
+	if is_instance_valid(_story_life):
+		var can_talk := _story_talk_enabled and _near == "" and walking
+		_story_life.set_prompt(can_talk, _hero_pos, walking)
+		if allow_interaction and can_talk and _story_life.can_talk_from(_hero_pos) and Input.is_action_just_pressed("interact"):
+			_story_life.talk()
+
+
+func _story_id_for_place(place: Dictionary) -> String:
+	match str(place.get("id", "")):
+		"waystop:frozen_wastes:0": return "whitepass_aid"
+		"waystop:frozen_wastes:1": return "sledwright_repair"
+		"waystop:ember_rift:1": return "redwake_trade"
+	return ""
 
 
 # --- building the plaza ---------------------------------------------------------------

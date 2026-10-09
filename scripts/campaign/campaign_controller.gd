@@ -3,6 +3,8 @@ extends Node
 ## Sole authority for banked campaign facts. Commands clone, validate, persist,
 ## then publish. Combat and presentation never hold a writable bank balance.
 
+const SettlementStories = preload("res://scripts/campaign/campaign_stories.gd")
+
 signal changed(snapshot: Dictionary)
 signal error_raised(message: String)
 
@@ -40,6 +42,10 @@ func _command(kind: String, operation_id: String, arguments: Array, action: Call
 		return receipt["response"].duplicate(true)
 	if town_only and not state["phase"] in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"]: return _error("This service is available in town.")
 	var next := state.duplicate(true)
+	# Schema v1 saves created before settlement stories have no story member.
+	# Materialize its additive defaults on the next committed operation.
+	if not next.has("stories"):
+		next["stories"] = SettlementStories.fresh()
 	var response: Dictionary = action.call(next)
 	if not response.get("ok", false): return _error(response.get("error", "Command could not complete."))
 	response["operation_id"] = operation_id
@@ -182,6 +188,61 @@ func resolve_event(choice_id: String, operation_id := "", selection: Dictionary 
 		next["phase"] = "DEPARTURE_READY"
 		return {"ok": true})
 
+
+func choose_story(story_id: String, choice_id: String, operation_id := "") -> Dictionary:
+	return _command("story", operation_id, [story_id, choice_id], func(next: Dictionary) -> Dictionary:
+		var place := CampaignWaystops.resolve(next)
+		var story_record: Dictionary = next["stories"].get(story_id, {})
+		match story_id:
+			"lantern_recovery":
+				if place.get("id") != "waystop:hollow_graveyard:1" or story_record.get("status", "offered") != "offered" or choice_id not in ["accept", "decline"]:
+					return {"ok": false, "error": "Mara's lantern offer is not available here."}
+				story_record["status"] = "accepted" if choice_id == "accept" else "declined"
+				next["stories"][story_id] = story_record
+			"whitepass_aid":
+				if place.get("id") != "waystop:frozen_wastes:0" or story_record.get("choice", "") != "":
+					return {"ok": false, "error": "The Whitepass traveler has already received help."}
+				if choice_id not in ["donate", "signal", "declined"]: return {"ok": false, "error": "Unknown Whitepass choice."}
+				if choice_id == "donate" and next["gold"] < 8: return {"ok": false, "error": "The supply bundle costs 8 gold."}
+				if choice_id == "donate": next["gold"] -= 8
+				story_record["choice"] = choice_id
+				story_record["boon"] = "whitepass_draught" if choice_id == "donate" else ("whitepass_signal" if choice_id == "signal" else "")
+				next["stories"][story_id] = story_record
+				if story_record["boon"] != "": next["effects"].append(_story_boon(story_id, story_record["boon"]))
+			"sledwright_repair":
+				if place.get("id") != "waystop:frozen_wastes:1" or story_record.get("choice", "") != "":
+					return {"ok": false, "error": "The sledwright has already repaired the runner."}
+				if choice_id not in ["iron", "canvas", "declined"]: return {"ok": false, "error": "Unknown repair approach."}
+				if choice_id == "iron" and next["gold"] < 15: return {"ok": false, "error": "The iron shoe costs 15 gold."}
+				if choice_id == "iron": next["gold"] -= 15
+				story_record["choice"] = choice_id
+				story_record["boon"] = "sledwright_iron" if choice_id == "iron" else ("sledwright_canvas" if choice_id == "canvas" else "")
+				next["stories"][story_id] = story_record
+				if story_record["boon"] != "": next["effects"].append(_story_boon(story_id, story_record["boon"]))
+			"redwake_trade":
+				if place.get("id") != "waystop:ember_rift:1" or story_record.get("status", "open") != "open":
+					return {"ok": false, "error": "Redwake's trade is already settled."}
+				if choice_id == "decline":
+					story_record["status"] = "declined"
+				elif choice_id == "play":
+					if next["gold"] < 15: return {"ok": false, "error": "The disclosed trade stake is 15 gold."}
+					var rng := CampaignCatalog.stream(int(next["seed"]), "story:redwake:%s" % next["campaign_id"])
+					var won: bool = rng.randf() < 0.60
+					story_record.merge({"status": "played", "stake": 15, "chance": 60, "won": won, "net": 17 if won else -15}, true)
+					next["gold"] += int(story_record["net"])
+				else:
+					return {"ok": false, "error": "Choose the disclosed trade or leave it."}
+				next["stories"][story_id] = story_record
+			_:
+				return {"ok": false, "error": "Unknown settlement story."}
+		return {"ok": true, "payload": story_record.duplicate(true)})
+
+
+func _story_boon(story_id: String, boon: String) -> Dictionary:
+	return {"id": "story_boon", "story_id": story_id, "boon": boon,
+		"node_id": str(state.get("selected_node", "")) if str(state.get("selected_node", "")) != "" else "next",
+		"mods": SettlementStories.MODS[boon].duplicate(true)}
+
 func depart(operation_id := "") -> Dictionary:
 	return _command("depart", operation_id, [], func(next: Dictionary) -> Dictionary:
 		if not next["phase"] in ["TOWN", "DEPARTURE_READY"]: return {"ok": false, "error": "This attempt must settle and its result must be acknowledged before departure."}
@@ -207,7 +268,10 @@ func depart(operation_id := "") -> Dictionary:
 			"mission_seed": node["seed"], "content_version": CampaignCatalog.CONTENT_VERSION, "duration": contract["duration"], "deadline": contract["deadline"],
 			"final_boss": node["contract"] == "finale", "loot_band": CampaignCatalog.BANDS[next["biome_index"]].duplicate(),
 			"item_level": CampaignCatalog.item_level(next["biome_index"], node["depth"], node["contract"] == "elite_hunt"), "elite": node["elite"],
-			"objectives": {"seals": 3 if node["contract"] == "breach" else 0}, "effects": effects, "clauses": next["clauses"].duplicate(true),
+			"objectives": {"seals": 3 if node["contract"] == "breach" else 0,
+				"lantern_recovery": next["stories"].get("lantern_recovery", {}).get("status", "") == "accepted"},
+			"story_mission": "lantern_recovery" if next["stories"].get("lantern_recovery", {}).get("status", "") == "accepted" else "",
+			"effects": effects, "clauses": next["clauses"].duplicate(true),
 			"starting_loadout": {"hero_class": next["hero_class"], "profile_snapshot": next["profile_snapshot"].duplicate(true),
 				"inventory": CampaignState.combat_inventory(next), "talents": next["talents"].duplicate(true), "specialization": next["specialization"],
 				"veteran": veteran, "gold": next["gold"]}}
@@ -231,6 +295,12 @@ func settle(result: Dictionary) -> Dictionary:
 	var elapsed_value = result.get("elapsed")
 	if not (elapsed_value is float or elapsed_value is int) or not is_finite(float(elapsed_value)) or float(elapsed_value) < 0.0: return _error("Invalid terminal combat time.")
 	if not result.get("objectives", {}) is Dictionary or not result.get("kills_by", {}) is Dictionary or not result.get("loose_shards", 0) is int: return _error("Invalid expedition report.")
+	var lantern_active := str(spec.get("story_mission", "")) == "lantern_recovery"
+	var lantern_recovered: Variant = result.get("objectives", {}).get("lantern_recovered", false)
+	if not lantern_recovered is bool or bool(lantern_recovered) and (not lantern_active or state.get("stories", {}).get("lantern_recovery", {}).get("status", "") != "accepted"):
+		return _error("The expedition reported an uncommitted lantern recovery.")
+	if lantern_active != (state.get("stories", {}).get("lantern_recovery", {}).get("status", "") == "accepted"):
+		return _error("The expedition story no longer matches its committed departure.")
 	for count in result.get("kills_by", {}).values():
 		if not count is int or count < 0 or count > 1000000: return _error("Invalid Bestiary report.")
 	if result["outcome"] == "success" and not CampaignCatalog.valid_success(spec, result): return _error("The contract's success requirements were not met.")
@@ -245,6 +315,18 @@ func settle(result: Dictionary) -> Dictionary:
 		var mult := biome + 1
 		var contract: Dictionary = CampaignCatalog.CONTRACTS[spec["contract_id"]]
 		var payment: int = contract["gold"] * mult
+		if lantern_active:
+			var lantern_story: Dictionary = next["stories"]["lantern_recovery"]
+			if bool(result["objectives"].get("lantern_recovered", false)):
+				payment += 25
+				lantern_story["status"] = "complete"
+				lantern_story["recovered"] = true
+				lantern_story["reward_paid"] = true
+				summary["story_message"] = "Mara's brass lantern came home. Its blue flame is lit again, and she sent 25 gold with her thanks."
+			else:
+				lantern_story["status"] = "missed"
+				summary["story_message"] = "The marked lantern was left behind when the road closed. Mara's crew will carry its empty hook forward."
+			next["stories"]["lantern_recovery"] = lantern_story
 		var cap := (150 if spec["final_boss"] else 50) * mult
 		summary["shard_conversion"] = clampi(result.get("loose_shards", 0), 0, cap)
 		var rng := CampaignCatalog.stream(spec["mission_seed"], "settlement")

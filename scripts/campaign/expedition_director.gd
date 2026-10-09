@@ -9,6 +9,7 @@ const RITUAL_SECONDS := 2.0
 const OBJECTIVE_COLOR := Color(0.35, 0.92, 1.0)
 const ELITE_COLOR := Color(1.0, 0.55, 0.22)
 const CACHE_COLOR := Color(0.8, 0.55, 1.0)
+const STORY_COLOR := Color(1.0, 0.79, 0.42)
 
 var spec: Dictionary = {}
 var terminal := false
@@ -16,6 +17,7 @@ var result: Dictionary = {}
 var seals := 0
 var elite_dead := false
 var cache_claimed := false
+var lantern_recovered := false
 var _main: Node3D
 var _player: Player
 var _wave: WaveDirector
@@ -23,6 +25,7 @@ var _bosses: BossDirector
 var _swarms: Array[EnemySwarm] = []
 var _rng := RandomNumberGenerator.new()
 var _sites: Array[Vector2] = []
+var _site_ids: Array[String] = []
 var _site_claimed: Array[bool] = []
 var _visuals: Array[Node3D] = []
 var _elite_spawned := false
@@ -76,6 +79,8 @@ func configure(mission: Dictionary, owner: Node3D, player: Player, wave: WaveDir
 	else:
 		_bosses.final_enabled = false
 		_bosses.run_length = 900.0
+	if String(spec.get("story_mission", "")) == "lantern_recovery":
+		_add_site("lantern_recovery", STORY_COLOR, "MARA'S BLUE LANTERN  ·  %s" % Controls.tag("interact"))
 	_setup_difficulty()
 	_present_arrival()
 	call_deferred("_build_arrival_landmark")
@@ -154,6 +159,7 @@ func _setup_difficulty() -> void:
 func _add_site(id: String, color: Color, label_text: String) -> void:
 	var at := _reachable_site(_sites.size())
 	_sites.append(at)
+	_site_ids.append(id)
 	_site_claimed.append(false)
 	var holder := Node3D.new()
 	holder.name = id
@@ -243,6 +249,8 @@ func interaction_prompt() -> Dictionary:
 	if nearest < 0:
 		return {}
 	var key := Controls.tag("interact")
+	if _site_ids[nearest] == "lantern_recovery":
+		return {"text": "Recover Mara's brass lantern  ·  %s" % key, "color": STORY_COLOR}
 	if contract_id in ["seal_breach", "breach"]:
 		return {"text": "Close %s  ·  %s" % [_site_label(nearest), key], "color": OBJECTIVE_COLOR}
 	return {"text": "Open cursed cache  ·  summons guardians  ·  %s" % key, "color": CACHE_COLOR}
@@ -258,11 +266,14 @@ func interact_with_nearest_site() -> int:
 func _nearest_interactable_site() -> int:
 	if terminal or _player == null or _player.dead:
 		return -1
-	if contract_id not in ["seal_breach", "breach", "cursed_cache"]:
+	if contract_id not in ["seal_breach", "breach", "cursed_cache"] and String(spec.get("story_mission", "")) != "lantern_recovery":
 		return -1
 	var nearest := -1
 	var nearest_distance := 2.6 * 2.6
 	for i in _sites.size():
+		var site_id := _site_ids[i]
+		var eligible := site_id == "lantern_recovery" or (site_id.begins_with("seal_") and contract_id in ["seal_breach", "breach"]) or (site_id == "cache" and cache_enabled)
+		if not eligible: continue
 		if _site_complete(i):
 			continue
 		var distance := _player.pos2.distance_squared_to(_sites[i])
@@ -303,7 +314,8 @@ func _spawn_marked_elite() -> void:
 				break
 	if target == null:
 		return
-	var at := _sites[0] if not _sites.is_empty() else _reachable_site(0)
+	var elite_index := _site_ids.find("elite")
+	var at := _sites[elite_index] if elite_index >= 0 else _reachable_site(_sites.size())
 	var pos := at
 	if Obstacles.blocked(pos, target.radius):
 		pos = EnemySwarm.random_ring_point(_player.pos2, 14.0, 18.0)
@@ -311,30 +323,32 @@ func _spawn_marked_elite() -> void:
 		_elite_spawned = true
 		_marked_swarm = target
 		_marked_id = target.ids[target.count - 1]
-	if not _sites.is_empty():
-		(_visuals[0].get_child(2) as Label3D).text = "ELITE  ·  DEFEAT"
+	if _elite_spawned and elite_index >= 0 and elite_index < _visuals.size():
+		(_visuals[elite_index].get_child(2) as Label3D).text = "ELITE  ·  DEFEAT"
 	_sync_marked_elite_marker()
 
 
 func _sync_marked_elite_marker() -> void:
-	if contract_id != "elite_hunt" or not _elite_spawned or _sites.is_empty() or _visuals.is_empty():
-		return
+	if not _elite_spawned: return
+	var elite_index := _site_ids.find("elite")
+	if elite_index < 0 or elite_index >= _sites.size() or elite_index >= _visuals.size(): return
 	if _marked_swarm != null:
 		for i in _marked_swarm.count:
 			if _marked_swarm.ids[i] != _marked_id:
 				continue
 			if _marked_swarm.hp[i] > 0.0:
 				var target_at: Vector2 = _marked_swarm.pos[i]
-				_sites[0] = target_at
-				_visuals[0].position = Vector3(target_at.x, 0.0, target_at.y)
-				_visuals[0].visible = true
+				_sites[elite_index] = target_at
+				_visuals[elite_index].position = Vector3(target_at.x, 0.0, target_at.y)
+				_visuals[elite_index].visible = true
 			else:
-				_visuals[0].visible = false
+				_visuals[elite_index].visible = false
 			return
-	_visuals[0].visible = false
+	_visuals[elite_index].visible = false
 
 
 func _site_complete(index: int) -> bool:
+	if index >= 0 and index < _site_ids.size() and _site_ids[index] == "lantern_recovery": return lantern_recovered
 	if contract_id in ["seal_breach", "breach"]:
 		return index >= 0 and index < _site_claimed.size() and _site_claimed[index]
 	if cache_enabled:
@@ -343,7 +357,16 @@ func _site_complete(index: int) -> bool:
 
 
 func _complete_site(index: int) -> void:
-	if contract_id in ["seal_breach", "breach"]:
+	if index < 0 or index >= _site_ids.size(): return
+	if _site_ids[index] == "lantern_recovery":
+		if lantern_recovered: return
+		lantern_recovered = true
+		_visuals[index].visible = false
+		Sound.play("pickup", 0.95, -1.0)
+		Juice.ring(_sites[index], STORY_COLOR, 38, 7.5, 0.7, 0.8)
+		var hud := _main.get_node_or_null("Hud") as Hud
+		if hud != null: hud.toast("Mara's brass lantern recovered  ·  reach extraction", STORY_COLOR)
+	elif contract_id in ["seal_breach", "breach"]:
 		if index < 0 or index >= _site_claimed.size() or _site_claimed[index]:
 			return
 		_site_claimed[index] = true
@@ -376,34 +399,41 @@ func markers() -> Array:
 	for i in _sites.size():
 		if _site_complete(i) or not _visuals[i].visible:
 			continue
-		var color := CACHE_COLOR if cache_enabled else (ELITE_COLOR if contract_id == "elite_hunt" else OBJECTIVE_COLOR)
-		var label := "CACHE" if cache_enabled else ("ELITE" if contract_id == "elite_hunt" else _site_label(i))
+		var is_lantern := _site_ids[i] == "lantern_recovery"
+		var is_elite := _site_ids[i] == "elite"
+		var color := STORY_COLOR if is_lantern else (ELITE_COLOR if is_elite else (CACHE_COLOR if cache_enabled else OBJECTIVE_COLOR))
+		var label := "MARA'S LANTERN" if is_lantern else ("ELITE" if is_elite else ("CACHE" if cache_enabled else _site_label(i)))
 		out.append({"at": _sites[i], "color": color, "label": label})
 	return out
 
 
 func objective_text() -> String:
+	var text := ""
 	if finale:
-		return "Survive until the guardian arrives at 15:00" if not _bosses.final_arrived else "Defeat the biome guardian"
-	match contract_id:
-		"seal_breach", "breach":
-			if seals >= 3:
-				return "All seals closed  ·  survive until extraction"
-			if _wave != null and _wave.elapsed >= duration and deadline > 0.0:
-				return "Seals: %d / 3  ·  close the rest by %s" % [seals, _format_time(deadline)]
-			if _wave != null and _wave.elapsed >= duration:
-				return "Seals: %d / 3  ·  close the remaining marked seals" % seals
-			return "Seals: %d / 3  ·  close all and survive to %s" % [seals, _format_time(duration)]
-		"elite_hunt":
-			if elite_dead:
-				return "Marked elite defeated  ·  hold to extraction"
-			if _elite_spawned:
-				return "Defeat the marked elite by 7:00"
-			return "Marked elite arrives at 5:00"
-		"cursed_cache":
-			return "Cursed cache: %s  ·  survive to 6:00" % ("claimed" if cache_claimed else "optional")
-		_:
-			return "Survive to 5:00  ·  extraction is automatic"
+		text = "Survive until the guardian arrives at 15:00" if not _bosses.final_arrived else "Defeat the biome guardian"
+	else:
+		match contract_id:
+			"seal_breach", "breach":
+				if seals >= 3:
+					text = "All seals closed  ·  survive until extraction"
+				elif _wave != null and _wave.elapsed >= duration and deadline > 0.0:
+					text = "Seals: %d / 3  ·  close the rest by %s" % [seals, _format_time(deadline)]
+				elif _wave != null and _wave.elapsed >= duration:
+					text = "Seals: %d / 3  ·  close the remaining marked seals" % seals
+				else: text = "Seals: %d / 3  ·  close all and survive to %s" % [seals, _format_time(duration)]
+			"elite_hunt":
+				if elite_dead:
+					text = "Marked elite defeated  ·  hold to extraction"
+				elif _elite_spawned:
+					text = "Defeat the marked elite by 7:00"
+				else: text = "Marked elite arrives at 5:00"
+			"cursed_cache":
+				text = "Cursed cache: %s  ·  survive to 6:00" % ("claimed" if cache_claimed else "optional")
+			_:
+				text = "Survive to 5:00  ·  extraction is automatic"
+	if String(spec.get("story_mission", "")) == "lantern_recovery":
+		text += "   ·   Mara's lantern: %s" % ("recovered" if lantern_recovered else "marked in the field")
+	return text
 
 
 func guidance_text() -> String:
@@ -484,8 +514,9 @@ func _acknowledge_elite_defeat() -> void:
 	if elite_dead:
 		return
 	elite_dead = true
-	if not _visuals.is_empty():
-		_visuals[0].visible = false
+	var elite_index := _site_ids.find("elite")
+	if elite_index >= 0 and elite_index < _visuals.size():
+		_visuals[elite_index].visible = false
 	var hud := _main.get_node_or_null("Hud") as Hud if is_instance_valid(_main) else null
 	if hud != null:
 		hud.toast("Marked elite defeated  ·  hold to extraction", ELITE_COLOR)
@@ -609,5 +640,5 @@ func _finish(outcome: String, at_time: float) -> void:
 		"outcome": outcome,
 		"elapsed": maxf(at_time, 0.0),
 		"objectives": {"seals": seals, "elite_dead": elite_dead, "cache_claimed": cache_claimed,
-			"boss_dead": finale and outcome == "success"},
+			"boss_dead": finale and outcome == "success", "lantern_recovered": lantern_recovered},
 	}
