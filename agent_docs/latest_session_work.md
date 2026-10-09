@@ -1,6 +1,6 @@
 # Latest session work
 
-Current checkpoint: approved PR #34 merged as `1c44652`; the next local review branch is `preview/camp-visual-polish`. See `docs/expedition_campaign/CAMP_POLISH_PREVIEW.md`. Earlier entries are historical.
+Current checkpoint: approved PR #35 merged as `2df2ec1`; the next local review branch is `preview/gravediggers-camp-life`. See `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`. Earlier entries are historical.
 
 ## Expedition campaign — 2026-10-08
 
@@ -67,3 +67,10 @@ Native Luna packages and independent Sol review; parent integrated and inspected
 Local branch `preview/camp-visual-polish` is based on merged PR #34 (`1c44652`). Added more legible pitched canvas shelters, seams, ropes/stakes, entrance lanterns, cooking sites, bedrolls, supplies and worn ground, with snow windbreaks and ember heat shields. Gravediggers’ Camp, Whitepass Refuge, Sledwright’s Rest and Redwake Caravan were inspected at native 1280×720. Lighting now refreshes when leaving Last Lantern for a camp in the same biome and resets on return.
 
 Native Luna implemented; independent Sol accepted the actual diff, and parent verified final evidence. Visual/movement/service checks 582, walk-town 43 and backdrop passed with clean final logs. These are fixture and input-path checks, not a full human playthrough. Original six save-file states and project settings match fresh fingerprints. Isolated preview profile and launcher prepared; generated sidecars restored. Jev unavailable; native plan retained. Local review only, no push/merge/install. See `docs/expedition_campaign/CAMP_POLISH_PREVIEW.md`.
+
+
+## 2026-10-08 — Gravediggers’ Camp life preview
+
+Local `preview/gravediggers-camp-life`, based on merged PR #35 (`2df2ec1`), adds three camp residents, role-specific arm/tool motion, hearth smoke/embers/flicker, a quiet generated SFX-bus fire loop, and Mara Venn’s optional repeatable dialogue. The encounter respects current Use mapping, service precedence and forced phases, freezes walking while open, and closes through Escape or Leave without rewards or campaign mutation. Scope is this one stop.
+
+Native Luna implemented; native Sol independently reviewed. Parent verified its showcase scene-ownership and role-specific motion-test corrections, final logs and native 720p camp/dialogue views. Focused camp 46, all-stop movement/service 582, walk-town 43, UI behavior, backdrop and real-Shell showcase/title-return checks passed. Audio was checked instrumentally, not listened to; physical remapped-key input and a full human campaign were not tested. Focused shutdown diagnostics remain (4 ObjectDB/2 resources; showcase 12/6). Original six save states and project settings match. Direct demo uses fresh disposable campaign files with account progression disabled; normal preview uses a separate copied profile. Generated imports restored, Jev unavailable/native assignment retained. No publication or installed-app replacement. Details: `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`.
