@@ -41,7 +41,7 @@ static func build(root: Node3D, biome: int, kind: String) -> void:
 			_firewood(root, props, Vector3(-12.2, 0, -6.8), p, true)
 			_ski_rack(root, props, Vector3(11.8, 0, 6.8), p)
 			_fur_frame(root, props, Vector3(-11.8, 0, 6.8), p)
-			_gate_braziers(props, glow, p)
+			_gate_braziers(root, props, glow, p)
 			_icicles(props, Vector3(0, 3.58, -14.85), 3.2)
 			for side: float in [-1.0, 1.0]:
 				_icicles(props, Vector3(side * 3.0, 2.13, -14.82), 3.2)
@@ -233,6 +233,7 @@ static func _open_grave(root: Node3D, kit: MeshKit, glow: MeshKit, at: Vector3, 
 	CampaignWaystopScenery._segment(kit, lamp + Vector3(0, 1.35, 0), lamp + Vector3(0.35, 1.35, 0), 0.02, IRON)
 	glow.sphere(0.12, MeshKit.at(lamp + Vector3(0.35, 1.13, 0), Vector3.ZERO, Vector3(1, 1.3, 1)), p.warm, 1.0, 7, 4)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.7)
+	_light(root, lamp + Vector3(0.35, 1.3, 0), p.warm, 1.6, 4.2)
 
 
 static func _marker(kit: MeshKit, at: Vector3, yaw: float, wood: Color, cross: bool) -> void:
@@ -262,6 +263,7 @@ static func _grave_row(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -
 	kit.box(Vector3(0.03, 0.03, 0.1), MeshKit.at(bird + Vector3(0, 0.11, 0.25)), Color(0.4, 0.33, 0.2))
 	kit.box(Vector3(0.12, 0.03, 0.22), MeshKit.at(bird + Vector3(0, 0.0, -0.22), Vector3(-20, 0, 0)), Color(0.05, 0.05, 0.07))
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z + 0.2), 2.6)
+	_light(root, at + Vector3(0, 1.6, 0.9), Color(0.45, 0.8, 1.0), 0.9, 4.0)
 
 
 static func _shroud_line(root: Node3D, kit: MeshKit, a: Vector3, b: Vector3, p: Dictionary) -> void:
@@ -300,6 +302,7 @@ static func _coffin_trestle(root: Node3D, kit: MeshKit, at: Vector3, p: Dictiona
 		kit.box(Vector3(0.22, 0.05, 1.7), MeshKit.at(at + turn * Vector3(1.0 + float(i) * 0.08, 0.05 + float(i) * 0.05, 0.1), Vector3(0, yaw + float(i) * 4.0, 0)), wood.lightened(float(i) * 0.05))
 	kit.box(Vector3(0.05, 0.18, 0.62), MeshKit.at(at + turn * Vector3(1.05, 0.25, -0.3), Vector3(0, yaw, 0)), IRON.lightened(0.25))
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.35)
+	_light(root, at + Vector3(0.8, 1.8, 0.6), Color(1.0, 0.66, 0.34), 1.0, 3.6)
 
 
 # --- Frozen camps ---------------------------------------------------------------
@@ -335,6 +338,7 @@ static func _ski_rack(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) ->
 		kit.box(Vector3(0.3, 0.02, 0.5), MeshKit.at(shoe, Vector3(-15, 0, 0)), Color(0.3, 0.22, 0.15))
 	_drift(kit, at + Vector3(0, 0, -0.55), 2.6, 0.32)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.25)
+	_light(root, at + Vector3(-0.4, 1.7, 1.2), Color(1.0, 0.72, 0.42), 1.7, 4.4)
 
 
 static func _fur_frame(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -> void:
@@ -353,9 +357,10 @@ static func _fur_frame(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -
 	kit.sphere(0.32, MeshKit.at(at + Vector3(-0.55, 0.18, 0.75), Vector3.ZERO, Vector3(1.3, 0.6, 0.9)), Color(0.55, 0.45, 0.33), 0, 8, 4)
 	_drift(kit, at + Vector3(0.2, 0, -0.5), 2.4, 0.3)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z + 0.3), 1.25)
+	_light(root, at + Vector3(0.6, 1.7, 1.2), Color(1.0, 0.72, 0.42), 1.7, 4.4)
 
 
-static func _gate_braziers(kit: MeshKit, glow: MeshKit, p: Dictionary) -> void:
+static func _gate_braziers(root: Node3D, kit: MeshKit, glow: MeshKit, p: Dictionary) -> void:
 	for side: float in [-1.0, 1.0]:
 		var at := Vector3(side * 3.2, 0, -13.4)
 		for leg in 3:
@@ -364,6 +369,7 @@ static func _gate_braziers(kit: MeshKit, glow: MeshKit, p: Dictionary) -> void:
 		kit.cylinder(0.42, 0.24, 0.3, MeshKit.at(at + Vector3(0, 1.05, 0)), IRON.lightened(0.1), 0, 10)
 		glow.sphere(0.3, MeshKit.at(at + Vector3(0, 1.22, 0), Vector3.ZERO, Vector3(1.0, 0.55, 1.0)), p.warm, 1.0, 8, 4)
 		glow.cylinder(0.02, 0.18, 0.45, MeshKit.at(at + Vector3(0, 1.48, 0)), p.warm.lightened(0.2), 0.9, 6)
+	_light(root, Vector3(0, 1.9, -13.2), p.warm, 2.2, 6.5)
 
 
 static func _icicles(kit: MeshKit, at: Vector3, width: float) -> void:
@@ -398,6 +404,7 @@ static func _sled_repair(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary)
 		kit.box(Vector3(0.12, 0.02, 0.05), MeshKit.at(at + Vector3(-0.7 + _h(i, 9.0) * 1.6, 0.04, 1.3 + _h(i, 8.0) * 0.6), Vector3(0, _h(i, 7.0) * 180.0, 0)), Color(0.75, 0.6, 0.38))
 	_drift(kit, at + Vector3(0.3, 0, -1.8), 2.8, 0.36)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.7)
+	_light(root, at + Vector3(-0.6, 1.9, 1.2), Color(1.0, 0.72, 0.42), 2.0, 4.6)
 
 
 static func _kennels(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -> void:
@@ -424,6 +431,7 @@ static func _kennels(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -> 
 		CampaignWaystopScenery._segment(kit, hook, hook + Vector3(-0.2 + float(i) * 0.2, -0.75, 0.08), 0.025, Color(0.48, 0.2, 0.14).darkened(float(i) * 0.12))
 	kit.torus(0.14, 0.18, MeshKit.at(post + Vector3(0, 1.25, 0.1), Vector3(90, 0, 0)), Color(0.6, 0.45, 0.25), 0, 10)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x + 0.2, at.z), 1.8)
+	_light(root, at + Vector3(0.4, 1.6, 1.3), Color(1.0, 0.7, 0.4), 1.7, 4.4)
 
 
 static func _ice_cliffs(kit: MeshKit) -> void:
@@ -462,6 +470,7 @@ static func _wheel_stack(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary)
 	kit.cylinder(0.16, 0.18, 0.28, MeshKit.at(at + Vector3(-1.25, 0.14, 0.4)), IRON, 0, 8)
 	kit.cylinder(0.13, 0.13, 0.02, MeshKit.at(at + Vector3(-1.25, 0.29, 0.4)), Color(0.08, 0.06, 0.05), 0, 8)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.6)
+	_light(root, at + Vector3(0, 1.6, 1.1), Color(1.0, 0.55, 0.25), 1.8, 4.4)
 
 
 static func _water_awning(root: Node3D, kit: MeshKit, glow: MeshKit, at: Vector3, p: Dictionary) -> void:
@@ -485,6 +494,7 @@ static func _water_awning(root: Node3D, kit: MeshKit, glow: MeshKit, at: Vector3
 	kit.box(Vector3(0.05, 0.42, 0.05), MeshKit.at(at + Vector3(1.05, 0.95, 0.15), Vector3(0, 0, 30)), Color(0.55, 0.42, 0.25))
 	kit.sphere(0.1, MeshKit.at(at + Vector3(1.15, 0.75, 0.15), Vector3.ZERO, Vector3(1.2, 0.6, 1.2)), Color(0.55, 0.42, 0.25), 0, 6, 3)
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.6)
+	_light(root, at + Vector3(0, 1.6, 1.2), Color(1.0, 0.62, 0.3), 2.0, 4.6)
 
 
 static func _covered_wagon(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionary) -> void:
@@ -508,6 +518,7 @@ static func _covered_wagon(root: Node3D, kit: MeshKit, at: Vector3, p: Dictionar
 	CampaignWaystopScenery._segment(kit, at + turn * Vector3(0, 0.62, 1.5), at + turn * Vector3(0.15, 0.12, 2.9), 0.05, wood.darkened(0.2))
 	kit.box(Vector3(0.6, 0.28, 0.45), MeshKit.at(at + turn * Vector3(0.55, 1.36, -1.25), Vector3(0, yaw + 10.0, 0)), Color(0.32, 0.2, 0.12))
 	CampaignWaystopScenery._register_blocker(root, Vector2(at.x, at.z), 1.9)
+	_light(root, at + Vector3(0.6, 2.2, 0.4), Color(1.0, 0.55, 0.25), 1.8, 4.6)
 
 
 static func _lava_fissures(glow: MeshKit) -> void:
@@ -526,6 +537,16 @@ static func _lava_fissures(glow: MeshKit) -> void:
 			var width := 0.16 - float(seg) * 0.03
 			glow.box(Vector3(width, 0.03, length), MeshKit.at(mid + Vector3(0, 0.035, 0), Vector3(0, rad_to_deg(atan2(next.x - point.x, next.z - point.z)), 0)), LAVA.lerp(Color(1.0, 0.75, 0.3), float(seg) * 0.15), 1.0)
 			point = next
+
+
+static func _light(root: Node3D, at: Vector3, color: Color, energy: float, reach: float) -> void:
+	var lamp := OmniLight3D.new()
+	lamp.name = "CampVignetteLight"
+	lamp.position = at
+	lamp.light_color = color
+	lamp.light_energy = energy
+	lamp.omni_range = reach
+	root.add_child(lamp)
 
 
 static func _kit() -> MeshKit:
