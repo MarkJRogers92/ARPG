@@ -20,6 +20,10 @@ Juno Calder lets the player inspect a scorched crate before accepting or declini
 
 All paid choices show their exact cost and are unavailable below the required gold; free practical help or decline stays available. NPCs use the current rebindable Use action, have individual world props and motions, and their dialogue supports keyboard/gamepad focus. Story progress appears in the settlement journal and remains separate from any profile progression.
 
+## Campaign menu presentation
+
+Campaign town and route screens use a locally duplicated theme with quieter slate panels, restrained bronze accents, and a cool visible focus state. The journey record keeps a bounded width and wraps its contents. Settlement dialogue sizes to its copy and choices, caps and scrolls prose when needed, and keeps enabled actions visible when the viewport changes. Costs, odds, and road effects appear in a compact terms block while narrative stays in the dialogue body.
+
 ## Safe local sampler
 
 Run from the repository root with Godot 4.7.2:
@@ -35,6 +39,7 @@ Choose one of four stops to mount the real campaign Shell and walkable town. Eac
 ```sh
 /opt/homebrew/bin/godot --headless --path /Users/markrogers/ARPG -s tools/campaign_settlement_stories_test.gd
 /opt/homebrew/bin/godot --headless --path /Users/markrogers/ARPG -s tools/campaign_camp_life_test.gd
+/opt/homebrew/bin/godot --headless --path /Users/markrogers/ARPG -s tools/campaign_ui_test.gd -- --screen=behavior
 ```
 
 The settlement-story harness uses isolated saves and disabled profile progression. It covers command/save/reload, old-save compatibility, failed writes, retry semantics, NPC Use dialogue, trade bounds, mission pickup behavior, result payoffs, and persistent memorial geometry.

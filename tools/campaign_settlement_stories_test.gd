@@ -193,6 +193,28 @@ func _test_walkable_dialogue() -> void:
 	await process_frame
 	_check_dialogue_actions_fit(mara_town)
 	await _capture("mara-lantern")
+	var resize_viewport := SubViewport.new()
+	resize_viewport.size = Vector2i(1000, 600)
+	resize_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(resize_viewport)
+	var resize_town := CampaignTown.new()
+	resize_viewport.add_child(resize_town)
+	resize_town.setup(mara_controller)
+	resize_town._open_mara_dialogue()
+	await process_frame
+	resize_viewport.size = Vector2i(920, 560)
+	await process_frame
+	await process_frame
+	check(resize_town._mara_dialogue.size.x <= 809.6 and resize_town._mara_dialogue.get_global_rect().end.y <= 560.0, "open Mara dialogue recalculates width and height after a viewport resize")
+	var focused_choice := resize_viewport.gui_get_focus_owner()
+	check(focused_choice != null and resize_town._mara_choices.is_ancestor_of(focused_choice), "resizing an open conversation preserves focus on a reachable choice")
+	var enabled_exit := false
+	for child: Node in resize_town._mara_choices.get_children():
+		var action := child as Button
+		enabled_exit = enabled_exit or (action.visible and not action.disabled and action.get_global_rect().end.y <= 560.0)
+	check(enabled_exit, "resizing keeps at least one enabled exit action visible")
+	resize_viewport.queue_free()
+	await process_frame
 	(mara_town._mara_choices.get_child(0) as Button).pressed.emit()
 	check(mara_controller.state["stories"]["lantern_recovery"]["status"] == "accepted", "Mara's page choice commits through the campaign controller")
 	mara_town.free()
@@ -274,7 +296,7 @@ func _test_walkable_dialogue() -> void:
 	(sled_town._mara_choices.get_child(0) as Button).pressed.emit()
 	sled_walk.story_used.emit("sledwright_repair")
 	(sled_town._mara_choices.get_child(0) as Button).pressed.emit()
-	check(sled_town._mara_copy.text.contains("+10% armor") and sled_town._mara_copy.text.contains("lash and test"), "Sledwright discloses hands-on repair and accurate benefit")
+	check(_dialogue_text(sled_town).contains("+10% ARMOR") and _dialogue_text(sled_town).contains("careful lash and a load test"), "Sledwright discloses hands-on repair and accurate benefit separately from its terms")
 	(sled_town._mara_choices.get_child(1) as Button).pressed.emit()
 	check(sled_town._mara_copy.text.contains("one final test"), "free repair has a second purposeful test interaction")
 	(sled_town._mara_choices.get_child(0) as Button).pressed.emit()
@@ -312,7 +334,7 @@ func _test_walkable_dialogue() -> void:
 	red_walk._process(0.016)
 	Input.action_release("interact")
 	(red_town._mara_choices.get_child(0) as Button).pressed.emit()
-	check(red_town._mara_copy.text.contains("60%") and red_town._mara_copy.text.contains("+17 net") and red_town._mara_copy.text.contains("-15"), "Juno explains both outcomes before stake confirmation")
+	check(_dialogue_text(red_town).contains("60% CHANCE") and _dialogue_text(red_town).contains("+17 G NET") and _dialogue_text(red_town).contains("-15 G NET"), "Juno explains both outcomes before stake confirmation")
 	check((red_town._mara_choices.get_child(0) as Button).disabled and not (red_town._mara_choices.get_child(1) as Button).disabled, "Redwake stake disables below 15 gold while free leave remains available")
 	await process_frame
 	_check_dialogue_actions_fit(red_town)
@@ -347,6 +369,10 @@ func _check_dialogue_actions_fit(town: CampaignTown) -> void:
 	for child: Node in town._mara_choices.get_children():
 		var button := child as Button
 		check(button.get_global_rect().end.y <= viewport_height, "dialogue action '%s' remains visible at the viewport bottom" % button.text)
+	check(town._mara_copy_scroll.size.y <= viewport_height * 0.78, "dialogue prose stays inside its viewport height cap")
+
+func _dialogue_text(town: CampaignTown) -> String:
+	return town._mara_copy.text + "\n" + town._mara_terms.text
 
 func _test_lantern_retry_and_bank() -> void:
 	var controller := _new_controller("lantern", 0, 1)
