@@ -114,6 +114,13 @@ for entry in "${SUITES[@]}"; do
   else
     FAILED+=("$suite")
     echo "FAIL  $suite (exit $code)"
+    # Suites push_error("FAIL: ...") for failing assertions; surface those
+    # lines directly instead of hoping they land in the tail window.
+    fails=$(grep "FAIL: " "$log" | head -15)
+    if [ -n "$fails" ]; then
+      echo "--- failing assertions in $suite ---"
+      echo "$fails"
+    fi
     echo "--- last lines of $suite ---"
     tail -8 "$log"
   fi

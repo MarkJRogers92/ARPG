@@ -154,7 +154,18 @@ func _test_dialogue_and_state(town: CampaignTown, controller: CampaignController
 
 func _test_guards(town: CampaignTown) -> void:
 	var walk: CampaignWalkTown = town._walk
-	for phase: String in ["EVENT_PENDING", "RESULT_PENDING", "CAMPAIGN_COMPLETE"]:
+	# Settlement stories may be inspected before resolving a forced route
+	# event; the walking prompt remains disabled while that panel is open.
+	var event_state := town._state.duplicate(true)
+	event_state["phase"] = "EVENT_PENDING"
+	town._on_changed(event_state)
+	check(not walk._camp_talk_enabled, "EVENT_PENDING disables the walking conversation prompt")
+	town._open_mara_dialogue()
+	check(town._mara_dialogue_open, "EVENT_PENDING permits optional story inspection")
+	town._close_mara_dialogue()
+	check(town._state["phase"] == "EVENT_PENDING" and not walk.walking,
+		"closing optional dialogue preserves the forced event choice")
+	for phase: String in ["RESULT_PENDING", "CAMPAIGN_COMPLETE"]:
 		var state := town._state.duplicate(true)
 		state["phase"] = phase
 		town._on_changed(state)

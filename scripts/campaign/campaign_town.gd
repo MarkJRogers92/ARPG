@@ -224,6 +224,9 @@ func _build_mara_dialogue() -> void:
 	_mara_dialogue.offset_right = 480
 	_mara_dialogue.offset_top = -300
 	_mara_dialogue.offset_bottom = -12
+	# Container minimum sizes can grow after deferred text layout. Keep the
+	# bottom anchored and grow upward rather than beyond the viewport.
+	_mara_dialogue.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_mara_dialogue.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color(0.035, 0.048, 0.061, 0.98), Color("806c4b"), 1, 8))
 	_mara_dialogue.visible = false
 	_root.add_child(_mara_dialogue)
