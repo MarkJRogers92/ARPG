@@ -25,7 +25,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 22 suites round-robin plus a bot smoke; per-suite watchdogs in
+    # run_tests.sh cap the realistic worst case well under this.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 

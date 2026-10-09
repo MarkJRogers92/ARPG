@@ -3,11 +3,13 @@
 # summary. This is the same aggregation CI does in .github/workflows/build.yml,
 # so a green CI means the same thing locally.
 #
-#   tools/run_tests.sh [-g /path/to/godot] [-t "tools/tests.gd ..."] [-l]
+#   tools/run_tests.sh [-g /path/to/godot] [-t "tools/tests.gd ..."] [-l] [-T SECONDS]
 #
 #   -g  Godot binary (default: $GODOT, then `godot`)
 #   -t  only these suites (space-separated list; each is re-run from scratch)
 #   -l  list the suites and exit
+#   -T  per-suite timeout in seconds (default: 300; a hung suite is killed,
+#       reported as TIMEOUT, and the run keeps going)
 #
 # Every suite gets --fixed-fps 60 so tests that need a fixed timestep
 # (resume_test, smoke-style bots) behave the same as the plain unit ones.
@@ -22,13 +24,15 @@ set -u
 GODOT_BIN="${GODOT:-godot}"
 ONLY=""
 LIST=false
+SUITE_TIMEOUT=300
 
-while getopts "g:t:l" opt; do
+while getopts "g:t:lT:" opt; do
   case "$opt" in
     g) GODOT_BIN="$OPTARG" ;;
     t) ONLY="$OPTARG" ;;
     l) LIST=true ;;
-    *) echo "usage: $0 [-g /path/to/godot] [-t 'tools/...'] [-l]" >&2; exit 2 ;;
+    T) SUITE_TIMEOUT="$OPTARG" ;;
+    *) echo "usage: $0 [-g /path/to/godot] [-t 'tools/...'] [-l] [-T seconds]" >&2; exit 2 ;;
   esac
 done
 
@@ -52,7 +56,7 @@ SUITES=(
   "tools/campaign_settlement_stories_test.gd"
   "tools/campaign_sound_lifecycle_test.gd"
   "tools/campaign_tests.gd"
-  "tools/campaign_ui_test.gd"
+  "tools/campaign_ui_test.gd -- --screen=behavior"
   "tools/campaign_walk_town_test.gd"
   "tools/campaign_waystop_visual_test.gd"
   "tools/campaign_waystops_test.gd"
@@ -85,15 +89,33 @@ for entry in "${SUITES[@]}"; do
   suite="${entry%% *}"
   extra="${entry#"$suite"}"
   log="$LOG_DIR/$(basename "$suite").log"
+  flag="$log.timeout"
+
+  # Portable per-suite timeout: background the suite, watch it with a killer
+  # sleeper (GNU timeout is not on macOS runners).
   # shellcheck disable=SC2086 # $extra splits into user args on purpose
-  "$GODOT_BIN" --headless --path . --fixed-fps 60 -s "$suite" $extra >"$log" 2>&1
+  "$GODOT_BIN" --headless --path . --fixed-fps 60 -s "$suite" $extra >"$log" 2>&1 &
+  pid=$!
+  ( sleep "$SUITE_TIMEOUT"; kill -9 "$pid" 2>/dev/null; echo >"$flag" ) &
+  watcher=$!
+  wait "$pid" 2>/dev/null
   code=$?
-  if [ $code -eq 0 ]; then
+  kill "$watcher" 2>/dev/null
+  wait "$watcher" 2>/dev/null
+
+  if [ -f "$flag" ]; then
+    FAILED+=("$suite")
+    echo "TIMEOUT  $suite (no exit within ${SUITE_TIMEOUT}s)"
+    echo "--- last lines of $suite ---"
+    tail -8 "$log"
+  elif [ $code -eq 0 ]; then
     PASSED+=("$suite")
     echo "PASS  $suite"
   else
     FAILED+=("$suite")
     echo "FAIL  $suite (exit $code)"
+    echo "--- last lines of $suite ---"
+    tail -8 "$log"
   fi
 done
 
@@ -101,9 +123,5 @@ echo
 echo "== $((${#PASSED[@]} + ${#FAILED[@]})) suites: ${#PASSED[@]} passed, ${#FAILED[@]} failed =="
 
 if [ ${#FAILED[@]} -ne 0 ]; then
-  for suite in "${FAILED[@]}"; do
-    echo "--- last lines of $suite ---"
-    tail -8 "$LOG_DIR/$(basename "$suite").log"
-  done
   exit 1
 fi
