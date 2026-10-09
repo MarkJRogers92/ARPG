@@ -13,6 +13,7 @@ const CONTRACT_GLYPHS := {
 	"hunt": "⌖", "breach": "◉", "seal_breach": "◉", "seal_the_breach": "◉", "elite_hunt": "✦",
 	"cursed_cache": "☠", "finale": "♜", "boss": "♜",
 }
+const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
 
 var _graph: Dictionary = {}
 var _available: Array = []
@@ -60,14 +61,13 @@ func present(state: Dictionary, available_routes: Array) -> void:
 
 
 func _build() -> void:
-	_heading = UiStyle.label(24)
-	_heading.text = "THREE DEPTHS · ONE BIOME FINALE"
-	_heading.add_theme_font_size_override("font_size", 16)
-	_heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	_heading = CampaignMenuStyle.label(24)
+	_heading.text = "Choose your road"
+	_heading.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
 	add_child(_heading)
-	var intro := UiStyle.label(14)
-	intro.text = "Read the road. A preview costs nothing; your choice commits the next expedition."
-	intro.modulate = Color(1, 1, 1, 0.72)
+	var intro := CampaignMenuStyle.label(14)
+	intro.text = "Three depths lead to the finale. Preview any road freely; commit when you are ready."
+	intro.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	add_child(intro)
 	_map = Control.new()
 	_map.custom_minimum_size = Vector2(0, 190)
@@ -84,17 +84,27 @@ func _build() -> void:
 	_map.add_child(_node_columns)
 	var divider := HSeparator.new()
 	add_child(divider)
-	_details = UiStyle.label(16)
-	_details.custom_minimum_size = Vector2(0, 84)
+	var details_panel := PanelContainer.new()
+	details_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("121b24"), Color("3f4c53"), 1, 6))
+	add_child(details_panel)
+	_details = CampaignMenuStyle.label(16)
+	_details.custom_minimum_size = Vector2(0, 72)
 	_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_details.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(_details)
+	var details_margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		details_margin.add_theme_constant_override("margin_" + side, 10 if side in ["left", "right"] else 7)
+	details_panel.add_child(details_margin)
+	details_margin.add_child(_details)
 	_confirm = Button.new()
 	_confirm.text = "Choose this route"
 	_confirm.custom_minimum_size = Vector2(240, 48)
 	_confirm.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_confirm.disabled = true
+	_confirm.add_theme_stylebox_override("normal", CampaignMenuStyle.primary_box())
+	_confirm.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("715a30"), CampaignMenuStyle.SOUL, 1))
+	_confirm.add_theme_stylebox_override("focus", CampaignMenuStyle.button_box(Color("5d4a2a"), CampaignMenuStyle.SOUL, 2))
 	_confirm.pressed.connect(func() -> void:
 		if not _selected_id.is_empty():
 			choose_requested.emit(_selected_id)
@@ -118,14 +128,14 @@ func _build_map() -> void:
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		column.add_theme_constant_override("separation", 8)
 		_node_columns.add_child(column)
-		var label := UiStyle.label(12)
+		var label := CampaignMenuStyle.label(12)
 		label.text = DEPTH_TITLES[depth]
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.add_theme_color_override("font_color", UiStyle.MUTED)
 		column.add_child(label)
 		by_depth[depth].sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("id", "")) < str(b.get("id", "")))
 		if by_depth[depth].is_empty():
-			var empty := UiStyle.label(12)
+			var empty := CampaignMenuStyle.label(12)
 			empty.text = "◇"
 			empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			column.add_child(empty)
@@ -139,6 +149,9 @@ func _build_map() -> void:
 			button.custom_minimum_size = Vector2(112, 50)
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			button.add_theme_color_override("font_color", UiStyle.GOLD if accessible else UiStyle.MUTED)
+			button.add_theme_stylebox_override("normal", CampaignMenuStyle.button_box(Color("202a32") if accessible else Color("141c24"), Color("62583f") if accessible else Color("354047"), 1))
+			button.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("293843"), CampaignMenuStyle.SOUL, 1))
+			button.add_theme_stylebox_override("focus", CampaignMenuStyle.button_box(Color("202c36"), CampaignMenuStyle.SOUL, 2))
 			button.pressed.connect(_preview.bind(id))
 			column.add_child(button)
 			_buttons[id] = button
@@ -184,7 +197,7 @@ func _preview(id: String) -> void:
 	for key: Variant in _buttons:
 		var button := _buttons[key] as Button
 		var selected := str(key) == id
-		button.add_theme_stylebox_override("normal", UiStyle.box(Color(0.16, 0.13, 0.08) if selected else Color(0.1, 0.095, 0.1), UiStyle.GOLD if selected else UiStyle.BRONZE.darkened(0.25), 2, 5))
+		button.add_theme_stylebox_override("normal", CampaignMenuStyle.button_box(Color("303b3b") if selected else Color("202a32"), CampaignMenuStyle.GOLD if selected else Color("4c5559"), 1))
 	_confirm.disabled = _committed or not _is_available(id)
 	_update_preview()
 	_layout_nodes.call_deferred()

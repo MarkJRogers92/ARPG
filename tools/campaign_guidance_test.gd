@@ -121,6 +121,7 @@ func _test_objective_prompt_rendering() -> void:
 	director._player = (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
 	root.add_child(director._player)
 	director._sites = [Vector2.ZERO]
+	director._site_ids = ["cache"]
 	var prompt: Dictionary = director.interaction_prompt()
 	hud.set_prompt(String(prompt.get("text", "")), prompt.get("color", Color.WHITE))
 	_check(hud._prompt_label.visible and hud._prompt_label.text == prompt.get("text", "") and
@@ -154,6 +155,7 @@ func _capture_guidance(width: int, height: int, output: String, variant: String)
 		director._player = (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
 		root.add_child(director._player)
 		director._sites = [Vector2.ZERO]
+		director._site_ids = ["cache"]
 		var prompt: Dictionary = director.interaction_prompt()
 		hud.set_expedition("Cursed cache: optional  ·  survive to 6:00", "02:18  /  06:00")
 		hud.set_campaign_guidance("Optional risk: opening the cache summons guardians.")

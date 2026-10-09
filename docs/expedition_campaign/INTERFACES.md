@@ -26,6 +26,7 @@ The shell settles through `controller.settle(result)` and then mounts town. On a
 - `load_campaign()`, `snapshot()`, `available_routes() -> Array`, `resume_spec() -> Dictionary`.
 - `choose_route(node_id, operation_id="")`, `resolve_event(choice_id, operation_id="", selection: Dictionary={})`.
 - `depart(operation_id="")`, `settle(result: Dictionary)`, `acknowledge_result(operation_id="")`.
+- `choose_story(story_id, choice_id, operation_id="")` commits one of the four bounded settlement encounters; story state, fixed road benefits, and outcomes remain controller-owned. See [Settlement stories](SETTLEMENT_STORIES.md).
 - `buy_item(stock_id, operation_id="")`, `sell_items(item_ids: Array, marked_only=false, operation_id="")`.
 - `equip_item(item_id, operation_id="")`, `unequip_item(slot, operation_id="")`.
 - `mark_item(item_id, locked: bool, junk: bool, operation_id="")`.
@@ -41,7 +42,7 @@ Town operations are allowed during TOWN, EVENT_PENDING and DEPARTURE_READY; sett
 
 ## State shape
 
-`{schema_version, content_version, campaign_id, seed, revision, phase, hero_class, biome_index, gold, profile_snapshot, inventory, talents, specialization, roster, deployed_veteran, graph, selected_node, cleared_nodes, clauses, effects, event, event_count, shop, shop_generation, wager, reforge, veteran_candidate, departure, result, receipts, successful_nodes, outbox, item_serial, attempt_serial, completed}`.
+`{schema_version, content_version, campaign_id, seed, revision, phase, hero_class, biome_index, gold, profile_snapshot, inventory, talents, specialization, roster, deployed_veteran, graph, selected_node, cleared_nodes, clauses, effects, event, event_count, shop, shop_generation, wager, reforge, veteran_candidate, departure, result, receipts, successful_nodes, outbox, item_serial, attempt_serial, completed}` plus optional `stories`. The additive story records are validated when present; missing records in older v1 saves are initialized by the next committed command.
 
 Phases: `TOWN`, `EVENT_PENDING`, `DEPARTURE_READY`, `EXPEDITION_ACTIVE`, `RESULT_PENDING`, `CAMPAIGN_COMPLETE`, `ABANDONED`.
 
@@ -65,7 +66,7 @@ Required fields: `{campaign_id, biome_id, biome_index, node_id, attempt_id, cont
 
 Required identity fields echo spec. `{campaign_id, node_id, attempt_id, outcome: "success"|"failure"|"retreat", elapsed: float, objectives: Dictionary, inventory: Inventory.to_dict(), loose_shards: int, kills_by: Dictionary, veteran: record or {}, report: Dictionary}`. `inventory` includes actual collected loot, with existing campaign IDs preserved and new stable IDs supplied by combat (prefix `attempt_id + ":drop:" + local_counter`). New drop data is validated against catalog vocabulary and campaign tier. Unpicked world loot is absent. The controller derives Gold, talent and account payment; result-supplied financial values have no authority.
 
-`objectives` contains `seals: int`, `elite_dead: bool`, `cache_claimed: bool`, `boss_dead: bool` as relevant. Finales require boss_dead and elapsed >=900. Breach needs three seals and elapsed >=360, <=420; Elite Hunt needs elite_dead and elapsed >=300, <=420. Hunt >=300; Cursed Cache >=360. Player-death wins a same-frame tie. Combat ends at its simulation completion timestamp and cosmetic return seconds do not accrue time or rewards.
+`objectives` contains `seals: int`, `elite_dead: bool`, `cache_claimed: bool`, `boss_dead: bool` as relevant; the optional Mara errand adds `lantern_recovered: bool`. Its matching optional `story_mission: "lantern_recovery"` is validated against the committed save before settlement. On success, the controller either banks the 25-gold recovery with the road reward or records the empty-hook miss as the campaign advances. Finales require boss_dead and elapsed >=900. Breach needs three seals and elapsed >=360, <=420; Elite Hunt needs elite_dead and elapsed >=300, <=420. Hunt >=300; Cursed Cache >=360. Player-death wins a same-frame tie. Combat ends at its simulation completion timestamp and cosmetic return seconds do not accrue time or rewards.
 
 ## Deterministic generation and save behavior
 

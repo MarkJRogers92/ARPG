@@ -10,6 +10,10 @@ Catalog valuations by rarity are 20/50/100/220 × biome; sale values are at most
 
 Ordinary field loot accrues roughly one budget token per minute. Guaranteed objective/settlement rewards are separate explicit content. The six-to-ten short-expedition target includes the Ferryman's reserved prize; five collected field items plus that prize reaches the lower end. This is a tuning target, not a guaranteed drop count.
 
+## Settlement-story economy
+
+Story costs are fixed and modest: Whitepass tonic 8 gold, Sledwright iron shoe 15 gold, and Redwake stake 15 gold. Whitepass and Sledwright choices attach only to the next selected route and persist through retries until that route clears. Their exact modifier is whitelisted by story and choice. Redwake uses one saved deterministic 60% draw: 15 staked for 32 gross (+17 net) or a loss of the stake (-15 net). Mara’s optional lantern pays 25 gold only when picked up and banked with a successful clear; missing it advances the road with no penalty or extra payment. All financial results are controller-derived and commit with the encounter status; the expedition report cannot invent story currency.
+
 ## Combat profiles
 
 Campaign pressure remains 1 and never uses health-driven adaptive escalation. Ordinary spawn rates begin at 0.48 with linear 0.0045 and quadratic 0.000004 growth. Realm spawn factors are 0.72 / 0.82 / 0.92; HP factors are 0.8 / 0.9 / 1.0. Elite routes apply 1.25 spawn and 1.15 HP factors. Derived growth age runs at 2.4 for shorts, capped at 420, and 1.8 for finales, capped at 900. The actual mission clock continues normally.

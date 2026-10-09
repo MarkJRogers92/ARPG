@@ -105,6 +105,9 @@ class FixtureController:
 		return {"seed": 702, "start": ["g-1-a", "g-1-b"], "nodes": nodes}
 
 
+const Stories = preload("res://scripts/campaign/campaign_stories.gd")
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -115,6 +118,7 @@ func _run() -> void:
 	var height := 720
 	var screen := "route"
 	var output := "user://campaign-ui-route.png"
+	var minimized := false
 	for arg: String in args:
 		if arg.begins_with("--width="):
 			width = int(arg.trim_prefix("--width="))
@@ -124,14 +128,20 @@ func _run() -> void:
 			screen = arg.trim_prefix("--screen=")
 		elif arg.begins_with("--output="):
 			output = arg.trim_prefix("--output=")
+		elif arg == "--minimized":
+			minimized = true
 	# The behavior suite also needs the fixture's declared viewport so focus and
 	# scroll assertions run against the same 1280×720 town layout as screenshots.
 	root.size = Vector2i(width, height)
 	if screen == "behavior":
 		await _run_behavior_test()
 		return
-	if not DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() != "headless":
+		root.mode = Window.MODE_WINDOWED
+		DisplayServer.window_set_position(Vector2i(40, 40))
 		DisplayServer.window_set_size(Vector2i(width, height))
+		if minimized:
+			root.mode = Window.MODE_MINIMIZED
 	root.size = Vector2i(width, height)
 	var container := SubViewportContainer.new()
 	container.position = Vector2.ZERO
@@ -142,12 +152,33 @@ func _run() -> void:
 	capture_viewport.size = Vector2i(width, height)
 	capture_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	container.add_child(capture_viewport)
+	CampaignTown.walk_mode = 1 if screen.begins_with("story-") else 0
 	var town := CampaignTown.new()
-	capture_viewport.add_child(town)
 	var controller := FixtureController.new()
+	if screen.begins_with("story-"):
+		var story_biome := 0 if screen == "story-long" else (1 if screen == "story-disabled" else 2)
+		var story_stage := 1 if screen == "story-long" else (0 if screen == "story-disabled" else 1)
+		controller.state["biome_index"] = story_biome
+		controller.state["graph"] = CampaignCatalog.route(int(controller.state["seed"]), story_biome)
+		controller.state["cleared_nodes"] = ["fixture-clear"] if story_stage == 1 else []
+		controller.state["stories"] = Stories.fresh()
+		if screen == "story-disabled": controller.state["gold"] = 0
+		if screen == "story-short": controller.state["stories"]["redwake_trade"]["status"] = "declined"
+	capture_viewport.add_child(town)
 	capture_viewport.add_child(controller)
 	town.setup(controller)
-	if screen not in ["route", "route-rewards"]:
+	if screen.begins_with("story-"):
+		if screen == "story-long":
+			town._mara_dialogue_open = true
+			town._set_mara_page("lantern")
+		elif screen == "story-disabled":
+			town._open_story_dialogue("whitepass_aid")
+			(town._mara_choices.get_child(0) as Button).pressed.emit()
+		else:
+			town._open_story_dialogue("redwake_trade")
+			town._set_story_page("outcome")
+		town._apply_walk_layout()
+	elif screen not in ["route", "route-rewards"]:
 		town._active_service = "ferryman" if screen.begins_with("ferryman") else ("market" if screen == "market-full" else ("pack" if screen in ["comparison", "equipment-tools"] else ("trainer" if screen in ["trainer-reaper", "trainer-inspection", "trainer-specializations"] else ("route" if screen == "route-effects" else ("ledger" if screen in ["ledger-comparison", "ledger-choice-detail"] else screen)))))
 		if screen == "event":
 			controller.state["phase"] = "EVENT_PENDING"
@@ -254,6 +285,10 @@ func _run() -> void:
 	var image := capture_viewport.get_texture().get_image()
 	if image.is_empty():
 		push_error("Campaign UI fixture could not capture the viewport")
+		quit(1)
+		return
+	if image.get_width() != width or image.get_height() != height or capture_viewport.size != Vector2i(width, height):
+		push_error("Campaign UI fixture viewport did not retain requested %dx%d dimensions" % [width, height])
 		quit(1)
 		return
 	var save_error := image.save_png(output)
@@ -869,7 +904,7 @@ func _test_full_backpack_controls(failures: Array[String]) -> void:
 		var selected_style := equipment_button.get_theme_stylebox("normal") as StyleBoxFlat
 		if town._active_service != "pack" or town._content_title.text != "THE ARMORY":
 			failures.append("full Market recovery opens Equipment")
-		if selected_style == null or selected_style.bg_color != Color(0.19, 0.15, 0.09, 0.96):
+		if selected_style == null or selected_style.bg_color != Color("202a32"):
 			failures.append("recovery navigation highlights Equipment in the service rail")
 
 	var heading := _find_label(town, "BACKPACK · %d / %d" % [Inventory.BACKPACK_SIZE, Inventory.BACKPACK_SIZE])
@@ -1844,7 +1879,7 @@ func _test_real_snapshot_rendering(town: CampaignTown, controller: CampaignContr
 	var biome_value := town._root.find_child("Value_biome", true, false) as Label
 	if biome_value == null or not biome_value.text.ends_with("2 / 3 clears"):
 		failures.append("biome transition displays only this realm's three short-node clears")
-	if town._place_header_title.text != "RIMEWATCH" or not town._place_header_subtitle.text.contains("STOP 3 / 4"):
+	if town._place_header_title.text != "Rimewatch" or not town._place_header_subtitle.text.contains("STOP 3 / 4"):
 		failures.append("town header names the current shelter and its journey stage")
 	if town._place_context.text != "A high watchtower tracks movement across the frozen ridges." or _find_label(town, "Victory takes you to the next stop") == null:
 		failures.append("route panel explains the current stop and forward route in player-facing copy")

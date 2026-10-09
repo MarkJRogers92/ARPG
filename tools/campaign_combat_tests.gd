@@ -58,6 +58,7 @@ func _run() -> void:
 	_test_breach_deadline_feedback()
 	_test_elite_boundaries()
 	_test_marked_elite_marker_tracks_target()
+	await _test_optional_elite_keeps_story_marker()
 	await _test_borrowed_battalion_schedule()
 	_test_finale_and_death_priority()
 	print("CAMPAIGN COMBAT TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
@@ -76,6 +77,7 @@ func _test_objective_feedback() -> void:
 	director._main = main
 	main.add_child(director)
 	director._sites = [Vector2.ZERO, Vector2.ONE, Vector2(2.0, 2.0)]
+	director._site_ids = ["seal_1", "seal_2", "seal_3"]
 	for _i in 3:
 		var visual := Node3D.new()
 		director._visuals.append(visual)
@@ -111,6 +113,8 @@ func _test_elite_feedback_signal_first() -> void:
 	director.add_child(wave)
 	director._wave = wave
 	director._elite_spawned = true
+	director._sites = [Vector2.ZERO]
+	director._site_ids = ["elite"]
 	var swarm := EnemySwarm.new()
 	swarm.count = 1
 	swarm.ids = PackedInt32Array([17])
@@ -134,6 +138,7 @@ func _test_objective_prompts() -> void:
 	var player := _prompt_player()
 	director._player = player
 	director._sites = [Vector2(5.0, 0.0), Vector2.ZERO, Vector2(2.0, 0.0)]
+	director._site_ids = ["seal_1", "seal_2", "seal_3"]
 	director._site_claimed = [true, false, false]
 	director._visuals = [Node3D.new(), Node3D.new(), Node3D.new()]
 	var wave := WaveDirector.new()
@@ -164,6 +169,7 @@ func _test_objective_prompts() -> void:
 	wave.free()
 	_clear_prompt_visuals(director)
 	director._sites = [Vector2.ZERO]
+	director._site_ids = ["seal_1"]
 	director._site_claimed = [false]
 	director._visuals = [Node3D.new()]
 	player.position = Vector3(2.6, 0.0, 0.0)
@@ -173,6 +179,7 @@ func _test_objective_prompts() -> void:
 	player.position = Vector3(0.0, 0.0, 0.0)
 	_clear_prompt_visuals(director)
 	director._sites = [Vector2(-1.0, 0.0), Vector2(1.0, 0.0)]
+	director._site_ids = ["seal_1", "seal_2"]
 	director._site_claimed = [false, false]
 	director._visuals = [Node3D.new(), Node3D.new()]
 	_check(director.interaction_prompt().get("text", "").contains("SEAL 2 / 3"),
@@ -190,6 +197,7 @@ func _test_objective_prompts() -> void:
 		director = _director(contract, 300.0, 0.0)
 		director._player = _prompt_player()
 		director._sites = [Vector2.ZERO]
+		director._site_ids = ["elite" if contract == "elite_hunt" else "site"]
 		_check(director.interaction_prompt().is_empty(), "%s does not advertise a non-interactive objective" % contract)
 		director._player.free()
 		director.free()
@@ -197,6 +205,7 @@ func _test_objective_prompts() -> void:
 	director = _director("seal_breach", 360.0, 420.0)
 	director._player = _prompt_player()
 	director._sites = [Vector2.ZERO]
+	director._site_ids = ["seal_1"]
 	director._site_claimed = [false]
 	_check(director.interaction_prompt().get("text", "").contains("SEAL 1 / 3"),
 			"seal_breach alias uses the seal interaction prompt")
@@ -207,6 +216,7 @@ func _test_objective_prompts() -> void:
 	var cache_player := _prompt_player()
 	director._player = cache_player
 	director._sites = [Vector2.ZERO]
+	director._site_ids = ["cache"]
 	director.cache_enabled = true
 	var original_events := InputMap.action_get_events("interact").duplicate()
 	InputMap.action_erase_events("interact")
@@ -362,6 +372,7 @@ func _test_marked_elite_marker_tracks_target() -> void:
 	var director := _director("elite_hunt", 300.0, 420.0)
 	director._elite_spawned = true
 	director._sites = [Vector2(2.0, 3.0)]
+	director._site_ids = ["elite"]
 	var marker := Node3D.new()
 	director._visuals = [marker]
 	var swarm := EnemySwarm.new()
@@ -384,6 +395,39 @@ func _test_marked_elite_marker_tracks_target() -> void:
 	director.free()
 	marker.free()
 	swarm.free()
+
+
+func _test_optional_elite_keeps_story_marker() -> void:
+	var director := _director("hunt", 300.0, 0.0)
+	director.spec["elite"] = true
+	director.spec["story_mission"] = "lantern_recovery"
+	director._player = _prompt_player()
+	var lantern := Node3D.new()
+	var lantern_label := Label3D.new()
+	lantern_label.text = "MARA'S BLUE LANTERN"
+	lantern.add_child(lantern_label)
+	director._sites = [Vector2(8.0, 3.0)]
+	director._site_ids = ["lantern_recovery"]
+	director._site_claimed = [false]
+	director._visuals = [lantern]
+	director.add_child(lantern)
+	root.add_child(director)
+	var swarm := EnemySwarm.new()
+	swarm.spawn_share = 1.0
+	director.add_child(swarm)
+	director._swarms = [swarm]
+	var wave := WaveDirector.new()
+	director.add_child(wave)
+	director._wave = wave
+	await process_frame
+	director._spawn_marked_elite()
+	_check(director._elite_spawned and director._site_ids == ["lantern_recovery"] and lantern_label.text == "MARA'S BLUE LANTERN" and lantern.visible,
+		"an optional marked elite spawns without replacing or relabeling Mara's lantern marker")
+	_check(director.markers().size() == 1 and director.markers()[0]["label"] == "MARA'S LANTERN",
+		"the story marker remains the only expedition marker when an optional elite has no authored site")
+	var player := director._player
+	director.free()
+	player.free()
 
 
 func _test_borrowed_battalion_schedule() -> void:

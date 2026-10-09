@@ -15,6 +15,7 @@ const SERVICES := [
 	{"id": "ferryman", "label": "FERRYMAN", "glyph": "◉"},
 	{"id": "ledger", "label": "THE LEDGER", "glyph": "⌖"},
 ]
+const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
 
 ## -1 auto (walkable town except headless test runs), 0 classic menu, 1 walkable.
 static var walk_mode := -1
@@ -71,8 +72,11 @@ var _stolen_offers: Array = []
 var _mara_dialogue: PanelContainer
 var _mara_title: Label
 var _mara_copy: Label
+var _mara_terms: Label
+var _mara_copy_scroll: ScrollContainer
 var _mara_choices: VBoxContainer
 var _mara_dialogue_open := false
+var _story_dialogue_id := ""
 
 
 func _ready() -> void:
@@ -101,7 +105,7 @@ func _input(event: InputEvent) -> void:
 		if _state.get("phase", "") == "CAMPAIGN_COMPLETE":
 			get_viewport().set_input_as_handled()
 			return
-		if str(_state.get("phase", "")) in ["EVENT_PENDING", "RESULT_PENDING"]:
+		if str(_state.get("phase", "")) == "RESULT_PENDING" or (str(_state.get("phase", "")) == "EVENT_PENDING" and not _mara_dialogue_open):
 			get_viewport().set_input_as_handled()
 			return
 		if _mara_dialogue_open:
@@ -124,7 +128,8 @@ func _input(event: InputEvent) -> void:
 func _build() -> void:
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.theme = UiStyle.theme()
+	_root.theme = CampaignMenuStyle.make_theme(UiStyle.theme())
+	_root.resized.connect(_on_campaign_root_resized)
 	add_child(_root)
 	var backdrop := ColorRect.new()
 	_backdrop_rect = backdrop
@@ -155,7 +160,7 @@ func _build() -> void:
 	_build_service_rail(body)
 	_build_center(body)
 	_build_status(body)
-	_feedback = UiStyle.label(14)
+	_feedback = CampaignMenuStyle.label(14)
 	_feedback.custom_minimum_size.y = 24
 	_feedback.add_theme_color_override("font_color", Color(1.0, 0.72, 0.48))
 	layout.add_child(_feedback)
@@ -176,6 +181,7 @@ func _build_walk(layout: Control) -> void:
 	add_child(_walk)
 	_walk.station_used.connect(_open_station)
 	_walk.mara_used.connect(_open_mara_dialogue)
+	_walk.story_used.connect(_open_story_dialogue)
 	_backdrop_rect.visible = false
 	if is_instance_valid(_sanctuary):
 		_sanctuary.visible = false
@@ -183,9 +189,9 @@ func _build_walk(layout: Control) -> void:
 	_walk_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_walk_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(_walk_spacer)
-	_walk_hint = UiStyle.label(15)
+	_walk_hint = CampaignMenuStyle.label(15)
 	_walk_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_walk_hint.text = "%s  move     %s  use     ESC  save & leave" % ["WASD", Controls.tag("interact")]
+	_walk_hint.text = "%s  move     %s  use     ESC  back     Save & Leave  exit" % ["WASD", Controls.tag("interact")]
 	_walk_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_walk_hint.modulate = Color(1, 1, 1, 0.7)
 	layout.add_child(_walk_hint)
@@ -210,36 +216,86 @@ func _build_mara_dialogue() -> void:
 	_mara_dialogue = PanelContainer.new()
 	_mara_dialogue.name = "MaraConversation"
 	_mara_dialogue.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_mara_dialogue.anchor_left = 0.24
-	_mara_dialogue.anchor_right = 0.76
-	_mara_dialogue.anchor_top = 0.64
-	_mara_dialogue.anchor_bottom = 0.97
-	_mara_dialogue.offset_left = 0
-	_mara_dialogue.offset_right = 0
-	_mara_dialogue.offset_top = 0
+	_mara_dialogue.anchor_left = 0.5
+	_mara_dialogue.anchor_right = 0.5
+	_mara_dialogue.anchor_top = 0.98
+	_mara_dialogue.anchor_bottom = 0.98
+	_mara_dialogue.offset_left = -480
+	_mara_dialogue.offset_right = 480
+	_mara_dialogue.offset_top = -300
 	_mara_dialogue.offset_bottom = -12
-	_mara_dialogue.add_theme_stylebox_override("panel", UiStyle.box(Color(0.035, 0.038, 0.048, 0.97), Color(0.58, 0.43, 0.25), 2, 8))
+	_mara_dialogue.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color(0.035, 0.048, 0.061, 0.98), Color("806c4b"), 1, 8))
 	_mara_dialogue.visible = false
 	_root.add_child(_mara_dialogue)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 16)
+		margin.add_theme_constant_override("margin_" + side, 14)
 	_mara_dialogue.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 7)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 6)
 	margin.add_child(column)
-	_mara_title = UiStyle.label(19)
+	_mara_title = CampaignMenuStyle.label(19)
 	_mara_title.text = "MARA VENN  ·  GRAVEDIGGER"
-	_mara_title.add_theme_color_override("font_color", UiStyle.GOLD)
+	_mara_title.add_theme_color_override("font_color", CampaignMenuStyle.GOLD)
 	column.add_child(_mara_title)
-	_mara_copy = UiStyle.label(16)
+	_mara_terms = CampaignMenuStyle.label(13)
+	_mara_terms.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mara_terms.add_theme_color_override("font_color", CampaignMenuStyle.SOUL)
+	_mara_terms.visible = false
+	column.add_child(_mara_terms)
+	_mara_copy = CampaignMenuStyle.label(16)
 	_mara_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_mara_copy.custom_minimum_size.y = 44
-	_mara_copy.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_mara_copy)
+	_mara_copy.custom_minimum_size = Vector2(0, 54)
+	_mara_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mara_copy_scroll = ScrollContainer.new()
+	_mara_copy_scroll.custom_minimum_size.y = 54
+	_mara_copy_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mara_copy_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_mara_copy_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(_mara_copy_scroll)
+	_mara_copy_scroll.add_child(_mara_copy)
 	_mara_choices = VBoxContainer.new()
 	_mara_choices.add_theme_constant_override("separation", 4)
 	column.add_child(_mara_choices)
+	call_deferred("_layout_story_dialogue")
+
+
+func _layout_story_dialogue() -> void:
+	if not is_instance_valid(_mara_dialogue) or not is_instance_valid(_mara_copy_scroll):
+		return
+	var viewport_size := _root.size
+	if viewport_size.x < 1.0 or viewport_size.y < 1.0:
+		return
+	var width := minf(viewport_size.x * 0.88, 980.0)
+	_mara_dialogue.offset_left = -width * 0.5
+	_mara_dialogue.offset_right = width * 0.5
+	var maximum_height := minf(viewport_size.y * 0.78, 700.0)
+	var action_height := 0.0
+	if _mara_choices.get_child_count() > 0:
+		action_height = _mara_choices.get_child_count() * 35.0 + (_mara_choices.get_child_count() - 1) * 4.0
+	var terms_height := _mara_terms.get_combined_minimum_size().y if _mara_terms.visible else 0.0
+	var static_height := 28.0 + 24.0 + terms_height + action_height + 18.0
+	var copy_cap := maxf(54.0, maximum_height - static_height)
+	var copy_height := maxf(54.0, _mara_copy.get_combined_minimum_size().y)
+	copy_height = minf(copy_height, copy_cap)
+	_mara_copy_scroll.custom_minimum_size.y = copy_height
+	var desired_height := minf(maximum_height, static_height + copy_height)
+	_mara_dialogue.offset_top = -desired_height - 12.0
+	_mara_dialogue.custom_minimum_size.y = desired_height
+
+
+func _on_campaign_root_resized() -> void:
+	if is_instance_valid(_sanctuary):
+		_sanctuary.visible = _root.size.y >= 800.0
+	if _mara_dialogue_open:
+		call_deferred("_layout_story_dialogue")
+
+
+func _style_choice_button(button: Button, primary: bool) -> void:
+	button.add_theme_stylebox_override("normal", CampaignMenuStyle.primary_box() if primary else CampaignMenuStyle.quiet_box())
+	button.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("293843") if not primary else Color("70592f"), CampaignMenuStyle.SOUL, 1))
+	button.add_theme_stylebox_override("focus", CampaignMenuStyle.button_box(Color("1f2c35"), CampaignMenuStyle.SOUL, 2))
 
 
 ## Walk mode: the panel row shows only while a service is open or a phase
@@ -259,7 +315,7 @@ func _apply_walk_layout() -> void:
 		_walk._camp_life.set_talk_prompt(_walk._camp_talk_enabled, _walk._hero_pos, _walk.walking)
 	if is_instance_valid(_mara_dialogue):
 		_mara_dialogue.visible = _mara_dialogue_open
-		if _mara_dialogue_open and (panel_visible or not _mara_available()):
+		if _mara_dialogue_open and ((panel_visible and str(_state.get("phase", "")) != "EVENT_PENDING") or (not _mara_available() if _story_dialogue_id == "" else not _story_available(_story_dialogue_id))):
 			_mara_dialogue_open = false
 			_mara_dialogue.visible = false
 			_walk.walking = not panel_visible
@@ -269,16 +325,28 @@ func _apply_walk_layout() -> void:
 
 
 func _mara_available() -> bool:
-	if str(_state.get("phase", "")) != "TOWN":
+	if str(_state.get("phase", "")) not in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"]:
 		return false
 	var place := CampaignWaystops.resolve(_state)
 	return int(place.get("biome_index", -1)) == 0 and int(place.get("stage", -1)) == 1 and str(place.get("kind", "")) == "camp"
+
+
+func _story_available(story_id: String) -> bool:
+	if str(_state.get("phase", "")) not in ["TOWN", "EVENT_PENDING", "DEPARTURE_READY"]: return false
+	var place := CampaignWaystops.resolve(_state)
+	match story_id:
+		"whitepass_aid": return str(place.get("id", "")) == "waystop:frozen_wastes:0"
+		"sledwright_repair": return str(place.get("id", "")) == "waystop:frozen_wastes:1"
+		"redwake_trade": return str(place.get("id", "")) == "waystop:ember_rift:1"
+	return false
 
 
 func _open_mara_dialogue() -> void:
 	if not is_instance_valid(_walk) or _panel_open or _mara_dialogue_open or not _mara_available():
 		return
 	Sound.play("ui_click", 0.88, -7.0)
+	_story_dialogue_id = ""
+	_mara_title.text = "MARA VENN  ·  GRAVEDIGGER"
 	_mara_dialogue_open = true
 	_set_mara_page("intro")
 	_apply_walk_layout()
@@ -287,6 +355,8 @@ func _open_mara_dialogue() -> void:
 
 
 func _set_mara_page(page: String) -> void:
+	_mara_terms.text = ""
+	_mara_terms.visible = false
 	for child: Node in _mara_choices.get_children():
 		_mara_choices.remove_child(child)
 		child.queue_free()
@@ -298,20 +368,46 @@ func _set_mara_page(page: String) -> void:
 		"stay":
 			_mara_copy.text = "Someone has to tend the plots and keep the lamps lit. The crew buried here were our neighbors before they were names on a stone. We won't leave them in the dark."
 			buttons = [{"text": "Ask something else", "page": "intro"}, {"text": "Leave", "page": "close"}]
+		"lantern":
+			var lantern_status := str(_state.get("stories", {}).get("lantern_recovery", {}).get("status", "offered"))
+			match lantern_status:
+				"accepted":
+					_mara_copy.text = "It is the brass lamp with blue glass, lost where the old grave road folds around a broken bell. It is an optional find on your next expedition. If extraction closes without it, the road moves on and my crew will hang the empty hook in its place."
+					buttons = [{"text": "I will look for it", "page": "stay_lantern"}, {"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"complete":
+					_mara_copy.text = "You brought the lamp all this way. The crew has it burning above the graves again; its blue flame can be seen from Bellwether. I put a little road money in the message pouch for you."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"missed":
+					_mara_copy.text = "The road closed before the brass lamp came home. We hung its empty hook on the next shelter's post, so the story could travel with you. It will not cost you another expedition."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				"declined":
+					_mara_copy.text = "I understand. The empty hook can wait for another pair of hands. The road is yours to prepare for either way."
+					buttons = [{"text": "Back to Mara", "page": "intro"}, {"text": "Leave", "page": "close"}]
+				_:
+					_mara_copy.text = "A brass lantern with blue glass went missing from our last grave patrol. The search is optional; you can find its marker during one expedition, and picking it up costs no time or gold. If extraction closes first, the errand ends and its empty hook travels onward."
+					buttons = [{"text": "Accept optional lantern errand", "page": "accept_lantern"}, {"text": "Leave it for another traveler", "page": "decline_lantern"}, {"text": "Back to Mara", "page": "intro"}]
 		_:
 			_mara_copy.text = "Mara wipes soot from her gloves. “I'm Mara Venn. I keep the lamps and graves, so the road can stay clear for you.”"
-			buttons = [{"text": "What lies ahead?", "page": "ahead"}, {"text": "Why stay here?", "page": "stay"}, {"text": "Leave", "page": "close"}]
-	for choice: Dictionary in buttons:
+			buttons = [{"text": "What lies ahead?", "page": "ahead"}, {"text": "Why stay here?", "page": "stay"}, {"text": "The missing brass lantern", "page": "lantern"}, {"text": "Leave", "page": "close"}]
+	for index in buttons.size():
+		var choice: Dictionary = buttons[index]
 		var button := Button.new()
 		button.text = str(choice["text"])
 		button.custom_minimum_size.y = 35
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_style_choice_button(button, index == 0)
 		button.pressed.connect(_mara_choice.bind(str(choice["page"])))
 		_mara_choices.add_child(button)
+	call_deferred("_layout_story_dialogue")
 
 
 func _mara_choice(page: String) -> void:
-	if page == "close":
+	if page == "accept_lantern" or page == "decline_lantern":
+		var response := _command("choose_story", ["lantern_recovery", "accept" if page == "accept_lantern" else "decline"])
+		if bool(response.get("ok", false)):
+			_set_mara_page("lantern")
+			if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+	elif page == "close":
 		_close_mara_dialogue()
 	else:
 		_set_mara_page(page)
@@ -319,13 +415,141 @@ func _mara_choice(page: String) -> void:
 			call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
 
 
+func _open_story_dialogue(story_id: String) -> void:
+	if not is_instance_valid(_walk) or _panel_open or _mara_dialogue_open or not _story_available(story_id): return
+	_story_dialogue_id = story_id
+	_mara_dialogue_open = true
+	Sound.play("ui_click", 0.88, -7.0)
+	_set_story_page("intro")
+	_apply_walk_layout()
+	if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
+func _set_story_page(page: String) -> void:
+	_mara_terms.text = ""
+	_mara_terms.visible = false
+	for child: Node in _mara_choices.get_children():
+		_mara_choices.remove_child(child)
+		child.queue_free()
+	var title := ""
+	var copy := ""
+	var buttons: Array[Dictionary] = []
+	var stories: Dictionary = _state.get("stories", {})
+	match _story_dialogue_id:
+		"whitepass_aid":
+			title = "HESSA VALE  ·  WHITEPASS REFUGEE"
+			var saved: Dictionary = stories.get("whitepass_aid", {})
+			if str(saved.get("choice", "")) != "":
+				match str(saved.get("choice", "")):
+					"donate": copy = "The lamp oil is packed with Hessa's bitter fire tonic. She raises the signal for her brother and presses the small flask into your hand."
+					"signal": copy = "The brazier is braced and burning cleanly. Hessa's brother spots it through the snow; she hands you the spare armor straps for the road."
+					_: copy = "Hessa thanks you for hearing her out and turns back to the cold brazier. She keeps watch for her brother alone."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Hessa Vale has been stranded above the pass since the bridge ice broke. Her brother is guiding a supply train down from the ridge; she is trying to keep a signal brazier alive until they find the refuge."
+				buttons = [{"text": "Ask how to help", "page": "help"}, {"text": "Not now · no cost", "page": "decline"}]
+			elif page == "help":
+				copy = "The brazier is heavy with ice. Hessa can brew a bitter tonic while you brace its signal iron; each will help differently on the road ahead."
+				_mara_terms.text = "FIRE TONIC  ·  8 G  ·  +8% DAMAGE\nBRACED SIGNAL  ·  FREE  ·  +8% ARMOR\nEither boon lasts until the next road is cleared."
+				_mara_terms.visible = true
+				buttons = [{"text": "Buy the tonic · 8 G", "choice": "donate"}, {"text": "Brace the signal · free", "choice": "signal"}, {"text": "Not now · no cost", "page": "decline"}]
+			else:
+				copy = "Hessa understands. She waits beside the cold signal brazier and keeps watching the ridge."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+		"sledwright_repair":
+			title = "ELIAN RUSK  ·  SLEDWRIGHT"
+			var saved: Dictionary = stories.get("sledwright_repair", {})
+			if str(saved.get("choice", "")) != "":
+				if str(saved.get("choice", "")) == "iron": copy = "The iron shoe sits true beneath the runner. Elian wipes his hands, then gives you the hammer for luck."
+				elif str(saved.get("choice", "")) == "canvas": copy = "The canvas wraps hold after your test. Elian gives you the spare rope, pleased to have another pair of hands on the work."
+				else: copy = "Elian sets the cracked runner aside and returns to his crew. The sled can wait until the next stop."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Elian Rusk kneels beside a runner split along its outer shoe. “If I send this sled up with a cracked rail, it will turn downhill by itself. Give me a moment and an honest answer.”"
+				buttons = [{"text": "Inspect the runner together", "page": "inspect"}, {"text": "Leave it · no cost", "page": "decline"}]
+			elif page == "inspect":
+				copy = "The crack runs beneath the front crossbar. An iron shoe will carry the weight cleanly; a canvas splint needs a careful lash and a load test."
+				_mara_terms.text = "IRON SHOE  ·  15 G  ·  +8% MOVE SPEED\nCANVAS SPLINT  ·  FREE  ·  +10% ARMOR\nEither boon lasts until the next road is cleared."
+				_mara_terms.visible = true
+				buttons = [{"text": "Fit the iron shoe · 15 G", "choice": "iron"}, {"text": "Lash and test canvas · free", "page": "test_canvas"}, {"text": "Leave the repair open", "page": "decline"}]
+			elif page == "test_canvas":
+				copy = "You pull the line taut while Elian leans his weight against the sled. The canvas holds; he asks you to keep the runner steady for one final test."
+				buttons = [{"text": "Hold fast · test passes · finish repair", "choice": "canvas"}, {"text": "Step away · leave repair open", "page": "inspect"}]
+			else:
+				copy = "Elian shrugs without offense. The runner can wait until you decide which line to take."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+		"redwake_trade":
+			title = "JUNO CALDER  ·  REDWAKE FACTOR"
+			var saved: Dictionary = stories.get("redwake_trade", {})
+			if str(saved.get("status", "open")) == "played":
+				var won := bool(saved.get("won", false))
+				copy = "The sealed crate is opened. %s Juno folds the convoy tally and turns back to the road." % ("Thirty-two gold came back: after the 15-gold stake, your net is +17 gold." if won else "The heat split the cargo; the 15-gold stake is gone. Your net is -15 gold.")
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif str(saved.get("status", "open")) == "declined":
+				copy = "Juno has closed the offer without taking a coin. The caravan rolls on; the trade will not be offered again."
+				buttons = [{"text": "Close the conversation", "page": "close"}]
+			elif page == "intro":
+				copy = "Juno Calder has one sealed crate left after a lava-road ambush. She taps its scorched lid and says the cargo was meant for a convoy caught beyond the cinder flats. She asks if you want to inspect it before making an offer."
+				buttons = [{"text": "Inspect the scorched cargo", "page": "inspect"}, {"text": "Decline this trade for good · free", "choice": "decline"}]
+			else:
+				copy = "Heatproof glass glints through the split lid. Juno turns the crate toward you: one offer, one draw, then the caravan moves on."
+				_mara_terms.text = "STAKE  ·  15 G  ·  60% CHANCE\nWIN  ·  32 G BACK  ·  +17 G NET\nLOSS  ·  CARGO LOST  ·  -15 G NET"
+				_mara_terms.visible = true
+				buttons = [{"text": "Take the trade · 15 G", "choice": "play"}, {"text": "Decline this trade for good · free", "choice": "decline"}]
+		_:
+			copy = "The road offers nothing more to settle here."
+			buttons = [{"text": "Close the conversation", "page": "close"}]
+	_mara_title.text = title
+	_mara_copy.text = copy
+	for index in buttons.size():
+		var choice: Dictionary = buttons[index]
+		var button := Button.new()
+		button.text = str(choice["text"])
+		var required_gold := 0
+		if _story_dialogue_id == "whitepass_aid" and choice.get("choice", "") == "donate": required_gold = 8
+		elif _story_dialogue_id == "sledwright_repair" and choice.get("choice", "") == "iron": required_gold = 15
+		elif _story_dialogue_id == "redwake_trade" and choice.get("choice", "") == "play": required_gold = 15
+		if required_gold > int(_state.get("gold", 0)):
+			button.disabled = true
+			button.text += " · need %d G" % required_gold
+		button.custom_minimum_size.y = 35
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_style_choice_button(button, index == 0)
+		button.pressed.connect(_story_choice.bind(choice))
+		_mara_choices.add_child(button)
+	call_deferred("_layout_story_dialogue")
+
+
+func _story_choice(choice: Dictionary) -> void:
+	if choice.has("choice"):
+		var response := _command("choose_story", [_story_dialogue_id, str(choice["choice"])])
+		if bool(response.get("ok", false)):
+			_set_story_page("outcome")
+			if _mara_choices.get_child_count() > 0: call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+	else:
+		match str(choice.get("page", "")):
+			"close": _close_mara_dialogue()
+			"decline": _set_story_page("decline") if _story_dialogue_id != "" else _set_mara_page("intro")
+			_: _set_story_page(str(choice.get("page", "intro")))
+		if _mara_dialogue_open and _mara_choices.get_child_count() > 0:
+			call_deferred("_focus_mara_choice_if_open", _mara_choices.get_child(0))
+
+
 func _focus_mara_choice_if_open(button: Button) -> void:
-	if _mara_dialogue_open and is_instance_valid(button) and button.is_inside_tree():
+	if not _mara_dialogue_open: return
+	if is_instance_valid(button) and button.is_inside_tree() and not button.disabled:
 		button.grab_focus()
+		return
+	for child: Node in _mara_choices.get_children():
+		var choice := child as Button
+		if choice != null and not choice.disabled and choice.visible:
+			choice.grab_focus()
+			return
 
 
 func _close_mara_dialogue() -> void:
 	_mara_dialogue_open = false
+	_story_dialogue_id = ""
 	if is_instance_valid(_mara_dialogue):
 		_mara_dialogue.visible = false
 	if is_instance_valid(_walk):
@@ -340,12 +564,12 @@ func _build_header(parent: Control) -> void:
 	var header := HBoxContainer.new()
 	header.custom_minimum_size.y = 54
 	parent.add_child(header)
-	var title := UiStyle.label(30)
+	var title := CampaignMenuStyle.label(30)
 	title.text = "THE LAST LANTERN"
 	_place_header_title = title
-	title.add_theme_color_override("font_color", UiStyle.GOLD)
+	title.add_theme_color_override("font_color", CampaignMenuStyle.GOLD)
 	header.add_child(title)
-	var subtitle := UiStyle.label(14)
+	var subtitle := CampaignMenuStyle.label(14)
 	subtitle.text = "   SANCTUARY BETWEEN EXPEDITIONS"
 	_place_header_subtitle = subtitle
 	subtitle.modulate = Color(1, 1, 1, 0.7)
@@ -354,7 +578,7 @@ func _build_header(parent: Control) -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
-	_status_label = UiStyle.label(16)
+	_status_label = CampaignMenuStyle.label(16)
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	header.add_child(_status_label)
 	var leave := Button.new()
@@ -374,13 +598,16 @@ func _build_service_rail(parent: Control) -> void:
 		button.text = "%s   %s" % [service["glyph"], service["label"]]
 		button.custom_minimum_size = Vector2(168, 50)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.add_theme_stylebox_override("normal", CampaignMenuStyle.service_box(false))
+		button.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("27353f"), CampaignMenuStyle.SOUL, 1))
+		button.add_theme_stylebox_override("focus", CampaignMenuStyle.button_box(Color("1e2b35"), CampaignMenuStyle.SOUL, 2))
 		button.pressed.connect(_select_service.bind(service["id"]))
 		rail.add_child(button)
 		_service_buttons[service["id"]] = button
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rail.add_child(spacer)
-	var hint := UiStyle.label(12)
+	var hint := CampaignMenuStyle.label(12)
 	hint.text = "ARROWS / D-PAD   navigate\nTAB   move focus\nESC   back / save & leave"
 	hint.modulate = Color(1, 1, 1, 0.55)
 	rail.add_child(hint)
@@ -390,7 +617,7 @@ func _build_center(parent: Control) -> void:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", UiStyle.box(Color(0.038, 0.049, 0.067, 0.98), Color(0.43, 0.34, 0.22, 0.92), 2, 8))
+	panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("17212b"), Color("4e5a60"), 1, 8))
 	parent.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -401,10 +628,10 @@ func _build_center(parent: Control) -> void:
 	margin.add_child(stack)
 	var title_row := HBoxContainer.new()
 	stack.add_child(title_row)
-	_content_title = UiStyle.label(24)
-	_content_title.add_theme_color_override("font_color", UiStyle.GOLD)
+	_content_title = CampaignMenuStyle.label(24)
+	_content_title.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
 	title_row.add_child(_content_title)
-	_place_context = UiStyle.label(13)
+	_place_context = CampaignMenuStyle.label(13)
 	_place_context.add_theme_color_override("font_color", UiStyle.MUTED)
 	_place_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(_place_context)
@@ -420,7 +647,7 @@ func _build_center(parent: Control) -> void:
 	_route_action_footer = PanelContainer.new()
 	_route_action_footer.visible = false
 	_route_action_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_route_action_footer.add_theme_stylebox_override("panel", UiStyle.box(Color(0.075, 0.085, 0.105, 0.99), Color(0.77, 0.59, 0.3, 0.95), 1, 6))
+	_route_action_footer.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("202b34"), Color("625740"), 1, 6))
 	stack.add_child(_route_action_footer)
 	var route_footer_margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -429,18 +656,21 @@ func _build_center(parent: Control) -> void:
 	var route_footer_row := HBoxContainer.new()
 	route_footer_row.add_theme_constant_override("separation", 12)
 	route_footer_margin.add_child(route_footer_row)
-	_route_action_copy = UiStyle.label(13)
+	_route_action_copy = CampaignMenuStyle.label(13)
 	_route_action_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_route_action_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	route_footer_row.add_child(_route_action_copy)
 	_route_action_button = Button.new()
 	_route_action_button.custom_minimum_size = Vector2(250, 44)
+	_route_action_button.add_theme_stylebox_override("normal", CampaignMenuStyle.primary_box())
+	_route_action_button.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("715a30"), CampaignMenuStyle.SOUL, 1))
+	_route_action_button.add_theme_stylebox_override("focus", CampaignMenuStyle.button_box(Color("5d4a2a"), CampaignMenuStyle.SOUL, 2))
 	_route_action_button.pressed.connect(_activate_route_action)
 	route_footer_row.add_child(_route_action_button)
 	_talent_inspection_footer = PanelContainer.new()
 	_talent_inspection_footer.visible = false
 	_talent_inspection_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_talent_inspection_footer.add_theme_stylebox_override("panel", UiStyle.box(Color(0.07, 0.08, 0.1, 0.98), Color(0.3, 0.34, 0.39, 0.72), 1, 5))
+	_talent_inspection_footer.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("17212b"), Color("3e4b52"), 1, 5))
 	stack.add_child(_talent_inspection_footer)
 	var footer_margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -451,15 +681,15 @@ func _build_center(parent: Control) -> void:
 	footer_margin.add_child(footer_content)
 	var footer_heading := HBoxContainer.new()
 	footer_content.add_child(footer_heading)
-	_talent_inspection_title = UiStyle.label(15)
+	_talent_inspection_title = CampaignMenuStyle.label(15)
 	_talent_inspection_title.add_theme_color_override("font_color", UiStyle.GOLD)
 	footer_heading.add_child(_talent_inspection_title)
-	_talent_inspection_status = UiStyle.label(12)
+	_talent_inspection_status = CampaignMenuStyle.label(12)
 	_talent_inspection_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_talent_inspection_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_talent_inspection_status.add_theme_color_override("font_color", UiStyle.MUTED)
 	footer_heading.add_child(_talent_inspection_status)
-	_talent_inspection_description = UiStyle.label(12)
+	_talent_inspection_description = CampaignMenuStyle.label(12)
 	_talent_inspection_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_talent_inspection_description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer_content.add_child(_talent_inspection_description)
@@ -467,31 +697,33 @@ func _build_center(parent: Control) -> void:
 
 func _build_status(parent: Control) -> void:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 226
-	panel.add_theme_stylebox_override("panel", UiStyle.box(Color(0.035, 0.046, 0.065, 0.98), Color(0.3, 0.34, 0.39, 0.7), 1, 8))
+	panel.custom_minimum_size.x = 238
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("151f29"), Color("3e4b52"), 1, 8))
 	parent.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 14)
+		margin.add_theme_constant_override("margin_" + side, 12)
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	margin.add_child(box)
-	var title := UiStyle.label(16)
-	title.text = "CAMPAIGN RECORD"
-	title.add_theme_color_override("font_color", UiStyle.GOLD)
+	var title := CampaignMenuStyle.label(16)
+	title.text = "Campaign record"
+	title.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
 	box.add_child(title)
 	box.add_child(_section("Journey", "biome"))
 	box.add_child(_section("Campaign Gold", "gold"))
 	box.add_child(_section("Talent Points", "talents"))
 	box.add_child(_section("Veterans", "veterans"))
 	box.add_child(HSeparator.new())
-	var ledger := UiStyle.label(14)
+	var ledger := CampaignMenuStyle.label(14)
 	ledger.name = "ClauseSummary"
 	ledger.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ledger.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(ledger)
 	box.add_child(HSeparator.new())
-	var rule := UiStyle.label(12)
+	var rule := CampaignMenuStyle.label(12)
 	rule.text = "COMBAT GROWTH RESETS\nYOUR BANKED BUILD REMAINS"
 	rule.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rule.modulate = Color(0.72, 0.83, 0.86, 0.68)
@@ -515,17 +747,20 @@ func _build_status(parent: Control) -> void:
 	sanctuary.name = "SanctuaryVignette"
 	# Decoration yields space to ledger text and reward recovery controls.
 	sanctuary.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sanctuary.visible = _root.size.y >= 800.0
 	box.add_child(sanctuary)
 
 
 func _section(title: String, key: String) -> Control:
 	var wrapper := VBoxContainer.new()
-	var heading := UiStyle.label(12)
+	var heading := CampaignMenuStyle.label(12)
 	heading.text = title.to_upper()
 	heading.modulate = Color(1, 1, 1, 0.5)
 	wrapper.add_child(heading)
-	var value := UiStyle.label(18)
+	var value := CampaignMenuStyle.label(16)
 	value.name = "Value_" + key
+	value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value.add_theme_color_override("font_color", UiStyle.GOLD if key == "gold" else UiStyle.TEXT)
 	wrapper.add_child(value)
 	return wrapper
@@ -564,8 +799,8 @@ func _render() -> void:
 	var biome := clampi(int(_state.get("biome_index", 0)), 0, 2)
 	var waystop := CampaignWaystops.resolve(_state)
 	var phase := str(_state.get("phase", "TOWN"))
-	_place_header_title.text = str(waystop["name"]).to_upper()
-	_place_header_subtitle.text = "   %s  ·  STOP %d / 4" % [biome_names[biome], int(waystop["stage"]) + 1] if int(waystop["stage"]) < 4 else "   THE ROAD ENDS IN DAWN"
+	_place_header_title.text = str(waystop["name"])
+	_place_header_subtitle.text = "   %s  ·  STOP %d / 4" % [biome_names[biome].to_lower().capitalize(), int(waystop["stage"]) + 1] if int(waystop["stage"]) < 4 else "   THE ROAD ENDS IN DAWN"
 	_place_context.text = str(waystop["description"])
 	if is_instance_valid(_walk_hint):
 		_walk_hint.text = "%s\n%s  move     %s  use     ESC  save & leave" % [str(waystop["arrival_line"]), "WASD", Controls.tag("interact")]
@@ -573,7 +808,8 @@ func _render() -> void:
 	_delivery_button.visible = not _state.get("outbox", []).is_empty() and phase not in ["RESULT_PENDING", "CAMPAIGN_COMPLETE", "ABANDONED"]
 	var clear_count := _current_biome_clear_count(_state)
 	_status_label.text = "%s   ·   %d / 3 CLEARS" % [phase.replace("_", " "), clear_count]
-	_set_named_value("Value_biome", "%s\n%s   ·   %d / 3 clears" % [str(waystop["name"]), biome_names[biome], clear_count])
+	var biome_short: String = str(biome_names[biome]).replace("THE ", "").to_lower().capitalize()
+	_set_named_value("Value_biome", "%s\n%s  ·  STOP %d / 4\n%d / 3 clears" % [str(waystop["name"]), biome_short, int(waystop["stage"]) + 1, clear_count])
 	_set_named_value("Value_gold", "%s G" % _number(int(_state.get("gold", 0))))
 	var talents: Dictionary = _state.get("talents", {})
 	_set_named_value("Value_talents", "%d available   ·   %d earned" % [int(talents.get("points", 0)), int(talents.get("earned", 0))])
@@ -591,7 +827,11 @@ func _render() -> void:
 	_set_named_value("ClauseSummary", clause_text)
 	for id: Variant in _service_buttons:
 		var button := _service_buttons[id] as Button
-		button.add_theme_stylebox_override("normal", UiStyle.box(Color(0.19, 0.15, 0.09, 0.96) if str(id) == _active_service else Color(0.08, 0.085, 0.1, 0.92), UiStyle.GOLD if str(id) == _active_service else UiStyle.BRONZE.darkened(0.3), 2, 5))
+		button.add_theme_stylebox_override("normal", CampaignMenuStyle.service_box(str(id) == _active_service))
+		if str(id) == _active_service:
+			button.add_theme_color_override("font_color", CampaignMenuStyle.GOLD)
+		else:
+			button.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	_render_panel()
 
 
@@ -716,6 +956,7 @@ func _render_route() -> void:
 	var waystop := CampaignWaystops.resolve(_state)
 	_add_copy("%s · stop %d of 4\nVictory takes you to the next stop. Failure or retreat brings you back here." % [
 		str(waystop["name"]), int(waystop["stage"]) + 1])
+	_render_story_journal()
 	var graph: Dictionary = _state.get("graph", {})
 	if graph.is_empty():
 		_add_copy("The route map will appear once the campaign begins.")
@@ -963,11 +1204,11 @@ func _render_pack() -> void:
 		var record: Dictionary = items.get(item_id, {})
 		if _pack_slot_filter == "all" or str(record.get("data", {}).get("slot", "weapon")) == _pack_slot_filter:
 			visible_ids.append(item_id)
-	var count := UiStyle.label(12)
+	var count := CampaignMenuStyle.label(12)
 	count.text = "Showing %d of %d" % [visible_ids.size(), backpack.size()]
 	count.modulate = Color(1, 1, 1, 0.62)
 	item_column.add_child(count)
-	var tray_hint := UiStyle.label(12)
+	var tray_hint := CampaignMenuStyle.label(12)
 	tray_hint.text = "Reward tray: %d unclaimed below the backpack; slot filters never hide rewards." % tray.size()
 	tray_hint.modulate = Color(0.68, 0.82, 0.9, 0.9)
 	tray_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -985,7 +1226,7 @@ func _render_pack() -> void:
 		var tray_card := VBoxContainer.new()
 		tray_card.add_theme_constant_override("separation", 5)
 		item_column.add_child(tray_card)
-		var tray_label := UiStyle.label(14)
+		var tray_label := CampaignMenuStyle.label(14)
 		tray_label.text = _summary(rec.get("data", {}))
 		tray_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tray_card.add_child(tray_label)
@@ -1285,12 +1526,12 @@ func _render_market() -> void:
 func _render_starting_build_summary(parent: Control) -> void:
 	var preview: Dictionary = CampaignLoadout.preview(_state)
 	if preview.is_empty():
-		var unavailable := UiStyle.label(11)
+		var unavailable := CampaignMenuStyle.label(11)
 		unavailable.text = "Starting build summary unavailable."
 		unavailable.modulate = UiStyle.MUTED
 		parent.add_child(unavailable)
 		return
-	var heading := UiStyle.label(12)
+	var heading := CampaignMenuStyle.label(12)
 	heading.text = "STARTING BUILD"
 	heading.add_theme_color_override("font_color", UiStyle.GOLD)
 	parent.add_child(heading)
@@ -1306,7 +1547,7 @@ func _render_starting_build_summary(parent: Control) -> void:
 		_format_starting_build_number(float(preview["primary_damage"])),
 		_format_starting_build_cooldown(float(preview["primary_cooldown"])),
 	]
-	var summary := UiStyle.label(13)
+	var summary := CampaignMenuStyle.label(13)
 	summary.text = "%s\nPrimary %s" % [" · ".join(metric_values), primary_text]
 	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1323,7 +1564,7 @@ func _render_starting_build_summary(parent: Control) -> void:
 			route_copy = "Route stat modifiers included · %s. Values are before temporary upgrades or conditional combat bonuses." % ", ".join(names)
 		else:
 			route_copy = "Committed route · no added starting stat modifiers. Values are before temporary upgrades or conditional combat bonuses."
-	var note := UiStyle.label(11)
+	var note := CampaignMenuStyle.label(11)
 	note.text = route_copy
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.modulate = UiStyle.MUTED
@@ -1343,7 +1584,7 @@ func _render_trainer() -> void:
 	var talents: Dictionary = _state.get("talents", {})
 	var allocated: Array = talents.get("allocated", [])
 	_add_copy("Campaign talents survive each expedition. Only successful node settlements grant points; refunds return them here.")
-	var points := UiStyle.label(20)
+	var points := CampaignMenuStyle.label(20)
 	points.text = "%d talent points available   ·   %d / 18 earned" % [int(talents.get("points", 0)), int(talents.get("earned", 0))]
 	points.add_theme_color_override("font_color", UiStyle.GOLD)
 	_content.add_child(points)
@@ -1462,7 +1703,7 @@ func _render_roster() -> void:
 		var id := str(veteran.get("id", ""))
 		var row := HBoxContainer.new()
 		_content.add_child(row)
-		var info := UiStyle.label(16)
+		var info := CampaignMenuStyle.label(16)
 		var rank := int(veteran.get("rank", 1))
 		var effective_rank := mini(rank, effective_rank_cap)
 		var pledge_node := str(veteran.get("pledge_node", ""))
@@ -1482,7 +1723,7 @@ func _render_roster() -> void:
 		var candidate_name := str(candidate.get("name", "Unnamed veteran"))
 		var candidate_rank := int(candidate.get("rank", 1))
 		var candidate_effective_rank := mini(candidate_rank, effective_rank_cap)
-		var candidate_info := UiStyle.label(16)
+		var candidate_info := CampaignMenuStyle.label(16)
 		candidate_info.text = "%s  ·  %s  ·  Rank %d (travels as %d; biome rank cap %d)\n%s" % [candidate_name, _veteran_role_name(candidate), candidate_rank, candidate_effective_rank, effective_rank_cap, _veteran_record_details(candidate)]
 		candidate_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		candidate_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1564,7 +1805,7 @@ func _render_ferryman() -> void:
 			_add_item_comparison(_content, _state.get("inventory", {}).get("items", {}).get(worn_id, {}), prize)
 	var stage := int(wager.get("stage", 0))
 	_add_copy("%s\n%s" % ["First crossing" if stage == 0 else "Second crossing · both prizes at stake", wager.get("detail", "The Ferryman's odds are fixed before the coin is tossed.")])
-	var odds := UiStyle.label(19)
+	var odds := CampaignMenuStyle.label(19)
 	var shown_chance := 0.45 if stage > 0 else (0.8 if _wager_pledge else 0.7)
 	if stage == 0:
 		for effect: Variant in _state.get("effects", []):
@@ -1598,7 +1839,7 @@ func _render_ferryman() -> void:
 			_add_copy("Your companion is pledged whether the coin wins or loses. They return after the next route node clears.")
 	else:
 		var outcome: Dictionary = wager.get("outcome", {})
-		var result := UiStyle.label(20)
+		var result := CampaignMenuStyle.label(20)
 		var won := bool(outcome.get("won", status == "won"))
 		result.text = "THE FERRYMAN'S COIN: %s" % ("CLAIMED" if status == "taken" else ("WON" if won else "LOST"))
 		result.add_theme_color_override("font_color", UiStyle.GOLD if status == "taken" or won else Color(0.95, 0.54, 0.44))
@@ -1748,6 +1989,12 @@ func _render_event() -> void:
 	if choices.is_empty():
 		_add_copy("The event offers a safe route onward. The choice record remains attached to the campaign save.")
 		_content.add_child(_button("Leave the event", func() -> void: _command("resolve_event", ["leave"])))
+	for story_id: String in ["lantern_recovery", "whitepass_aid", "sledwright_repair", "redwake_trade"]:
+		var available := _mara_available() if story_id == "lantern_recovery" else _story_available(story_id)
+		if not available: continue
+		var speaker := str({"lantern_recovery": "Mara", "whitepass_aid": "Hessa", "sledwright_repair": "Elian", "redwake_trade": "Juno"}[story_id])
+		var talk := _button("Speak with %s before leaving the event" % speaker, func() -> void: _open_mara_dialogue() if story_id == "lantern_recovery" else _open_story_dialogue(story_id), UiStyle.GOLD)
+		_content.add_child(talk)
 
 
 func _resolve_event_choice(choice_id: String) -> void:
@@ -1775,7 +2022,7 @@ func _render_result() -> void:
 	var result: Dictionary = _state.get("result", {})
 	var success := str(result.get("outcome", "failure")) == "success"
 	var waystop := CampaignWaystops.resolve(_state)
-	var heading := UiStyle.label(32)
+	var heading := CampaignMenuStyle.label(32)
 	heading.text = "THE ROAD YIELDS ITS REWARD" if success else "THE ROAD CLAIMS THIS ATTEMPT"
 	heading.add_theme_color_override("font_color", Color(0.95, 0.79, 0.4) if success else Color(0.94, 0.52, 0.43))
 	_content.add_child(heading)
@@ -1784,6 +2031,8 @@ func _render_result() -> void:
 	else:
 		_add_copy("BACK AT %s\nThe same shelter waits while you prepare for another attempt." % str(waystop["name"]))
 	_render_after_action_report(result)
+	if str(result.get("story_message", "")) != "":
+		_add_copy(str(result["story_message"]))
 	var payment := int(result.get("gold", 0))
 	var conversion := int(result.get("shard_conversion", 0))
 	_add_copy("Gold banked from this result: +%d G   ·   contract / bonus %d G + shard conversion %d G" % [payment + conversion, payment, conversion])
@@ -1830,6 +2079,36 @@ func _render_result() -> void:
 	if not _state.get("outbox", []).is_empty():
 		_add_copy("Some account rewards are waiting to be recorded. Your expedition result is safely saved; you can retry here.")
 		_content.add_child(_button("Retry account reward delivery", func() -> void: _command("deliver_outbox"), Color(0.62, 0.82, 0.93)))
+
+
+func _render_story_journal() -> void:
+	var stories: Dictionary = _state.get("stories", {})
+	if stories.is_empty(): return
+	var entries: Array[String] = []
+	var lantern: Dictionary = stories.get("lantern_recovery", {})
+	match str(lantern.get("status", "offered")):
+		"accepted": entries.append("Mara's errand · lantern marked on the current route")
+		"complete": entries.append("Mara's lantern · recovered; +25 G banked; blue flame carried north")
+		"missed": entries.append("Mara's lantern · left behind; empty hook carried north")
+		"declined": entries.append("Mara's lantern · left for another traveler")
+	var whitepass: Dictionary = stories.get("whitepass_aid", {})
+	match str(whitepass.get("choice", "")):
+		"donate": entries.append("Whitepass · 8 G for lamp oil; fire tonic adds 8% damage on the next uncleared route")
+		"signal": entries.append("Whitepass · brazier braced; 8% armor support on the next uncleared route")
+		"declined": entries.append("Whitepass · Hessa will wait beside the signal brazier")
+	var repair: Dictionary = stories.get("sledwright_repair", {})
+	match str(repair.get("choice", "")):
+		"iron": entries.append("Sledwright · 15 G iron shoe fitted; 8% move speed support on the next uncleared route")
+		"canvas": entries.append("Sledwright · canvas splint lashed and tested; 10% armor support on the next uncleared route")
+		"declined": entries.append("Sledwright · repair left to Elian's crew")
+	var trade: Dictionary = stories.get("redwake_trade", {})
+	if str(trade.get("status", "open")) == "played":
+		entries.append("Redwake · one 15 G stake at 60%; %s (net %s%d G)" % ["crate paid 32 G" if trade.get("won", false) else "cargo lost", "+" if int(trade.get("net", 0)) > 0 else "", abs(int(trade.get("net", 0)))])
+	elif str(trade.get("status", "open")) == "declined":
+		entries.append("Redwake · offer declined without cost")
+	if entries.is_empty(): return
+	_add_subtitle(_content, "SETTLEMENT JOURNAL")
+	_add_copy("\n".join(entries))
 
 
 func _render_after_action_report(result: Dictionary) -> void:
@@ -1934,7 +2213,7 @@ func _command(method: String, args: Array = []) -> Dictionary:
 
 
 func _add_copy(text: String) -> Label:
-	var label := UiStyle.label(15)
+	var label := CampaignMenuStyle.label(15)
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.modulate = Color(1, 1, 1, 0.76)
@@ -1943,7 +2222,7 @@ func _add_copy(text: String) -> Label:
 
 
 func _add_copy_to(parent: Control, text: String, color: Color) -> Label:
-	var label := UiStyle.label(13)
+	var label := CampaignMenuStyle.label(13)
 	label.text = text
 	label.add_theme_color_override("font_color", color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1953,7 +2232,7 @@ func _add_copy_to(parent: Control, text: String, color: Color) -> Label:
 
 
 func _add_subtitle(parent: Control, text: String) -> void:
-	var label := UiStyle.label(14)
+	var label := CampaignMenuStyle.label(14)
 	label.text = text
 	label.add_theme_color_override("font_color", UiStyle.GOLD)
 	parent.add_child(label)
@@ -1973,11 +2252,11 @@ func _add_item_detail(parent: Control, record: Dictionary) -> void:
 	if data.is_empty():
 		_add_copy_to(parent, "Select an item to inspect it.", UiStyle.MUTED)
 		return
-	var title := UiStyle.label(16)
+	var title := CampaignMenuStyle.label(16)
 	title.text = _item_name(record)
 	title.add_theme_color_override("font_color", _rarity_color(record))
 	parent.add_child(title)
-	var meta := UiStyle.label(12)
+	var meta := CampaignMenuStyle.label(12)
 	meta.text = "%s · %s · item level %d · value %d G%s" % [_rarity_text(record), ItemData.SLOT_NAMES.get(str(data.get("slot", "")), str(data.get("slot", ""))), int(data.get("ilvl", 1)), int(record.get("valuation", 0)), " · LOCKED" if bool(record.get("locked", false)) else ""]
 	meta.modulate = Color(1, 1, 1, 0.62)
 	meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2028,7 +2307,7 @@ func _comparison_power_text(which: String, data: Dictionary) -> String:
 
 
 func _add_comparison_copy(parent: Control, text: String) -> Label:
-	var label := UiStyle.label(14)
+	var label := CampaignMenuStyle.label(14)
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL

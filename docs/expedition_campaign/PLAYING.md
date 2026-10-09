@@ -29,6 +29,12 @@ Deploy one veteran at the Crypt. Its maximum effective rank is Veteran, Hero or 
 
 The Ferryman reserves one settlement prize. Take it or risk it at the displayed odds: 70% for the first crossing, 45% for the second. A veteran pledge adds 10 percentage points to the first; approved event bonuses are capped at 85%. The Ledger offers at most two optional bargains per biome, each showing its real boss complication. A zero-gold character can always continue without a bargain.
 
+## Settlement stories
+
+Four optional encounters add local characters and persistent outcomes. Mara at Gravediggers’ Camp can mark a cost-free lantern pickup on your next expedition; death keeps the errand active for retry, while a successful clear without it carries an empty hook forward. Returning the lantern banks 25 gold with normal settlement. At Whitepass, Hessa offers an 8-gold damage tonic or free armor support. At Sledwright’s Rest, Elian offers a 15-gold speed shoe or a free two-step canvas repair with an armor benefit. Those road benefits last through retries until their route clears. At Redwake, inspect Juno’s cargo and decide whether to risk 15 gold at disclosed 60% odds for 32 back (+17 net) or lose the stake (-15 net); the result cannot be rerolled. Every encounter can be declined without blocking the campaign. The persistent journal and visible settlement props show the outcome.
+
+For a walkable sampler with isolated saves and account progression disabled, run the command in [Settlement stories](SETTLEMENT_STORIES.md#safe-local-sampler).
+
 ## Controls
 
 WASD or arrows move; Space dashes; E interacts; Tab opens inventory; K inspects talents; Q changes army stance; Esc pauses. Existing key rebinding and gamepad bindings remain available. Town buttons support keyboard focus/navigation and activation. Campaign talents are view-only during combat; change them at the town Trainer.

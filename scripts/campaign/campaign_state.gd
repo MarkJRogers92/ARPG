@@ -2,6 +2,8 @@ class_name CampaignState
 extends RefCounted
 ## Plain saved facts; no live nodes, resources, positions or combat modifiers.
 
+const SettlementStories = preload("res://scripts/campaign/campaign_stories.gd")
+
 const SCHEMA_VERSION := 1
 const VETERAN_SWARMS := ["Grunts", "Brutes", "Runners", "Cultists", "Lancers", "Gravediggers", "Shieldbearers", "Menders", "Bloaters", "Collectors", "Phylacteries", "Bosses", "FinalBoss", "Goblins", "Rival", "Thralls"]
 const PHASES := ["TOWN", "EVENT_PENDING", "DEPARTURE_READY", "EXPEDITION_ACTIVE", "RESULT_PENDING", "CAMPAIGN_COMPLETE", "ABANDONED"]
@@ -17,7 +19,7 @@ static func fresh(hero: String, seed_value: int, account: Dictionary) -> Diction
 		"cleared_nodes": [], "clauses": [], "effects": [], "event": {}, "event_count": 0,
 		"shop": [], "shop_generation": 0, "wager": {}, "reforge": {}, "veteran_candidate": {},
 		"departure": {}, "result": {}, "receipts": {}, "successful_nodes": {}, "outbox": [],
-		"clause_offers": {}, "item_serial": 0, "attempt_serial": 0, "completed": false}
+		"clause_offers": {}, "stories": SettlementStories.fresh(), "item_serial": 0, "attempt_serial": 0, "completed": false}
 
 static func combat_inventory(state: Dictionary) -> Dictionary:
 	var inventory: Dictionary = state["inventory"]
@@ -152,6 +154,16 @@ static func validate(state: Variant) -> String:
 		if not receipt is Dictionary or not receipt.get("id") is String or not receipt.get("shards") is int or receipt["shards"] < 0 or not receipt.get("kills") is Dictionary: return "Invalid account receipt."
 	var effect_error := validate_effects(state["effects"])
 	if effect_error != "": return effect_error
+	if state.has("stories"):
+		var stories_error := SettlementStories.validate(state["stories"])
+		if stories_error != "": return stories_error
+		for effect: Variant in state["effects"]:
+			if effect is Dictionary and effect.get("id", "") == "story_boon":
+				var story_record: Dictionary = state["stories"].get(str(effect.get("story_id", "")), {})
+				if story_record.get("boon", "") != effect.get("boon", ""): return "Settlement story benefit does not match its recorded choice."
+	else:
+		for effect: Variant in state["effects"]:
+			if effect is Dictionary and effect.get("id", "") == "story_boon": return "A legacy save cannot contain a settlement story benefit."
 	var candidate_error := validate_veteran(state["veteran_candidate"], true)
 	if candidate_error != "": return candidate_error
 	for receipt_id in state["receipts"]:
@@ -182,12 +194,16 @@ static func validate(state: Variant) -> String:
 	if not state["departure"].is_empty():
 		var spec_error := validate_spec(state["departure"])
 		if spec_error != "": return spec_error
+	if state["departure"].get("story_mission", "") == "lantern_recovery" and state.has("stories") and state["stories"].get("lantern_recovery", {}).get("status", "") not in ["accepted", "complete", "missed"]: return "Departure lantern story is not in its saved state."
 	if state["phase"] == "RESULT_PENDING":
 		var result: Dictionary = state["result"]
 		if not result.get("outcome") in ["success", "failure", "retreat"] or not result.get("elapsed") is float or not is_finite(result["elapsed"]) or result["elapsed"] < 0.0: return "Invalid settled result."
 	if state["phase"] == "EXPEDITION_ACTIVE":
 		var departure: Dictionary = state["departure"]
 		if departure.get("campaign_id") != state["campaign_id"] or departure.get("node_id") != state["selected_node"] or not departure.get("attempt_id") is String: return "Missing departure checkpoint."
+		var mission := str(departure.get("story_mission", ""))
+		var lantern_status := str(state.get("stories", {}).get("lantern_recovery", {}).get("status", "offered"))
+		if (mission == "lantern_recovery") != (lantern_status == "accepted"): return "Active lantern mission does not match its saved story state."
 	return "" 
 
 static func validate_record(record: Variant, id: String) -> String:
@@ -253,6 +269,10 @@ static func validate_spec(spec: Dictionary) -> String:
 		clauses[clause["id"]] = true
 	if clauses.size() > 2: return "Departure Ledger exceeds capacity."
 	if not spec["objectives"].get("seals") is int or spec["objectives"]["seals"] < 0 or spec["objectives"]["seals"] > 3: return "Invalid departure objectives."
+	if spec["objectives"].has("lantern_recovery") and not spec["objectives"]["lantern_recovery"] is bool: return "Invalid lantern recovery objective."
+	if spec.has("story_mission") and (not spec["story_mission"] is String or spec["story_mission"] not in ["", "lantern_recovery"]): return "Invalid expedition story data."
+	if bool(spec["objectives"].get("lantern_recovery", false)) != (spec.get("story_mission", "") == "lantern_recovery"): return "Expedition story objective does not match its mission."
+	if spec.get("story_mission", "") == "lantern_recovery" and spec["biome_index"] != 0: return "The lantern errand belongs to the Hollow Graveyard."
 	var loadout = spec.get("starting_loadout")
 	if not loadout is Dictionary or not loadout.get("profile_snapshot") is Dictionary or not loadout.get("inventory") is Dictionary or not loadout.get("talents") is Dictionary or not loadout.get("veteran") is Dictionary: return "Invalid departure loadout."
 	var error := validate_profile(loadout["profile_snapshot"])
@@ -305,10 +325,18 @@ static func validate_veteran(record: Variant, allow_empty: bool) -> String:
 	return ""
 
 static func validate_effects(effects: Array) -> String:
+	var story_ids := {}
 	for effect in effects:
-		if not effect is Dictionary or not effect.get("id") in ["quiet_bell", "loaded_passage", "unfinished", "borrowed_battalion"] or not effect.get("node_id") is String: return "Invalid scoped event effect."
+		if not effect is Dictionary or not effect.get("id") in ["quiet_bell", "loaded_passage", "unfinished", "borrowed_battalion", "story_boon"] or not effect.get("node_id") is String: return "Invalid scoped event effect."
 		if effect.has("mods") and validate_mods(effect["mods"]) != "": return "Invalid event modifiers."
 		match effect["id"]:
+			"story_boon":
+				var boon := str(effect.get("boon", ""))
+				var expected := {"whitepass_aid": ["whitepass_draught", "whitepass_signal"], "sledwright_repair": ["sledwright_iron", "sledwright_canvas"]}
+				var story_id := str(effect.get("story_id", ""))
+				if not expected.has(story_id) or not expected[story_id].has(boon) or effect.get("mods") != SettlementStories.MODS.get(boon, []) or not _only_story_boon_fields(effect): return "Invalid settlement story benefit."
+				if story_ids.has(story_id): return "Duplicate settlement story benefit."
+				story_ids[story_id] = true
 			"quiet_bell":
 				if not effect.get("gold") is int or effect["gold"] != -30 or not effect.get("mods") is Array: return "Invalid Quiet Bell contract."
 			"loaded_passage":
@@ -318,3 +346,10 @@ static func validate_effects(effects: Array) -> String:
 			"borrowed_battalion":
 				if effect.get("minions") != 3: return "Invalid borrowed minion budget."
 	return ""
+
+
+static func _only_story_boon_fields(effect: Dictionary) -> bool:
+	if effect.size() != 5: return false
+	for field in ["id", "story_id", "boon", "node_id", "mods"]:
+		if not effect.has(field): return false
+	return true
