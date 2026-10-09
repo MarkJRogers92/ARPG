@@ -57,6 +57,13 @@ func _run() -> void:
 	var camera := walk._camera
 	var destinations: Array[Dictionary] = []
 	var base_state := controller.snapshot()
+	var lantern_state := _state_for(0, 0, false, base_state)
+	town._on_changed(lantern_state)
+	check(is_equal_approx(walk._env.ambient_light_energy, 0.42), "Last Lantern keeps its quieter ambient level")
+	town._on_changed(_state_for(0, 1, false, base_state))
+	check(is_equal_approx(walk._env.ambient_light_energy, 0.58), "same-biome camp arrival refreshes the warmer ambient level")
+	town._on_changed(lantern_state)
+	check(is_equal_approx(walk._env.ambient_light_energy, 0.42), "returning to Last Lantern restores its ambient level")
 	for biome in 3:
 		for stage in 4:
 			destinations.append(_state_for(biome, stage, false, base_state))
@@ -101,6 +108,21 @@ func _run() -> void:
 			if expected["kind"] == "camp":
 				check(CampaignWaystopScenery.walk_blockers(walk._destination_world).size() >= 5,
 					"%s provides collision footprints for tents, fire, and local honor" % expected["name"])
+			if expected["kind"] == "camp" or expected["kind"] == "caravan":
+				check(walk._destination_world.get_node_or_null("CanvasShelters") != null
+					and walk._destination_world.get_node_or_null("CampsiteBedrollsAndStores") != null,
+					"%s builds the shared canvas and lived-in campsite dressing" % expected["name"])
+				var shelter_lights := 0
+				for child: Node in walk._destination_world.get_children():
+					if child is OmniLight3D and child.name.begins_with("ShelterCanvasFill"):
+						shelter_lights += 1
+				check(shelter_lights >= 2, "%s lights both shelter fronts" % expected["name"])
+				if expected["kind"] == "caravan":
+					var has_windbreak_footprint := false
+					for blocker: Array in CampaignWaystopScenery.walk_blockers(walk._destination_world):
+						if Vector2(blocker[0]).distance_to(Vector2(12.5, -0.1)) < 0.05 and float(blocker[1]) >= 2.0:
+							has_windbreak_footprint = true
+					check(has_windbreak_footprint, "%s blocks the full windbreak or heat-shield footprint" % expected["name"])
 			elif expected["kind"] == "refuge":
 				check(CampaignWaystopScenery.walk_blockers(walk._destination_world).size() >= 2,
 					"%s blocks both shelter tent footprints" % expected["name"])
@@ -130,7 +152,9 @@ func _run() -> void:
 	if not capture_path.is_empty():
 		var state := _state_for(capture_biome, capture_stage, capture_completed, base_state)
 		town._on_changed(state)
+		await process_frame
 		var capture_walk := town._walk as CampaignWalkTown
+		check(capture_walk._waystop_id == str(CampaignWaystops.resolve(state).get("id", "")), "capture uses the requested destination state")
 		capture_walk._hero_pos = Vector2(0, 2.5)
 		capture_walk._place_hero(0.0)
 		capture_walk._near = "ledger"

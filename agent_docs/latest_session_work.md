@@ -1,6 +1,6 @@
 # Latest session work
 
-Current checkpoint: approved PR #33 merged as `4035c99`; the next local review branch is `preview/onward-biome-settlements`. See `docs/expedition_campaign/ONWARD_PREVIEW.md`. Earlier entries are historical.
+Current checkpoint: approved PR #34 merged as `1c44652`; the next local review branch is `preview/camp-visual-polish`. See `docs/expedition_campaign/CAMP_POLISH_PREVIEW.md`. Earlier entries are historical.
 
 ## Expedition campaign — 2026-10-08
 
@@ -60,3 +60,10 @@ Mark approved publication of the Last Lantern preview: PR #32 merged as `b9c0c2f
 Mark approved a forward journey with different camps/cities for each biome. Local `preview/onward-biome-settlements`, based on merged PR #33 (`4035c99`), adds 12 biome stops and Dawn's Rest. A pure resolver follows committed biome/clears/completion; original Last Lantern stays the starting scene, while subsequent stops have distinct scenery and biome lighting. Services and hero/camera persist. Failed attempts and withdrawals do not advance; guardian victory enters the next biome. No save schema, controller, economy, or balance changes.
 
 Native Luna packages and independent Sol review; parent integrated and inspected native 720p views. Integrated waystop 66 (windowed capture variant 70), all-stop movement/service 571, world 50, walk 43, UI, backdrop, sound lifecycle, and campaign lifecycle 150 passed. First victory uses real Shell/Main with an injected result, not another full combat playthrough. Existing shutdown ObjectDB/resource warnings remain. Original six save states and project settings fingerprints match. The launcher uses a separate copied profile. Jev routing unavailable; native plan retained. Local review only, no publication. Details and limitations: `docs/expedition_campaign/ONWARD_PREVIEW.md`.
+
+
+## 2026-10-08 — Camp visual polish preview
+
+Local branch `preview/camp-visual-polish` is based on merged PR #34 (`1c44652`). Added more legible pitched canvas shelters, seams, ropes/stakes, entrance lanterns, cooking sites, bedrolls, supplies and worn ground, with snow windbreaks and ember heat shields. Gravediggers’ Camp, Whitepass Refuge, Sledwright’s Rest and Redwake Caravan were inspected at native 1280×720. Lighting now refreshes when leaving Last Lantern for a camp in the same biome and resets on return.
+
+Native Luna implemented; independent Sol accepted the actual diff, and parent verified final evidence. Visual/movement/service checks 582, walk-town 43 and backdrop passed with clean final logs. These are fixture and input-path checks, not a full human playthrough. Original six save-file states and project settings match fresh fingerprints. Isolated preview profile and launcher prepared; generated sidecars restored. Jev unavailable; native plan retained. Local review only, no push/merge/install. See `docs/expedition_campaign/CAMP_POLISH_PREVIEW.md`.

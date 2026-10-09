@@ -105,71 +105,220 @@ static func _road(parent: Node3D, biome: int, stage: int) -> void:
 
 static func _camp(parent: Node3D, biome: int, stage: int, caravan: bool) -> void:
 	var p := _palette(biome)
-	var kit := _kit()
-	for side: float in [-1.0, 1.0]:
-		var x := side * 12.7
-		var z := -4.5 if side < 0.0 else -5.4
-		_tent(kit, Vector3(x, 0, z), p, side < 0.0)
-		_register_blocker(parent, Vector2(x, z), 1.55)
-		var rear_tent := Vector2(side * 15.0, -13.0)
-		_tent(kit, Vector3(rear_tent.x, 0, rear_tent.y), p, side > 0.0)
-		_register_blocker(parent, rear_tent, 1.55)
-		kit.box(Vector3(0.2, 3.0, 0.2), MeshKit.at(Vector3(side * 7.3, 1.5, -14.7)), IRON)
-		kit.box(Vector3(1.15, 1.0, 0.12), MeshKit.at(Vector3(side * 7.3, 2.2, -14.7)), p.trim)
-		if stage >= 2:
-			kit.box(Vector3(0.12, 2.6, 0.12), MeshKit.at(Vector3(side * 6.2, 1.3, -13.7)), IRON)
-			kit.box(Vector3(0.8, 1.0, 0.07), MeshKit.at(Vector3(side * 6.2, 1.9, -13.7)), p.warm)
-	if caravan:
-		_asset(parent, "sled" if biome == 1 else "minecart", Vector3(-12.6, 0, 7.2), -8.0, 1.05)
-		_asset(parent, "funeral_wagon", Vector3(12.0, 0, -8.2), 184.0, 0.92)
-		_asset(parent, "supply_tripod" if biome == 1 else "crate_stack", Vector3(11.7, 0, -9.6), -24.0, 0.95)
+	var tents := _kit()
+	var gear := _kit()
+	var fire := _kit()
+	var tent_sites: Array[Dictionary]
+	if caravan and biome == 1:
+		tent_sites = [
+			{"at": Vector3(-13.2, 0, -0.2), "scale": 1.16, "turned": true},
+			{"at": Vector3(10.7, 0, -8.2), "scale": 0.9, "turned": false},
+		]
+	elif caravan:
+		tent_sites = [
+			{"at": Vector3(-13.2, 0, -0.2), "scale": 1.16, "turned": true},
+			{"at": Vector3(10.7, 0, -8.2), "scale": 0.9, "turned": false},
+		]
 	else:
-		_asset(parent, "funeral_wagon" if biome == 0 else ("sled" if biome == 1 else "minecart"), Vector3(-12.8, 0, 8.0), 26.0, 0.95)
-		kit.cylinder(0.84, 1.0, 0.26, MeshKit.at(Vector3(0, 0.14, -3.8)), IRON, 0, 12)
-		for angle_index in 9:
-			var angle := TAU * float(angle_index) / 9.0
-			var x := cos(angle) * 0.88
-			var z := -3.8 + sin(angle) * 0.88
-			kit.box(Vector3(0.62, 0.2, 0.22), MeshKit.at(Vector3(x, 0.2, z), Vector3(0, -rad_to_deg(angle), 0)), p.trim)
-		kit.box(Vector3(1.1, 0.18, 0.2), MeshKit.at(Vector3(0, 0.32, -3.8), Vector3(0, 34, 0)), IRON)
-		kit.box(Vector3(1.1, 0.18, 0.2), MeshKit.at(Vector3(0, 0.36, -3.8), Vector3(0, -34, 0)), p.trim)
-		kit.sphere(0.43, MeshKit.at(Vector3(0, 0.69, -3.8)), p.warm, 1.25, 8, 5)
-		kit.sphere(0.25, MeshKit.at(Vector3(-0.14, 1.05, -3.76)), p.glow, 1.6, 8, 5)
-		kit.sphere(0.22, MeshKit.at(Vector3(0.18, 0.96, -3.82)), p.warm, 1.35, 8, 5)
-		_register_blocker(parent, Vector2(0, -3.8), 0.78)
-		for side: float in [-1.0, 1.0]:
-			kit.box(Vector3(1.2, 0.12, 0.12), MeshKit.at(Vector3(side * 0.85, 0.3, -2.0)), p.trim)
-	var marker := _mesh(parent, "CaravanEncampment" if caravan else "GravediggersCamp", kit)
-	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if not caravan:
-		var fire_light := OmniLight3D.new()
-		fire_light.name = "CampfireWarmth"
-		fire_light.position = Vector3(0, 1.15, -3.8)
-		fire_light.light_color = p.warm
-		fire_light.light_energy = 3.4
-		fire_light.omni_range = 8.2
-		parent.add_child(fire_light)
+		tent_sites = [
+			{"at": Vector3(-13.2, 0, -0.2), "scale": 1.2, "turned": true},
+			{"at": Vector3(10.7, 0, -8.2), "scale": 0.9, "turned": false},
+		]
+	for i in tent_sites.size():
+		var site: Dictionary = tent_sites[i]
+		var at: Vector3 = site["at"]
+		var tent_scale := float(site["scale"])
+		_tent(tents, at, p, bool(site["turned"]), tent_scale, caravan and biome == 1)
+		_register_blocker(parent, Vector2(at.x, at.z), 1.55 * tent_scale)
+		_ground_patch(gear, Vector3(at.x, 0.045, at.z), 2.2 * tent_scale, 1.55 * tent_scale, p.earth.darkened(0.12))
+		_bedroll(gear, at + Vector3(0, 0.02, -0.25), p, tent_scale)
+		_shelter_light(parent, at, tent_scale, p, biome)
+	# Worn clearings and kit sit just behind the service ring; the broad central
+	# route and all seven station approach circles remain open.
+	if caravan and biome == 1:
+		_asset(parent, "sled", Vector3(-11.8, 0, -3.4), 14.0, 0.94)
+		_asset(parent, "supply_tripod", Vector3(12.0, 0, -3.2), -18.0, 0.92)
+		_snow_windbreak(gear, Vector3(12.5, 0, -0.1), p)
+		_register_blocker(parent, Vector2(-11.8, -3.4), 1.7)
+		_register_blocker(parent, Vector2(12.0, -3.2), 1.1)
+		_register_blocker(parent, Vector2(12.5, -0.1), 2.0)
+	elif caravan:
+		_asset(parent, "minecart", Vector3(-11.8, 0, -3.4), 16.0, 0.92)
+		_asset(parent, "crate_stack", Vector3(12.0, 0, -3.2), -15.0, 0.92)
+		_heat_shield(gear, Vector3(12.5, 0, -0.1), p)
+		_register_blocker(parent, Vector2(-11.8, -3.4), 1.4)
+		_register_blocker(parent, Vector2(12.0, -3.2), 0.85)
+		_register_blocker(parent, Vector2(12.5, -0.1), 2.2)
+	else:
+		_asset(parent, "funeral_wagon", Vector3(12.4, 0, -1.5), 202.0, 0.88)
+		_worktable(gear, Vector3(-11.1, 0, -2.7), p)
+		_log_stack(gear, Vector3(-3.9, 0, -4.8), p)
+		_camp_bench(gear, Vector3(-5.15, 0, -4.85), p)
+		_kit_supply(gear, Vector3(-5.0, 0, -1.5), p)
+		_register_blocker(parent, Vector2(12.4, -1.5), 1.58)
+		_register_blocker(parent, Vector2(-11.1, -2.7), 0.88)
+		_register_blocker(parent, Vector2(-3.9, -4.8), 0.85)
+		_register_blocker(parent, Vector2(-5.15, -4.85), 1.0)
+		_register_blocker(parent, Vector2(-5.0, -1.5), 0.75)
+	# A low ash-darkened oval ties each camp into the flagstones without filling
+	# the service lane with loose decoration.
+	var fire_center := Vector3(-2.8, 0, -3.7) if not caravan else Vector3(1.7, 0, -4.6)
+	_ground_patch(gear, fire_center + Vector3(0, 0.025, 0), 4.4, 3.3, p.road.darkened(0.3))
+	_cooking_fire(fire, fire_center, p, biome)
+	_register_blocker(parent, Vector2(fire_center.x, fire_center.z), 1.08)
+	var tent_mesh := _mesh(parent, "CanvasShelters", tents)
+	tent_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var gear_mesh := _mesh(parent, "CampsiteBedrollsAndStores", gear)
+	gear_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var fire_mesh := _mesh(parent, "CampfireCooksite", fire)
+	fire_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var fire_light := OmniLight3D.new()
+	fire_light.name = "CampfireWarmth"
+	fire_light.position = fire_center + Vector3(0, 1.1, 0)
+	fire_light.light_color = p.warm
+	fire_light.light_energy = 3.1 if biome == 0 else (2.7 if biome == 1 else 2.5)
+	fire_light.omni_range = 7.2
+	parent.add_child(fire_light)
 
 
-static func _tent(kit: MeshKit, at: Vector3, p: Dictionary, turned: bool) -> void:
+
+static func _tent(kit: MeshKit, at: Vector3, p: Dictionary, turned: bool, size := 1.0, snow_windbreak := false) -> void:
 	var yaw := -10.0 if turned else 10.0
-	kit.box(Vector3(3.0, 0.12, 2.75), MeshKit.at(at + Vector3(0, 0.06, 0), Vector3(0, yaw, 0)), p.trim.darkened(0.16))
-	# Two sloped canvas planes form a ridge tent. The south face stays open as
-	# an obvious mouth, while the rear flaps, ridge pole, ropes, and stakes give
-	# the shelter a field-built silhouette instead of a cottage roof.
+	var base := MeshKit.at(at, Vector3(0, yaw, 0), Vector3.ONE * size)
+	var snow: bool = snow_windbreak or p.earth.r > 0.3
+	var ember: bool = p.earth.r > 0.2 and p.earth.r < 0.3
+	var canvas: Color = Color(0.55, 0.63, 0.69) if snow else (Color(0.48, 0.28, 0.19) if ember else Color(0.66, 0.49, 0.29))
+	var seam: Color = Color(0.91, 0.69, 0.38) if snow else (Color(0.88, 0.43, 0.22) if ember else Color(0.34, 0.23, 0.12))
+	kit.box(Vector3(3.1, 0.12, 3.05), base * MeshKit.at(Vector3(0, 0.07, 0)), p.earth.darkened(0.17))
+	# Taut ridge canvas with an open south-facing mouth, stitched hems and guy ropes.
 	for side: float in [-1.0, 1.0]:
-		var roof_angle := -48.0 * side
-		kit.box(Vector3(2.35, 0.14, 2.72), MeshKit.at(at + Vector3(side * 0.78, 1.28, 0), Vector3(0, yaw, roof_angle)), p.trim.darkened(0.04))
-		kit.box(Vector3(2.42, 0.055, 0.08), MeshKit.at(at + Vector3(side * 0.76, 1.32, -0.08), Vector3(0, yaw, roof_angle)), p.warm.lightened(0.04))
-		kit.cylinder(0.045, 0.065, 2.65, MeshKit.at(at + Vector3(side * 1.28, 1.32, -0.03), Vector3(0, 0, yaw)), IRON)
-		var rope_end := Vector3(side * 2.55, 0.06, 2.0)
-		var rope_delta := rope_end - Vector3(side * 0.76, 1.28, 0)
-		var rope_angle := rad_to_deg(atan2(-rope_delta.x, rope_delta.y))
-		kit.cylinder(0.018, 0.028, rope_delta.length(), MeshKit.at(at + Vector3(side * 0.76, 1.28, 0) + rope_delta * 0.5, Vector3(0, 0, rope_angle)), p.trim.lightened(0.22))
-	# Closed rear end flaps leave a dark, walk-in opening facing the arrival road.
-	kit.box(Vector3(1.02, 1.52, 0.08), MeshKit.at(at + Vector3(-0.55, 0.78, -1.29), Vector3(0, yaw, 0)), p.trim.darkened(0.12))
-	kit.box(Vector3(1.02, 1.52, 0.08), MeshKit.at(at + Vector3(0.55, 0.78, -1.29), Vector3(0, yaw, 0)), p.trim.darkened(0.12))
-	kit.cylinder(0.05, 0.07, 2.9, MeshKit.at(at + Vector3(0, 1.75, 0), Vector3(90, 0, yaw)), IRON)
+		var angle := -43.0 * side
+		kit.box(Vector3(1.95, 0.1, 2.95), base * MeshKit.at(Vector3(side * 0.67, 1.13, -0.02), Vector3(0, 0, angle)), canvas.darkened(0.06 if side < 0 else 0.0), 0.035)
+		kit.box(Vector3(0.08, 0.06, 2.98), base * MeshKit.at(Vector3(side * 1.31, 0.19, -0.03), Vector3(0, 0, angle)), seam)
+		_segment(kit, base * Vector3(side * 1.34, 0.46, 0.0), base * Vector3(side * 2.05, 0.1, 0.62), 0.026 * size, seam)
+		_segment(kit, base * Vector3(side * 0.46, 1.67, -1.4), base * Vector3(side * 1.3, 0.09, -2.02), 0.024 * size, seam)
+		_segment(kit, base * Vector3(side * 0.46, 1.67, 1.4), base * Vector3(side * 1.3, 0.09, 2.02), 0.024 * size, seam)
+		_segment(kit, base * Vector3(side * 2.05, 0.06, 0.42), base * Vector3(side * 2.05, 0.32, 0.42), 0.045 * size, p.stone)
+		_segment(kit, base * Vector3(side * 0.55, 0.08, -1.52), base * Vector3(side * 0.55, 1.18, -1.52), 0.065 * size, IRON)
+		_segment(kit, base * Vector3(side * 0.55, 1.18, -1.52), base * Vector3(side * 0.55, 0.08, -1.31), 0.065 * size, IRON)
+	kit.box(Vector3(1.78, 0.1, 0.9), base * MeshKit.at(Vector3(0, 1.12, -1.08)), canvas.darkened(0.12))
+	for side: float in [-1.0, 1.0]:
+		kit.box(Vector3(0.62, 1.04, 0.08), base * MeshKit.at(Vector3(side * 0.64, 0.58, 1.36), Vector3(0, 0, -side * 13.0)), canvas.lightened(0.03))
+		kit.box(Vector3(0.045, 0.78, 0.045), base * MeshKit.at(Vector3(side * 0.71, 0.48, 1.405)), seam)
+	_segment(kit, base * Vector3(0, 1.83, -1.58), base * Vector3(0, 1.83, 1.58), 0.07 * size, p.stone)
+	kit.box(Vector3(0.16, 0.035, 2.85), base * MeshKit.at(Vector3(0, 1.84, 0)), seam)
+	kit.box(Vector3(0.24, 0.11, 0.25), base * MeshKit.at(Vector3(0, 1.44, 1.42)), IRON)
+	kit.cylinder(0.07, 0.09, 0.2, base * MeshKit.at(Vector3(0, 1.26, 1.42)), p.warm, 0.28, 7)
+	kit.sphere(0.1, base * MeshKit.at(Vector3(0, 1.12, 1.42)), p.warm, 0.45, 7, 4)
+
+
+static func _shelter_light(parent: Node3D, at: Vector3, size: float, p: Dictionary, biome: int) -> void:
+	var light := OmniLight3D.new()
+	light.name = "ShelterCanvasFill_West" if at.x < 0.0 else "ShelterCanvasFill_East"
+	light.position = at + Vector3(0, 1.45 * size, 1.55 * size)
+	light.light_color = p.warm
+	light.light_energy = 1.65 if biome == 0 else 1.35
+	light.omni_range = 4.7
+	parent.add_child(light)
+
+
+static func _ground_patch(kit: MeshKit, at: Vector3, width: float, depth: float, color: Color) -> void:
+	kit.sphere(width * 0.5, MeshKit.at(at, Vector3.ZERO, Vector3(1.0, 0.045, depth / width)), color, 0, 12, 6)
+	kit.box(Vector3(width * 0.38, 0.035, depth), MeshKit.at(at + Vector3(0, 0.015, 0.04), Vector3(0, 9, 0)), color.lightened(0.025))
+
+
+static func _bedroll(kit: MeshKit, at: Vector3, p: Dictionary, size: float) -> void:
+	var fabric: Color = p.glow.darkened(0.42) if p.glow.b > 0.7 else p.trim.darkened(0.18)
+	kit.box(Vector3(0.8, 0.18, 1.45), MeshKit.at(at, Vector3(0, 0, -8), Vector3.ONE * size), fabric)
+	kit.box(Vector3(0.84, 0.08, 0.34), MeshKit.at(at + Vector3(0, 0.13 * size, -0.53 * size), Vector3(0, 0, -8), Vector3.ONE * size), p.warm.darkened(0.12))
+
+
+static func _worktable(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	kit.box(Vector3(1.55, 0.14, 0.78), MeshKit.at(at + Vector3(0, 0.9, 0)), p.trim.darkened(0.1))
+	for x: float in [-0.6, 0.6]:
+		for z: float in [-0.27, 0.27]:
+			_segment(kit, at + Vector3(x, 0.05, z), at + Vector3(x, 0.84, z), 0.055, IRON)
+	kit.box(Vector3(0.58, 0.09, 0.42), MeshKit.at(at + Vector3(-0.28, 1.03, -0.02), Vector3(0, -11, 0)), p.earth.lightened(0.18))
+	kit.box(Vector3(0.27, 0.11, 0.22), MeshKit.at(at + Vector3(0.46, 1.04, 0.09), Vector3(0, 12, 0)), p.warm.darkened(0.12))
+
+
+static func _log_stack(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	var wood: Color = p.trim.darkened(0.16)
+	for row in 2:
+		for i in 3:
+			var x := -0.48 + float(i) * 0.48
+			var z := 0.0 if row == 0 else 0.14
+			var y := 0.24 + float(row) * 0.34
+			_segment(kit, at + Vector3(x, y, z - 0.46), at + Vector3(x + 0.16, y, z + 0.46), 0.14, wood.lightened(float(i % 2) * 0.08))
+
+
+static func _camp_bench(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	var wood: Color = p.trim.darkened(0.08)
+	kit.box(Vector3(1.65, 0.16, 0.58), MeshKit.at(at + Vector3(0, 0.65, 0), Vector3(0, -8, 0)), wood)
+	kit.box(Vector3(1.7, 0.11, 0.14), MeshKit.at(at + Vector3(0, 1.0, -0.25), Vector3(0, 0, -8)), p.earth.lightened(0.12))
+	for x: float in [-0.62, 0.62]:
+		for z: float in [-0.2, 0.2]:
+			_segment(kit, at + Vector3(x, 0.06, z), at + Vector3(x, 0.62, z), 0.055, IRON)
+	kit.box(Vector3(0.42, 0.08, 0.42), MeshKit.at(at + Vector3(-0.77, 0.2, 0.56)), p.stone.darkened(0.1))
+	kit.box(Vector3(0.35, 0.06, 0.35), MeshKit.at(at + Vector3(0.42, 0.17, 0.5)), p.warm.darkened(0.2))
+
+
+static func _kit_supply(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	kit.box(Vector3(0.78, 0.62, 0.72), MeshKit.at(at + Vector3(0, 0.32, 0), Vector3(0, -12, 0)), p.trim.darkened(0.12))
+	kit.box(Vector3(0.84, 0.1, 0.78), MeshKit.at(at + Vector3(0, 0.66, 0), Vector3(0, -12, 0)), p.earth.lightened(0.1))
+	kit.box(Vector3(0.55, 0.52, 0.54), MeshKit.at(at + Vector3(0.42, 0.25, -0.18), Vector3(0, 8, 0)), p.stone.darkened(0.1))
+	kit.box(Vector3(0.64, 0.09, 0.6), MeshKit.at(at + Vector3(0.42, 0.54, -0.18), Vector3(0, 8, 0)), p.trim)
+
+
+static func _snow_windbreak(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	for i in 5:
+		var x := -1.44 + float(i) * 0.72
+		var height := 0.95 + (0.22 if i % 2 == 0 else 0.0)
+		kit.box(Vector3(0.58, height, 0.18), MeshKit.at(at + Vector3(x, height * 0.5, 0), Vector3(0, 0, -7)), p.stone.darkened(0.12))
+	kit.box(Vector3(3.8, 0.13, 0.26), MeshKit.at(at + Vector3(0, 0.38, 0.04)), p.trim)
+	for x: float in [-1.8, 1.8]:
+		_segment(kit, at + Vector3(x, 0.08, 0.2), at + Vector3(x * 1.18, 0.95, 0.65), 0.035, p.trim.lightened(0.1))
+
+
+static func _heat_shield(kit: MeshKit, at: Vector3, p: Dictionary) -> void:
+	for i in 4:
+		var x := -1.55 + float(i) * 1.05
+		var h := 1.45 + (0.2 if i % 2 == 0 else 0.0)
+		kit.box(Vector3(0.86, h, 0.28), MeshKit.at(at + Vector3(x, h * 0.5, 0), Vector3(0, 0, -4)), p.stone.darkened(0.14))
+		kit.box(Vector3(0.9, 0.09, 0.31), MeshKit.at(at + Vector3(x, h + 0.02, 0), Vector3(0, 0, -4)), p.trim)
+	for x: float in [-1.4, 1.4]:
+		kit.box(Vector3(0.12, 1.05, 0.14), MeshKit.at(at + Vector3(x, 0.52, 0.2), Vector3(0, 0, -12)), IRON)
+
+
+static func _cooking_fire(kit: MeshKit, at: Vector3, p: Dictionary, biome: int) -> void:
+	for i in 9:
+		var angle := TAU * float(i) / 9.0
+		var radius := 0.88 + 0.06 * float(i % 3)
+		kit.box(Vector3(0.42, 0.24, 0.32), MeshKit.at(at + Vector3(cos(angle) * radius, 0.18, sin(angle) * radius), Vector3(0, -rad_to_deg(angle), 0)), p.stone.darkened(float(i % 2) * 0.09))
+	for angle: float in [-30.0, 28.0]:
+		kit.box(Vector3(1.05, 0.18, 0.18), MeshKit.at(at + Vector3(0, 0.26, 0), Vector3(0, angle, 0)), p.trim.darkened(0.22))
+	kit.sphere(0.24, MeshKit.at(at + Vector3(0, 0.36, 0)), p.warm, 0.28, 8, 4)
+	kit.cylinder(0.05, 0.16, 0.54, MeshKit.at(at + Vector3(0.02, 0.64, 0)), p.warm.lightened(0.12), 0.35, 7)
+	for x: float in [-0.58, 0.58]:
+		_segment(kit, at + Vector3(x, 0.08, -0.32), at + Vector3(0, 1.52, 0), 0.045, IRON)
+	_segment(kit, at + Vector3(-0.58, 1.52, -0.32), at + Vector3(0.58, 1.52, -0.32), 0.035, IRON)
+	_segment(kit, at + Vector3(0, 1.52, -0.32), at + Vector3(0, 0.74, -0.32), 0.028, IRON)
+	kit.sphere(0.2, MeshKit.at(at + Vector3(0, 0.68, -0.32), Vector3.ZERO, Vector3(1.0, 0.82, 1.0)), IRON, 0.0, 8, 4)
+	kit.box(Vector3(0.48, 0.08, 0.08), MeshKit.at(at + Vector3(0.76, 0.62, 0.08), Vector3(0, 0, -18)), p.trim.darkened(0.22))
+	if biome > 0:
+		kit.box(Vector3(0.44, 0.04, 0.12), MeshKit.at(at + Vector3(0, 0.49, 0)), p.glow, 0.3)
+
+
+static func _segment(kit: MeshKit, start: Vector3, end: Vector3, radius: float, color: Color) -> void:
+	var delta := end - start
+	if delta.length_squared() < 0.0001:
+		return
+	var direction := delta.normalized()
+	var side := direction.cross(Vector3.FORWARD).normalized()
+	if side.length_squared() < 0.001:
+		side = direction.cross(Vector3.RIGHT).normalized()
+	var forward := side.cross(direction).normalized()
+	kit.cylinder(radius, radius, delta.length(), Transform3D(Basis(side, direction, forward), (start + end) * 0.5), color, 0.0, 6)
 
 
 static func _village(parent: Node3D, biome: int, stage: int) -> void:
@@ -254,7 +403,8 @@ static func _refuge(parent: Node3D, biome: int) -> void:
 	gate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for side: float in [-1.0, 1.0]:
 		_tent(kit, Vector3(side * 11.5, 0, -1.0), p, side > 0.0)
-		_register_blocker(parent, Vector2(side * 11.5, -1.0), 1.55)
+		_register_blocker(parent, Vector2(side * 11.5, -1.0), 2.1)
+		_shelter_light(parent, Vector3(side * 11.5, 0, -1.0), 1.0, p, biome)
 	var awnings := _mesh(parent, "WhitepassSupplyAwnings", kit)
 	awnings.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_asset(parent, "ribcage", Vector3(13.5, 0, -13.5), 20.0, 0.78)
