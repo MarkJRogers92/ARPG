@@ -1854,7 +1854,7 @@ func _test_real_snapshot_rendering(town: CampaignTown, controller: CampaignContr
 		town.add_child(detail)
 		town._add_item_detail(detail, generated_percent_record)
 		var saw_percentage := false
-		for child: Node in detail.get_children():
+		for child: Node in detail.find_children("*", "Label", true, false):
 			if child is Label and (child as Label).text.contains("%"):
 				saw_percentage = true
 				break

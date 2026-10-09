@@ -8,6 +8,9 @@ extends CanvasLayer
 
 signal closed
 
+const ItemComparison = preload("res://scripts/campaign/item_comparison.gd")
+const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
+
 var _inventory: Inventory
 var _stats: PlayerStats
 
@@ -144,32 +147,72 @@ func _show_details() -> void:
 	_discard_button.tooltip_text = "Banked campaign gear can only be discarded in town." if _campaign_combat else ""
 	_icons.show_item(_selected)
 	if _selected == null:
-		_details.text = "[color=#8a8f9c]Select an item.[/color]"
+		_details.text = "[color=#%s]Select an item.[/color]" % CampaignMenuStyle.MUTED.to_html(false)
 		return
 
 	var item := _selected
 	var lines := "[font_size=24][color=#%s][b]%s[/b][/color][/font_size]\n" % [item.color().to_html(false), item.name]
-	lines += "[color=#8a8f9c]%s  ·  %s[/color]\n\n" % [item.subtitle(), ItemData.SLOT_NAMES[item.slot]]
+	lines += "[color=#%s]%s  ·  %s[/color]\n\n" % [CampaignMenuStyle.MUTED.to_html(false), item.subtitle(), ItemData.SLOT_NAMES[item.slot]]
 	if item.power != "":
-		lines += "[color=#ff9a3c]★ %s[/color]\n\n" % item.power_text()
+		lines += "[color=#ffb46b]★ %s[/color]\n\n" % item.power_text()
 	for mod in item.implicit:
-		lines += "[color=#b8bcc8]%s[/color]\n" % ItemData.mod_text(mod)
+		lines += "[color=#cfd6dc]%s[/color]\n" % ItemData.mod_text(mod)
 	for mod in item.affixes:
-		lines += "[color=#8fb4ff]%s[/color]\n" % ItemData.mod_text(mod)
+		lines += "[color=#9fd0d8]%s[/color]\n" % ItemData.mod_text(mod)
+	var worn: Item = _inventory.equipped.get(item.slot) if not _selected_worn else item
+	if not _selected_worn:
+		lines += "\n[color=#%s]GEAR COMPARISON  ·  WORN → CARRIED[/color]\n" % CampaignMenuStyle.MUTED.to_html(false)
+		lines += "[color=#%s]%s[/color]\n" % [CampaignMenuStyle.MUTED.to_html(false), worn.name if worn != null else "Empty slot"]
+		lines += _modifier_comparison_text(worn, item)
+		lines += _power_comparison_text(worn, item)
 
 	if not _selected_worn:
-		var worn: Item = _inventory.equipped.get(item.slot)
 		lines += "\n"
 		if worn == null:
 			lines += "[color=#7ee08a]▲ Empty slot[/color]"
 		else:
 			var better := item.score() > worn.score()
-			lines += "[color=#%s]%s[/color]  [color=#8a8f9c]vs worn[/color]\n" % [
-					"7ee08a" if better else "e08a7e", "▲ Likely upgrade" if better else "▼ Likely downgrade"]
-			lines += "[color=#%s]%s[/color]\n" % [worn.color().to_html(false), worn.name]
-			for mod in worn.modifiers():
-				lines += "[color=#8a8f9c]%s[/color]\n" % ItemData.mod_text(mod)
+			lines += "[color=#%s]%s[/color]\n[color=#%s]Estimated fit; compare bonuses and powers.[/color]\n" % [
+					"7ee08a" if better else "e08a7e", "▲ Likely upgrade" if better else "▼ Likely downgrade",
+					CampaignMenuStyle.MUTED.to_html(false)]
 	_details.text = lines
+
+
+func _modifier_comparison_text(worn: Item, offered: Item) -> String:
+	var worn_data: Dictionary = _item_comparison_data(worn)
+	var offered_data: Dictionary = _item_comparison_data(offered)
+	var lines := ""
+	for row: Dictionary in ItemComparison.rows(worn_data, offered_data):
+		var stat := str(row["stat"])
+		var op := int(row["op"])
+		var label := str(ItemData.STAT_INFO.get(stat, {}).get("label", stat))
+		var operation := "Added" if op == PlayerStats.Op.ADD else ("Increased" if op == PlayerStats.Op.INCREASED else "More")
+		var current := "—" if is_zero_approx(float(row["current"])) else ItemData.mod_text({"stat": stat, "op": op, "value": float(row["current"])})
+		var next := "—" if is_zero_approx(float(row["offered"])) else ItemData.mod_text({"stat": stat, "op": op, "value": float(row["offered"])})
+		current = current.trim_suffix(" " + label)
+		next = next.trim_suffix(" " + label)
+		var muted := CampaignMenuStyle.MUTED.to_html(false)
+		var tint := CampaignMenuStyle.comparison_color(stat, op, float(row["current"]), float(row["offered"])).to_html(false)
+		lines += "[color=#%s]%s · %s[/color]  [color=#%s]%s[/color]  [color=#%s]→[/color]  [color=#%s]%s[/color]\n" % [
+				muted, operation, label, muted, current, muted, tint, next]
+	return lines if lines != "" else "[color=#%s]No rolled stat modifiers.[/color]\n" % CampaignMenuStyle.MUTED.to_html(false)
+
+
+## Legendary powers sit outside the numeric rolls, so name both sides plainly.
+func _power_comparison_text(worn: Item, offered: Item) -> String:
+	var worn_power := worn.power if worn != null else ""
+	var offered_power := offered.power
+	if worn_power == "" and offered_power == "":
+		return ""
+	var worn_text: String = "none" if worn_power == "" else str(ItemData.POWERS[worn_power]["desc"])
+	var offered_text: String = "none" if offered_power == "" else str(ItemData.POWERS[offered_power]["desc"])
+	return "[color=#ffb46b]★ Worn power — %s[/color]\n[color=#ffb46b]★ Carried power — %s[/color]\n" % [worn_text, offered_text]
+
+
+func _item_comparison_data(item: Item) -> Dictionary:
+	if item == null:
+		return {}
+	return {"implicit": item.implicit, "affixes": item.affixes, "power": item.power}
 
 
 func _stats_bbcode() -> String:
@@ -204,18 +247,18 @@ func _build() -> void:
 	_root = ColorRect.new()
 	(_root as ColorRect).color = Color(0, 0, 0.02, 0.7)
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.theme = UiStyle.theme()
+	_root.theme = CampaignMenuStyle.make_theme(UiStyle.theme())
 	add_child(_root)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiStyle.panel())
+	panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("111923"), Color("554d42"), 1, 8))
 	center.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 18)
+		margin.add_theme_constant_override("margin_" + side, 16)
 	panel.add_child(margin)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
@@ -224,51 +267,47 @@ func _build() -> void:
 	# Header
 	var header := HBoxContainer.new()
 	column.add_child(header)
-	var title := UiStyle.label(30)
+	var title := _menu_label(26)
 	title.text = "Inventory"
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	header.add_child(title)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
-	var hint := UiStyle.label(15)
-	hint.text = "Tab / Esc  close      Enter  equip / unequip"
-	hint.modulate = Color(1, 1, 1, 0.55)
+	var hint := _menu_label(12)
+	hint.text = "Tab / Esc  close     ·     Enter  equip / unequip"
+	hint.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	header.add_child(hint)
 
 	# Three columns
 	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 16)
+	body.add_theme_constant_override("separation", 14)
 	column.add_child(body)
 
-	var left := VBoxContainer.new()
-	left.custom_minimum_size.x = 330
-	body.add_child(left)
+	var left := _card(body, 300)
 	left.add_child(_section_label("Equipped"))
-	_equipment_list = _make_list(Vector2(330, 262))
+	_equipment_list = _make_list(Vector2(300, 248))
 	_equipment_list.item_selected.connect(_on_equipment_selected)
 	_equipment_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
 	left.add_child(_equipment_list)
 	left.add_child(_section_label("Stats"))
-	_stats_text = _make_text(Vector2(330, 218))
+	_stats_text = _make_text(Vector2(300, 210))
 	left.add_child(_stats_text)
 
-	var middle := VBoxContainer.new()
-	middle.custom_minimum_size.x = 290
-	body.add_child(middle)
+	var middle := _card(body, 280)
 	_backpack_title = _section_label("Backpack")
 	middle.add_child(_backpack_title)
-	_backpack_list = _make_list(Vector2(300, 520))
+	_backpack_list = _make_list(Vector2(280, 472))
 	_backpack_list.item_selected.connect(_on_backpack_selected)
 	_backpack_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
 	middle.add_child(_backpack_list)
 
-	var right := VBoxContainer.new()
-	right.custom_minimum_size.x = 330
-	body.add_child(right)
+	var right := _card(body, 380)
 	right.add_child(_section_label("Selected"))
-	right.add_child(_icons.make_preview(Vector2(330, 120)))
-	_details = _make_text(Vector2(330, 330))
+	right.add_child(_icons.make_preview(Vector2(380, 84)))
+	_details = _make_text(Vector2(380, 328))
+	_details.add_theme_font_size_override("normal_font_size", 14)
+	_details.add_theme_font_size_override("bold_font_size", 14)
 	right.add_child(_details)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
@@ -293,11 +332,25 @@ func _build() -> void:
 
 
 func _section_label(text: String) -> Label:
-	var label := UiStyle.label(16)
+	var label := _menu_label(14)
 	label.text = text
 	label.add_theme_color_override("font_color", UiStyle.GOLD.darkened(0.1))
 	label.add_theme_constant_override("outline_size", 3)
 	return label
+
+
+## One readable column card: a framed panel holding a vertical stack.
+func _card(parent: Control, min_width: float) -> VBoxContainer:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel",
+			CampaignMenuStyle.card_box(CampaignMenuStyle.SURFACE, CampaignMenuStyle.BRONZE_SOFT, 1, 8, 10))
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(panel)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size.x = min_width
+	box.add_theme_constant_override("separation", 6)
+	panel.add_child(box)
+	return box
 
 
 func _make_list(min_size: Vector2) -> ItemList:
@@ -317,3 +370,10 @@ func _make_text(min_size: Vector2) -> RichTextLabel:
 	text.add_theme_font_size_override("normal_font_size", 16)
 	text.add_theme_font_size_override("bold_font_size", 16)
 	return text
+
+
+func _menu_label(font_size: int) -> Label:
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
+	return label

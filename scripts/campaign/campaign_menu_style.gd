@@ -1,6 +1,6 @@
 extends RefCounted
-## Local campaign presentation palette. This deliberately duplicates the shared
-## game theme before applying overrides so campaign menus cannot mutate UiStyle.
+## Shared menu presentation palette. This deliberately duplicates the shared
+## game theme before applying overrides so individual menus cannot mutate UiStyle.
 
 const INK := Color("111923")
 const SURFACE := Color("19232e")
@@ -12,6 +12,11 @@ const SOUL := Color("88b8c1")
 const TEXT := Color("e1e3df")
 const MUTED := Color("a4adb2")
 const DISABLED := Color("737c81")
+## Item-comparison deltas. "Good" and "bad" are read through the stat's own
+## weight sign, so a lower dash cooldown still reads as an improvement.
+const GAIN := Color("8fd6a0")
+const LOSS := Color("e08a7e")
+const FLAT := Color("9aa3aa")
 
 
 static func make_theme(base_theme: Theme) -> Theme:
@@ -57,6 +62,39 @@ static func primary_box() -> StyleBoxFlat:
 
 static func quiet_box() -> StyleBoxFlat:
 	return button_box(Color("18212a"), Color("56616a"), 1)
+
+
+## A framed content card. Kept separate from `panel` so lists and comparison
+## blocks can sit inside a scrolling column without heavy content margins.
+static func card_box(fill: Color = SURFACE, edge: Color = BRONZE_SOFT, width := 1, radius := 6, pad := 8) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = edge
+	box.set_border_width_all(width)
+	box.set_corner_radius_all(radius)
+	box.content_margin_left = float(pad)
+	box.content_margin_right = float(pad)
+	box.content_margin_top = float(pad)
+	box.content_margin_bottom = float(pad)
+	return box
+
+
+## Read-only direction tint for one rolled modifier row. Uses the same rough
+## weights as the "likely upgrade" hint but only to colour a single stat, never
+## to claim an overall upgrade.
+static func comparison_color(stat: String, op: int, current: float, offered: float) -> Color:
+	if is_equal_approx(current, offered):
+		return FLAT
+	var info: Dictionary = ItemData.STAT_INFO.get(stat, {})
+	var weight := float(info.get("w_add", 0.0)) if op == PlayerStats.Op.ADD else float(info.get("w_inc", 0.0))
+	if is_zero_approx(weight):
+		return FLAT
+	var direction := signf(offered - current) * signf(weight)
+	if direction > 0.0:
+		return GAIN
+	if direction < 0.0:
+		return LOSS
+	return FLAT
 
 
 static func label(font_size: int) -> Label:
