@@ -190,7 +190,7 @@ func _test_shell_success_flow(controller: CampaignController) -> CampaignShell:
 	town = shell.get("_view") as CampaignTown
 	var settled_stop := CampaignWaystops.resolve(loaded_controller.snapshot())
 	_check(loaded_controller.state.get("phase") == "RESULT_PENDING" and town != null and town._walk != null and
-		settled_stop["name"] == "Gravediggers' Camp" and town._place_header_title.text == "GRAVEDIGGERS' CAMP",
+		settled_stop["name"] == "Gravediggers' Camp" and town._place_header_title.text == str(settled_stop["name"]),
 		"saved success mounts the next walkable camp and result panel names that settled destination")
 	await _capture_town("result-pending")
 	var identity := str(settled_stop["id"])

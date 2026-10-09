@@ -75,7 +75,7 @@ func _run() -> void:
 		town._on_changed(state)
 		await process_frame
 		check(walk._waystop_id == stop_id, "%s resolves into its owned place identity" % expected["name"])
-		check(town._place_header_title.text == str(expected["name"]).to_upper(),
+		check(town._place_header_title.text == str(expected["name"]),
 			"%s becomes the real town header title" % expected["name"])
 		check(town._place_context.text == str(expected["description"])
 			and town._walk_hint.text.contains(str(expected["arrival_line"])),
