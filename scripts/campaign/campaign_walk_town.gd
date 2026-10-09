@@ -73,6 +73,7 @@ var _station_blockers: Array = []
 var _lantern_houses: Array[Vector2] = []
 var _waystop: Dictionary = {}
 var _waystop_id := ""
+var _lighting_kind := ""
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -126,9 +127,11 @@ func present(state: Dictionary) -> void:
 	var place := CampaignWaystops.resolve(state)
 	if str(place.get("id", "")) != _waystop_id:
 		_switch_waystop(place)
-	if biome != _biome or completed != _completed_presentation:
+	var lighting_kind := str(place.get("kind", ""))
+	if biome != _biome or completed != _completed_presentation or lighting_kind != _lighting_kind:
 		_biome = biome
 		_completed_presentation = completed
+		_lighting_kind = lighting_kind
 		var look: Dictionary = BIOMES[biome]
 		_ground_material.albedo_color = Color(0.27, 0.18, 0.1) if completed else look["ground"]
 		_env.ambient_light_color = Color(0.96, 0.72, 0.43) if completed else look["ambient"]
