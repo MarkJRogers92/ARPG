@@ -33,6 +33,8 @@ static func build(parent: Node3D, place: Dictionary, scale_factor := 1.0) -> Nod
 		"siege": _siege(root, stage)
 		"dawn": _dawn(root)
 		_: _camp(root, biome, stage, false)
+	if kind == "camp" or kind == "caravan" or kind == "refuge":
+		CampaignCampDressing.build(root, biome, kind)
 	_arrival_markers(root, biome, kind)
 	_nameboard(root, str(place.get("name", "Waystop")), biome)
 	if kind != "lantern" and stage > 0:
