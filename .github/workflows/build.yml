@@ -39,8 +39,16 @@ jobs:
       - name: Import assets
         run: timeout 600 "$RUNNER_TEMP/godot" --headless --path . --import
 
-      - name: Run the tests
-        run: timeout 900 "$RUNNER_TEMP/godot" --headless --path . -s tools/tests.gd 2>&1 | tail -25; exit ${PIPESTATUS[0]}
+      # tools/run_tests.sh runs every headless suite (core + campaign) and
+      # fails the step unless they all pass; -l lists what it covers.
+      - name: Run the tests (all suites)
+        run: timeout 1800 bash tools/run_tests.sh -g "$RUNNER_TEMP/godot"
+
+      # A fixed-fps bot plays seven minutes of game time; HANDOFF.md notes
+      # only the real-time run showed "freed instance" errors the unit
+      # checks miss.
+      - name: Bot smoke test (7 minutes of game time)
+        run: timeout 1200 "$RUNNER_TEMP/godot" --headless --path . --fixed-fps 60 -s tools/smoke_test.gd -- 420 2>&1 | tail -25; exit ${PIPESTATUS[0]}
 
   # Downloads the ~1 GB template archive once and caches just the three
   # templates the exports use; the export jobs restore that cache.
