@@ -42,6 +42,7 @@ SUITES=(
   "tools/tests.gd"
   "tools/approved_collection_test.gd"
   "tools/decor_composition_test.gd"
+  "tools/decor_cache_test.gd"
   "tools/ui_test.gd"
   "tools/skill_ui_test.gd"
   "tools/objective_props_test.gd"
