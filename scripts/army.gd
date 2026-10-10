@@ -107,6 +107,10 @@ var _hurt := PackedFloat32Array()
 var _facing := PackedVector2Array()
 var _phase := PackedFloat32Array()
 var _slam := PackedFloat32Array()
+## Cosmetic state only: travel intensity and a brief, attack-driven swing.
+var _visual_motion := PackedFloat32Array()
+var _visual_attack := PackedFloat32Array()
+var _markers: MultiMeshInstance3D
 ## Current target per minion: swarm index and enemy id (-1 = none).
 var _target_swarm := PackedInt32Array()
 var _target_id := PackedInt32Array()
@@ -143,6 +147,8 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_hurt.resize(CAPACITY)
 	_phase.resize(CAPACITY)
 	_slam.resize(CAPACITY)
+	_visual_motion.resize(CAPACITY)
+	_visual_attack.resize(CAPACITY)
 	_pos.resize(CAPACITY)
 	_facing.resize(CAPACITY)
 	_elite.resize(CAPACITY)
@@ -166,13 +172,34 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 			"height": s.body_height, "spectral": true,
 			"stride_speed": minf(t["speed"] / s.body_height * 4.2, 16.0),
 			"quadruped": s.model == "runner", "leg_height": 0.36 if s.model == "runner" else 0.3,
+			"ally_readability": true,
 		}, "spectral_" + t["name"])
-		MultiMeshUtil.setup(mmi, Models.enemy(s.model, s.color, s.body_height), 8 if s.boss else CAPACITY, mat)
+		var mesh := Models.enemy(s.model, s.color, s.body_height)
+		t["detailed"] = false
+		# One bounded allied role: the Graveyard's raised coffin-crawler brawler.
+		# It keeps the slain type, stats, radius and behaviour, using its existing
+		# authored joints rather than adding Skeleton3D nodes per minion.
+		if t["role"] == "brawler" and s.creature_model == "coffin_crawler":
+			var detailed := CreatureModels.mesh("coffin_crawler")
+			if detailed != null:
+				mesh = detailed
+				mat = CreatureModels.material("coffin_crawler", true, Color(0.35, 0.8, 0.95))
+				mat.set_shader_parameter("allied_attack", true)
+				t["detailed"] = true
+		for surface in mesh.get_surface_count():
+			mesh.surface_set_material(surface, mat)
+		MultiMeshUtil.setup(mmi, mesh, 8 if s.boss else CAPACITY, mat)
 		mmi.layers = 2
 		add_child(mmi)
 		t["mmi"] = mmi
 		_type_of[s] = _types.size()
 		_types.append(t)
+	# One additional draw for the whole army, never one node per common minion.
+	_markers = MultiMeshInstance3D.new()
+	var marker_mesh := PlaneMesh.new()
+	marker_mesh.size = Vector2.ONE * 1.65
+	MultiMeshUtil.setup(_markers, marker_mesh, CAPACITY, preload("res://scripts/visual/combat_visuals.gd").ally_marker_material())
+	add_child(_markers)
 
 
 ## What a raised enemy of this type does (see ROLES).
@@ -280,6 +307,8 @@ func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	_hurt[k] = 0.0
 	_facing[k] = Vector2(0, -1)
 	_phase[k] = randf()
+	_visual_motion[k] = 0.0
+	_visual_attack[k] = 0.0
 	_target_id[k] = -1
 	_deeds[k] = 0
 	_rank[k] = 0
@@ -532,6 +561,8 @@ func step(delta: float) -> void:
 	while k >= 0:
 		var t: Dictionary = _types[_type[k]]
 		var p := _pos[k]
+		var before_move := p
+		_visual_attack[k] = maxf(_visual_attack[k] - delta / 0.28, 0.0)
 		# Too far behind (the hero ran off): reappear at the hero's side.
 		if p.distance_squared_to(hero) > 30.0 * 30.0:
 			p = hero + Vector2.from_angle(randf() * TAU) * 2.0
@@ -574,6 +605,8 @@ func step(delta: float) -> void:
 				if dd < 0.8 and dd > 0.0001:
 					p += away / sqrt(dd) * delta * 2.0
 		_pos[k] = p
+		if delta > 0.0:
+			_visual_motion[k] = clampf(p.distance_to(before_move) / (delta * maxf(float(t["speed"]), 0.01)), 0.0, 1.0)
 
 		_attack[k] -= delta
 		_slam[k] -= delta
@@ -581,6 +614,7 @@ func step(delta: float) -> void:
 		if fighting and _attack[k] <= 0.0:
 			var interval: float = r["interval"]
 			_attack[k] = interval
+			_visual_attack[k] = 1.0
 			# Damage per second matches across roles; the rhythm differs.
 			var dmg: float = stats.minion_damage * t["damage"] * interval * (2.0 if _elite[k] == 1 else 1.0) * RANKS[_rank[k]]["power"]
 			var target := _swarms[_target_swarm[k]].pos[_target_index[k]]
@@ -719,6 +753,8 @@ func _remove(k: int, died: bool, refill := true) -> void:
 		_hurt[k] = _hurt[last]
 		_facing[k] = _facing[last]
 		_phase[k] = _phase[last]
+		_visual_motion[k] = _visual_motion[last]
+		_visual_attack[k] = _visual_attack[last]
 		_slam[k] = _slam[last]
 		_target_swarm[k] = _target_swarm[last]
 		_target_id[k] = _target_id[last]
@@ -750,6 +786,11 @@ func flush() -> void:
 
 
 func _draw() -> void:
+	if _markers != null:
+		_markers.multimesh.visible_instance_count = count
+		for k in count:
+			_markers.multimesh.set_instance_transform(k, Transform3D(Basis.IDENTITY, Vector3(_pos[k].x, 0.065, _pos[k].y)))
+			_markers.multimesh.set_instance_custom_data(k, Color(0.0, 0.0, _rank[k] / 3.0, 0.0))
 	var per_type := {}
 	for k in count:
 		var list: Array = per_type.get(_type[k], [])
@@ -766,11 +807,13 @@ func _draw() -> void:
 			var sc := maxf(1.35 if _elite[k] == 1 else 1.0, 1.0 + 0.1 * _rank[k])
 			var basis := Basis(Vector3.UP, atan2(-f.x, -f.y)).scaled(Vector3.ONE * sc)
 			mm.set_instance_transform(j, Transform3D(basis, Vector3(_pos[k].x, 0.0, _pos[k].y)))
-			mm.set_instance_custom_data(j, Color(0.0, _phase[k], _rank[k] / 3.0, 0.0))
+			mm.set_instance_custom_data(j, Color(0.0, _phase[k], _rank[k] / 3.0, _visual_attack[k] if _types[t]["detailed"] else 0.0))
 			if _rank[k] > 0:
 				var tag: Label3D = _tag[k]
 				if tag:
 					tag.position = Vector3(_pos[k].x, (_types[t]["swarm"] as EnemySwarm).body_height * sc + 0.7, _pos[k].y)
 					var ring: Node3D = tag.get_child(0)
 					ring.global_position = Vector3(_pos[k].x, 0.07, _pos[k].y)
-			mm.set_instance_color(j, Color(1.2, 1.2, 1.2) if _elite[k] == 1 else Color.WHITE)
+			var tint := Color(1.2, 1.2, 1.2) if _elite[k] == 1 else Color.WHITE
+			tint.a = _visual_motion[k] if _types[t]["detailed"] else 1.0
+			mm.set_instance_color(j, tint)

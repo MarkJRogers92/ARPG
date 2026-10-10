@@ -241,6 +241,11 @@ func tick(delta: float) -> void:
 		var yaw := atan2(-look.x, -look.y)
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, yaw, 1.0 - exp(-18.0 * delta))
 	_visual.set_motion(Vector2(velocity.x, velocity.z), delta)
+	var crowd_count := 0
+	for swarm in _swarms:
+		if is_instance_valid(swarm):
+			crowd_count += swarm.count
+	_visual.set_crowd_count(crowd_count)
 	stats.hp = minf(stats.max_hp, stats.hp + stats.regen * delta)
 
 

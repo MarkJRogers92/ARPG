@@ -42,7 +42,7 @@ var _lines: Array[Dictionary] = []
 ## Seals: {"at", "node"}; meteors: {"at", "t", "ring", "fill"}
 var _seals: Array[Dictionary] = []
 var _meteors: Array[Dictionary] = []
-var _line_mat: StandardMaterial3D
+var _line_mat: ShaderMaterial
 var _cleaned := false
 
 
@@ -52,17 +52,14 @@ func setup(final: EnemySwarm, wards: EnemySwarm, player: Player, director: WaveD
 	_player = player
 	_director = director
 	_kind = {"graveyard": "lich", "frozen": "colossus", "ember": "tyrant"}.get(Realm.current, "lich")
-	_line_mat = StandardMaterial3D.new()
-	_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_line_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_line_mat = preload("res://scripts/visual/combat_visuals.gd").warning_material(Color(0.55, 0.85, 1.0, 0.45), 1.0, true)
 	refresh_warnings()
-	_line_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 
 ## The fracture lines in the current warning style.
 func refresh_warnings() -> void:
 	if _line_mat:
-		_line_mat.albedo_color = Juice.warning_color(Color(0.55, 0.85, 1.0, 0.45))
+		_line_mat.set_shader_parameter("color", Juice.warning_color(Color(0.55, 0.85, 1.0, 0.45)))
 
 
 func kind() -> String:

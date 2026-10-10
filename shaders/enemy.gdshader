@@ -28,6 +28,8 @@ uniform bool travel_gait = false;
 uniform vec3 rim_color : source_color = vec3(1.0, 0.55, 0.45);
 uniform float rim_strength = 0.35;
 uniform bool spectral = false;
+// Only the hero's army opts in. Rival thralls keep their original presentation.
+uniform bool ally_readability = false;
 // The ghost's glow: the hero's minions are blue, a rival's thralls red.
 uniform vec3 spectral_color : source_color = vec3(0.25, 0.7, 1.0);
 
@@ -89,6 +91,11 @@ void fragment() {
 		EMISSION = spectral_color * (0.35 + lum * 0.6 + rim * 2.5 + v_glow * 1.5)
 				* (0.85 + 0.15 * sin(TIME * 4.0 + v_phase * 6.28))
 				+ vec3(0.8, 0.95, 1.0) * v_flash * 0.5;
+		if (ally_readability) {
+			// A defined dark-blue body and narrow pale rim, not a blue light blob.
+			EMISSION = spectral_color * (0.15 + rim * 1.2 + min(v_glow, 0.8) * 0.5)
+					+ vec3(0.72, 0.95, 1.0) * rim * rim * 0.35;
+		}
 		// Veterans (custom z = rank / 3): a golden rim, brighter with rank.
 		EMISSION = mix(EMISSION, EMISSION * vec3(1.5, 1.05, 0.45) + vec3(1.0, 0.7, 0.25) * rim * 2.0, clamp(v_elite * 1.5, 0.0, 1.0));
 	} else {

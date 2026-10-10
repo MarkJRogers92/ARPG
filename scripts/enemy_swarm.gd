@@ -637,12 +637,7 @@ func _make_telegraph() -> void:
 	var strip := PlaneMesh.new()
 	strip.size = Vector2(1.0, 1.0)
 	strip.center_offset = Vector3(0, 0, -0.5)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Juice.warning_color(CHARGE_LINE)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.no_depth_test = false
+	var mat := preload("res://scripts/visual/combat_visuals.gd").warning_material(CHARGE_LINE, 1.0, true)
 	strip.material = mat
 	_telegraph = MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
@@ -659,7 +654,7 @@ func _make_telegraph() -> void:
 ## Redraws the charge lines in the current warning style (a setting changed).
 func refresh_warnings() -> void:
 	if _telegraph:
-		((_telegraph.multimesh.mesh as PlaneMesh).material as StandardMaterial3D).albedo_color = Juice.warning_color(CHARGE_LINE)
+		((_telegraph.multimesh.mesh as PlaneMesh).material as ShaderMaterial).set_shader_parameter("color", Juice.warning_color(CHARGE_LINE))
 
 
 func _draw_telegraphs() -> void:

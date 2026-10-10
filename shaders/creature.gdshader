@@ -13,6 +13,9 @@ uniform float glow_strength = 3.0;
 uniform vec3 rim_color : source_color = vec3(0.55,0.65,0.72);
 uniform float rim_strength = 0.45;
 uniform bool spectral = false;
+// Army-only: custom w is an actual swing envelope, COLOR.a remains travel.
+// Enemy appearances/death/charge codes retain their original interpretation.
+uniform bool allied_attack = false;
 uniform vec3 spectral_color : source_color = vec3(0.25,0.7,1.0);
 // Negative uses real time; nonnegative supports deterministic visual QA.
 uniform float preview_time = -1.0;
@@ -35,7 +38,8 @@ void vertex() {
  if(state>=2.0 && state<4.0) attack=clamp(state-2.0,0.0,1.0);
  if(state>=4.0 && state<5.0) attack=1.0;
  if(state>=5.0 && state<7.0) attack=1.0-clamp(state-5.0,0.0,1.0);
- if(state>=7.0 && state<8.0) attack=pow(max(0.0,sin(t*0.65)),2.0);
+  if(state>=7.0 && state<8.0) attack=pow(max(0.0,sin(t*0.65)),2.0);
+  if(allied_attack) attack=clamp(INSTANCE_CUSTOM.w,0.0,1.0);
  int joint=clamp(int(UV2.x+0.5),0,31);
  // Maximum authored chain is seven bones (scorpion tail + root).
  for(int depth=0;depth<8;depth++) {
@@ -53,7 +57,7 @@ void vertex() {
  VERTEX.z+=v_flash*0.10;
  VERTEX.xz*=1.0+v_flash*0.06;
  VERTEX*=1.0-death*0.9;
- v_glow=UV.x;v_elite=INSTANCE_CUSTOM.z;v_burn=INSTANCE_CUSTOM.w;v_phase=INSTANCE_CUSTOM.y;
+  v_glow=UV.x;v_elite=INSTANCE_CUSTOM.z;v_burn=allied_attack ? 0.0 : INSTANCE_CUSTOM.w;v_phase=INSTANCE_CUSTOM.y;
 }
 void fragment() {
 	vec3 base = COLOR.rgb;
@@ -66,6 +70,10 @@ void fragment() {
 		EMISSION = spectral_color * (0.35 + lum * 0.6 + rim * 2.5 + v_glow * 1.5)
 				* (0.85 + 0.15 * sin(TIME * 4.0 + v_phase * 6.28))
 				+ vec3(0.8, 0.95, 1.0) * v_flash * 0.5;
+		if (allied_attack) {
+			EMISSION = spectral_color * (0.15 + rim * 1.2 + min(v_glow, 0.8) * 0.5)
+					+ vec3(0.72, 0.95, 1.0) * rim * rim * 0.35;
+		}
 		// Veterans (custom z = rank / 3): a golden rim, brighter with rank.
 		EMISSION = mix(EMISSION, EMISSION * vec3(1.5, 1.05, 0.45) + vec3(1.0, 0.7, 0.25) * rim * 2.0, clamp(v_elite * 1.5, 0.0, 1.0));
 	} else {
