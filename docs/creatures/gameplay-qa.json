@@ -1,0 +1,95 @@
+[
+  {
+    "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+    "baseline": false,
+    "count_end": 3,
+    "count_start": 6,
+    "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+    "frames": 480,
+    "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+    "mean_frame_ms": 58.1366833333334,
+    "mode": "controlled-gameplay",
+    "p95_frame_ms": 64.057,
+    "realm": "graveyard",
+    "screenshots": [
+      "res://build/creature-qa/graveyard/graveyard_frame_045.png",
+      "res://build/creature-qa/graveyard/graveyard_frame_120.png",
+      "res://build/creature-qa/graveyard/graveyard_frame_180.png",
+      "res://build/creature-qa/graveyard/graveyard_frame_275.png",
+      "res://build/creature-qa/graveyard/graveyard_frame_360.png"
+    ],
+    "shader_state_codes": {
+      "coffin_crawler/0": true,
+      "coffin_crawler/1": true,
+      "gallows_raven/0": true,
+      "gallows_raven/1": true
+    },
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+    "baseline": false,
+    "count_end": 2,
+    "count_start": 4,
+    "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+    "frames": 480,
+    "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+    "mean_frame_ms": 52.5587428571429,
+    "mode": "controlled-gameplay",
+    "p95_frame_ms": 55.499,
+    "realm": "frozen",
+    "screenshots": [
+      "res://build/creature-qa/frozen/frozen_frame_045.png",
+      "res://build/creature-qa/frozen/frozen_frame_120.png",
+      "res://build/creature-qa/frozen/frozen_frame_180.png",
+      "res://build/creature-qa/frozen/frozen_frame_275.png",
+      "res://build/creature-qa/frozen/frozen_frame_360.png"
+    ],
+    "shader_state_codes": {
+      "antler_revenant/0": true,
+      "antler_revenant/1": true,
+      "antler_revenant/2": true,
+      "antler_revenant/4": true,
+      "antler_revenant/5": true,
+      "rime_widow/0": true,
+      "rime_widow/1": true
+    },
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+    "baseline": false,
+    "count_end": 2,
+    "count_start": 4,
+    "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+    "frames": 480,
+    "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+    "mean_frame_ms": 55.1856452380952,
+    "mode": "controlled-gameplay",
+    "p95_frame_ms": 63.277,
+    "realm": "ember",
+    "screenshots": [
+      "res://build/creature-qa/ember/ember_frame_045.png",
+      "res://build/creature-qa/ember/ember_frame_120.png",
+      "res://build/creature-qa/ember/ember_frame_180.png",
+      "res://build/creature-qa/ember/ember_frame_275.png",
+      "res://build/creature-qa/ember/ember_frame_360.png"
+    ],
+    "shader_state_codes": {
+      "furnace_tortoise/0": true,
+      "furnace_tortoise/1": true,
+      "slag_scorpion/0": true,
+      "slag_scorpion/1": true
+    },
+    "viewport": [
+      1280,
+      720
+    ]
+  }
+]

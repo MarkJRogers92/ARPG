@@ -1,0 +1,156 @@
+{
+  "device": "llvmpipe software rendering",
+  "interpretation": "Comparative stress screening only. Not target-Mac FPS. One serial pair per realm; short samples are noisy.",
+  "rows": [
+    {
+      "realm": "graveyard",
+      "original": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": true,
+        "count_end": 1040,
+        "count_start": 1040,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 126.474375,
+        "mode": "matched-horde",
+        "p95_frame_ms": 138.124,
+        "realm": "graveyard",
+        "screenshots": [],
+        "shader_state_codes": {},
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "capped_creatures": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": false,
+        "count_end": 1040,
+        "count_start": 1040,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 138.443733333333,
+        "mode": "matched-horde",
+        "p95_frame_ms": 153.686,
+        "realm": "graveyard",
+        "screenshots": [],
+        "shader_state_codes": {
+          "coffin_crawler/0": true,
+          "coffin_crawler/1": true,
+          "coffin_crawler/7": true,
+          "gallows_raven/0": true,
+          "gallows_raven/1": true,
+          "gallows_raven/7": true
+        },
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "mean_delta_percent": 9.46
+    },
+    {
+      "realm": "frozen",
+      "original": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": true,
+        "count_end": 620,
+        "count_start": 620,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 94.6157333333334,
+        "mode": "matched-horde",
+        "p95_frame_ms": 102.886,
+        "realm": "frozen",
+        "screenshots": [],
+        "shader_state_codes": {},
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "capped_creatures": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": false,
+        "count_end": 620,
+        "count_start": 620,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 106.3283,
+        "mode": "matched-horde",
+        "p95_frame_ms": 117.193,
+        "realm": "frozen",
+        "screenshots": [],
+        "shader_state_codes": {
+          "antler_revenant/0": true,
+          "antler_revenant/1": true,
+          "antler_revenant/2": true,
+          "antler_revenant/4": true,
+          "antler_revenant/5": true,
+          "antler_revenant/7": true,
+          "rime_widow/0": true,
+          "rime_widow/1": true,
+          "rime_widow/7": true
+        },
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "mean_delta_percent": 12.38
+    },
+    {
+      "realm": "ember",
+      "original": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": true,
+        "count_end": 1000,
+        "count_start": 1000,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 137.156083333333,
+        "mode": "matched-horde",
+        "p95_frame_ms": 155.235,
+        "realm": "ember",
+        "screenshots": [],
+        "shader_state_codes": {},
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "capped_creatures": {
+        "base": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+        "baseline": false,
+        "count_end": 1000,
+        "count_start": 1000,
+        "device": "llvmpipe (LLVM 19.1.7, 256 bits)",
+        "frames": 180,
+        "limitations": "Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test.",
+        "mean_frame_ms": 138.48175,
+        "mode": "matched-horde",
+        "p95_frame_ms": 148.025,
+        "realm": "ember",
+        "screenshots": [],
+        "shader_state_codes": {
+          "furnace_tortoise/0": true,
+          "furnace_tortoise/1": true,
+          "furnace_tortoise/7": true,
+          "slag_scorpion/0": true,
+          "slag_scorpion/1": true,
+          "slag_scorpion/7": true
+        },
+        "viewport": [
+          1280,
+          720
+        ]
+      },
+      "mean_delta_percent": 0.97
+    }
+  ]
+}

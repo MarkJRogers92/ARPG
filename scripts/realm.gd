@@ -43,9 +43,10 @@ const _FROZEN_STAGES := [
 	{"t": 720.0, "sun": Color(0.7, 0.78, 0.95), "sun_e": 0.75, "amb": Color(0.5, 0.56, 0.72), "amb_e": 0.75, "fog": Color(0.45, 0.5, 0.6), "fog_d": 0.02},
 ]
 const _EMBER_STAGES := [
-	{"t": 0.0, "sun": Color(1.0, 0.55, 0.3), "sun_e": 1.2, "amb": Color(0.5, 0.3, 0.25), "amb_e": 0.65, "fog": Color(0.2, 0.06, 0.03), "fog_d": 0.01},
-	{"t": 300.0, "sun": Color(1.0, 0.35, 0.2), "sun_e": 1.1, "amb": Color(0.45, 0.16, 0.12), "amb_e": 0.6, "fog": Color(0.25, 0.05, 0.02), "fog_d": 0.012},
-	{"t": 720.0, "sun": Color(0.9, 0.2, 0.15), "sun_e": 0.95, "amb": Color(0.36, 0.08, 0.08), "amb_e": 0.6, "fog": Color(0.12, 0.02, 0.02), "fog_d": 0.014},
+	# Warm key light plus neutral ash-sky fill keeps coal silhouettes readable.
+	{"t": 0.0, "sun": Color(1.0, 0.78, 0.60), "sun_e": 1.5, "amb": Color(0.70, 0.68, 0.66), "amb_e": 1.15, "fog": Color(0.20, 0.14, 0.12), "fog_d": 0.007},
+	{"t": 300.0, "sun": Color(1.0, 0.67, 0.45), "sun_e": 1.4, "amb": Color(0.62, 0.64, 0.70), "amb_e": 1.1, "fog": Color(0.19, 0.11, 0.09), "fog_d": 0.008},
+	{"t": 720.0, "sun": Color(1.0, 0.56, 0.38), "sun_e": 1.3, "amb": Color(0.57, 0.59, 0.67), "amb_e": 1.05, "fog": Color(0.15, 0.09, 0.08), "fog_d": 0.009},
 ]
 
 ## ground: uniforms for shaders/ground.gdshader
@@ -135,8 +136,8 @@ const REALMS := {
 		"difficulty": 1.25, "rate": 1.05, "soul_bonus": 0.0, "chill_scale": 1.0,
 		"accent": Color(1.0, 0.55, 0.2),
 		"background": Color(0.08, 0.02, 0.01),
-		"ground": {"grass_dark": Color(0.1, 0.08, 0.08), "grass_light": Color(0.17, 0.13, 0.11),
-			"dirt": Color(0.24, 0.12, 0.08), "stone": Color(0.13, 0.12, 0.14), "grout": Color(0.35, 0.1, 0.03),
+		"ground": {"grass_dark": Color(0.18, 0.15, 0.14), "grass_light": Color(0.25, 0.21, 0.18),
+			"dirt": Color(0.29, 0.21, 0.16), "stone": Color(0.23, 0.21, 0.24), "grout": Color(0.35, 0.1, 0.03),
 			"snow": 0.0, "lava": 1.0},
 		"props": {"obsidian": 1.0, "brimstone": 0.4, "ashtree": 0.3, "bones": 0.4, "rock": 0.4,
 			"obsidian_outcrop": 0.45, "brimstone_vent": 0.075, "ashen_tree": 0.15, "basalt_columns": 0.2, "scorched_banner": 0.06,
@@ -184,6 +185,7 @@ static func apply_gameplay(main: Node, id := "") -> void:
 		swarm.display_name = e["label"]
 		swarm.model = e["model"]
 		swarm.specialist_model = SpecialistModels.kind_for(id if not id.is_empty() else current, swarm.model)
+		swarm.creature_model = CreatureModels.kind_for(id if not id.is_empty() else current, swarm.model)
 		swarm.color = e["color"]
 		if e.has("shot"):
 			swarm.shot_element = e["shot"]

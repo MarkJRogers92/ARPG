@@ -14,3 +14,6 @@ export.cfg
 Thumbs.db
 .vscode/
 .idea/
+
+# Isolated local visual-QA profile
+/.runtime/
