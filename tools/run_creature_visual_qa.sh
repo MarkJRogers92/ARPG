@@ -14,8 +14,8 @@ Xorg :97 -config "$PWD/tools/creature-xorg.conf" -logfile "$PWD/.runtime/Xorg.lo
 XPID=$!
 trap 'kill "$XPID" 2>/dev/null || true; rm -f "$XAUTHORITY"' EXIT
 sleep 2
-for realm in graveyard frozen ember; do
+for realm in ${*:-graveyard frozen ember}; do
  mkdir -p "build/creature-qa/$realm"
- timeout 180s godot --path . --rendering-method gl_compatibility --audio-driver Dummy --fixed-fps 60 -s tools/creature_gameplay_qa.gd -- "$realm" "res://build/creature-qa/$realm" > "build/creature-qa/$realm/render.log" 2>&1
+ timeout 180s godot --path . --rendering-method gl_compatibility --audio-driver Dummy --fixed-fps 60 -s tools/creature_gameplay_qa.gd -- "$realm" "res://build/creature-qa/$realm" mixed qa "${CREATURE_QA_LIGHTING_TIME:--1}" "${CREATURE_QA_BOSS:-false}" > "build/creature-qa/$realm/render.log" 2>&1
  grep -E 'SCRIPT ERROR|Shader compilation failed|Parse Error|CREATURE_GAMEPLAY' "build/creature-qa/$realm/render.log" || true
 done

@@ -179,3 +179,14 @@ Initial uncapped horde cost was rejected; the capped software comparison costs
 Ember's existing dark lighting remains a readability limitation.
 
 No push, merge, release, installed Mac update or user profile modification.
+
+
+### Ember lighting follow-up
+
+Mark explicitly requested brighter Ember plus push, merge and installation.
+Added neutral ambient fill throughout the Ember night, a less saturated warm
+key, lighter ash/basalt ground and thinner fog. Other realms, actor stats and
+collision are unchanged. Final 25/25 suites passed again, including 24 lighting
+checks. Ordinary and late-boss lighting were inspected in real Godot renders.
+Publication/install authorization is current; do not treat the earlier local-only
+milestone as a prohibition on the requested next step. Preserve user files/saves.

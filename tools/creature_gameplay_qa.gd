@@ -8,6 +8,8 @@ var realm := "graveyard"
 var output := ""
 var baseline := false
 var bench := false
+var lighting_time := -1.0
+var lighting_boss := false
 var frames_limit := 480
 var capture_busy := false
 var measured := PackedFloat64Array()
@@ -22,6 +24,9 @@ func _initialize() -> void:
 	baseline=args.size()>2 and args[2]=="old"
 	bench=args.size()>3 and args[3]=="bench"
 	frames_limit=180 if bench else 480
+	lighting_time=float(args[4]) if args.size()>4 else -1.0
+	lighting_boss=args.size()>5 and args[5]=="true"
+	if lighting_time>=0: RenderingServer.frame_pre_draw.connect(_review_lighting)
 	DirAccess.make_dir_recursive_absolute(output)
 	CreatureModels.enabled=not baseline
 	seed(38289)
@@ -31,6 +36,10 @@ func _initialize() -> void:
 	main=load("res://scenes/main.tscn").instantiate()
 	root.add_child(main);current_scene=main
 	_setup.call_deferred()
+func _review_lighting() -> void:
+	if is_instance_valid(main):
+		(main.get_node("Atmosphere") as Atmosphere).tick(10.0,lighting_time,lighting_boss)
+
 func _setup() -> void:
 	root.mode=Window.MODE_WINDOWED;root.size=Vector2i(1280,720);root.content_scale_size=Vector2i(1280,720)
 	player=main.get_node("Player");player.invulnerable=true
@@ -47,7 +56,7 @@ func _setup() -> void:
 			for p in [Vector2(-5.5+si*8,-5.0),Vector2(-2.5+si*8,-5.0)]:s.spawn(p)
 		for i in s.count:s.hp[i]=1000000.0
 	main.elapsed=300
-	report={"realm":realm,"mode":"matched-horde" if bench else "controlled-gameplay","baseline":baseline,"base":"7029bf935c4fb537d5bf21bc5b58dd41bc91a595","device":RenderingServer.get_video_adapter_name(),"viewport":[1280,720],"count_start":main._enemy_count(),"frames":0,"shader_state_codes":{},"screenshots":[],"limitations":"Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test."}
+	report={"review_lighting_time":lighting_time,"review_boss":lighting_boss,"realm":realm,"mode":"matched-horde" if bench else "controlled-gameplay","baseline":baseline,"base":"7029bf935c4fb537d5bf21bc5b58dd41bc91a595","device":RenderingServer.get_video_adapter_name(),"viewport":[1280,720],"count_start":main._enemy_count(),"frames":0,"shader_state_codes":{},"screenshots":[],"limitations":"Software renderer; no target Mac FPS claim. Invulnerable automated hero and durable targets, not a human balance test."}
 	last_tick=Time.get_ticks_usec()
 func _process(_delta: float) -> bool:
 	if player==null or capture_busy:return false

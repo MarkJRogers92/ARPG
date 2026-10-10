@@ -71,9 +71,9 @@ camera, lighting and input actions with invulnerability/durable targets.
 ## Release gate and rollback
 
 Cloud software rendering is not a Mac GPU benchmark. Before release, compare the
-same late-run seed on the target Mac, including death bursts and allies. Ember's
-existing very dark lighting remains a readability limitation; the new materials
-have a restrained cool rim but do not revise the realm's lighting design.
+same late-run seed on the target Mac, including death bursts and allies. Ember now uses stronger neutral ash-sky fill, a warmer readable key light and
+lighter basalt/ash ground values across all three night stages. Lava and
+existing boss tint remain. See the dated lighting follow-up in validation.md.
 
 To remove this integration, revert its review commit. To preview the original
 look without removing files, disable CreatureModels before creating the realm.

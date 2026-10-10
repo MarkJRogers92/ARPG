@@ -60,3 +60,20 @@ A 30-second diagnostic was too short to earn an upgrade and therefore failed the
 smoke harness's progress assertion; the 60-second legacy check passed.
 
 Final rendered checks: all three realms completed 480 frames with 15 gameplay screenshots total; no script exceptions, parse errors or shader compilation failures. Frozen exercised charge anticipation, charging and recovery; contact attack was exercised in the matched-horde fixtures and focused assertions. Engine shutdown resource warnings also occurred in visual fixtures, so these are not described as error-free exits.
+
+
+## 2026-10-10 authorized Ember lighting follow-up
+
+Mark requested: lighten Ember, then push, merge and install. Increased ambient
+fill and less saturated key colors across all night stages; lifted basalt/ash
+albedo and reduced fog density. No new lights, changed shadow settings, shaders,
+collision or gameplay values. Other realms remain unchanged.
+
+Final source: 25/25 suites passed again, including 24 new lighting assertions
+(33,174 creature assertions total). The first strict 1.05 float comparison was
+corrected to a 0.001 tolerance for engine float storage; no lighting weakening.
+Two 480-frame rendered Ember checks completed: ordinary gameplay and a controlled
+720-second boss-tinted lighting override. Both retained readable warm/lava cues,
+with no script, parse or shader compilation exceptions. Screenshots are evidence,
+not a target Mac performance claim. Installation and publication are now
+explicitly authorized and handled as the next step.

@@ -21,6 +21,7 @@ func _run() -> void:
 	_test_deaths()
 	_test_budget()
 	_test_animation_states()
+	_test_ember_light()
 	check(CreatureModels.mesh("missing") == null,"missing art falls back")
 	CreatureModels.enabled = false
 	check(CreatureModels.kind_for("graveyard","grunt").is_empty(),"disabled route retains original")
@@ -153,3 +154,20 @@ func _test_animation_states() -> void:
 	c.spawn(Vector2.ZERO);c.spawn(Vector2(.1,0));c.step(0,Vector2.ZERO)
 	check(c._buffer[MultiMeshUtil.FLOATS_PER_INSTANCE+MultiMeshUtil.OFFSET_COLOR+3]==7.0,"contact cosmetic attack is activated")
 	c.free()
+
+func _test_ember_light() -> void:
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	var sun := DirectionalLight3D.new()
+	var atmosphere := Atmosphere.new()
+	atmosphere.environment_node = env
+	atmosphere.sun = sun
+	atmosphere.stages = Realm.data("ember")["stages"]
+	for time in [0.0,150.0,300.0,510.0,720.0,899.0]:
+		atmosphere.tick(10.0,time,false)
+		check(env.environment.ambient_light_energy>=1.049,"Ember ambient fill remains readable all night")
+		check(env.environment.ambient_light_color.g>=.57 and env.environment.ambient_light_color.b>=.60,"neutral fill preserves coal silhouettes")
+		check(sun.light_color.r>sun.light_color.b,"Ember retains warm directional lighting")
+		atmosphere.tick(10.0,time,true)
+		check(env.environment.ambient_light_energy>=1.049,"boss transition preserves fill energy")
+	atmosphere.free();sun.free();env.free()
