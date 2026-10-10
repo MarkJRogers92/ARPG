@@ -51,6 +51,16 @@ var _emit_timer := 0.0
 var _layers := {}
 var _ground_layers := {}
 var _center := Vector2i(1 << 30, 0)
+## Runtime-only reuse: compute() remains an uncached placement oracle. Keep just
+## the current view, so an endless walk cannot accumulate an endless cache.
+var cache_chunks := true
+var _chunk_cache := {}
+var _chunk_settings: Array = []
+
+
+func _exit_tree() -> void:
+	_chunk_cache.clear()
+	_chunk_settings.clear()
 
 
 func _ready() -> void:
@@ -112,7 +122,10 @@ func rebuild_now() -> void:
 
 
 func _rebuild() -> void:
-	var result := compute(_center)
+	if not cache_chunks:
+		_chunk_cache.clear()
+		_chunk_settings.clear()
+	var result := _compute(_center, cache_chunks)
 	var xforms: Dictionary = result[0]
 	var colors: Dictionary = result[1]
 	Obstacles.set_circles(result[2], Rect2(Vector2(_center - Vector2i.ONE * view_chunks) * chunk_size,
@@ -146,6 +159,12 @@ func _rebuild() -> void:
 ## composed groups, ground marks]. The original first four indices are unchanged.
 ## Pure (no nodes or rendering), so tests can check placement.
 func compute(center: Vector2i) -> Array:
+	return _compute(center, false)
+
+
+func _compute(center: Vector2i, reuse_chunks: bool) -> Array:
+	if reuse_chunks:
+		_sync_chunk_cache(center)
 	var xforms := {}
 	var colors := {}
 	var solids := []
@@ -155,37 +174,29 @@ func compute(center: Vector2i) -> Array:
 	for kind: String in Models.PROPS:
 		xforms[kind] = []
 		colors[kind] = []
-	var rng := RandomNumberGenerator.new()
 	var fixed_landmarks := []
 	for f: Dictionary in fixed:
 		if AssetProps.has(f["kind"]) and AssetProps.data(f["kind"])["landmark"]:
 			fixed_landmarks.append([f["at"], AssetProps.data(f["kind"])["footprint"] * f.get("scale", 1.0), true])
 	for cy in range(center.y - view_chunks, center.y + view_chunks + 1):
 		for cx in range(center.x - view_chunks, center.x + view_chunks + 1):
-			rng.seed = hash(Vector2i(cx, cy) * 92821 + Vector2i(17, 3))
-			var origin := Vector2(cx, cy) * chunk_size
-			var chunk_groups := []
-			var placed := _place_assets(Vector2i(cx, cy), xforms, colors, solids, glows, chunk_groups, marks)
-			composed.append_array(chunk_groups)
-			for kind: String in Models.PROPS:
-				if AssetProps.has(kind):
-					continue
-				var n := _poisson(rng, density.get(kind, 0.0))
-				for k in n:
-					var p := origin + Vector2(rng.randf(), rng.randf()) * chunk_size
-					# Leave the area right around the start clear.
-					if p.length_squared() < 36.0 and kind != "grass":
-						continue
-					var s := rng.randf_range(0.7, 1.3)
-					if kind == "tree" or kind == "pillar":
-						s = rng.randf_range(0.9, 1.4)
-					var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s)
-					var shade := rng.randf_range(0.8, 1.15)
-					# Decided after every draw, so landmarks never move the other props.
-					if _inside_landmark(p, placed) or _inside_landmark(p, fixed_landmarks) or _inside_group(p, chunk_groups):
-						continue
-					xforms[kind].append(Transform3D(basis, Vector3(p.x, 0.0, p.y)))
-					colors[kind].append(Color(shade, shade, shade))
+			var chunk := Vector2i(cx, cy)
+			var data: Array
+			if reuse_chunks and _chunk_cache.has(chunk):
+				data = _chunk_cache[chunk]
+			else:
+				data = _compute_chunk(chunk, fixed_landmarks)
+				if reuse_chunks:
+					_chunk_cache[chunk] = data
+			for kind: String in data[0]:
+				xforms[kind].append_array(data[0][kind])
+				colors[kind].append_array(data[1][kind])
+			# These contain nested mutable arrays/dictionaries; frame consumers must
+			# never alias the retained chunk. Transforms/colours above are value types.
+			solids.append_array(data[2].duplicate(true) if reuse_chunks else data[2])
+			glows.append_array(data[3].duplicate(true) if reuse_chunks else data[3])
+			composed.append_array(data[4].duplicate(true) if reuse_chunks else data[4])
+			marks.append_array(data[5].duplicate(true) if reuse_chunks else data[5])
 	for f: Dictionary in fixed:
 		var at: Vector2 = f["at"]
 		var c := Vector2i(floori(at.x / chunk_size), floori(at.y / chunk_size))
@@ -197,6 +208,56 @@ func compute(center: Vector2i) -> Array:
 			if AssetProps.has(f["kind"]):
 				_extras(f["kind"], xf, solids, glows)
 	return [xforms, colors, solids, glows, composed, marks]
+
+
+func _sync_chunk_cache(center: Vector2i) -> void:
+	var settings: Array = [chunk_size, compositions, density, fixed]
+	if settings != _chunk_settings:
+		_chunk_cache.clear()
+		# Detect in-place edits to realm densities and nested showcase entries too.
+		_chunk_settings = settings.duplicate(true)
+	for chunk: Vector2i in _chunk_cache.keys():
+		if absi(chunk.x - center.x) > view_chunks or absi(chunk.y - center.y) > view_chunks:
+			_chunk_cache.erase(chunk)
+
+
+## Independent seeded chunk, without fixed props (those append last, as before).
+func _compute_chunk(chunk: Vector2i, fixed_landmarks: Array) -> Array:
+	var xforms := {}
+	var colors := {}
+	var solids := []
+	var glows := []
+	var chunk_groups := []
+	var marks := []
+	for kind: String in Models.PROPS:
+		# Only positive-density kinds can be placed; fixed props append outside
+		# the chunk. Avoid storing/merging dozens of empty off-biome arrays.
+		if density.get(kind, 0.0) > 0.0:
+			xforms[kind] = []
+			colors[kind] = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(chunk * 92821 + Vector2i(17, 3))
+	var origin := Vector2(chunk) * chunk_size
+	var imported := _place_assets(chunk, xforms, colors, solids, glows, chunk_groups, marks)
+	for kind: String in Models.PROPS:
+		if AssetProps.has(kind):
+			continue
+		var n := _poisson(rng, density.get(kind, 0.0))
+		for k in n:
+			var p := origin + Vector2(rng.randf(), rng.randf()) * chunk_size
+			if p.length_squared() < 36.0 and kind != "grass":
+				continue
+			var s := rng.randf_range(0.7, 1.3)
+			if kind == "tree" or kind == "pillar":
+				s = rng.randf_range(0.9, 1.4)
+			var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s)
+			var shade := rng.randf_range(0.8, 1.15)
+			# Keep every original draw and suppression decision in the original order.
+			if _inside_landmark(p, imported) or _inside_landmark(p, fixed_landmarks) or _inside_group(p, chunk_groups):
+				continue
+			xforms[kind].append(Transform3D(basis, Vector3(p.x, 0.0, p.y)))
+			colors[kind].append(Color(shade, shade, shade))
+	return [xforms, colors, solids, glows, chunk_groups, marks]
 
 
 ## Imported props for one chunk; returns what it placed as [[at, footprint, landmark]].

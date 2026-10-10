@@ -595,6 +595,12 @@ and fronts face the camera.
 - **Placement.** Each realm's `props` density chooses the kinds. Independent
   seeds keep revisits deterministic; surrounding code-built props retain their
   transforms, but scatter inside authored yards and approach lanes is removed.
+- **Chunk reuse.** Runtime rebuilds retain only the current visible chunks and
+  generate newly exposed ones when crossing a boundary. Density, composition,
+  chunk-size and fixed-prop changes invalidate the cache, including in-place
+  edits. Placement seeds and ordering are unchanged; `compute()` stays uncached
+  for verification. This avoids regenerating the whole view on each crossing,
+  without changing scenery, collision, landmark interactions or glow.
 - **Composed places** (`scripts/visual/decor_compositions.gd`). The approved
   primary landmarks anchor aligned burial plots/mausoleum courts, sheltered
   snow supply camps/shrine trails, and open forge yards/waystone approaches.
@@ -640,6 +646,8 @@ and fronts face the camera.
   deterministic placement, collision transforms, and frame-driven realm/chunk
   cleanup. `tools/decor_composition_test.gd` checks authored bounds/gaps, approach
   clearance, exact usable-placement parity and ground-stamp lifecycle.
+  `tools/decor_cache_test.gd` checks cached/full-output parity, invalidation,
+  overlap reuse, memory bounds and renderer state (readback on native runs).
   `WorldDecor.compositions = false` retains the old scatter for comparisons.
   `tools/asset_showcase.gd` has `6_collection_a`/`6_collection_b` and
   `7_collection_field`/`7_collection_behind`/`7_collection_crowd` modes for native

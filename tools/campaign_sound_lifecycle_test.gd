@@ -69,8 +69,68 @@ func _run() -> void:
 			"return %d crossfades town music back in" % (cycle + 1))
 		check(bool(shell.controller.acknowledge_result().get("ok", false)), "result %d acknowledges" % (cycle + 1))
 		await process_frame
-	shell._campaign_sound.stop_music(0.05)
+	var town_sound: Sound = shell._campaign_sound
+	var campaign_realm: String = town_sound._realm
+	for _round in 2:
+		# Real-Sound crossfade: a different realm must swap in looping calm/drums
+		# on the same players, then crossfading back restores the campaign realm.
+		town_sound.play_realm("frozen")
+		await process_frame
+		check(town_sound._realm == "frozen" and town_sound._calm.playing and town_sound._drums.playing
+			and town_sound._calm.stream is AudioStreamOggVorbis and (town_sound._calm.stream as AudioStreamOggVorbis).loop
+			and town_sound._drums.stream is AudioStreamOggVorbis and (town_sound._drums.stream as AudioStreamOggVorbis).loop,
+			"crossfade %d swaps to looping calm and drums" % (_round + 1))
+		town_sound.play_realm(campaign_realm)
+		await process_frame
+		check(town_sound._realm == campaign_realm and town_sound._music_on,
+			"crossfade %d restores the campaign realm" % (_round + 1))
+		# stop_music then the same realm must resume: the stale fade is cancelled
+		# and play_realm cannot early-return, the town-after-combat path.
+		town_sound.stop_music(0.05)
+		await create_timer(0.2).timeout
+		check(not town_sound._music_on and town_sound._calm.volume_db <= -59.0
+			and town_sound._drums.volume_db <= -59.0 and town_sound._boss.volume_db <= -59.0,
+			"stop_music fades every town layer to silence (%d)" % (_round + 1))
+		town_sound.play_realm(campaign_realm)
+		await process_frame
+		check(town_sound._music_on and town_sound._calm.playing,
+			"same-realm resume %d starts its music again" % (_round + 1))
+		await create_timer(0.2).timeout
+		check(town_sound._calm.volume_db > -40.0,
+			"resumed realm %d fades back to audibility" % (_round + 1))
+	# process_mode ALWAYS: fades must keep advancing while the tree is paused.
+	paused = true
+	town_sound.stop_music(0.1)
+	var paused_volume: float = town_sound._calm.volume_db
+	await create_timer(0.2).timeout
+	check(town_sound._calm.volume_db < paused_volume,
+		"music fades keep running while the scene tree is paused")
+	paused = false
+	town_sound.play_realm(campaign_realm)
+	# The SFX pool is independent of the music layers and must survive crossfades.
+	for player: AudioStreamPlayer in town_sound._players:
+		player.stop()
+	town_sound._last.clear()
+	var sfx_slot: int = town_sound._next
+	town_sound._play("ui_click", 1.0, 0.0)
+	check(town_sound._last.has("ui_click") and town_sound._players[sfx_slot].playing
+		and town_sound._players[sfx_slot].stream == town_sound._streams["ui_click"],
+		"SFX pool plays the requested ui_click after music crossfades")
+	town_sound.stop_music(0.05)
 	shell.free()
+	check(Sound.instance == null, "freeing the shell releases the static audio owner")
+	# Let deferred frees and bound tweens settle, then give the audio mixer real
+	# time to retire the just-stopped playbacks before quitting. Without the
+	# drain this suite can leave engine-side playback refs that look like a leak
+	# even though the game nodes are gone (godotengine/godot#76745). This is a
+	# test-only opportunity to drain, not an assertion that production quit is fixed.
+	for _frame in 3:
+		await process_frame
+	# SceneTreeTimer uses simulated delta: --fixed-fps can compress 0.3 seconds
+	# into a few milliseconds. Use a wall-clock deadline without blocking the tree.
+	var drain_deadline := Time.get_ticks_msec() + 300
+	while Time.get_ticks_msec() < drain_deadline:
+		await process_frame
 	_report()
 
 

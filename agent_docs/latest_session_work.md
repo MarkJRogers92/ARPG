@@ -1,8 +1,8 @@
 # Latest session work
 
-Current checkpoint: local, uncommitted approved 24-prop integration on `claude/focused-fermat-m7jhtk` (HEAD `c60f2d6`). See the October 9 entry at the end. Earlier entries are historical.
+Current published checkpoint: approved 24-prop integration and biome compositions merged via PR #45 as `7029bf9` on `claude/focused-fermat-m7jhtk`, released and installed at `/Applications/Soulbound.app`. Verified local, uncommitted follow-ups correct the documentation, add diagnostics, and implement user-approved runtime chunk reuse with audio regression coverage. The audio shutdown warning remains an upstream engine limitation. Check `git status` for current working-tree state.
 
-Prior checkpoint: approved PR #35 merged as `2df2ec1`; review branch `preview/gravediggers-camp-life`. See `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`.
+Earlier entries record their status and evidence at the time, not the current branch or installed build. Their historical test counts (including 23 before the composition suite and 24 afterward) are unchanged.
 
 ## Expedition campaign — 2026-10-08
 
@@ -76,7 +76,7 @@ Native Luna implemented; independent Sol accepted the actual diff, and parent ve
 Local `preview/gravediggers-camp-life`, based on merged PR #35 (`2df2ec1`), adds three camp residents, role-specific arm/tool motion, hearth smoke/embers/flicker, a quiet generated SFX-bus fire loop, and Mara Venn’s optional repeatable dialogue. The encounter respects current Use mapping, service precedence and forced phases, freezes walking while open, and closes through Escape or Leave without rewards or campaign mutation. Scope is this one stop.
 
 Native Luna implemented; native Sol independently reviewed. Parent verified its showcase scene-ownership and role-specific motion-test corrections, final logs and native 720p camp/dialogue views. Focused camp 46, all-stop movement/service 582, walk-town 43, UI behavior, backdrop and real-Shell showcase/title-return checks passed. Audio was checked instrumentally, not listened to; physical remapped-key input and a full human campaign were not tested. Focused shutdown diagnostics remain (4 ObjectDB/2 resources; showcase 12/6). Original six save states and project settings match. Direct demo uses fresh disposable campaign files with account progression disabled; normal preview uses a separate copied profile. Generated imports restored, Jev unavailable/native assignment retained. No publication or installed-app replacement. Details: `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`.
-## 2026-10-09 — Approved 24-prop scenery integration (local, uncommitted)
+## 2026-10-09 — Approved 24-prop scenery integration (subsequently merged in PR #45)
 
 Integrated the corrected 12 graveyard props plus six Frozen Wastes and six
 Ember Rift props under `assets/environment/arpg_pack/06_approved_collection/`.
@@ -112,7 +112,7 @@ Review board, native captures, test logs and verification JSON:
 `/Users/markrogers/Desktop/art/reviews/soulbound-integrated-24-20261009-194959/`.
 Minor limit: circle approximations allow some sled runner-corner clipping.
 
-## 2026-10-09 — Purposeful biome scenery composition (local, uncommitted)
+## 2026-10-09 — Purposeful biome scenery composition (subsequently merged in PR #45)
 
 The user approved a placement pass after finding the new props too randomly
 arranged. `DecorCompositions` now provides 13 primary-anchor layouts, with
@@ -157,3 +157,176 @@ Sol implemented/refined/integrated and reviewed native views; GPT-6 Luna through
 OpenAI drafted layouts and tests; DeepSeek API independently reviewed the delta.
 No premium agents, new paid art generation, installed-app update, publication,
 push or merge.
+
+## 2026-10-09 — Publication and local installation
+
+At the user's request, Sol committed the approved integration/composition as
+`9a6164f`, pushed `feat/approved-biome-compositions`, and merged
+[PR #45](https://github.com/MarkJRogers92/ARPG/pull/45) as `7029bf9`.
+[Build run 38013169086](https://github.com/MarkJRogers92/ARPG/actions/runs/38013169086)
+passed tests and all three exports; Mac/Windows/Linux latest releases matched
+the merge SHA. This supersedes the original entries' local/unpublished status.
+
+Installed the matching universal Mac release at `/Applications/Soulbound.app`
+after checking the ZIP's published SHA-256, archive paths, bundle signature and
+every installed file against the downloaded bundle. The exported data passed
+64 asset/composition checks with the full engine; the release executable
+disallows CLI path overrides, and those controls were not changed. Actual
+exported-app headless and native Metal/OpenGL startup passed. All 354 original
+non-log profile fingerprints were unchanged at installation; the old app and
+profile were backed up. Known shutdown diagnostics persisted; no full human
+campaign or deployment performance benchmark was claimed. Evidence/rollback:
+`/Users/markrogers/Desktop/art/reviews/soulbound-delivery-7029bf9/`.
+
+## 2026-10-09 — Status correction and diagnostic-only follow-up
+
+User authorized only the recommended status-pointer correction, controlled
+shutdown-cache experiment and rebuild measurement. Both current-status pointers
+now identify PR #45/`7029bf9`; history remains intact. Added standalone
+`tools/shutdown_cache_probe.gd` and `tools/decor_benchmark.gd`, not default test
+suites. No `scripts/`, shaders, placement, loading, gameplay, release workflows
+or installed-app code changed; no new commit/push/merge/install was performed.
+The user's pre-existing untracked `docs/CODE_REVIEW_HANDOFF.md` was preserved.
+
+Verification used the explicit Godot **4.6.stable.official.89cea1439** binary,
+a same-source disposable project and a different user-data folder. The current
+`/opt/homebrew/bin/godot` reports **4.7.2**, so it was not used. Engine-generated
+UIDs for the two new tools were brought back; existing imports/UIDs and project
+settings were not edited.
+
+- **Shutdown probe:** 16 fresh processes covered empty, minimal-prop, combined visual
+  and short real-Main fixtures, each with no cleanup, two mesh caches cleared,
+  all five visual caches cleared, and all caches plus gameplay static resets.
+  Fixture nodes were deleted and four frames awaited before inspecting cleanup;
+  weak references confirmed every tracked visual resource was released by full
+  cache cleanup. Empty/prop/visual fixtures exited without leak warnings even
+  without cache clearing. All four Main runs still reported **12 leaked objects
+  and 6 resources**, exclusively Ogg sequence/stream/playback objects for
+  `boss.ogg`, `graveyard_calm.ogg`, and `graveyard_drums.ogg`. Visual caches are
+  **not the cause of this reproduced diagnostic**. Audio teardown is the next
+  investigation target, not a proven underlying diagnosis or a production fix;
+  shutdown warnings remain unresolved.
+- **Benchmark:** three fresh headless processes, each with both modes, all three
+  realm densities and 9/49/121-chunk views, three warmups and 30 timed samples
+  per mode/metric/case. All 54 repeated-center determinism checks passed per run.
+  Mode order alternated; asset startup was excluded. `applied_rebuild` includes
+  compute, CPU-side MultiMesh writes and obstacle updates, not GPU completion.
+  The comparison is this revision with `compositions=false` versus `true`, not
+  a historical pre-integration checkout. Pooled 90-sample medians at the default
+  49-chunk view were **5.47→11.03 ms graveyard, 4.83→10.31 ms frozen, and
+  4.88→10.43 ms ember** (legacy→composed applied rebuild); composed p95 was
+  **11.32 / 10.60 / 10.73 ms** on Apple M2. Composed compute medians were
+  **10.59 / 10.03 / 10.10 ms**. At 121 chunks, composed applied medians rose to
+  **27.48 / 25.47 / 25.97 ms**. Roughly twice the rebuild CPU cost is measured,
+  but no live frame-rate, GPU cost, enemy-load budget or causal attribution to
+  individual loops is established. `_inside_group` uses per-chunk groups; the
+  original review draft's claimed all-view accumulation does not apply. Optimization remains
+  a separate follow-up rather than a change here.
+- **Regression:** existing runner, three focused suites passed (`tests.gd`,
+  `approved_collection_test.gd`, `decor_composition_test.gd`). No new full-suite,
+  smoke-bot or visual run was needed or claimed for this diagnostic-only change.
+
+All 367 original non-log profile-file hashes and the installed data-pack hash
+match the diagnostic starting snapshot. The review handoff received a concurrent
+self-audit from outside this task; that updated file was left untouched.
+
+Raw logs, three benchmark JSONs with samples/counts, and pooled/probe results:
+`/Users/markrogers/Desktop/art/reviews/soulbound-diagnostics-7029bf9/`.
+Sol implemented the experiment, reviewed/refined and ran the benchmark, and
+updated the docs. GPT-6 Luna through OpenAI drafted the benchmark; no premium
+agents or paid art generation were used.
+
+## 2026-10-09 — Runtime chunk reuse and audio shutdown investigation (local)
+
+User approved the runtime performance follow-up and investigation of the audio
+exit warnings. `WorldDecor` now retains only the currently visible chunk data:
+an axial crossing of the default 7×7 view reuses 42 chunks and generates seven;
+a diagonal crossing reuses 36 and generates 13. Density, composition mode,
+chunk size and fixed-prop changes invalidate the cache, including in-place
+nested edits. Leaving the tree releases it; `cache_chunks=false` disables it.
+Sparse chunk maps avoid storing/merging off-biome empty arrays. Public frame
+state deep-copies nested collisions, glow, groups and marks, so consumers cannot
+corrupt retained data. The original draw sequence, layout, collision and order
+remain unchanged. `compute()` is still an uncached placement oracle; fixed
+showcase pieces append after all chunks as before. No eager-loading change.
+
+All **432 full-output fingerprints** match the pre-change source, across three
+realms, both composition modes, three chunk sizes, three view sizes, four
+centres and fixed-prop presence/absence. The final cache suite passed **10,314**
+headless checks and **65,452** native renderer checks (Apple M2 Metal/OpenGL
+Compatibility), covering overlap identity reuse, output parity, nested config
+invalidation, resizing, warps/revisits, disabled cache, public-state mutation
+and deferred teardown. Native colours are compared against an independent
+MultiMesh round-trip because Compatibility packs colour components into 16
+bits; the dummy headless renderer does not support instance readback. The new
+suite is registered in the default runner. Five focused suites passed before
+final sound-test assertion refinement; the final full runner passed **25/25**
+suites, followed by the cache-suite rerun after adding six global-RNG isolation
+checks (pure/cold/overlap generation, both modes). Three 420-second-frame-budget
+smoke bots passed without script errors
+(Frozen ended on death; elapsed combat time can differ from the frame budget
+because of upgrade pauses). Shutdown warnings persisted in Frozen/Ember runs,
+with 21/22 resources reported; no warning-free production quit is claimed.
+Final sound tests also passed directly under verbose headless and native
+CoreAudio/Metal execution with the test-only wall-clock drain.
+
+A verbose, seeded heavy Frozen control passed on both baseline and current
+source. The current run's 21 retained resources were exclusively music/Ogg and
+SFX/WAV; no scenery resource was reported. The control's kill totals differ and
+are not a deterministic replay claim: Sound uses wall-clock cooldowns and
+global pitch randomness, which interact with accelerated `--fixed-fps` runs.
+The placement code itself passed all six global-RNG isolation assertions.
+
+Benchmark hygiene: an audio diagnostic's zsh scalar PID-list cleanup failed,
+leaving eight CPU stress children running. Sol identified their exact command
+paths, terminated only those owned children, and discarded all earlier stream
+timing results. Final default-view paired measurements are rerun after cleanup;
+the incident and targeted process cleanup are recorded in the review folder.
+
+Clean benchmark: six fresh processes (three before, three after), alternating
+phase order, the default 49-chunk view, all three realms, cold/repeat/axial/
+diagonal/teleport scenarios, three warmups and 30 samples per scenario/run.
+Pooled 90-sample CPU medians for ordinary axial crossings were **12.07→3.32 ms
+graveyard, 12.46→2.35 ms frozen, 12.56→2.62 ms ember** (72–81% reduction);
+composed p95 was **3.95 / 2.89 / 3.29 ms**. Diagonal crossings fell to
+**4.87 / 3.82 / 3.91 ms**, about 61–69% less CPU time. Same-centre rebuilds
+fell to **1.51 / 0.82 / 0.95 ms**. This is headless main-thread target-rebuild
+time including MultiMesh writes and obstacle updates, not GPU completion,
+full gameplay-frame cost, live FPS or a human performance assessment.
+
+Trade-off: cold views still generate every chunk. Graveyard cold fill measured
+**11.18→14.89 ms** (+3.71 ms); frozen/ember cold medians were slightly lower.
+Teleport medians were close (graveyard **13.67→13.97 ms**, frozen
+**12.83→12.14 ms**, ember **12.72→12.94 ms**). No uniform startup/teleport
+improvement is claimed. `quiet-stream-summary.json` and six `quiet-*.json` files
+contain all samples/counts; earlier stress-contaminated runs are not used.
+
+**Audio remains an engine limitation, not a fixed warning.** DeepSeek traced the
+Ogg playback references to AudioServer's asynchronous retirement, matching open
+[Godot issue #76745](https://github.com/godotengine/godot/issues/76745), which Sol
+independently checked. Explicit Sound teardown (stop all players, clear streams,
+cancel tweens) did not meaningfully improve a verbose A/B: baseline **10/12**
+runs warned, candidate **8/12** warned. Fresh-copy normal headless runs were
+mostly clean (one warning in 56+ probes); two native CoreAudio runs were clean.
+This timing variability is not proof that production quit is warning-free.
+`scripts/audio/sound.gd` stays unchanged; no blocking delay, engine replacement,
+quit interception or warning suppression was added to gameplay.
+
+The real-Sound suite now covers repeated realm changes, looping calm/drums,
+same-realm stop/resume, all-layer fade to silence, fade progression while paused,
+the requested SFX stream and automatic static-owner release. A **test-only**
+300 ms wall-clock drain yields frames after freeing the shell: a simulated
+SceneTreeTimer is not a real-time drain under `--fixed-fps`. This provides time
+for mixer cleanup, not a production fix or a leak-free assertion.
+
+Sol implemented/refined chunk reuse and integration; DeepSeek V4.1 Flash
+(`opencode-go/deepseek-v4.1-flash`) investigated audio and drafted regression
+checks; Claude Haiku 5.5 (`opencode-go/claude-haiku-5-5`) independently reviewed
+the cache and final test logic. No premium agents. All engine runs used the
+explicit Godot 4.6 binary in disposable projects with separate profiles. Work
+remains local and uncommitted; no push, merge, release or installed-app update.
+Final preservation verified all **367** original non-log profile hashes and the
+installed data-pack hash unchanged; source runtime/tests match the tested copy.
+Final evidence index: `runtime-fix-verification.json` in the review folder.
+Evidence: `/Users/markrogers/Desktop/art/reviews/soulbound-runtime-fixes-7029bf9/`
+and `/Users/markrogers/Desktop/art/reviews/soulbound-audio-fix-7029bf9/`.
