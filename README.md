@@ -573,33 +573,54 @@ and feels in `scripts/specialists.gd`.
 
 ## Imported scenery
 
-52 hand-made Blender props (`assets/environment/arpg_pack/`) share the world
-with the code-built scenery, about 17 per realm. A 53rd, the Treasure Chest,
-is the cursed-chest event's model. `AssetProps` (`scripts/visual/asset_props.gd`)
+76 hand-made Blender props (`assets/environment/arpg_pack/`) share the world
+with the code-built scenery: 40 graveyard, 18 frozen, and 18 ember kinds. A 77th,
+the Treasure Chest, is the cursed-chest event's model. `AssetProps` (`scripts/visual/asset_props.gd`)
 loads each GLB once and finds its mesh. It bakes in any node transform and
 copies the surfaces into an ArrayMesh with kit-shader materials, so the props
 share the world's lighting, rim light and fog. `WorldDecor` draws them with one
 MultiMesh per kind, like every other prop. Sizes are as authored (1 unit = 1 m),
 and fronts face the camera.
 
-- **Glow.** Opaque surfaces never glow. Emissive surfaces glow evenly at UV.x
+- **Approved collection.** The 24 new props live under `06_approved_collection/`;
+  `ASSET_CATALOG.json` records their source revisions, exact hashes and bounds.
+  Corrected graveyard exports are used, not the superseded originals. Existing
+  kinds remain in their original order. New props share the landmark budget
+  with old ones instead of adding more landmark slots. Existing usable pieces
+  keep their original placement weights and exact seeded transforms. Master Blender files and renders stay
+  outside the game repository.
+- **Glow.** Opaque surfaces never glow. Emissive surfaces glow evenly at
   0.72 strength. UV.x isn't used, because these exports put non-zero UV.x on most
   opaque vertices too.
-- **Placement.** Each realm's `props` density chooses the kinds. Imported
-  kinds use their own seed per chunk and kind, so they never move the
-  code-built props, and the same chunk always grows the same scenery.
-- **Set pieces.** At most one per chunk, near its middle, in roughly a third
-  of the chunks. They keep at least 12 m plus their footprint from the start,
-  and code-built props never grow inside one.
-- **Smaller pieces.** They stay inside their chunk by their footprint, never
-  overlap, and keep the start clear.
+- **Placement.** Each realm's `props` density chooses the kinds. Independent
+  seeds keep revisits deterministic; surrounding code-built props retain their
+  transforms, but scatter inside authored yards and approach lanes is removed.
+- **Composed places** (`scripts/visual/decor_compositions.gd`). The approved
+  primary landmarks anchor aligned burial plots/mausoleum courts, sheltered
+  snow supply camps/shrine trails, and open forge yards/waystone approaches.
+  Companion pieces face coherently and belong to the same place. Mirrored
+  variants, worn paving, compacted snow and ash tracks give them context.
+  Loose old imported scenery is thinned to 45% of its seeded candidates; the
+  approved small props appear as companions rather than isolated scatter.
+- **Set pieces.** At most one primary slot per chunk (unchanged selection
+  weights); a compound may include auxiliary fences, shelters or barricades.
+  Composed places stay inside the chunk and keep their entire 5.2 m envelope
+  beyond the 12 m start exclusion. If a usable piece conflicts with a compound,
+  it wins and the primary falls back to its old placement. Gameplay scenery
+  keeps its exact original positions, counts and colours.
+- **Clearance.** Imported pieces never overlap. Authored 1.9–2.2 m approaches
+  stay free of scatter and collision; sealed gates sit beside the public aisle.
+  Quiet space remains between chunk-contained places. These are local approaches,
+  not a new connected road network or a change to campaign navigation.
 - **Collision** (`scripts/obstacles.gd`). Walls, gates and big set pieces are
-  solid: a few circles fitted to their ground footprint (see the table). The
+  solid: a few circles fitted to their ground footprint (see the table and new
+  collection catalog). The
   hero and every enemy are pushed out of them and slide around, toward their
   goal and away from the rest of the piece, so a horde flows around a wall
   instead of piling up behind it. Arches and the skull gateway keep their
-  openings walkable. Bolts, enemy shots, loot, gems and the spectral army pass
-  through. Events spawn clear of solid scenery.
+  openings walkable, including the new Rift archway. The new cemetery gate is
+  sealed; fence and barricade segments also block movement. Bolts, enemy shots,
+  loot, gems and the spectral army pass through. Events spawn clear of solid scenery.
 - **Cost.** A flag grid with 1 m cells means most enemies pay one array read.
   Hordes of 3,000+ check on alternate frames per enemy. Measured enemy step,
   with and without the obstacles of a busy view: +0–1 ms at 1,000–2,000 enemies,
@@ -608,7 +629,26 @@ and fronts face the camera.
   opens in it so the hero stays visible (`shaders/kit_landmark.gdshader`;
   shadows stay whole).
 - **Ambient effects.** Glowing pieces give off motes near the hero: soul
-  wisps in the graveyard (violet from the crystals), embers in the rift.
+  wisps in the graveyard (violet from the crystals, green from the new pack),
+  icy cyan wisps in the wastes, orange embers in the rift.
+- **Static scenery.** The new reliquary chest does not grant loot, shrines are
+  not objectives, and the magma vent is not a damage hazard. The ritual circle
+  is walk-through. Gates and sarcophagi do not animate/open. Fence segments are
+   used as single side segments, not tiled into runs with duplicate end posts. The Lantern
+  Warden character remains outside the game and is not part of this integration.
+- **Verification.** `tools/approved_collection_test.gd` covers the new catalog,
+  deterministic placement, collision transforms, and frame-driven realm/chunk
+  cleanup. `tools/decor_composition_test.gd` checks authored bounds/gaps, approach
+  clearance, exact usable-placement parity and ground-stamp lifecycle.
+  `WorldDecor.compositions = false` retains the old scatter for comparisons.
+  `tools/asset_showcase.gd` has `6_collection_a`/`6_collection_b` and
+  `7_collection_field`/`7_collection_behind`/`7_collection_crowd` modes for native
+  game-scale visual checks (`6_collection_b` is graveyard-only), plus
+  `8_composed_before`/`8_composed_after`/`8_composed_alt`/`8_composed_crowd`/
+  `8_composed_behind` for the new places. Run with Godot
+  4.6 and a display. The table below lists the original pack; the approved
+  collection's kind names, bounds and surfaces are in its `ASSET_CATALOG.json`,
+  with collision roles in `scripts/visual/asset_props.gd`.
 
 Not imported:
 - Stone_Bridge_Span and Stone_Stairs look walkable, but the world has no height.

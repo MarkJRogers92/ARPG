@@ -20,7 +20,8 @@ extends RefCounted
 ##   scale       [min, max] uniform scale; 1 authored unit = 1 m
 ##   yaw         how far (radians) it may turn from facing the camera (+Z);
 ##               TAU means any direction
-##   landmark    true: at most one landmark per chunk, kept apart (see WorldDecor)
+##   landmark    eligible for the primary slot; authored groups may also use
+##               static landmark kinds as auxiliary walls/shelters (WorldDecor)
 ##   footprint   ground radius in meters, used for spacing and clearance
 ##   shadow      casts shadows
 ##   solid       collision circles [x, z, radius] in the asset's own space (see
@@ -141,6 +142,58 @@ const KINDS := {
 		"landmark": true, "footprint": 1.1, "shadow": true, "solid": [[0.0, 0.0, 1.0]], "fx": Color(1.0, 0.5, 0.15)},
 	"chained_gong": {"path": "05_balanced_biomes/Chained_Gong", "realm": "ember", "scale": [1.0, 1.0], "yaw": 0.35,
 		"landmark": true, "footprint": 1.4, "shadow": true, "solid": [[-1.0, 0.0, 0.45], [0.0, 0.0, 0.4], [1.0, 0.0, 0.45]], "fx": Color(1.0, 0.5, 0.15)},
+	# Approved October collection: append only, preserving existing per-kind seeds.
+	# Footprints enclose the entire mesh at its maximum scale (including branches).
+	"warden_gravestone": {"path": "06_approved_collection/graveyard/warden_gravestone", "realm": "graveyard", "scale": [0.9, 1.1], "yaw": 0.5,
+		"landmark": false, "footprint": 0.5, "shadow": true, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_soul_lantern": {"path": "06_approved_collection/graveyard/warden_soul_lantern", "realm": "graveyard", "scale": [0.9, 1.1], "yaw": TAU,
+		"landmark": false, "footprint": 0.32, "shadow": true, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_reliquary_chest": {"path": "06_approved_collection/graveyard/warden_reliquary_chest", "realm": "graveyard", "scale": [0.95, 1.05], "yaw": 0.5,
+		"landmark": false, "footprint": 0.65, "shadow": true, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_broken_obelisk": {"path": "06_approved_collection/graveyard/warden_broken_obelisk", "realm": "graveyard", "scale": [0.9, 1.1], "yaw": TAU,
+		"landmark": false, "footprint": 0.7, "shadow": true, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_soul_altar": {"path": "06_approved_collection/graveyard/warden_soul_altar", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": 0.5,
+		"landmark": true, "footprint": 0.9, "shadow": true, "solid": [[-0.32, 0.0, 0.38], [0.32, 0.0, 0.38]], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_bone_barricade": {"path": "06_approved_collection/graveyard/warden_bone_barricade", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": 0.6,
+		"landmark": true, "footprint": 1.05, "shadow": true, "solid": [[-0.70, 0.0, 0.24], [-0.23, 0.0, 0.24], [0.23, 0.0, 0.24], [0.70, 0.0, 0.24]], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_mausoleum": {"path": "06_approved_collection/graveyard/warden_mausoleum", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": 0.35,
+		"landmark": true, "footprint": 1.6, "shadow": true, "solid": [[-0.63, -0.45, 0.70], [0.63, -0.45, 0.70], [-0.63, 0.45, 0.70], [0.63, 0.45, 0.70], [0.0, 0.0, 0.56]], "fx": Color(0.25, 0.90, 0.65)},
+	# The iron gate is sealed, unlike the open Rift archway below.
+	"warden_iron_gate": {"path": "06_approved_collection/graveyard/warden_iron_gate", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": 0.35,
+		"landmark": true, "footprint": 1.3, "shadow": true, "solid": [[-1.0, 0.0, 0.26], [-0.5, 0.0, 0.26], [0.0, 0.0, 0.26], [0.5, 0.0, 0.26], [1.0, 0.0, 0.26]], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_sarcophagus": {"path": "06_approved_collection/graveyard/warden_sarcophagus", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": TAU,
+		"landmark": true, "footprint": 1.0, "shadow": true, "solid": [[0.0, -0.48, 0.40], [0.0, 0.0, 0.40], [0.0, 0.48, 0.40]], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_soul_brazier": {"path": "06_approved_collection/graveyard/warden_soul_brazier", "realm": "graveyard", "scale": [0.9, 1.1], "yaw": TAU,
+		"landmark": false, "footprint": 0.5, "shadow": true, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	# Standalone segments, not tiled runs (shared end posts would need deduplication).
+	"warden_grave_fence": {"path": "06_approved_collection/graveyard/warden_grave_fence", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": 0.6,
+		"landmark": true, "footprint": 1.16, "shadow": true, "solid": [[-1.0, 0.0, 0.24], [-0.5, 0.0, 0.24], [0.0, 0.0, 0.24], [0.5, 0.0, 0.24], [1.0, 0.0, 0.24]], "fx": Color(0.25, 0.90, 0.65)},
+	"warden_ritual_circle": {"path": "06_approved_collection/graveyard/warden_ritual_circle", "realm": "graveyard", "scale": [1.0, 1.0], "yaw": TAU,
+		"landmark": true, "footprint": 1.05, "shadow": false, "solid": [], "fx": Color(0.25, 0.90, 0.65)},
+	"wastes_frost_shrine": {"path": "06_approved_collection/frozen/wastes_frost_shrine", "realm": "frozen", "scale": [1.0, 1.0], "yaw": 0.5,
+		"landmark": true, "footprint": 1.0, "shadow": true, "solid": [[-0.52, 0.0, 0.25], [0.0, 0.0, 0.48], [0.52, 0.0, 0.25]], "fx": Color(0.25, 0.75, 1.0)},
+	"wastes_glacial_cluster": {"path": "06_approved_collection/frozen/wastes_glacial_cluster", "realm": "frozen", "scale": [0.9, 1.15], "yaw": TAU,
+		"landmark": false, "footprint": 0.65, "shadow": true, "solid": [], "fx": Color(0.25, 0.75, 1.0)},
+	"wastes_supply_sled": {"path": "06_approved_collection/frozen/wastes_supply_sled", "realm": "frozen", "scale": [1.0, 1.0], "yaw": TAU,
+		"landmark": true, "footprint": 1.05, "shadow": true, "solid": [[0.0, -0.50, 0.41], [0.0, 0.0, 0.41], [0.0, 0.50, 0.41]], "fx": null},
+	"wastes_rune_cairn": {"path": "06_approved_collection/frozen/wastes_rune_cairn", "realm": "frozen", "scale": [0.9, 1.1], "yaw": TAU,
+		"landmark": false, "footprint": 0.55, "shadow": true, "solid": [], "fx": Color(0.25, 0.75, 1.0)},
+	"wastes_dead_pine": {"path": "06_approved_collection/frozen/wastes_dead_pine", "realm": "frozen", "scale": [0.9, 1.15], "yaw": TAU,
+		"landmark": false, "footprint": 1.15, "shadow": true, "solid": [], "fx": null},
+	"wastes_ice_barricade": {"path": "06_approved_collection/frozen/wastes_ice_barricade", "realm": "frozen", "scale": [1.0, 1.0], "yaw": 0.6,
+		"landmark": true, "footprint": 1.0, "shadow": true, "solid": [[-0.70, 0.0, 0.25], [-0.24, 0.0, 0.25], [0.24, 0.0, 0.25], [0.70, 0.0, 0.25]], "fx": Color(0.25, 0.75, 1.0)},
+	"rift_archway": {"path": "06_approved_collection/ember/rift_archway", "realm": "ember", "scale": [1.0, 1.0], "yaw": 0.35,
+		"landmark": true, "footprint": 1.2, "shadow": true, "solid": [[-0.825, 0.0, 0.31], [0.825, 0.0, 0.31]], "fx": Color(1.0, 0.35, 0.08)},
+	"rift_magma_vent": {"path": "06_approved_collection/ember/rift_magma_vent", "realm": "ember", "scale": [0.9, 1.1], "yaw": TAU,
+		"landmark": false, "footprint": 0.82, "shadow": true, "solid": [], "fx": Color(1.0, 0.35, 0.08)},
+	"rift_crucible_forge": {"path": "06_approved_collection/ember/rift_crucible_forge", "realm": "ember", "scale": [1.0, 1.0], "yaw": 0.5,
+		"landmark": true, "footprint": 0.9, "shadow": true, "solid": [[-0.35, -0.25, 0.32], [0.35, -0.25, 0.32], [-0.35, 0.25, 0.32], [0.35, 0.25, 0.32], [0.0, 0.0, 0.35]], "fx": Color(1.0, 0.35, 0.08)},
+	"rift_scorched_waystone": {"path": "06_approved_collection/ember/rift_scorched_waystone", "realm": "ember", "scale": [0.9, 1.1], "yaw": 0.5,
+		"landmark": false, "footprint": 0.6, "shadow": true, "solid": [], "fx": Color(1.0, 0.35, 0.08)},
+	"rift_ashen_tree": {"path": "06_approved_collection/ember/rift_ashen_tree", "realm": "ember", "scale": [0.9, 1.15], "yaw": TAU,
+		"landmark": false, "footprint": 0.95, "shadow": true, "solid": [], "fx": Color(1.0, 0.35, 0.08)},
+	"rift_obsidian_barricade": {"path": "06_approved_collection/ember/rift_obsidian_barricade", "realm": "ember", "scale": [1.0, 1.0], "yaw": 0.6,
+		"landmark": true, "footprint": 1.12, "shadow": true, "solid": [[-0.75, 0.0, 0.28], [-0.25, 0.0, 0.28], [0.25, 0.0, 0.28], [0.75, 0.0, 0.28]], "fx": Color(1.0, 0.35, 0.08)},
 }
 
 ## Models that aren't scattered, used by events (EventDirector's cursed chest).

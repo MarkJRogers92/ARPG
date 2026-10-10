@@ -1,6 +1,8 @@
 # Latest session work
 
-Current checkpoint: approved PR #35 merged as `2df2ec1`; the next local review branch is `preview/gravediggers-camp-life`. See `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`. Earlier entries are historical.
+Current checkpoint: local, uncommitted approved 24-prop integration on `claude/focused-fermat-m7jhtk` (HEAD `c60f2d6`). See the October 9 entry at the end. Earlier entries are historical.
+
+Prior checkpoint: approved PR #35 merged as `2df2ec1`; review branch `preview/gravediggers-camp-life`. See `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`.
 
 ## Expedition campaign — 2026-10-08
 
@@ -74,3 +76,84 @@ Native Luna implemented; independent Sol accepted the actual diff, and parent ve
 Local `preview/gravediggers-camp-life`, based on merged PR #35 (`2df2ec1`), adds three camp residents, role-specific arm/tool motion, hearth smoke/embers/flicker, a quiet generated SFX-bus fire loop, and Mara Venn’s optional repeatable dialogue. The encounter respects current Use mapping, service precedence and forced phases, freezes walking while open, and closes through Escape or Leave without rewards or campaign mutation. Scope is this one stop.
 
 Native Luna implemented; native Sol independently reviewed. Parent verified its showcase scene-ownership and role-specific motion-test corrections, final logs and native 720p camp/dialogue views. Focused camp 46, all-stop movement/service 582, walk-town 43, UI behavior, backdrop and real-Shell showcase/title-return checks passed. Audio was checked instrumentally, not listened to; physical remapped-key input and a full human campaign were not tested. Focused shutdown diagnostics remain (4 ObjectDB/2 resources; showcase 12/6). Original six save states and project settings match. Direct demo uses fresh disposable campaign files with account progression disabled; normal preview uses a separate copied profile. Generated imports restored, Jev unavailable/native assignment retained. No publication or installed-app replacement. Details: `docs/expedition_campaign/CAMP_LIFE_PREVIEW.md`.
+## 2026-10-09 — Approved 24-prop scenery integration (local, uncommitted)
+
+Integrated the corrected 12 graveyard props plus six Frozen Wastes and six
+Ember Rift props under `assets/environment/arpg_pack/06_approved_collection/`.
+All 24 GLBs match the approved hashes; catalog and Godot import sidecars included.
+Appended AssetProps/Models kinds, conservative scaled footprints, biome-exclusive
+densities, circle collisions for solid set pieces, and matching glow/motes.
+Existing usable-piece placement weights are preserved; landmark shares are
+0.483 / 0.430 / 0.445. The Rift arch stays passable; the sealed gate and single
+fence/barricade segments block movement. Chests/shrines/lava remain static scenery;
+no new loot, objectives, hazards, animations, save schema or balance mechanics.
+The Lantern Warden character remains external/unrigged, not integrated.
+
+Sol implemented/integrated; GPT-6 Luna personal added tests; DeepSeek Flash API
+independently reviewed and rechecked the bounded collision/docs/test fixes.
+Godot 4.6 Compatibility: all 23 headless suites passed; new catalog/placement/
+frame-driven cleanup suite passed 41,848 checks. Three smoke bots ran with a
+420-second frame budget (one ended early on death), passed, and had no script
+errors. ObjectDB/resource-in-use exit warnings also reproduced in all three
+pre-integration `c60f2d6` baseline smoke runs; they remain unresolved.
+
+Inspected 13 native 1280×720 gallery/field/behind/crowd captures plus three final
+collider galleries and controlled mausoleum occlusion on/off. Rendering used
+same-source copied projects with separate save folders and window overrides
+(Mac startup fullscreen otherwise ignored CLI capture dimensions). These are
+controlled visual checks, not a full journey or performance benchmark. The
+external off-window harness initially crashed on shutdown with a server-signal
+lambda connected; a named callback and explicit disconnect fixed the harness,
+and the control rerun was clean. No game-runtime signal code changed.
+
+Original `project.godot`, tracked UIDs/imports and all 184 original save-file
+fingerprints preserved. No commit/push/merge/release or installed-app update.
+Review board, native captures, test logs and verification JSON:
+`/Users/markrogers/Desktop/art/reviews/soulbound-integrated-24-20261009-194959/`.
+Minor limit: circle approximations allow some sled runner-corner clipping.
+
+## 2026-10-09 — Purposeful biome scenery composition (local, uncommitted)
+
+The user approved a placement pass after finding the new props too randomly
+arranged. `DecorCompositions` now provides 13 primary-anchor layouts, with
+mirrored variants: aligned grave rows/mausoleum courts, side-gated burial plots,
+sheltered snow supply camps/shrine trails, and forge yards/arch approaches.
+All 24 approved kinds remain represented. Single fence segments avoid duplicate
+terminal posts; sealed gates and barricades sit beside public approaches, and
+the Rift arch's original opening remains unchanged.
+
+`WorldDecor` preserves the original seeded scatter plan for all `Landmarks.USES`
+transforms, counts and colours, then replaces approved cosmetic scatter with
+cluster members. Old loose imported candidates are thinned to 45%; code-built
+scatter is suppressed inside yards/approaches without rerolling its transforms.
+One primary slot per chunk remains; auxiliary fences/shelters may also carry
+landmark metadata. Bounds stay inside 12 m chunks, whole compounds stay outside
+the start exclusion, and usable scenery wins any composition conflict.
+Approaches are local 1.9–2.2 m lanes, not a connected road/campaign routing system.
+Three shared ground MultiMeshes draw feathered paving/compacted snow/ash stamps;
+their state clears on chunk/realm/density changes. No new gameplay interactions.
+
+Verification used Godot **4.6**, same-source disposable projects with separate
+profiles, and the existing runner: all **24 headless suites passed**, followed
+by the final three affected suites after dependency/test cleanup. The new
+composition suite passed **79,070 checks**, including both layout variants,
+1,500 distant single chunks, neighbour-chunk collision clearance, frame-stepped
+approach traversal, exact usable placement parity and deferred render cleanup.
+Three smoke bots passed a 420-second frame budget (Ember ended early on death);
+no script errors. Fifteen native 1280×720 captures cover before/after, alternate
+places, 220-enemy crowds and behind-anchor views. Before/after camera transforms
+match exactly. These are controlled checks, not a full human journey or a
+performance benchmark; known ObjectDB/resource shutdown warnings remain.
+
+Review/preview/logs: `/Users/markrogers/Desktop/art/reviews/soulbound-composed-environments-20261009/`.
+`tools/decor_composition_test.gd` is in the default runner; new script/shader
+UIDs were generated by the engine. The source project parses without requiring
+a new global-class cache entry (explicit composition-module preload); existing
+project settings and tracked imports/UIDs remain unchanged. All **354 non-log
+original profile-file hashes** match the pre-test snapshot; source parse checks
+rotated normal engine logs only. Existing uncommitted integration work is kept.
+
+Sol implemented/refined/integrated and reviewed native views; GPT-6 Luna through
+OpenAI drafted layouts and tests; DeepSeek API independently reviewed the delta.
+No premium agents, new paid art generation, installed-app update, publication,
+push or merge.

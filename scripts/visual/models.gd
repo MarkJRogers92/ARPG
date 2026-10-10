@@ -891,7 +891,13 @@ const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "
 		"snow_boulder", "frosted_pine", "ice_stalagmites", "supply_tripod", "wind_chime", "ice_arch", "watchtower",
 		"sled", "ribcage", "frozen_pond", "fishing_hut", "whale_skull", "obsidian_outcrop", "brimstone_vent",
 		"ashen_tree", "basalt_columns", "scorched_banner", "skull_gateway", "forge", "cauldron", "siege_barricade",
-		"minecart", "furnace", "chained_gong"]
+		"minecart", "furnace", "chained_gong",
+		# Approved graveyard / Frozen Wastes / Ember Rift collection.
+		"warden_gravestone", "warden_soul_lantern", "warden_reliquary_chest", "warden_broken_obelisk", "warden_soul_altar",
+		"warden_bone_barricade", "warden_mausoleum", "warden_iron_gate", "warden_sarcophagus", "warden_soul_brazier",
+		"warden_grave_fence", "warden_ritual_circle", "wastes_frost_shrine", "wastes_glacial_cluster", "wastes_supply_sled",
+		"wastes_rune_cairn", "wastes_dead_pine", "wastes_ice_barricade", "rift_archway", "rift_magma_vent",
+		"rift_crucible_forge", "rift_scorched_waystone", "rift_ashen_tree", "rift_obsidian_barricade"]
 
 
 static func prop(kind: String) -> ArrayMesh:

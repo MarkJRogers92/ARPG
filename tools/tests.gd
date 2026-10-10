@@ -1526,6 +1526,30 @@ const _ASSET_CATALOG := {
 	"furnace": [Vector3(2.094, 3.22, 2.0), 1],
 	"chained_gong": [Vector3(2.76, 3.031, 0.94), 1],
 	"treasure_chest": [Vector3(1.667, 1.232, 1.133), 0],
+	"warden_gravestone": [Vector3(0.776275, 1.06, 0.3825), 1],
+	"warden_soul_lantern": [Vector3(0.38, 0.952, 0.36), 1],
+	"warden_reliquary_chest": [Vector3(1.02, 0.86, 0.6125), 1],
+	"warden_broken_obelisk": [Vector3(1.00691, 1.3, 0.655), 1],
+	"warden_soul_altar": [Vector3(1.4, 0.885, 0.93), 1],
+	"warden_bone_barricade": [Vector3(1.96618, 1.21009, 0.37), 1],
+	"warden_mausoleum": [Vector3(2.36, 2.98, 1.90477), 1],
+	"warden_iron_gate": [Vector3(2.5, 2.205, 0.447909), 1],
+	"warden_sarcophagus": [Vector3(0.940996, 0.972, 1.5956), 1],
+	"warden_soul_brazier": [Vector3(0.616498, 0.997, 0.612), 1],
+	"warden_grave_fence": [Vector3(2.19, 1.138, 0.26945), 1],
+	"warden_ritual_circle": [Vector3(1.8797, 0.28, 1.8797), 1],
+	"wastes_frost_shrine": [Vector3(1.5, 1.8, 1.0), 1],
+	"wastes_glacial_cluster": [Vector3(0.965979, 1.54, 0.73155), 1],
+	"wastes_supply_sled": [Vector3(0.87, 0.717, 1.82), 0],
+	"wastes_rune_cairn": [Vector3(0.725718, 1.14, 0.51), 1],
+	"wastes_dead_pine": [Vector3(1.35325, 2.43257, 1.26079), 0],
+	"wastes_ice_barricade": [Vector3(1.87158, 1.36, 0.51656), 1],
+	"rift_archway": [Vector3(2.176, 2.3, 0.72), 1],
+	"rift_magma_vent": [Vector3(1.24021, 0.62, 1.01839), 1],
+	"rift_crucible_forge": [Vector3(1.3, 1.19, 1.0), 1],
+	"rift_scorched_waystone": [Vector3(0.772551, 1.53, 0.59), 1],
+	"rift_ashen_tree": [Vector3(1.40869, 2.16746, 0.921117), 1],
+	"rift_obsidian_barricade": [Vector3(2.0918, 1.33, 0.550364), 1],
 }
 
 
@@ -1580,7 +1604,7 @@ func _test_asset_props() -> bool:
 			_check(c[0] - c[2] > aabb.position.x - 0.3 and c[0] + c[2] < aabb.end.x + 0.3 and c[1] - c[2] > aabb.position.z - 0.3 \
 					and c[1] + c[2] < aabb.end.z + 0.3, "%s: collision within the model's bounds (%s)" % [kind, c])
 	# Arches keep their openings: nothing solid in the middle.
-	for kind in ["broken_archway", "ice_arch", "skull_gateway"]:
+	for kind in ["broken_archway", "ice_arch", "skull_gateway", "rift_archway"]:
 		_check(not _solid_at(kind, Vector2.ZERO, 0.5), "%s: the opening is passable" % kind)
 	for realm: String in Realm.ORDER:
 		for kind: String in Realm.data(realm)["props"]:
@@ -1629,7 +1653,7 @@ func _test_asset_placement() -> bool:
 					_check(at.length() >= 2.0 * WorldDecor.ASSET_CLEAR + fp, "%s: set pieces keep away from the start" % realm)
 				else:
 					_check(at.length() >= WorldDecor.ASSET_CLEAR + fp, "%s: imported props keep the start clear" % realm)
-		_check(landmarks.size() >= 5 and assets.size() > 2 * landmarks.size(), "%s: scenery is placed (%d, %d set pieces)" % [realm, assets.size(), landmarks.size()])
+		_check(landmarks.size() >= 5 and assets.size() > landmarks.size(), "%s: scenery and companion dressing are placed (%d, %d solid/set pieces)" % [realm, assets.size(), landmarks.size()])
 		var overlaps := 0
 		for i in assets.size():
 			for j in range(i + 1, assets.size()):
@@ -1654,12 +1678,13 @@ func _test_asset_placement() -> bool:
 				for l: Array in landmarks:
 					if Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) < l[1]:
 						under = true
+				under = under or WorldDecor._inside_group(Vector2(xf.origin.x, xf.origin.z), with[4])
 				if not under:
 					moved += 1
 			for xf: Transform3D in now:
 				for l: Array in landmarks:
 					_check(Vector2(xf.origin.x, xf.origin.z).distance_to(l[0]) >= l[1], "%s: nothing grows inside a set piece" % realm)
-		_check(moved == 0, "%s: imported scenery moves no code-built prop (%d moved)" % [realm, moved])
+		_check(moved == 0, "%s: code-built props retain their transforms outside set pieces and authored yards (%d moved)" % [realm, moved])
 		decor.free()
 	# Switching realms (the title preview) leaves nothing of the old one behind.
 	var decor := WorldDecor.new()
