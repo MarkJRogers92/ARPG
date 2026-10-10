@@ -1,6 +1,6 @@
 # Latest session work
 
-Current published checkpoint: approved 24-prop integration and biome compositions merged via PR #45 as `7029bf9` on `claude/focused-fermat-m7jhtk`, released and installed at `/Applications/Soulbound.app`. Verified local, uncommitted follow-ups correct the documentation, add diagnostics, and implement user-approved runtime chunk reuse with audio regression coverage. The audio shutdown warning remains an upstream engine limitation. Check `git status` for current working-tree state.
+Current published checkpoint: creature variants and Ember lighting merged via PR #46 as `70fc018` on `claude/focused-fermat-m7jhtk`, following the approved scenery release in PR #45. The installed Mac app is still PR #45 (`7029bf9`) pending the authorized combined delivery. Verified scenery chunk reuse and audio regression coverage are committed on `perf/bounded-decor-cache`, integrated with PR #46; publication/installation is in progress. The audio shutdown warning remains an upstream engine limitation. Check `git status` for current working-tree state.
 
 Earlier entries record their status and evidence at the time, not the current branch or installed build. Their historical test counts (including 23 before the composition suite and 24 afterward) are unchanged.
 
@@ -363,3 +363,40 @@ collision are unchanged. Final 25/25 suites passed again, including 24 lighting
 checks. Ordinary and late-boss lighting were inspected in real Godot renders.
 Publication/install authorization is current; do not treat the earlier local-only
 milestone as a prohibition on the requested next step. Preserve user files/saves.
+
+## 2026-10-09 — Combined creature/cache delivery verification
+
+At the user's heads-up, fetched the completed parallel update: PR #46 was
+already merged as `70fc018`, with successful Build CI. Integrated the committed
+runtime-cache/audio-regression follow-up on `perf/bounded-decor-cache` via
+`bde58ca`. Kept both sides of the append-only session-history conflict and both
+creature/cache suites in the runner. Incoming creature, shader and Ember
+lighting code is unchanged; the pre-existing untracked
+`docs/CODE_REVIEW_HANDOFF.md` remains untouched and is excluded from this PR.
+
+Combined verification used Godot **4.6.stable.official.89cea1439** in an isolated
+same-source copy with a separate profile: asset import, **4/4 focused suites**,
+**26/26 full suites**, **65,452 native cache checks**, and three
+`smoke_test.gd -- 420 <realm>` frame budgets all passed without script/shader
+errors. Ember's smoke ended on normal player death. Known shutdown diagnostics
+remained (22/22/24 resources in the three smoke processes); the audio warning
+is not claimed fixed. A controlled native Apple M2 Metal/OpenGL Ember run at
+late-lighting time 720 with boss tint rendered both new creature appearances,
+legacy silhouettes and cached scenery. Sol inspected the captured scene for
+readability; this is not a new FPS or human balance claim. The fixture's JSON
+contains historical software-renderer wording; the actual engine log confirms
+native Metal/OpenGL, so its timing/label is not used as performance evidence.
+
+Claude Haiku 5.5 independently reviewed the incoming creature changes read-only
+and found no blockers, including admission bounds, shared-mesh ownership,
+death-pool teardown and integration with the scenery cache. Sol handled merge,
+verification and delivery; no other worker or premium model was used for this
+shipping step. The user saved/closed Soulbound before installation. Verified
+rollback copies of the original app and profile were saved; starting preservation
+snapshot covers **367** non-log profile files. Source release settings and
+technical path-override permission controls are unchanged.
+
+Evidence and rollback:
+`/Users/markrogers/Desktop/art/reviews/soulbound-delivery-cache-creatures-20261009/`.
+Push, PR merge, CI-release matching and installation remain pending at this
+entry's commit; the final delivery record is added only after actual completion.

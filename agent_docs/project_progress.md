@@ -1,6 +1,6 @@
 # Project progress
 
-Current published checkpoint: `7029bf9` on `claude/focused-fermat-m7jhtk`, merged via [PR #45](https://github.com/MarkJRogers92/ARPG/pull/45). The 24 approved scenery props and biome compositions are released, and the matching Mac app is installed at `/Applications/Soulbound.app`. Verified local uncommitted follow-ups add runtime chunk reuse and audio regression coverage (25 suites and three smoke bots passed); the audio shutdown warning remains an upstream engine limitation. See `agent_docs/latest_session_work.md` and `git status` for current evidence and working-tree state.
+Current published checkpoint: `70fc018` on `claude/focused-fermat-m7jhtk`, merged via [PR #46](https://github.com/MarkJRogers92/ARPG/pull/46) (creature variants and Ember lighting), following the approved scenery in PR #45. The installed Mac app remains `7029bf9` until the authorized combined delivery finishes. Verified chunk reuse and audio regression coverage are committed on `perf/bounded-decor-cache` and integrated with PR #46: 26 suites, three smoke bots and native-renderer checks passed. Push/merge/install are in progress; the audio shutdown warning remains an upstream engine limitation. See `agent_docs/latest_session_work.md` and `git status` for current evidence and working-tree state.
 
 ## Expedition campaign — historical October 8 checkpoints
 
