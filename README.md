@@ -176,6 +176,13 @@ of death, so the Crypt still gets its veteran.)
 Pick a hero on the title screen. The Battlemage is free; the others are bought
 once with Soul Shards and stay unlocked (`scripts/hero_class.gd`):
 
+All five heroes use the approved rigged models, with directional walking,
+trailing capes, class-specific casting/reaping and hand-mounted equipment.
+Allied brawlers, hero/ally locators, hostile shots and danger warnings have also
+been polished for crowded fights. Stats, class costs and saved progress are
+unchanged. See [hero roster](docs/HERO_ROSTER.md) and
+[combat readability](docs/HERO_ARMY_READABILITY.md) for scope and verification.
+
 | Hero | Cost | Plays like |
 |---|---|---|
 | Battlemage | free | Bolts fire 10% faster and pierce one more enemy |

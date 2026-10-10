@@ -48,6 +48,10 @@ SUITES=(
   "tools/objective_props_test.gd"
   "tools/specialist_variants_test.gd"
   "tools/creature_variants_test.gd"
+  "tools/combat_readability_test.gd"
+  "tools/hero_visual_test.gd"
+  "tools/aegis_visual_test.gd"
+  "tools/hero_roster_test.gd"
   "tools/resume_test.gd"
   "tools/menu_polish_ui_test.gd -- --screen=behavior"
   "tools/campaign_backdrop_test.gd"
@@ -83,8 +87,13 @@ if ! command -v "$GODOT_BIN" >/dev/null 2>&1 && [ ! -x "$GODOT_BIN" ]; then
   exit 2
 fi
 
-LOG_DIR="$(mktemp -d)"
-trap 'rm -rf "$LOG_DIR" 2>/dev/null || true' EXIT
+if [ -n "${ARPG_TEST_LOG_DIR:-}" ]; then
+  LOG_DIR="$ARPG_TEST_LOG_DIR"
+  mkdir -p "$LOG_DIR"
+else
+  LOG_DIR="$(mktemp -d)"
+  trap 'rm -rf "$LOG_DIR" 2>/dev/null || true' EXIT
+fi
 
 FAILED=()
 PASSED=()
@@ -104,6 +113,9 @@ for entry in "${SUITES[@]}"; do
   watcher=$!
   wait "$pid" 2>/dev/null
   code=$?
+  if [ "$code" -eq 0 ] && grep -qE 'SCRIPT ERROR|Parse Error|Shader compilation' "$log"; then
+    code=1
+  fi
   kill "$watcher" 2>/dev/null
   wait "$watcher" 2>/dev/null
 

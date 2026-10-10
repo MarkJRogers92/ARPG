@@ -138,19 +138,21 @@ const CAUSES := {"graves": "Bursting graves", "ice": "Falling ice", "meteors": "
 
 
 static func make_warning(parent: Node, at: Vector2, color: Color, ring: float, size: float) -> MeshInstance3D:
-	return make_decal(parent, at, Juice.warning_color(color), ring, size)
+	return make_decal(parent, at, color, ring, size, preload("res://scripts/visual/combat_visuals.gd").warning_material(color, ring))
 
 
-static func make_decal(parent: Node, at: Vector2, color: Color, ring: float, size: float) -> MeshInstance3D:
+static func make_decal(parent: Node, at: Vector2, color: Color, ring: float, size: float, material: ShaderMaterial = null) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(size, size)
 	mi.mesh = plane
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/ground_glow.gdshader")
-	mat.set_shader_parameter("color", color)
-	mat.set_shader_parameter("ring", ring)
-	mat.set_shader_parameter("pulse_speed", 14.0)
+	var mat := material
+	if mat == null:
+		mat = ShaderMaterial.new()
+		mat.shader = load("res://shaders/ground_glow.gdshader")
+		mat.set_shader_parameter("color", color)
+		mat.set_shader_parameter("ring", ring)
+		mat.set_shader_parameter("pulse_speed", 14.0)
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = Vector3(at.x, 0.08, at.y)

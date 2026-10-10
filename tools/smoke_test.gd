@@ -29,6 +29,13 @@ func _initialize() -> void:
 		Realm.current = args[1]
 	print("SMOKE REALM: " + Realm.current)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
+	if args.size() > 2:
+		if args[2] not in HeroClass.ORDER:
+			push_error("Unknown smoke-test class: " + args[2])
+			quit(1)
+			return
+		MetaProgress.forced_class = args[2]
+	print("SMOKE CLASS: " + MetaProgress.current_class())
 	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)

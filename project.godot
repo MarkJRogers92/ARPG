@@ -19,6 +19,11 @@ config/use_custom_user_dir=true
 config/custom_user_dir_name="Godot/app_userdata/ARPG"
 config/icon="res://assets/icon/icon.png"
 
+[visuals]
+
+aegis_battlemage=true
+imported_roster=true
+
 [display]
 
 window/size/viewport_width=1280

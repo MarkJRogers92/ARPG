@@ -15,6 +15,7 @@ func _run() -> void:
 	var width := 1280
 	var height := 720
 	var capture_screen := "town"
+	var hero_class := "battlemage"
 	for arg: String in args:
 		if arg.begins_with("--capture="):
 			capture_path = arg.trim_prefix("--capture=")
@@ -24,6 +25,8 @@ func _run() -> void:
 			height = int(arg.trim_prefix("--height="))
 		elif arg.begins_with("--screen="):
 			capture_screen = arg.trim_prefix("--screen=")
+		elif arg.begins_with("--class="):
+			hero_class = arg.trim_prefix("--class=")
 	if not capture_path.is_empty() and DisplayServer.get_name() == "headless":
 		push_error("Rendered capture requires a windowed renderer; run this test without --headless.")
 		quit(2)
@@ -38,7 +41,7 @@ func _run() -> void:
 	CampaignTown.walk_mode = 1
 	var controller := CampaignController.new()
 	root.add_child(controller)
-	check(controller.create("battlemage", 712008).get("ok", false), "real isolated campaign creates")
+	check(controller.create(hero_class, 712008).get("ok", false), "real isolated campaign creates")
 	var town := CampaignTown.new()
 	root.add_child(town)
 	town.setup(controller)

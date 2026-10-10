@@ -33,7 +33,7 @@ func _ready() -> void:
 	_damage.resize(capacity)
 	_element.resize(capacity)
 	_cause.resize(capacity)
-	var mesh := Models.enemy_orb()
+	var mesh := preload("res://scripts/visual/combat_visuals.gd").hostile_shot_mesh()
 	MultiMeshUtil.setup(self, mesh, capacity, mesh.surface_get_material(0))
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
