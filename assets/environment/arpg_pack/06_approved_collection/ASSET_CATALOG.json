@@ -1,0 +1,417 @@
+{
+  "collection": "Approved Soulbound scenery, October 9 2026",
+  "units": "metres",
+  "coordinates": "Y-up, ground-centred origin, front +Z",
+  "backface_culling": true,
+  "usage": "Static scenery; gameplay placement, collision, kit shading and FX are configured by AssetProps. Masters and builders remain outside the game repository.",
+  "assets": [
+    {
+      "kind": "warden_gravestone",
+      "label": "Soul-marker gravestone",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_gravestone",
+      "bounds_godot_m": [
+        0.7762752771377563,
+        1.059999942779541,
+        0.3824999928474426
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 466,
+      "sha256": "7351cf67064a25b08cca266e3b0ea27c3b997600a0b5d2b6995df64aeeaf4903",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_soul_lantern",
+      "label": "Caged soul lantern",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_soul_lantern",
+      "bounds_godot_m": [
+        0.3799999952316284,
+        0.9520000219345093,
+        0.36000001430511475
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 704,
+      "sha256": "37169fbdbde1d96f4f8f22cbdbf50be3fe7f4277e42d1b51343555f9dfdfb1d6",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_reliquary_chest",
+      "label": "Reliquary chest",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_reliquary_chest",
+      "bounds_godot_m": [
+        1.0199999809265137,
+        0.8600000143051147,
+        0.612500011920929
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 660,
+      "sha256": "0108857d40a659ab553aec7c53cb77ec47883c8ef38e9472ba3dae769aa11890",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_broken_obelisk",
+      "label": "Broken soul obelisk",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_broken_obelisk",
+      "bounds_godot_m": [
+        1.0069113969802856,
+        1.2999999523162842,
+        0.6549999713897705
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 624,
+      "sha256": "6a7c026bc2f41a7c7145df18cabd8d8a3371d30b1269638e07bc4ec9a4e06dcb",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_soul_altar",
+      "label": "Necromancer altar",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_soul_altar",
+      "bounds_godot_m": [
+        1.399999976158142,
+        0.8849999904632568,
+        0.9299999475479126
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1036,
+      "sha256": "4b0f7104c342ddd4a2173b824d863e3fb2d5183c65201c839b6b37133e958d4d",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_bone_barricade",
+      "label": "Bone barricade",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_bone_barricade",
+      "bounds_godot_m": [
+        1.9661771059036255,
+        1.2100942134857178,
+        0.3700000047683716
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 742,
+      "sha256": "755451fad4e61729459fda7282d5265fb30fd674c25f130ac5feb7f8dec683cb",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_mausoleum",
+      "label": "Watcher's mausoleum",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_mausoleum",
+      "bounds_godot_m": [
+        2.359999895095825,
+        2.9800000190734863,
+        1.904772400856018
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1660,
+      "sha256": "e6f932dab7edd37065f2254ae4d247b86fbd1fc31e71b5136f227b9b8b5866a8",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_iron_gate",
+      "label": "Cemetery iron gate",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_iron_gate",
+      "bounds_godot_m": [
+        2.5,
+        2.205000162124634,
+        0.4479089379310608
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1224,
+      "sha256": "348190139aafc0150c35e056723190f952f57d839fd41b3c497290d104022f84",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_sarcophagus",
+      "label": "Sealed sarcophagus",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_sarcophagus",
+      "bounds_godot_m": [
+        0.9409964680671692,
+        0.9720000624656677,
+        1.5956000089645386
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1044,
+      "sha256": "5ab5e363867493baf66835d0991070cac07c4780427796537d759a6f179d6b95",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_soul_brazier",
+      "label": "Soul-fire brazier",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_soul_brazier",
+      "bounds_godot_m": [
+        0.6164982318878174,
+        0.996999979019165,
+        0.6119999885559082
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 804,
+      "sha256": "65e24170d57a3317ed7fa10e83b68f30a3eeca9078090aeeb096ae0c17122ed8",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_grave_fence",
+      "label": "Modular grave fence",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_grave_fence",
+      "bounds_godot_m": [
+        2.190000057220459,
+        1.1380000114440918,
+        0.26945000886917114
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1064,
+      "sha256": "f25294a5bd7b9c2571ec778c6b554421ff743b2d729cd82d00364e95e69a3ca6",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "warden_ritual_circle",
+      "label": "Binding ritual circle",
+      "realm": "graveyard",
+      "path": "06_approved_collection/graveyard/warden_ritual_circle",
+      "bounds_godot_m": [
+        1.8796954154968262,
+        0.2799999713897705,
+        1.8796954154968262
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1256,
+      "sha256": "606b2a0b7e3c7e1ef9b35f55ee0688f1639643ed12e872294a09ddf01da3b6d0",
+      "source_pack": "Soulbound \u2014 Lantern Warden graveyard props II",
+      "source_revision": 2
+    },
+    {
+      "kind": "wastes_frost_shrine",
+      "label": "Frost shrine",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_frost_shrine",
+      "bounds_godot_m": [
+        1.5,
+        1.8000000715255737,
+        1.0
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 440,
+      "sha256": "c7177b0cc2c7023c99d349890334a5b052409f2878ccdd0918f3500eb2df2bac",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "wastes_glacial_cluster",
+      "label": "Glacial crystal cluster",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_glacial_cluster",
+      "bounds_godot_m": [
+        0.9659790396690369,
+        1.5399999618530273,
+        0.731550395488739
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 184,
+      "sha256": "dddbae36bad35f5ba62fcccffa456dfb2ca3022bd3ffb3ac3d7cf79bf6c11200",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "wastes_supply_sled",
+      "label": "Abandoned supply sled",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_supply_sled",
+      "bounds_godot_m": [
+        0.8700000047683716,
+        0.7170000672340393,
+        1.8200000524520874
+      ],
+      "glow_surfaces": 0,
+      "surfaces": 1,
+      "triangles": 840,
+      "sha256": "145a5863595bb4720cdcfd12f8a8b5d2f380e876082efda19953285baf42925f",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "wastes_rune_cairn",
+      "label": "Rune cairn",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_rune_cairn",
+      "bounds_godot_m": [
+        0.7257177829742432,
+        1.1399999856948853,
+        0.5099999904632568
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 324,
+      "sha256": "c306d539997b3869bfc73ed211cd36aae3e45be41f4222db39a9f4f394704139",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "wastes_dead_pine",
+      "label": "Snowbound dead pine",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_dead_pine",
+      "bounds_godot_m": [
+        1.3532469272613525,
+        2.4325692653656006,
+        1.260788083076477
+      ],
+      "glow_surfaces": 0,
+      "surfaces": 1,
+      "triangles": 772,
+      "sha256": "23f873ae7158461415806393bfe06e2dd552377c51597fd4385a996c4c517cec",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "wastes_ice_barricade",
+      "label": "Ice barricade",
+      "realm": "frozen",
+      "path": "06_approved_collection/frozen/wastes_ice_barricade",
+      "bounds_godot_m": [
+        1.8715803623199463,
+        1.3600000143051147,
+        0.5165595412254333
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 294,
+      "sha256": "d9df2afbecb3896ac71cfa31d84b0711aa481e7c3114437f58566b72ce7ffdcb",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_archway",
+      "label": "Rift archway",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_archway",
+      "bounds_godot_m": [
+        2.1760001182556152,
+        2.299999952316284,
+        0.7200000286102295
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1144,
+      "sha256": "e3bec5ec2af81275e6a8b0f8b50f3ce74f4219fd8ecd79264d7aa8ce67b8c29b",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_magma_vent",
+      "label": "Magma vent",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_magma_vent",
+      "bounds_godot_m": [
+        1.2402093410491943,
+        0.6200000047683716,
+        1.0183948278427124
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 564,
+      "sha256": "952f18025477a0e26461fb9aa3cdea5d4b30961b693b33f3a289bbefd500530c",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_crucible_forge",
+      "label": "Crucible forge",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_crucible_forge",
+      "bounds_godot_m": [
+        1.2999999523162842,
+        1.1899999380111694,
+        1.0
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 1040,
+      "sha256": "b5396c1ea55404709417ab8ec5238e634774036ed629547a69133e0ed341c317",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_scorched_waystone",
+      "label": "Scorched waystone",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_scorched_waystone",
+      "bounds_godot_m": [
+        0.7725505232810974,
+        1.5299999713897705,
+        0.5899999737739563
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 256,
+      "sha256": "af5a7f3cdc81162432ce7f989a18a75a071fc2a0d81067fb31c617501152c01e",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_ashen_tree",
+      "label": "Ashen thorn tree",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_ashen_tree",
+      "bounds_godot_m": [
+        1.408691167831421,
+        2.1674649715423584,
+        0.9211165904998779
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 468,
+      "sha256": "f53842d78f561573f75a35b6dbd9633e50eca2c0c786ec193456873592ad3114",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    },
+    {
+      "kind": "rift_obsidian_barricade",
+      "label": "Obsidian barricade",
+      "realm": "ember",
+      "path": "06_approved_collection/ember/rift_obsidian_barricade",
+      "bounds_godot_m": [
+        2.0917999744415283,
+        1.3300000429153442,
+        0.5503637194633484
+      ],
+      "glow_surfaces": 1,
+      "surfaces": 2,
+      "triangles": 354,
+      "sha256": "10cb99d10f622258869bfe787cce55462cbf0eb4443665ac8a557584a2a891fa",
+      "source_pack": "Soulbound \u2014 Frozen Wastes and Ember Rift",
+      "source_revision": 1
+    }
+  ]
+}

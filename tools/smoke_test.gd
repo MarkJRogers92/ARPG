@@ -4,6 +4,7 @@ extends SceneTree
 ##
 ##   godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd
 ##   godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd -- 300   # seconds of game time
+##   godot --headless --path . --fixed-fps 60 -s tools/smoke_test.gd -- 420 frozen  # optional realm
 ##
 ## --fixed-fps makes every frame exactly 1/60 s and removes real-time pacing,
 ## so a minute of game time takes a second or two. Exit code is 0 on success.
@@ -20,6 +21,13 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		_max_frames = int(float(args[0]) * 60.0)
+	if args.size() > 1:
+		if args[1] not in Realm.ORDER:
+			push_error("Unknown smoke-test realm: " + args[1])
+			quit(1)
+			return
+		Realm.current = args[1]
+	print("SMOKE REALM: " + Realm.current)
 	MetaProgress.disabled = true # saved upgrades mustn't change results
 	Realm.in_title = false # straight into a run
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -27,6 +35,8 @@ func _initialize() -> void:
 
 
 func _process(_delta: float) -> bool:
+	if not is_instance_valid(_main):
+		return false
 	_frame += 1
 
 	var heading: String = _WALK[(_frame / 240) % _WALK.size()]
