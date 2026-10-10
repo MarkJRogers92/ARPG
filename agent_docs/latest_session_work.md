@@ -157,3 +157,25 @@ Sol implemented/refined/integrated and reviewed native views; GPT-6 Luna through
 OpenAI drafted layouts and tests; DeepSeek API independently reviewed the delta.
 No premium agents, new paid art generation, installed-app update, publication,
 push or merge.
+
+## 2026-10-10 — Animated creature bestiary review integration
+
+Base: 7029bf935c4fb537d5bf21bc5b58dd41bc91a595, re-fetched and unchanged before
+final QA. Isolated cloud branch: visual/creature-bestiary-animated. Root authored
+this batch directly, without other agents or changes to the user's computer.
+
+Six approved models now have five portable Blender/GLB clips apiece and a
+MultiMesh GPU articulation path in the current game. Two cosmetic appearances
+per realm preserve original roles, statistics, collision and old models.
+Stable admission caps detailed variants at 16 living actors per eligible swarm;
+24 cosmetic death remnants per swarm expire after 0.55 s. No per-enemy skeleton
+nodes, changed RNG consumption, spawn weights, saves or campaign structure.
+
+25/25 suites passed (baseline 24/24); focused creature assertions: 33,150 passed.
+See docs/creatures/validation.md and benchmark.json for runtime evidence,
+performance measurements, smoke diagnostics and remaining target-Mac gate.
+Initial uncapped horde cost was rejected; the capped software comparison costs
+~1–12% mean frame time in 620–1,040-actor fixtures, not a target-device FPS claim.
+Ember's existing dark lighting remains a readability limitation.
+
+No push, merge, release, installed Mac update or user profile modification.
