@@ -139,6 +139,11 @@ var shots: EnemyShots
 ## Optional authored cosmetic alternative, set by the realm before _ready().
 ## An empty/unavailable model keeps every enemy on the procedural mesh.
 @export var specialist_model := ""
+## Optional native-scale articulated creature; legacy appearances still alternate.
+@export var creature_model := ""
+var _creature_active := false
+var _creature_live := 0 # Stable admission budget, never swaps a living appearance.
+var _creature_deaths: CreatureDeaths
 ## Main skin color of the model; also tints its death burst.
 @export var color := Color(0.5, 0.62, 0.42)
 
@@ -252,7 +257,9 @@ func _ready() -> void:
 	}
 	var mat := Models.material("enemy", params, name)
 	MultiMeshUtil.setup(self, Models.enemy(model, color, body_height), capacity, mat)
-	var variant := SpecialistModels.mesh(specialist_model, body_height)
+	var variant := CreatureModels.mesh(creature_model) if not creature_model.is_empty() else null
+	_creature_active = variant != null
+	if variant == null: variant = SpecialistModels.mesh(specialist_model, body_height)
 	if variant != null:
 		if model == "collector": _cosmetic_spawned = 1 # the first debt shows the new signature art
 		var variant_params := params.duplicate()
@@ -267,13 +274,18 @@ func _ready() -> void:
 			# authored albedo and UV-driven warning core; don't relight the realm.
 			variant_params["rim_color"] = Color(0.55, 0.68, 0.82)
 			variant_params["rim_strength"] = 0.65
-		var variant_mat := Models.material("enemy", variant_params, name + "/" + specialist_model)
+		var variant_mat := CreatureModels.material(creature_model,spectral,spectral_color) if _creature_active else Models.material("enemy", variant_params, name + "/" + specialist_model)
 		# MultiMeshUtil.setup sets surface zero. Both imported surfaces must
 		# deform and show the same hit/status cues; UV.x controls their glow.
 		for s in variant.get_surface_count():
 			variant.surface_set_material(s, variant_mat)
 		_variant_layer = MultiMeshUtil.add_layer(self, variant, variant_mat)
 		_variant_layer.layers = 2
+		if _creature_active:
+			_variant_layer.extra_cull_margin = 3.0
+			_creature_deaths = CreatureDeaths.new()
+			add_child(_creature_deaths)
+			_creature_deaths.setup(variant,variant_mat)
 		_plain_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
 		_variant_buffer = MultiMeshUtil.make_buffer(capacity, 0.0)
 		_appearance.resize(capacity)
@@ -331,6 +343,9 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	_next_id += 1
 	if _variant_layer != null:
 		_appearance[count] = _cosmetic_spawned & 1
+		if _creature_active:
+			if _creature_live >= CreatureModels.MAX_LIVE_PER_SWARM: _appearance[count] = 0
+			if _appearance[count] == 1: _creature_live += 1
 		_cosmetic_spawned += 1
 	_push[count] = Vector2.ZERO
 	_advance[count] = 1.0
@@ -508,6 +523,15 @@ func step(delta: float, target: Vector2) -> void:
 			# Opaque imported colors leave alpha available for cosmetic travel.
 			# It never changes stats, facing, collision, statuses or the old gait.
 			buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = clampf(travelled / maxf(step_len, 0.0001), 0.0, 1.0)
+			if _creature_active:
+				if charger and _cstate[i] == 1:
+					buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = 2.0 + clampf(1.0 - _ctime[i] / maxf(charge_windup,0.001),0.0,1.0)
+				elif charger and _cstate[i] == 2:
+					buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = 4.0
+				elif charger and _cstate[i] == 3:
+					buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = 5.0 + clampf(1.0 - _ctime[i] / maxf(charge_recover,0.001),0.0,1.0)
+				elif d2 < pow(radius * _scale[i] + 0.65,2.0):
+					buf[o + MultiMeshUtil.OFFSET_COLOR + 3] = 7.0
 		# Facing turns slowly, so each enemy refreshes it every 4th frame
 		# (inlined MultiMeshUtil.set_facing: this loop is the hot path).
 		if (i + _frame) & 3 == 0:
@@ -600,6 +624,7 @@ func blocked(i: int) -> void:
 
 ## Removes every enemy without a death (no XP, no loot): an escaped goblin.
 func despawn_all() -> void:
+	if _creature_deaths != null: _creature_deaths.clear()
 	for i in count:
 		if hp[i] > 0.0:
 			hp[i] = 0.0
@@ -687,6 +712,8 @@ func mark_afflicted(i: int) -> void:
 
 
 func _die(i: int) -> void:
+	if _creature_active and _appearance[i] == 1:
+		_creature_deaths.capture(_buffer,i,pos[i])
 	_dead.append(i)
 	deaths += 1
 	if fuse_range > 0.0 and _fuse[i] >= 0.0:
@@ -789,6 +816,7 @@ func _flush_dead() -> void:
 	for k in range(_dead.size() - 1, -1, -1):
 		var i := _dead[k]
 		var last := count - 1
+		if _creature_active and _appearance[i] == 1: _creature_live -= 1
 		if i != last:
 			pos[i] = pos[last]
 			hp[i] = hp[last]

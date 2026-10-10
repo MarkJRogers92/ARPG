@@ -46,6 +46,7 @@ SUITES=(
   "tools/skill_ui_test.gd"
   "tools/objective_props_test.gd"
   "tools/specialist_variants_test.gd"
+  "tools/creature_variants_test.gd"
   "tools/resume_test.gd"
   "tools/menu_polish_ui_test.gd -- --screen=behavior"
   "tools/campaign_backdrop_test.gd"

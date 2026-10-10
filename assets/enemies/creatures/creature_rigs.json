@@ -1,0 +1,2450 @@
+{
+  "coffin_crawler": {
+    "bones": [
+      {
+        "name": "coffin_crawler_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "coffin_crawler_lid",
+        "pivot_blender": [
+          -0.39,
+          0,
+          0.798890193849802
+        ],
+        "pivot": [
+          -0.39,
+          0.798890193849802,
+          0
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0.025,
+        "attack": -0.38,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.36
+      },
+      {
+        "name": "coffin_crawler_head",
+        "pivot_blender": [
+          0.2,
+          0.42,
+          0.698890193849802
+        ],
+        "pivot": [
+          0.2,
+          0.698890193849802,
+          -0.42
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.025,
+        "attack": 0.16,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "coffin_crawler_arm_-1_0",
+        "pivot_blender": [
+          -0.35,
+          -0.46,
+          0.618890193849802
+        ],
+        "pivot": [
+          -0.35,
+          0.618890193849802,
+          0.46
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.26,
+        "idle": 0,
+        "attack": -0.15,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "coffin_crawler_forearm_-1_0",
+        "pivot_blender": [
+          -0.79,
+          -0.66,
+          0.36889019384980204
+        ],
+        "pivot": [
+          -0.79,
+          0.36889019384980204,
+          0.66
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.17,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 3,
+        "bend": 0.22,
+        "death": 0.3
+      },
+      {
+        "name": "coffin_crawler_arm_-1_1",
+        "pivot_blender": [
+          -0.35,
+          0.4,
+          0.618890193849802
+        ],
+        "pivot": [
+          -0.35,
+          0.618890193849802,
+          -0.4
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.26,
+        "idle": 0,
+        "attack": -0.15,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "coffin_crawler_forearm_-1_1",
+        "pivot_blender": [
+          -0.79,
+          0.2,
+          0.36889019384980204
+        ],
+        "pivot": [
+          -0.79,
+          0.36889019384980204,
+          -0.2
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.17,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 5,
+        "bend": 0.22,
+        "death": 0.3
+      },
+      {
+        "name": "coffin_crawler_arm_1_0",
+        "pivot_blender": [
+          0.35,
+          -0.46,
+          0.618890193849802
+        ],
+        "pivot": [
+          0.35,
+          0.618890193849802,
+          0.46
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.26,
+        "idle": 0,
+        "attack": -0.15,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "coffin_crawler_forearm_1_0",
+        "pivot_blender": [
+          0.79,
+          -0.66,
+          0.36889019384980204
+        ],
+        "pivot": [
+          0.79,
+          0.36889019384980204,
+          0.66
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.17,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 7,
+        "bend": 0.22,
+        "death": 0.3
+      },
+      {
+        "name": "coffin_crawler_arm_1_1",
+        "pivot_blender": [
+          0.35,
+          0.4,
+          0.618890193849802
+        ],
+        "pivot": [
+          0.35,
+          0.618890193849802,
+          -0.4
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.26,
+        "idle": 0,
+        "attack": -0.15,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "coffin_crawler_forearm_1_1",
+        "pivot_blender": [
+          0.79,
+          0.2,
+          0.36889019384980204
+        ],
+        "pivot": [
+          0.79,
+          0.36889019384980204,
+          -0.2
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.17,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 9,
+        "bend": 0.22,
+        "death": 0.3
+      }
+    ],
+    "hover": 0.0,
+    "speed": 1.7,
+    "triangle_count": 1832,
+    "native_height": 1.2388901710510254
+  },
+  "gallows_raven": {
+    "bones": [
+      {
+        "name": "gallows_raven_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "gallows_raven_wing_-1",
+        "pivot_blender": [
+          -0.17,
+          0.06,
+          0.9082171392440797
+        ],
+        "pivot": [
+          -0.17,
+          0.9082171392440797,
+          -0.06
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": -0.42,
+        "idle": -0.15,
+        "attack": 0.5,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.9
+      },
+      {
+        "name": "gallows_raven_wing_1",
+        "pivot_blender": [
+          0.17,
+          0.06,
+          0.9082171392440797
+        ],
+        "pivot": [
+          0.17,
+          0.9082171392440797,
+          -0.06
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0.42,
+        "idle": 0.15,
+        "attack": -0.5,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.9
+      },
+      {
+        "name": "gallows_raven_head",
+        "pivot_blender": [
+          0,
+          0.3,
+          0.9682171392440795
+        ],
+        "pivot": [
+          0,
+          0.9682171392440795,
+          -0.3
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.025,
+        "attack": 0.45,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "gallows_raven_bell",
+        "pivot_blender": [
+          0,
+          0.34,
+          0.9482171392440797
+        ],
+        "pivot": [
+          0,
+          0.9482171392440797,
+          -0.34
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.13,
+        "idle": 0.08,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "gallows_raven_tail",
+        "pivot_blender": [
+          0,
+          -0.22,
+          0.6882171392440796
+        ],
+        "pivot": [
+          0,
+          0.6882171392440796,
+          0.22
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.08,
+        "idle": 0.035,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "gallows_raven_foot_-1",
+        "pivot_blender": [
+          -0.1,
+          0.03,
+          0.4782171392440796
+        ],
+        "pivot": [
+          -0.1,
+          0.4782171392440796,
+          -0.03
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.12,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.45
+      },
+      {
+        "name": "gallows_raven_foot_1",
+        "pivot_blender": [
+          0.1,
+          0.03,
+          0.4782171392440796
+        ],
+        "pivot": [
+          0.1,
+          0.4782171392440796,
+          -0.03
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.12,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.45
+      }
+    ],
+    "hover": 0.45,
+    "speed": 1.7,
+    "triangle_count": 970,
+    "native_height": 1.3282171487808228
+  },
+  "rime_widow": {
+    "bones": [
+      {
+        "name": "rime_widow_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "rime_widow_leg_-1_0",
+        "pivot_blender": [
+          -0.22,
+          0.33,
+          0.5069696709513665
+        ],
+        "pivot": [
+          -0.22,
+          0.5069696709513665,
+          -0.33
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.65
+      },
+      {
+        "name": "rime_widow_shin_-1_0",
+        "pivot_blender": [
+          -0.63,
+          0.43000000000000005,
+          0.7869696709513664
+        ],
+        "pivot": [
+          -0.63,
+          0.7869696709513664,
+          -0.43000000000000005
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 1,
+        "bend": 0.25,
+        "death": 0.6
+      },
+      {
+        "name": "rime_widow_leg_-1_1",
+        "pivot_blender": [
+          -0.22,
+          0.11000000000000001,
+          0.5069696709513665
+        ],
+        "pivot": [
+          -0.22,
+          0.5069696709513665,
+          -0.11000000000000001
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.65
+      },
+      {
+        "name": "rime_widow_shin_-1_1",
+        "pivot_blender": [
+          -0.77,
+          0.21000000000000002,
+          0.7869696709513664
+        ],
+        "pivot": [
+          -0.77,
+          0.7869696709513664,
+          -0.21000000000000002
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 3,
+        "bend": 0.25,
+        "death": 0.6
+      },
+      {
+        "name": "rime_widow_leg_-1_2",
+        "pivot_blender": [
+          -0.22,
+          -0.10999999999999999,
+          0.5069696709513665
+        ],
+        "pivot": [
+          -0.22,
+          0.5069696709513665,
+          0.10999999999999999
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.65
+      },
+      {
+        "name": "rime_widow_shin_-1_2",
+        "pivot_blender": [
+          -0.77,
+          -0.009999999999999981,
+          0.7869696709513664
+        ],
+        "pivot": [
+          -0.77,
+          0.7869696709513664,
+          0.009999999999999981
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 5,
+        "bend": 0.25,
+        "death": 0.6
+      },
+      {
+        "name": "rime_widow_leg_-1_3",
+        "pivot_blender": [
+          -0.22,
+          -0.33,
+          0.5069696709513665
+        ],
+        "pivot": [
+          -0.22,
+          0.5069696709513665,
+          0.33
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.65
+      },
+      {
+        "name": "rime_widow_shin_-1_3",
+        "pivot_blender": [
+          -0.63,
+          -0.23,
+          0.7869696709513664
+        ],
+        "pivot": [
+          -0.63,
+          0.7869696709513664,
+          0.23
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 7,
+        "bend": 0.25,
+        "death": 0.6
+      },
+      {
+        "name": "rime_widow_fang_-1",
+        "pivot_blender": [
+          -0.13,
+          0.4,
+          0.41696967095136644
+        ],
+        "pivot": [
+          -0.13,
+          0.41696967095136644,
+          -0.4
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": -0.02,
+        "attack": 0.35,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "rime_widow_leg_1_0",
+        "pivot_blender": [
+          0.22,
+          0.33,
+          0.5069696709513665
+        ],
+        "pivot": [
+          0.22,
+          0.5069696709513665,
+          -0.33
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.65
+      },
+      {
+        "name": "rime_widow_shin_1_0",
+        "pivot_blender": [
+          0.63,
+          0.43000000000000005,
+          0.7869696709513664
+        ],
+        "pivot": [
+          0.63,
+          0.7869696709513664,
+          -0.43000000000000005
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 10,
+        "bend": -0.25,
+        "death": -0.6
+      },
+      {
+        "name": "rime_widow_leg_1_1",
+        "pivot_blender": [
+          0.22,
+          0.11000000000000001,
+          0.5069696709513665
+        ],
+        "pivot": [
+          0.22,
+          0.5069696709513665,
+          -0.11000000000000001
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.65
+      },
+      {
+        "name": "rime_widow_shin_1_1",
+        "pivot_blender": [
+          0.77,
+          0.21000000000000002,
+          0.7869696709513664
+        ],
+        "pivot": [
+          0.77,
+          0.7869696709513664,
+          -0.21000000000000002
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 12,
+        "bend": -0.25,
+        "death": -0.6
+      },
+      {
+        "name": "rime_widow_leg_1_2",
+        "pivot_blender": [
+          0.22,
+          -0.10999999999999999,
+          0.5069696709513665
+        ],
+        "pivot": [
+          0.22,
+          0.5069696709513665,
+          0.10999999999999999
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.65
+      },
+      {
+        "name": "rime_widow_shin_1_2",
+        "pivot_blender": [
+          0.77,
+          -0.009999999999999981,
+          0.7869696709513664
+        ],
+        "pivot": [
+          0.77,
+          0.7869696709513664,
+          0.009999999999999981
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 14,
+        "bend": -0.25,
+        "death": -0.6
+      },
+      {
+        "name": "rime_widow_leg_1_3",
+        "pivot_blender": [
+          0.22,
+          -0.33,
+          0.5069696709513665
+        ],
+        "pivot": [
+          0.22,
+          0.5069696709513665,
+          0.33
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.24,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.65
+      },
+      {
+        "name": "rime_widow_shin_1_3",
+        "pivot_blender": [
+          0.63,
+          -0.23,
+          0.7869696709513664
+        ],
+        "pivot": [
+          0.63,
+          0.7869696709513664,
+          0.23
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 16,
+        "bend": -0.25,
+        "death": -0.6
+      },
+      {
+        "name": "rime_widow_fang_1",
+        "pivot_blender": [
+          0.13,
+          0.4,
+          0.41696967095136644
+        ],
+        "pivot": [
+          0.13,
+          0.41696967095136644,
+          -0.4
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.02,
+        "attack": -0.35,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      }
+    ],
+    "hover": 0.0,
+    "speed": 2.5,
+    "triangle_count": 928,
+    "native_height": 0.9969696402549744
+  },
+  "antler_revenant": {
+    "bones": [
+      {
+        "name": "antler_revenant_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "antler_revenant_leg_-1_0",
+        "pivot_blender": [
+          -0.23,
+          0.27,
+          1.15
+        ],
+        "pivot": [
+          -0.23,
+          1.15,
+          -0.27
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.32,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "antler_revenant_shin_-1_0",
+        "pivot_blender": [
+          -0.27,
+          0.4,
+          0.63
+        ],
+        "pivot": [
+          -0.27,
+          0.63,
+          -0.4
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.19,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 1,
+        "bend": 0.25,
+        "death": 0.4
+      },
+      {
+        "name": "antler_revenant_leg_-1_1",
+        "pivot_blender": [
+          -0.23,
+          -0.48,
+          1.15
+        ],
+        "pivot": [
+          -0.23,
+          1.15,
+          0.48
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.32,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "antler_revenant_shin_-1_1",
+        "pivot_blender": [
+          -0.27,
+          -0.6,
+          0.63
+        ],
+        "pivot": [
+          -0.27,
+          0.63,
+          0.6
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.19,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 3,
+        "bend": 0.25,
+        "death": 0.4
+      },
+      {
+        "name": "antler_revenant_leg_1_0",
+        "pivot_blender": [
+          0.23,
+          0.27,
+          1.15
+        ],
+        "pivot": [
+          0.23,
+          1.15,
+          -0.27
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.32,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "antler_revenant_shin_1_0",
+        "pivot_blender": [
+          0.27,
+          0.4,
+          0.63
+        ],
+        "pivot": [
+          0.27,
+          0.63,
+          -0.4
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.19,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 5,
+        "bend": 0.25,
+        "death": 0.4
+      },
+      {
+        "name": "antler_revenant_leg_1_1",
+        "pivot_blender": [
+          0.23,
+          -0.48,
+          1.15
+        ],
+        "pivot": [
+          0.23,
+          1.15,
+          0.48
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.32,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "antler_revenant_shin_1_1",
+        "pivot_blender": [
+          0.27,
+          -0.6,
+          0.63
+        ],
+        "pivot": [
+          0.27,
+          0.63,
+          0.6
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": -0.19,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 7,
+        "bend": 0.25,
+        "death": 0.4
+      },
+      {
+        "name": "antler_revenant_head",
+        "pivot_blender": [
+          0,
+          0.28,
+          1.33
+        ],
+        "pivot": [
+          0,
+          1.33,
+          -0.28
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.02,
+        "idle": 0.018,
+        "attack": 0.65,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.65
+      }
+    ],
+    "hover": 0.0,
+    "speed": 1.7,
+    "triangle_count": 1500,
+    "native_height": 2.5419554710388184
+  },
+  "slag_scorpion": {
+    "bones": [
+      {
+        "name": "slag_scorpion_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "slag_scorpion_leg_-1_0",
+        "pivot_blender": [
+          -0.27,
+          0.24,
+          0.4302821169048548
+        ],
+        "pivot": [
+          -0.27,
+          0.4302821169048548,
+          -0.24
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.55
+      },
+      {
+        "name": "slag_scorpion_shin_-1_0",
+        "pivot_blender": [
+          -0.61,
+          0.13,
+          0.3702821169048548
+        ],
+        "pivot": [
+          -0.61,
+          0.3702821169048548,
+          -0.13
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 1,
+        "bend": 0.3,
+        "death": 0.65
+      },
+      {
+        "name": "slag_scorpion_leg_-1_1",
+        "pivot_blender": [
+          -0.27,
+          -0.09000000000000002,
+          0.4302821169048548
+        ],
+        "pivot": [
+          -0.27,
+          0.4302821169048548,
+          0.09000000000000002
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.55
+      },
+      {
+        "name": "slag_scorpion_shin_-1_1",
+        "pivot_blender": [
+          -0.61,
+          -0.2,
+          0.3702821169048548
+        ],
+        "pivot": [
+          -0.61,
+          0.3702821169048548,
+          0.2
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 6.283185307179586,
+        "parent": 3,
+        "bend": 0.3,
+        "death": 0.65
+      },
+      {
+        "name": "slag_scorpion_leg_-1_2",
+        "pivot_blender": [
+          -0.27,
+          -0.42000000000000004,
+          0.4302821169048548
+        ],
+        "pivot": [
+          -0.27,
+          0.4302821169048548,
+          0.42000000000000004
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.55
+      },
+      {
+        "name": "slag_scorpion_shin_-1_2",
+        "pivot_blender": [
+          -0.61,
+          -0.53,
+          0.3702821169048548
+        ],
+        "pivot": [
+          -0.61,
+          0.3702821169048548,
+          0.53
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 5,
+        "bend": 0.3,
+        "death": 0.65
+      },
+      {
+        "name": "slag_scorpion_pincer_arm_-1",
+        "pivot_blender": [
+          -0.2,
+          0.39,
+          0.44028211690485475
+        ],
+        "pivot": [
+          -0.2,
+          0.44028211690485475,
+          -0.39
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": -0.05,
+        "idle": 0,
+        "attack": 0.2,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.35
+      },
+      {
+        "name": "slag_scorpion_outer_pincer_-1",
+        "pivot_blender": [
+          -0.72,
+          1.08,
+          0.46028211690485477
+        ],
+        "pivot": [
+          -0.72,
+          0.46028211690485477,
+          -1.08
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": -0.06,
+        "attack": 0.3,
+        "phase": 0,
+        "parent": 7,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "slag_scorpion_inner_pincer_-1",
+        "pivot_blender": [
+          -0.59,
+          1.1,
+          0.46028211690485477
+        ],
+        "pivot": [
+          -0.59,
+          0.46028211690485477,
+          -1.1
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.03,
+        "attack": -0.3,
+        "phase": 0,
+        "parent": 7,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "slag_scorpion_leg_1_0",
+        "pivot_blender": [
+          0.27,
+          0.24,
+          0.4302821169048548
+        ],
+        "pivot": [
+          0.27,
+          0.4302821169048548,
+          -0.24
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "slag_scorpion_shin_1_0",
+        "pivot_blender": [
+          0.61,
+          0.13,
+          0.3702821169048548
+        ],
+        "pivot": [
+          0.61,
+          0.3702821169048548,
+          -0.13
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 10,
+        "bend": -0.3,
+        "death": -0.65
+      },
+      {
+        "name": "slag_scorpion_leg_1_1",
+        "pivot_blender": [
+          0.27,
+          -0.09000000000000002,
+          0.4302821169048548
+        ],
+        "pivot": [
+          0.27,
+          0.4302821169048548,
+          0.09000000000000002
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "slag_scorpion_shin_1_1",
+        "pivot_blender": [
+          0.61,
+          -0.2,
+          0.3702821169048548
+        ],
+        "pivot": [
+          0.61,
+          0.3702821169048548,
+          0.2
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 12,
+        "bend": -0.3,
+        "death": -0.65
+      },
+      {
+        "name": "slag_scorpion_leg_1_2",
+        "pivot_blender": [
+          0.27,
+          -0.42000000000000004,
+          0.4302821169048548
+        ],
+        "pivot": [
+          0.27,
+          0.4302821169048548,
+          0.42000000000000004
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.55
+      },
+      {
+        "name": "slag_scorpion_shin_1_2",
+        "pivot_blender": [
+          0.61,
+          -0.53,
+          0.3702821169048548
+        ],
+        "pivot": [
+          0.61,
+          0.3702821169048548,
+          0.53
+        ],
+        "axis_blender": [
+          0,
+          1,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "walk": 0,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0.0,
+        "parent": 14,
+        "bend": -0.3,
+        "death": -0.65
+      },
+      {
+        "name": "slag_scorpion_pincer_arm_1",
+        "pivot_blender": [
+          0.2,
+          0.39,
+          0.44028211690485475
+        ],
+        "pivot": [
+          0.2,
+          0.44028211690485475,
+          -0.39
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.05,
+        "idle": 0,
+        "attack": -0.2,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.35
+      },
+      {
+        "name": "slag_scorpion_outer_pincer_1",
+        "pivot_blender": [
+          0.72,
+          1.08,
+          0.46028211690485477
+        ],
+        "pivot": [
+          0.72,
+          0.46028211690485477,
+          -1.08
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.06,
+        "attack": -0.3,
+        "phase": 0,
+        "parent": 16,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "slag_scorpion_inner_pincer_1",
+        "pivot_blender": [
+          0.59,
+          1.1,
+          0.46028211690485477
+        ],
+        "pivot": [
+          0.59,
+          0.46028211690485477,
+          -1.1
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0,
+        "idle": -0.03,
+        "attack": 0.3,
+        "phase": 0,
+        "parent": 16,
+        "bend": 0,
+        "death": 0
+      },
+      {
+        "name": "slag_scorpion_tail_0",
+        "pivot_blender": [
+          0,
+          -0.62,
+          0.4702821169048548
+        ],
+        "pivot": [
+          0,
+          0.4702821169048548,
+          0.62
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": -0.09
+      },
+      {
+        "name": "slag_scorpion_tail_1",
+        "pivot_blender": [
+          0,
+          -0.89,
+          0.6302821169048548
+        ],
+        "pivot": [
+          0,
+          0.6302821169048548,
+          0.89
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 19,
+        "bend": 0,
+        "death": -0.09
+      },
+      {
+        "name": "slag_scorpion_tail_2",
+        "pivot_blender": [
+          0,
+          -1.03,
+          0.9102821169048547
+        ],
+        "pivot": [
+          0,
+          0.9102821169048547,
+          1.03
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 20,
+        "bend": 0,
+        "death": -0.09
+      },
+      {
+        "name": "slag_scorpion_tail_3",
+        "pivot_blender": [
+          0,
+          -1.0,
+          1.2002821169048548
+        ],
+        "pivot": [
+          0,
+          1.2002821169048548,
+          1.0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 21,
+        "bend": 0,
+        "death": -0.09
+      },
+      {
+        "name": "slag_scorpion_tail_4",
+        "pivot_blender": [
+          0,
+          -0.82,
+          1.4502821169048548
+        ],
+        "pivot": [
+          0,
+          1.4502821169048548,
+          0.82
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 22,
+        "bend": 0,
+        "death": -0.09
+      },
+      {
+        "name": "slag_scorpion_tail_5",
+        "pivot_blender": [
+          0,
+          -0.54,
+          1.5202821169048548
+        ],
+        "pivot": [
+          0,
+          1.5202821169048548,
+          0.54
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.012,
+        "idle": 0.01,
+        "attack": 0.065,
+        "phase": 0,
+        "parent": 23,
+        "bend": 0,
+        "death": -0.09
+      }
+    ],
+    "hover": 0.0,
+    "speed": 2.5,
+    "triangle_count": 964,
+    "native_height": 1.5802819728851318
+  },
+  "furnace_tortoise": {
+    "bones": [
+      {
+        "name": "furnace_tortoise_root",
+        "pivot_blender": [
+          0,
+          0,
+          0.0
+        ],
+        "pivot": [
+          0,
+          0.0,
+          0
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.006,
+        "attack": 0.05,
+        "phase": 0,
+        "parent": -1,
+        "bend": 0,
+        "death": 0.08
+      },
+      {
+        "name": "furnace_tortoise_leg_-1_0",
+        "pivot_blender": [
+          -0.43,
+          0.43,
+          0.48
+        ],
+        "pivot": [
+          -0.43,
+          0.48,
+          -0.43
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "furnace_tortoise_leg_-1_1",
+        "pivot_blender": [
+          -0.43,
+          -0.43,
+          0.48
+        ],
+        "pivot": [
+          -0.43,
+          0.48,
+          0.43
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "furnace_tortoise_leg_1_0",
+        "pivot_blender": [
+          0.43,
+          0.43,
+          0.48
+        ],
+        "pivot": [
+          0.43,
+          0.48,
+          -0.43
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "furnace_tortoise_leg_1_1",
+        "pivot_blender": [
+          0.43,
+          -0.43,
+          0.48
+        ],
+        "pivot": [
+          0.43,
+          0.48,
+          0.43
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0.22,
+        "idle": 0,
+        "attack": 0,
+        "phase": 3.141592653589793,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.5
+      },
+      {
+        "name": "furnace_tortoise_head",
+        "pivot_blender": [
+          0,
+          0.46,
+          0.53
+        ],
+        "pivot": [
+          0,
+          0.53,
+          -0.46
+        ],
+        "axis_blender": [
+          1,
+          0,
+          0
+        ],
+        "axis": [
+          1,
+          0,
+          0
+        ],
+        "walk": 0,
+        "idle": 0.025,
+        "attack": 0.32,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0.6
+      },
+      {
+        "name": "furnace_tortoise_tail",
+        "pivot_blender": [
+          0,
+          -0.62,
+          0.42
+        ],
+        "pivot": [
+          0,
+          0.42,
+          0.62
+        ],
+        "axis_blender": [
+          0,
+          0,
+          1
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "walk": 0.08,
+        "idle": 0.04,
+        "attack": 0,
+        "phase": 0,
+        "parent": 0,
+        "bend": 0,
+        "death": 0
+      }
+    ],
+    "hover": 0.0,
+    "speed": 1.7,
+    "triangle_count": 1050,
+    "native_height": 1.472999930381775
+  }
+}
