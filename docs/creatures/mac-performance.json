@@ -1,0 +1,117 @@
+{
+  "device": "Apple M2",
+  "engine": "4.7.2-stable (official)",
+  "render_texture_size": [
+    1280,
+    720
+  ],
+  "baseline_sha": "7029bf935c4fb537d5bf21bc5b58dd41bc91a595",
+  "new_sha": "0d756c6",
+  "seed": 38289,
+  "frames_per_run": 270,
+  "warmup_discarded": 60,
+  "comparisons": [
+    {
+      "realm": "graveyard",
+      "scenario": "horde",
+      "enemies": 1040,
+      "allies": 0,
+      "old_mean_ms": 12.833019047619,
+      "new_mean_ms": 13.2875714285714,
+      "change_percent": 3.5420533489875616,
+      "old_p95_ms": 14.088,
+      "new_p95_ms": 15.067,
+      "forced_deaths": 0,
+      "max_remnants_per_swarm": 0
+    },
+    {
+      "realm": "frozen",
+      "scenario": "horde",
+      "enemies": 620,
+      "allies": 0,
+      "old_mean_ms": 12.1119904761905,
+      "new_mean_ms": 13.0315476190476,
+      "change_percent": 7.592122406839286,
+      "old_p95_ms": 14.21,
+      "new_p95_ms": 14.57,
+      "forced_deaths": 0,
+      "max_remnants_per_swarm": 0
+    },
+    {
+      "realm": "ember",
+      "scenario": "horde",
+      "enemies": 1000,
+      "allies": 0,
+      "old_mean_ms": 13.6272333333333,
+      "new_mean_ms": 10.4124666666667,
+      "change_percent": -23.590750873862433,
+      "old_p95_ms": 14.415,
+      "new_p95_ms": 14.319,
+      "forced_deaths": 0,
+      "max_remnants_per_swarm": 0
+    },
+    {
+      "realm": "graveyard",
+      "scenario": "bursts",
+      "enemies": 1040,
+      "allies": 32,
+      "old_mean_ms": 18.3894523809524,
+      "new_mean_ms": 18.2304619047619,
+      "change_percent": -0.8645742836539294,
+      "old_p95_ms": 30.167,
+      "new_p95_ms": 29.059,
+      "forced_deaths": 1344,
+      "max_remnants_per_swarm": 16
+    },
+    {
+      "realm": "frozen",
+      "scenario": "bursts",
+      "enemies": 620,
+      "allies": 32,
+      "old_mean_ms": 14.9084523809524,
+      "new_mean_ms": 18.2142571428571,
+      "change_percent": 22.17403039183543,
+      "old_p95_ms": 27.429,
+      "new_p95_ms": 30.486,
+      "forced_deaths": 1024,
+      "max_remnants_per_swarm": 20
+    },
+    {
+      "realm": "ember",
+      "scenario": "bursts",
+      "enemies": 1000,
+      "allies": 32,
+      "old_mean_ms": 16.7945714285714,
+      "new_mean_ms": 17.7223476190476,
+      "change_percent": 5.524262375030564,
+      "old_p95_ms": 29.85,
+      "new_p95_ms": 28.976,
+      "forced_deaths": 1024,
+      "max_remnants_per_swarm": 24
+    }
+  ],
+  "limitations": "One serial matched pair per realm and scenario on the Mac GPU. Short automated Main-scene fixtures, VSync disabled and fixed simulation timestep; not a sustained gameplay FPS guarantee. Bursts include 32 allied actors and repeated replenishment.",
+  "frozen_reversed_repeat": {
+    "old": {
+      "mean_ms": 16.8914142857143,
+      "p95_ms": 29.239,
+      "samples": 210
+    },
+    "new": {
+      "mean_ms": 17.4886857142857,
+      "p95_ms": 29.757,
+      "samples": 210
+    }
+  },
+  "validation_source_sha": "0d756c6abc709aae875a715bb903b124d99c5e9d",
+  "suites": {
+    "passed": 25,
+    "failed": 0,
+    "creature_assertions": 33174
+  },
+  "smokes": {
+    "graveyard": "SMOKE TEST PASSED  (died=false, kills=10291, upgrades taken=39)",
+    "frozen": "SMOKE TEST PASSED  (died=false, kills=7065, upgrades taken=34)",
+    "ember": "SMOKE TEST PASSED  (died=true, kills=4623, upgrades taken=20)"
+  }
+}
