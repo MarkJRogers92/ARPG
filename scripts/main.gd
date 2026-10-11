@@ -124,6 +124,13 @@ var _wager_panel: WagerPanel
 var _gem_streak := 0
 var _gem_streak_time := 0.0
 var _hurt_sound := 0.0
+const BANISH_LIMIT := 2
+var _banishes_left := BANISH_LIMIT
+var _banished: Array[String] = []
+var _shown_upgrades: Array[Dictionary] = []
+var _phase_reward_pending := false
+var _phase_reward_done := false
+var _army_rally_in := 0.0
 
 
 func _enter_tree() -> void:
@@ -133,11 +140,13 @@ func _enter_tree() -> void:
 		Realm.daily = false
 		Realm.in_title = false
 	# Before the swarms' _ready(), so they build the realm's models.
+	Elements.reset()
 	Realm.apply_gameplay(self)
 	# And so they draw their warnings the way the settings say.
 	MetaProgress.load_save()
 	Juice.calm = MetaProgress.setting("calm")
 	Juice.bold_telegraphs = MetaProgress.setting("bold_telegraphs")
+	Juice.set_friendly_opacity(MetaProgress.setting("friendly_opacity"))
 	if _campaign:
 		var loadout: Dictionary = expedition_spec.get("starting_loadout", {})
 		_hero_class = String(loadout.get("hero_class", MetaProgress.current_class()))
@@ -182,6 +191,7 @@ func _ready() -> void:
 		var class_data := HeroClass.data(_hero_class)
 		_player.set_class_look(class_data["look"], class_data["weapon"], class_data["accent"])
 	_director.setup(_swarms)
+	_director.phase_changed.connect(_on_mission_phase)
 	Elements.player = _player
 	Elements.swarms = _swarms
 	_army.setup(_player, _swarms)
@@ -208,9 +218,11 @@ func _ready() -> void:
 		if swarm.boss and swarm != _final:
 			_bosses.setup(swarm, _director, _player)
 	_bosses.setup_final(_final, _shots, $Grunts)
+	_director.configure_rhythm(_bosses.run_length, "hunt")
 	_hazards.setup(_director, _player, $Grunts)
 	_events.setup(_director, _player, _loot, _gems, _goblins, _swarms)
 	_events.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_events.reward_revealed.connect(_hud.reveal_reward)
 	for swarm in _swarms:
 		if swarm.charger:
 			swarm.charged_hero.connect(_on_charged.bind(swarm))
@@ -286,6 +298,7 @@ func _ready() -> void:
 	_player.dashed.connect(func() -> void:
 		_fx.burst(_player.pos2, 0.6, Color(0.5, 0.8, 1.0), 12, 4.0, 0.45, 0.4, 1.0))
 	_hud.reroll_requested.connect(_on_reroll)
+	_hud.banish_requested.connect(_on_banish)
 	_player.leveled_up.connect(func() -> void:
 		Sound.play("levelup")
 		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
@@ -355,6 +368,8 @@ func _ready() -> void:
 		_title.open()
 	else:
 		_title.close()
+		if _resume.is_empty():
+			_hud.toast(HeroClass.SIGNATURES[_hero_class] if _player.challenge_id == "" else "TACTIC TRIAL · " + TacticTrials.DEFS[_player.challenge_id]["restriction"], UiStyle.GOLD)
 
 
 func _apply_expedition_loadout_before_tree(loadout: Dictionary) -> void:
@@ -364,7 +379,8 @@ func _apply_expedition_loadout_before_tree(loadout: Dictionary) -> void:
 	_relic = String(profile_snapshot.get("relic", ""))
 	var specialization := String(loadout.get("specialization", ""))
 	_spec_chosen = specialization != ""
-	CampaignLoadout.apply(player, _hero_class, loadout, expedition_spec.get("effects", []))
+	CampaignLoadout.apply(player, _hero_class, loadout, expedition_spec.get("effects", []), str(expedition_spec.get("contract_id", "")))
+	player.recovery_charge = str(expedition_spec.get("preparation", "")) == "recovery"
 
 
 func _raise_expedition_veteran(loadout: Dictionary) -> void:
@@ -408,6 +424,11 @@ func _setup_expedition() -> void:
 	_expedition.configure(expedition_spec, self, _player, _director, _bosses, _swarms)
 	_expedition_loot_rng.seed = int(expedition_spec.get("mission_seed", 1)) ^ 0x51A7
 	_loot.set_campaign_rng(_expedition_loot_rng)
+	_events.configure_opportunity(expedition_spec.get("opportunity_roll", {}), str(expedition_spec.get("attempt_id", "")))
+	var recruits := (3 if _player.challenge_id == "trial_army" else 0) + (2 if expedition_spec.get("preparation", "") == "recruits" else 0)
+	if recruits > 0:
+		var kind := _army.type_index(_grunts)
+		for i in recruits: _army._raise(kind, false, false)
 	_hud.set_omen("EXPEDITION  ·  %s" % String(expedition_spec.get("profile_id", "ROUTE")).replace("_", " ").to_upper(),
 		String(expedition_spec.get("contract_id", "hunt")).replace("_", " ").to_upper(), UiStyle.GOLD, 0)
 
@@ -468,6 +489,7 @@ func _finish_expedition_frame() -> void:
 		candidate.erase("slot")
 	_expedition_result["veteran"] = candidate
 	_expedition_result["report"] = {"kills": kills, "level": _player.stats.level, "realm": Realm.current,
+		"combat_metrics": Elements.metrics.report(),
 		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
 		"died": _player.dead, "last_cause": _player.last_cause,
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
@@ -502,6 +524,7 @@ func apply_settings() -> void:
 	Juice.numbers = $DamageNumbers if MetaProgress.setting("numbers") else null
 	Juice.calm = MetaProgress.setting("calm")
 	Juice.bold_telegraphs = MetaProgress.setting("bold_telegraphs")
+	Juice.set_friendly_opacity(MetaProgress.setting("friendly_opacity"))
 	_player.aim_assist = float(MetaProgress.setting("aim_assist"))
 	for swarm in _swarms:
 		swarm.refresh_warnings()
@@ -543,6 +566,9 @@ func _process(delta: float) -> void:
 		_market_frame(delta)
 		return
 	elapsed += delta
+	var available := CombatLedger.available(_player.stats, _army.count, _player.challenge_id, _swarms)
+	if _player.warding_charge_left > 0.0: available.append("Warding Dash")
+	Elements.metrics.tick(delta, available)
 
 	_player.tick(delta)
 	var origin := _player.pos2
@@ -553,8 +579,14 @@ func _process(delta: float) -> void:
 	_projectiles.step(delta, _swarms)
 	_shots.step(delta, _player)
 	_army.step(delta)
+	_flush_build_synergies()
 	Elements.flush()
 	_army.flush()
+	if _player.challenge_id == "trial_army":
+		_army_rally_in = maxf(_army_rally_in - delta, 0.0)
+		if _army.count == 0 and _army_rally_in <= 0.0 and not _player.dead:
+			_army_rally_in = 5.0
+			_army._raise(_army.type_index(_grunts), false, false)
 	if _campaign:
 		_director.tick(delta, _player.pos2)
 	_bosses.tick(delta)
@@ -569,6 +601,8 @@ func _process(delta: float) -> void:
 			_events.tick(delta)
 		else:
 			_events._update_blessing(delta)
+			_events._update_events(delta)
+			_events._update_orbs(delta)
 		var objective_interaction := _campaign and _expedition != null and not _expedition.interaction_prompt().is_empty()
 		_landmarks.tick(delta, not objective_interaction)
 		if not _campaign:
@@ -647,6 +681,9 @@ func _process(delta: float) -> void:
 	else:
 		_director.elapsed += delta
 	_player.xp_scale = xp_scale_at(_director.elapsed if not _campaign or bool(expedition_spec.get("final_boss", false)) else 0.0)
+	if _phase_reward_pending and not _phase_reward_done and _events.start_opportunity():
+		_phase_reward_done = true
+		_phase_reward_pending = false
 	_fx.step(delta)
 	_wisps.step(delta, origin)
 	_spawn_motes(delta, origin)
@@ -668,6 +705,7 @@ func _process(delta: float) -> void:
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
 			_bosses.current_boss_name(), _bosses.boss_health())
+	_hud.set_dash_charge(_player.warding_charge_left)
 	_update_clock()
 	# Music: the drums swell with the size of the horde and the hour.
 	_sound.set_intensity(maxf(_enemy_count() / 700.0, elapsed / 1200.0) if not won else 0.0)
@@ -690,6 +728,20 @@ func _process(delta: float) -> void:
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()
+
+func _on_mission_phase(phase: Dictionary) -> void:
+	if _game_over or won and not _endless: return
+	_hud.toast("PHASE · " + str(phase.get("label", phase.get("id", ""))), UiStyle.GOLD)
+	_phase_reward_pending = bool(phase.get("reward_opportunity", false)) and not _phase_reward_done
+
+func _flush_build_synergies() -> void:
+	var previous := Elements.source
+	for pulse: Dictionary in _player.build_synergies.drain():
+		Elements.source = str(pulse["source"])
+		Elements.hit_area(pulse["at"], pulse["radius"], pulse["damage"], pulse["element"])
+		var color: Color = Elements.COLORS.get(pulse["element"], Color(0.5, 1.0, 0.8))
+		Juice.ring(pulse["at"], color, 8, 3.0, 0.2, 0.18)
+	Elements.source = previous
 
 
 ## A frame in the Night Market: the realm (horde, clock, spawns, events)
@@ -770,7 +822,7 @@ func _settle_run(seconds: float) -> int:
 		MetaProgress.add_daily_run({"date": Realm.today(), "kills": kills, "seconds": roundi(elapsed), "won": won,
 				"class": hero, "code": code}, _daily_logged)
 		_daily_logged = true
-	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code)
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report())
 	_rest_veterans()
 	return shards
 
@@ -839,11 +891,15 @@ func capture() -> Dictionary:
 		"army": _army.snapshot(), "souls": _army.souls,
 		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
 		"damage_by": Elements.damage_by,
+		"combat_metrics": Elements.metrics.snapshot(), "banished": _banished.duplicate(), "banishes_left": _banishes_left,
+		"phase_reward_done": _phase_reward_done,
 	}
 
 
 ## Puts a suspended night back (after the normal start of a night).
 func _restore(d: Dictionary) -> void:
+	_player.build_synergies.reset()
+	_player.warding_charge_left = 0.0
 	var stats := _player.stats
 	elapsed = d["elapsed"]
 	_director.elapsed = elapsed
@@ -877,6 +933,15 @@ func _restore(d: Dictionary) -> void:
 	_player.damage_taken_by = d.get("taken", {})
 	_player.last_cause = d.get("last_cause", "")
 	Elements.damage_by = d.get("damage_by", {})
+	Elements.metrics.restore(d.get("combat_metrics", {}), Elements.damage_by)
+	_banished.clear()
+	for id: Variant in d.get("banished", []):
+		if id is String and Upgrades.DEFS.has(id) and not _banished.has(id) and _banished.size() < BANISH_LIMIT: _banished.append(id)
+	_banishes_left = clampi(int(d.get("banishes_left", BANISH_LIMIT - _banished.size())), 0, BANISH_LIMIT - _banished.size())
+	_phase_reward_done = bool(d.get("phase_reward_done", false))
+	_director.note_resumed(elapsed, _phase_reward_done)
+	_phase_reward_pending = bool(_director.current_phase().get("reward_opportunity", false)) and not _phase_reward_done
+	_events.configure_opportunity({}, "", _phase_reward_done)
 	# The horde isn't saved: a crowd fit for the hour gathers around the hero.
 	_director.populate(at, roundi(_director.crowd_target() * 0.6))
 	_player.pending_levels = d.get("pending_levels", 0)
@@ -984,6 +1049,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and not get_tree().paused:
 		Sound.play("ui_click")
 		_pause.can_save = can_suspend()
+		_pause.build_stats = _player.stats
+		_pause.build_unlocked_snapshot = _campaign_cards if _campaign else null
 		_open_screen(_pause)
 	elif event.is_action_pressed("inventory"):
 		_open_screen(_inventory_screen)
@@ -1067,7 +1134,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1
 	Sound.play("kill_%d" % (kills % 3))
-	_player.bell.on_kill(at)
+	if _player.challenge_id == "": _player.bell.on_kill(at)
 	if not swarm.boss:
 		_power_ups.on_kill(at, false)
 	frenzy += 1.0
@@ -1230,6 +1297,7 @@ func _on_boss_died(at: Vector2, swarm: EnemySwarm) -> void:
 	Juice.flash(at, Color(1.0, 0.6, 0.3), 8.0, 16.0, 0.8)
 	Juice.shake(0.8)
 	_hud.toast("%s slain!  +%d Soul Shards" % [swarm.display_name, shards], Color(1.0, 0.75, 0.35))
+	_hud.reveal_reward("CHAMPION'S BOUNTY", "+%d Soul Shards · three high-quality items dropped; collect to claim." % shards, UiStyle.GOLD)
 
 
 func _on_item_picked(item: Item, result: String) -> void:
@@ -1258,7 +1326,7 @@ func _try_level_up() -> void:
 		return
 	while _player.pending_levels > 0:
 		_player.pending_levels -= 1
-		var choices := Upgrades.roll(_player.stats, 3, _campaign_cards if _campaign else null)
+		var choices := _upgrade_choices()
 		if Upgrades.is_exhausted(choices):
 			# Everything is maxed: a menu with one useless card would just
 			# interrupt the run, so the level-up quietly heals instead.
@@ -1266,7 +1334,7 @@ func _try_level_up() -> void:
 			continue
 		_choosing_upgrade = true
 		get_tree().paused = true
-		_hud.show_upgrades(choices, _rerolls)
+		_hud.show_upgrades(choices, _rerolls, "LEVEL UP", "Choose a power · bans last this night / mission attempt", _banishes_left)
 		return
 
 
@@ -1274,7 +1342,41 @@ func _on_reroll() -> void:
 	if not _choosing_upgrade or _rerolls <= 0:
 		return
 	_rerolls -= 1
-	_hud.show_upgrades(Upgrades.roll(_player.stats, 3, _campaign_cards if _campaign else null), _rerolls)
+	_hud.show_upgrades(_upgrade_choices(), _rerolls, "LEVEL UP", "Choose a power · bans last this night / mission attempt", _banishes_left)
+
+func _on_banish(id: String) -> void:
+	if not _choosing_upgrade or _banishes_left <= 0 or not id in _hud._upgrade_ids or not Upgrades.DEFS.has(id) or _banished.has(id): return
+	var kept := _shown_upgrades.duplicate(true)
+	var index := -1
+	for i in kept.size():
+		if kept[i]["id"] == id: index = i
+	if index < 0: return
+	_banished.append(id)
+	_banishes_left -= 1
+	var shown_ids: Array = kept.map(func(card: Dictionary) -> String: return card["id"])
+	var replacements := _upgrade_choices(shown_ids)
+	var replacement := replacements.filter(func(card: Dictionary) -> bool: return not card["id"] in shown_ids)
+	if replacement.is_empty(): kept.remove_at(index)
+	else: kept[index] = replacement[0]
+	_shown_upgrades.assign(kept)
+	_hud.show_upgrades(_shown_upgrades, _rerolls, "LEVEL UP", "Card removed for this attempt; other offers kept; no level spent", _banishes_left)
+
+
+func _upgrade_choices(extra_exclusions: Array = []) -> Array[Dictionary]:
+	var choices: Array[Dictionary] = []
+	var excluded: Array = _banished.duplicate() + extra_exclusions
+	for id: String in Upgrades.DEFS:
+		if not TacticTrials.allowed_card(id, _player.challenge_id): excluded.append(id)
+	for rolled: Dictionary in Upgrades.roll(_player.stats, 3, _campaign_cards if _campaign else null, excluded):
+		if rolled["id"].begins_with(Evolutions.PREFIX):
+			var evo: Dictionary = Evolutions.DEFS[rolled["id"].substr(Evolutions.PREFIX.length())]
+			if not TacticTrials.allowed_card(evo["weapon"], _player.challenge_id): continue
+		# The exhausted fallback is a shared const dictionary; never annotate it.
+		var card := rolled.duplicate(true)
+		card["affected"] = BuildGuide.affected_text(str(card["id"]), _player.stats)
+		choices.append(card)
+	_shown_upgrades = choices.duplicate(true)
+	return choices
 
 
 func _on_upgrade_chosen(id: String) -> void:
@@ -1286,8 +1388,11 @@ func _on_upgrade_chosen(id: String) -> void:
 		Sound.play("shrine_done")
 	elif id.begins_with(Evolutions.PREFIX):
 		var evo: Dictionary = Evolutions.DEFS.get(id.substr(Evolutions.PREFIX.length()), {})
+		var preview: Array[String] = []
+		for change: Dictionary in BuildGuide.preview_changes(id, _player.stats).slice(0, 2):
+			preview.append("%s %.2f → %.2f" % [str(change["field"]).replace("_", " "), change["before"], change["after"]])
 		Upgrades.apply(id, _player.stats)
-		_hud.title_card(evo.get("name", ""), "EVOLUTION", evo.get("color", UiStyle.GOLD))
+		_hud.reveal_reward(evo.get("name", ""), "EVOLUTION · " + str(evo.get("desc", "")) + "\n" + " · ".join(preview), evo.get("color", UiStyle.GOLD))
 		Sound.play("boss_title", 1.4, -4.0)
 		Juice.ring(_player.pos2, evo.get("color", UiStyle.GOLD), 48, 12.0, 0.7, 0.8)
 		Juice.flash(_player.pos2, evo.get("color", UiStyle.GOLD), 6.0, 12.0, 0.6)

@@ -18,6 +18,7 @@ var seals := 0
 var elite_dead := false
 var cache_claimed := false
 var lantern_recovered := false
+var commission_claimed := false
 var _main: Node3D
 var _player: Player
 var _wave: WaveDirector
@@ -81,6 +82,9 @@ func configure(mission: Dictionary, owner: Node3D, player: Player, wave: WaveDir
 		_bosses.run_length = 900.0
 	if String(spec.get("story_mission", "")) == "lantern_recovery":
 		_add_site("lantern_recovery", STORY_COLOR, "MARA'S BLUE LANTERN  ·  %s" % Controls.tag("interact"))
+	var commission := str(spec.get("commission", ""))
+	if CampaignPlanning.DETOURS.has(commission):
+		_add_site("commission", STORY_COLOR, str(CampaignPlanning.DETOURS[commission]["title"]).to_upper() + " · " + Controls.tag("interact"))
 	_setup_difficulty()
 	_present_arrival()
 	call_deferred("_build_arrival_landmark")
@@ -135,6 +139,7 @@ func _setup_difficulty() -> void:
 		"age_rate": 1.8 if finale else 2.4,
 		"growth_cap": 900.0 if finale else 420.0,
 		"finale_scale": finale_scale,
+		"duration": duration, "contract_id": contract_id,
 	})
 	_bosses.expedition_mode = true
 	# The Classic base boss reaches roughly ten times its starting HP by 15:00.
@@ -251,6 +256,8 @@ func interaction_prompt() -> Dictionary:
 	var key := Controls.tag("interact")
 	if _site_ids[nearest] == "lantern_recovery":
 		return {"text": "Recover Mara's brass lantern  ·  %s" % key, "color": STORY_COLOR}
+	if _site_ids[nearest] == "commission":
+		return {"text": CampaignPlanning.DETOURS[spec["commission"]]["action"] + " · " + key, "color": STORY_COLOR}
 	if contract_id in ["seal_breach", "breach"]:
 		return {"text": "Close %s  ·  %s" % [_site_label(nearest), key], "color": OBJECTIVE_COLOR}
 	return {"text": "Open cursed cache  ·  summons guardians  ·  %s" % key, "color": CACHE_COLOR}
@@ -266,13 +273,13 @@ func interact_with_nearest_site() -> int:
 func _nearest_interactable_site() -> int:
 	if terminal or _player == null or _player.dead:
 		return -1
-	if contract_id not in ["seal_breach", "breach", "cursed_cache"] and String(spec.get("story_mission", "")) != "lantern_recovery":
+	if contract_id not in ["seal_breach", "breach", "cursed_cache"] and String(spec.get("story_mission", "")) != "lantern_recovery" and spec.get("commission", "") == "":
 		return -1
 	var nearest := -1
 	var nearest_distance := 2.6 * 2.6
 	for i in _sites.size():
 		var site_id := _site_ids[i]
-		var eligible := site_id == "lantern_recovery" or (site_id.begins_with("seal_") and contract_id in ["seal_breach", "breach"]) or (site_id == "cache" and cache_enabled)
+		var eligible := site_id in ["lantern_recovery", "commission"] or (site_id.begins_with("seal_") and contract_id in ["seal_breach", "breach"]) or (site_id == "cache" and cache_enabled)
 		if not eligible: continue
 		if _site_complete(i):
 			continue
@@ -348,6 +355,7 @@ func _sync_marked_elite_marker() -> void:
 
 
 func _site_complete(index: int) -> bool:
+	if index >= 0 and index < _site_ids.size() and _site_ids[index] == "commission": return commission_claimed
 	if index >= 0 and index < _site_ids.size() and _site_ids[index] == "lantern_recovery": return lantern_recovered
 	if contract_id in ["seal_breach", "breach"]:
 		return index >= 0 and index < _site_claimed.size() and _site_claimed[index]
@@ -358,7 +366,15 @@ func _site_complete(index: int) -> bool:
 
 func _complete_site(index: int) -> void:
 	if index < 0 or index >= _site_ids.size(): return
-	if _site_ids[index] == "lantern_recovery":
+	if _site_ids[index] == "commission":
+		if commission_claimed: return
+		commission_claimed = true
+		_visuals[index].visible = false
+		Sound.play("pickup", 0.95, -1.0)
+		Juice.ring(_sites[index], STORY_COLOR, 20, 5.0, 0.5, 0.4)
+		var hud := _main.get_node_or_null("Hud") as Hud
+		if hud: hud.toast("Detour secured · clear the contract to earn its town benefit", STORY_COLOR)
+	elif _site_ids[index] == "lantern_recovery":
 		if lantern_recovered: return
 		lantern_recovered = true
 		_visuals[index].visible = false
@@ -391,6 +407,7 @@ func _complete_site(index: int) -> void:
 
 
 func _site_label(index: int) -> String:
+	if index >= 0 and index < _site_ids.size() and _site_ids[index] == "commission": return CampaignPlanning.DETOURS[spec["commission"]]["title"]
 	return "SEAL %d / 3" % (index + 1)
 
 
@@ -409,7 +426,9 @@ func markers() -> Array:
 
 func objective_text() -> String:
 	var text := ""
-	if finale:
+	if TacticTrials.DEFS.has(contract_id):
+		text = "Survive to 3:00 · " + str(TacticTrials.progress(contract_id, Elements.damage_by, _player.dash_uses)["text"])
+	elif finale:
 		text = "Survive until the guardian arrives at 15:00" if not _bosses.final_arrived else "Defeat the biome guardian"
 	else:
 		match contract_id:
@@ -433,10 +452,14 @@ func objective_text() -> String:
 				text = "Survive to 5:00  ·  extraction is automatic"
 	if String(spec.get("story_mission", "")) == "lantern_recovery":
 		text += "   ·   Mara's lantern: %s" % ("recovered" if lantern_recovered else "marked in the field")
+	var commission := str(spec.get("commission", ""))
+	if CampaignPlanning.DETOURS.has(commission):
+		text += "\nTown detour secured" if commission_claimed else "\nOptional: " + CampaignPlanning.DETOURS[commission]["action"]
 	return text
 
 
 func guidance_text() -> String:
+	if TacticTrials.DEFS.has(contract_id): return TacticTrials.DEFS[contract_id]["restriction"] + " · goal deadline 4:00"
 	return CampaignGuidance.contract_action(contract_id, seals, _elite_spawned,
 			elite_dead, cache_claimed, _bosses.final_arrived if _bosses else false)
 
@@ -472,6 +495,10 @@ func arbitrate_frame(combat_elapsed: float, player_dead: bool, final_dead: bool)
 	if player_dead:
 		_finish("failure", combat_elapsed)
 		return true
+	if TacticTrials.DEFS.has(contract_id):
+		if deadline > 0.0 and combat_elapsed > deadline: _finish("failure", deadline)
+		elif combat_elapsed >= duration and TacticTrials.progress(contract_id, Elements.damage_by, _player.dash_uses)["done"]: _finish("success", combat_elapsed)
+		return terminal
 	if finale:
 		if _bosses.final_arrived and final_dead and combat_elapsed >= 900.0:
 			_finish("success", combat_elapsed)
@@ -640,5 +667,7 @@ func _finish(outcome: String, at_time: float) -> void:
 		"outcome": outcome,
 		"elapsed": maxf(at_time, 0.0),
 		"objectives": {"seals": seals, "elite_dead": elite_dead, "cache_claimed": cache_claimed,
+			"commission_claimed": commission_claimed,
+			"trial_damage": Elements.damage_by.duplicate(), "trial_dashes": _player.dash_uses if _player else 0,
 			"boss_dead": finale and outcome == "success", "lantern_recovered": lantern_recovered},
 	}

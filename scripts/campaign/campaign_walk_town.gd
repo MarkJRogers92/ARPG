@@ -82,6 +82,8 @@ var _camp_life: CampaignCampLife
 var _camp_talk_enabled := false
 var _story_life: Variant
 var _story_talk_enabled := false
+var _facility_dressing: Node3D
+var _facility_key := ""
 
 ## Per-biome ground, ambient, fog, and the scenery kinds scattered beyond
 ## the plaza (Models.prop kinds, the same ones combat decor uses).
@@ -164,6 +166,7 @@ func present(state: Dictionary) -> void:
 	for i in _returning_votives.size():
 		_returning_votives[i].visible = i < mini(cleared.size(), _returning_votives.size())
 	_present_journey_dressing(state, cleared)
+	_present_facilities(state)
 	var info: Dictionary = HeroClass.data(str(state.get("hero_class", "")))
 	if info.has("look"):
 		_hero.set_body(info["look"])
@@ -174,6 +177,63 @@ func present(state: Dictionary) -> void:
 	if record is Dictionary and record.get("data") is Dictionary:
 		weapon = str(record["data"].get("base_name", weapon))
 	_hero.set_weapon(weapon, info.get("accent", HeroModel.DEFAULT_ACCENT))
+
+
+## Presentation-only, bounded dressing derived from the same saved tiers as play.
+## Existing service positions, use ranges and collision footprints stay intact.
+func _present_facilities(state: Dictionary) -> void:
+	var levels := CampaignFacilities.levels(state)
+	var key := var_to_str(levels)
+	if key == _facility_key: return
+	_facility_key = key
+	if is_instance_valid(_facility_dressing):
+		_facility_dressing.hide()
+		_facility_dressing.queue_free()
+	_facility_dressing = null
+	if levels.values().all(func(value: int) -> bool: return value == 0): return
+	_facility_dressing = Node3D.new()
+	_facility_dressing.name = "CampaignFacilities"
+	add_child(_facility_dressing)
+	for station: Dictionary in STATIONS:
+		for id: String in CampaignFacilities.ORDER:
+			if station["id"] != CampaignFacilities.DEFS[id]["service"] or levels[id] == 0: continue
+			var rank: int = levels[id]
+			var node := Node3D.new()
+			node.name = "Facility_" + id
+			node.position = station["at"]
+			node.set_meta("facility_tier", rank)
+			_facility_dressing.add_child(node)
+			var label := Label3D.new()
+			label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			label.font_size = 48
+			label.outline_size = 8
+			label.pixel_size = 0.009
+			label.modulate = GOLD
+			label.text = "%s %s" % [CampaignFacilities.DEFS[id]["name"], "II" if rank == 2 else "I"]
+			label.position = Vector3(0, 4.5, -1.15) # clear the forge chimney too
+			node.add_child(label)
+			_facility_prop(node, "tome_pedestal" if id == "wayfinder" else ("crate_stack" if id == "workshop" else "weapon_rack"), Vector3(-1.25, 0, -1.3), 0.45)
+			if rank == 2:
+				_facility_prop(node, "crate_stack" if id == "wayfinder" else "tome_pedestal", Vector3(1.35, 0, -1.35), 0.4)
+				var lamp := OmniLight3D.new()
+				lamp.position = Vector3(-1.25, 1.6, -1.3)
+				lamp.light_color = GOLD
+				lamp.light_energy = 0.8
+				lamp.omni_range = 2.5
+				node.add_child(lamp)
+
+func _facility_prop(parent: Node3D, kind: String, at: Vector3, scale_factor: float) -> void:
+	var mesh := AssetProps.mesh(kind)
+	if mesh == null: return
+	var prop := MeshInstance3D.new()
+	prop.mesh = mesh
+	prop.position = at
+	prop.scale = Vector3.ONE * scale_factor
+	for surface in mesh.get_surface_count():
+		var source := mesh.surface_get_material(surface) as ShaderMaterial
+		var glowing := source != null and float(source.get_shader_parameter("flat_glow")) > 0.0
+		prop.set_surface_override_material(surface, AssetProps.emissive_material() if glowing else AssetProps.opaque_material())
+	parent.add_child(prop)
 
 
 ## A stop ID is the only reason to rebuild location art. The hero and all seven

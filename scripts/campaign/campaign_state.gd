@@ -15,11 +15,13 @@ static func fresh(hero: String, seed_value: int, account: Dictionary) -> Diction
 		"biome_index": 0, "gold": 60, "profile_snapshot": account.duplicate(true),
 		"inventory": {"items": {}, "equipped": {}, "backpack": [], "tray": []},
 		"talents": {"points": 3, "allocated": [], "earned": 3}, "specialization": "", "roster": [],
-		"deployed_veteran": "", "graph": CampaignCatalog.route(seed_value, 0), "selected_node": "",
+		"deployed_veteran": "", "graph": CampaignCatalog.route(seed_value, 0, account.get("trials", [])), "selected_node": "",
 		"cleared_nodes": [], "clauses": [], "effects": [], "event": {}, "event_count": 0,
 		"shop": [], "shop_generation": 0, "wager": {}, "reforge": {}, "veteran_candidate": {},
 		"departure": {}, "result": {}, "receipts": {}, "successful_nodes": {}, "outbox": [],
-		"clause_offers": {}, "stories": SettlementStories.fresh(), "item_serial": 0, "attempt_serial": 0, "completed": false}
+		"clause_offers": {}, "stories": SettlementStories.fresh(), "facilities": CampaignFacilities.fresh(), "facility_goal": {},
+		"preparation": "", "town_benefits": {}, "fatigue_enabled": false,
+		"item_serial": 0, "attempt_serial": 0, "completed": false}
 
 static func combat_inventory(state: Dictionary) -> Dictionary:
 	var inventory: Dictionary = state["inventory"]
@@ -118,6 +120,11 @@ static func validate(state: Variant) -> String:
 		counts[node["depth"] - 1] += 1
 		if (node["depth"] == 4) != (node["contract"] == "finale"): return "Finale depth mismatch."
 		if node.get("event", "") != "" and not CampaignCatalog.EVENTS.has(node["event"]): return "Unknown route event."
+		if node.has("commission") and (not node["commission"] is String or node["commission"] != CampaignPlanning.COMMISSIONS.get(node["contract"], "")): return "Unknown contract town consequence."
+		if node.has("reward_theme") and node["reward_theme"] != CampaignCatalog.reward_theme(node["contract"]): return "Contract reward theme mismatch."
+		if node.has("committed_prize") and validate_record(node["committed_prize"], "") != "": return "Invalid committed contract prize."
+		if node.has("opportunity_roll") and validate_item(node["opportunity_roll"]) != "": return "Invalid committed opportunity roll."
+		if TacticTrials.DEFS.has(node["contract"]) and not state["profile_snapshot"].get("trials", []).has(node["contract"]): return "Unowned tactic contract."
 		if node["depth"] < 4 and node["next"].is_empty(): return "Route has no path to finale."
 		for next_id in node["next"]:
 			if not graph["nodes"].has(next_id): return "Missing route neighbor."
@@ -152,6 +159,7 @@ static func validate(state: Variant) -> String:
 		if not entry is Dictionary or not entry.get("price") is int or entry["price"] < 0 or validate_record(entry.get("item"), "") != "": return "Invalid stock."
 	for receipt in state["outbox"]:
 		if not receipt is Dictionary or not receipt.get("id") is String or not receipt.get("shards") is int or receipt["shards"] < 0 or not receipt.get("kills") is Dictionary: return "Invalid account receipt."
+		if receipt.has("unlock_relic") and (not receipt["unlock_relic"] is String or not Relics.DEFS.has(receipt["unlock_relic"])): return "Unknown account relic reward."
 	var effect_error := validate_effects(state["effects"])
 	if effect_error != "": return effect_error
 	if state.has("stories"):
@@ -165,6 +173,10 @@ static func validate(state: Variant) -> String:
 		for effect: Variant in state["effects"]:
 			if effect is Dictionary and effect.get("id", "") == "story_boon": return "A legacy save cannot contain a settlement story benefit."
 	var candidate_error := validate_veteran(state["veteran_candidate"], true)
+	if state.has("facilities") and CampaignFacilities.validate_levels(state["facilities"]) != "": return "Invalid campaign facilities."
+	if CampaignFacilities.validate_goal(state) != "": return "Invalid pinned facility goal."
+	var planning_error := CampaignPlanning.validate(state)
+	if planning_error != "": return planning_error
 	if candidate_error != "": return candidate_error
 	for receipt_id in state["receipts"]:
 		var operation = state["receipts"][receipt_id]
@@ -200,6 +212,10 @@ static func validate(state: Variant) -> String:
 		if not result.get("outcome") in ["success", "failure", "retreat"] or not result.get("elapsed") is float or not is_finite(result["elapsed"]) or result["elapsed"] < 0.0: return "Invalid settled result."
 	if state["phase"] == "EXPEDITION_ACTIVE":
 		var departure: Dictionary = state["departure"]
+		if CampaignFacilities.levels(departure["starting_loadout"]) != CampaignFacilities.levels(state): return "Departure facility tiers differ from the committed campaign."
+		var node: Dictionary = graph["nodes"].get(departure.get("node_id", ""), {})
+		if departure.has("contract_prize") and departure["contract_prize"] != node.get("committed_prize", {}): return "Departure prize differs from its committed route."
+		if departure.has("opportunity_roll") and departure["opportunity_roll"] != node.get("opportunity_roll", {}): return "Departure opportunity differs from its committed route."
 		if departure.get("campaign_id") != state["campaign_id"] or departure.get("node_id") != state["selected_node"] or not departure.get("attempt_id") is String: return "Missing departure checkpoint."
 		var mission := str(departure.get("story_mission", ""))
 		var lantern_status := str(state.get("stories", {}).get("lantern_recovery", {}).get("status", "offered"))
@@ -246,6 +262,8 @@ static func validate_profile(profile: Dictionary) -> String:
 	if not profile.get("rerolls") is int or profile["rerolls"] < 0 or not profile.get("cards") is Dictionary: return "Invalid starting profile selection."
 	for id in profile["cards"]:
 		if not Upgrades.DEFS.has(id): return "Unknown profile card."
+	if profile.has("trials"):
+		if not profile["trials"] is Array or not profile.get("mastery_stars") is int or profile["mastery_stars"] < 0 or profile["trials"] != NextGoals.available_trials(profile["mastery_stars"]): return "Invalid committed tactic ownership."
 	return ""
 
 static func validate_spec(spec: Dictionary) -> String:
@@ -261,6 +279,10 @@ static func validate_spec(spec: Dictionary) -> String:
 	if spec["loot_band"] != CampaignCatalog.BANDS[spec["biome_index"]] or spec["biome_id"] != Realm.ORDER[spec["biome_index"]]: return "Invalid departure loot band."
 	var contract: Dictionary = CampaignCatalog.CONTRACTS[spec["contract_id"]]
 	if spec["duration"] != contract["duration"] or spec["deadline"] != contract["deadline"] or spec["final_boss"] != (spec["contract_id"] == "finale"): return "Departure contract policy was changed."
+	if spec.has("preparation") and (not spec["preparation"] is String or spec["preparation"] != "" and not CampaignPlanning.PREPARATIONS.has(spec["preparation"])): return "Invalid committed preparation."
+	if spec.has("commission") and spec["commission"] != CampaignPlanning.COMMISSIONS.get(spec["contract_id"], ""): return "Invalid committed town consequence."
+	if spec.has("contract_prize") and validate_record(spec["contract_prize"], "") != "": return "Invalid departure contract prize."
+	if spec.has("opportunity_roll") and (not spec["opportunity_roll"] is Dictionary or not spec["opportunity_roll"].is_empty() and validate_item(spec["opportunity_roll"]) != ""): return "Invalid departure opportunity."
 	var effect_error := validate_effects(spec["effects"])
 	if effect_error != "": return effect_error
 	var clauses := {}
@@ -276,7 +298,9 @@ static func validate_spec(spec: Dictionary) -> String:
 	var loadout = spec.get("starting_loadout")
 	if not loadout is Dictionary or not loadout.get("profile_snapshot") is Dictionary or not loadout.get("inventory") is Dictionary or not loadout.get("talents") is Dictionary or not loadout.get("veteran") is Dictionary: return "Invalid departure loadout."
 	var error := validate_profile(loadout["profile_snapshot"])
+	if loadout.has("facilities") and CampaignFacilities.validate_levels(loadout["facilities"]) != "": return "Invalid departure facilities."
 	if error != "": return error
+	if TacticTrials.DEFS.has(spec["contract_id"]) and not loadout["profile_snapshot"].get("trials", []).has(spec["contract_id"]): return "Unowned departure tactic."
 	error = validate_veteran(loadout["veteran"], true)
 	if error != "": return error
 	if not loadout["veteran"].is_empty() and loadout["veteran"]["rank"] > spec["biome_index"] + 1: return "Departure veteran exceeds biome rank."
@@ -322,6 +346,7 @@ static func validate_veteran(record: Variant, allow_empty: bool) -> String:
 	for field in ["rank", "deeds", "elite", "nights"]:
 		if not record.get(field) is int or record[field] < 0: return "Invalid veteran quantity."
 	if record["rank"] < 1 or record["rank"] > 3 or record["elite"] > 1: return "Invalid veteran rank."
+	if record.has("fatigue") and (not record["fatigue"] is int or record["fatigue"] < 0 or record["fatigue"] > 2): return "Invalid veteran fatigue."
 	return ""
 
 static func validate_effects(effects: Array) -> String:

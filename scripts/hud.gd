@@ -6,6 +6,7 @@ extends CanvasLayer
 signal upgrade_chosen(id: String)
 signal restart_pressed
 signal reroll_requested
+signal banish_requested(id: String)
 signal realms_pressed
 signal endless_pressed
 
@@ -17,6 +18,7 @@ const CARD_COLORS := {
 	"lightning": Color(0.72, 0.6, 1.0), "orbit": Color(0.45, 1.0, 0.85), "nova": Color(1.0, 0.5, 0.9), "obol": Color(1.0, 0.82, 0.35), "scythe": Color(0.65, 0.95, 0.85), "bell": Color(0.85, 0.8, 1.0),
 	"legion": Color(0.45, 0.8, 1.0), "harvest": Color(0.45, 0.8, 1.0),
 	"ignite": Color(1.0, 0.5, 0.15), "frostbite": Color(0.55, 0.85, 1.0),
+	"synergy_relay": Color(0.55, 0.85, 1.0), "synergy_escort": Color(1.0, 0.55, 0.25), "synergy_wake": Color(0.45, 1.0, 0.85),
 }
 
 var _hp_bar: ProgressBar
@@ -75,6 +77,9 @@ var _soul_bar: ProgressBar
 var _soul_label: Label
 var _expedition_label: Label
 var _campaign_guidance_label: Label
+var _banish_row: HBoxContainer
+var _dismiss_reward: Button
+var _reward_reveal_shown := false
 
 
 func _ready() -> void:
@@ -164,6 +169,8 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 
 ## A boss arrives: its name across the screen for a moment.
 func title_card(boss_name: String, subtitle: String, color: Color, campaign_arrival := false) -> void:
+	_reward_reveal_shown = false
+	_dismiss_reward.hide()
 	if is_instance_valid(_title_tween) and _title_tween.is_running():
 		_title_tween.kill()
 	_title_main.text = boss_name.to_upper()
@@ -185,6 +192,27 @@ func title_card(boss_name: String, subtitle: String, color: Color, campaign_arri
 	t.chain().tween_interval(1.8)
 	t.chain().tween_property(_title_card, "modulate:a", 0.0, 0.7)
 
+## Presentation only: loot/settlement owners have already granted or dropped it.
+func reveal_reward(title: String, detail: String, color: Color) -> void:
+	title_card(title, detail, color, true)
+	_reward_reveal_shown = true
+	_dismiss_reward.show()
+	_title_tween.finished.connect(func() -> void:
+		_reward_reveal_shown = false
+		_dismiss_reward.hide(), CONNECT_ONE_SHOT)
+
+func dismiss_reward() -> void:
+	if is_instance_valid(_title_tween): _title_tween.kill()
+	_title_card.modulate.a = 0.0
+	_reward_reveal_shown = false
+	_dismiss_reward.hide()
+
+func set_dash_charge(seconds: float) -> void:
+	if seconds > 0.0:
+		_dash_label.text = "WARDING READY · " + Controls.tag("dash") if _dash_bar.value >= 1.0 else "WARDING CHARGED · dash cooling"
+		_dash_label.tooltip_text = "Next successful dash spends one 3m frost pulse, even on a miss. Expires in %d s." % ceili(seconds)
+	else: _dash_label.tooltip_text = ""
+
 
 func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 	_omen_label.text = "OMEN: %s%s" % [omen_name.to_upper(), ("   ·   HEAT %d" % heat) if heat > 0 else ""]
@@ -201,7 +229,7 @@ func set_recap(text: String, samples: Array[Vector3]) -> void:
 
 ## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
 ## button to copy it.
-func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "") -> void:
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}) -> void:
 	var total := 0.0
 	for k: String in damage_by:
 		total += damage_by[k]
@@ -220,6 +248,7 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, dail
 	if daily_code != "":
 		extras.append("Daily code: " + daily_code)
 	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
+	if not metrics.is_empty(): _report.text += "\n" + CombatLedger.summary(metrics)
 	_daily_code = daily_code
 	_code_button.visible = daily_code != ""
 
@@ -355,19 +384,32 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance 
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
-func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click") -> void:
+func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click", banishes := 0) -> void:
 	_upgrade_title.text = heading
 	_upgrade_subtitle.text = subheading
 	_reroll_button.visible = rerolls > 0
 	_reroll_button.text = "Reroll  %s   ·   %d left" % [Controls.tag("reroll"), rerolls]
 	for child in _upgrade_row.get_children():
+		_upgrade_row.remove_child(child)
 		child.queue_free()
+	for child in _banish_row.get_children():
+		_banish_row.remove_child(child)
+		child.queue_free()
+	_banish_row.visible = banishes > 0
 	_upgrade_ids.clear()
 	for i in choices.size():
 		var choice := choices[i]
 		_upgrade_ids.append(choice["id"])
 		var card := _make_card(i, choice)
 		_upgrade_row.add_child(card)
+		var banish := Button.new()
+		banish.name = "Banish_" + str(choice["id"])
+		banish.custom_minimum_size = Vector2(260, 34)
+		banish.text = "Banish this card · %d left" % banishes
+		banish.tooltip_text = "Remove this regular card for this night/mission attempt; no level is spent. Classic suspend keeps exclusions. Evolutions cannot be banished."
+		banish.disabled = not Upgrades.DEFS.has(choice["id"]) or banishes <= 0
+		banish.pressed.connect(func() -> void: banish_requested.emit(str(choice["id"])))
+		_banish_row.add_child(banish)
 		# Deal the cards in one by one.
 		card.modulate.a = 0.0
 		card.scale = Vector2(0.85, 0.85)
@@ -419,6 +461,11 @@ func _input(event: InputEvent) -> void:
 		var window := get_window()
 		var full := window.mode == Window.MODE_FULLSCREEN or window.mode == Window.MODE_EXCLUSIVE_FULLSCREEN
 		window.mode = Window.MODE_WINDOWED if full else Window.MODE_FULLSCREEN
+		get_viewport().set_input_as_handled()
+		return
+	var reveal_key := event as InputEventKey
+	if _reward_reveal_shown and not get_tree().paused and reveal_key != null and reveal_key.pressed and not reveal_key.echo and reveal_key.keycode in [KEY_ENTER, KEY_KP_ENTER] and not _upgrade_root.visible:
+		dismiss_reward()
 		get_viewport().set_input_as_handled()
 		return
 	if not _upgrade_root.visible:
@@ -669,6 +716,7 @@ func _build() -> void:
 	root.add_child(_title_card)
 	_title_sub = UiStyle.label(18)
 	_title_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_sub.modulate = Color(1, 1, 1, 0.75)
 	_title_card.add_child(_title_sub)
 	_title_main = UiStyle.label(56)
@@ -676,6 +724,13 @@ func _build() -> void:
 	_title_main.add_theme_constant_override("outline_size", 14)
 	_title_main.add_theme_color_override("font_outline_color", Color(0.1, 0.0, 0.0, 0.95))
 	_title_card.add_child(_title_main)
+	_dismiss_reward = Button.new()
+	_dismiss_reward.text = "Dismiss reveal · Enter"
+	_dismiss_reward.custom_minimum_size = Vector2(240, 30)
+	_dismiss_reward.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_dismiss_reward.pressed.connect(dismiss_reward)
+	_dismiss_reward.hide()
+	_title_card.add_child(_dismiss_reward)
 
 	# Under the blessing: the Ferryman's side bet.
 	_bet_label = UiStyle.label(18)
@@ -749,6 +804,10 @@ func _build() -> void:
 	_upgrade_row.add_theme_constant_override("separation", 18)
 	_upgrade_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	upgrade_box.add_child(_upgrade_row)
+	_banish_row = HBoxContainer.new()
+	_banish_row.add_theme_constant_override("separation", 18)
+	_banish_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	upgrade_box.add_child(_banish_row)
 	var gap2 := Control.new()
 	gap2.custom_minimum_size.y = 10
 	upgrade_box.add_child(gap2)
@@ -836,7 +895,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	var tint = choice["color"] if choice.has("color") else CARD_COLORS.get(id, "core")
 	var color: Color = tint if tint is Color else SkillData.BRANCHES[tint]
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(220, 310)
+	card.custom_minimum_size = Vector2(260, 480) if not str(choice.get("affected", "")).is_empty() else Vector2(220, 310)
 	card.pivot_offset = card.custom_minimum_size * 0.5
 	var normal := UiStyle.box(Color(0.075, 0.07, 0.085, 0.97), color.darkened(0.45), 2, 12)
 	normal.shadow_color = Color(0, 0, 0, 0.5)
@@ -938,6 +997,15 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	desc.add_theme_constant_override("outline_size", 2)
 	column.add_child(desc)
+	if not str(choice.get("affected", "")).is_empty():
+		var affected := UiStyle.label(13)
+		affected.name = "AffectedAbilities"
+		affected.text = str(choice["affected"])
+		affected.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		affected.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		affected.add_theme_color_override("font_color", Color(0.7, 0.88, 1.0))
+		affected.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.add_child(affected)
 	return card
 
 
@@ -954,7 +1022,14 @@ func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
 	if not framed:
-		center.add_child(content)
+		var scroll := ScrollContainer.new()
+		scroll.name = "UpgradeScroll"
+		scroll.custom_minimum_size = Vector2(980, minf(660.0, get_viewport().get_visible_rect().size.y - 40.0))
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.follow_focus = true
+		center.add_child(scroll)
+		content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(content)
 		return overlay
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", UiStyle.panel())
@@ -963,7 +1038,14 @@ func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 36)
 	panel.add_child(margin)
-	margin.add_child(content)
+	var scroll := ScrollContainer.new()
+	scroll.name = "RecapScroll"
+	scroll.custom_minimum_size = Vector2(880, minf(600.0, get_viewport().get_visible_rect().size.y - 90.0))
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	margin.add_child(scroll)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(content)
 	return overlay
 
 

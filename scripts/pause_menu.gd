@@ -32,6 +32,14 @@ var campaign_mode := false:
 		_campaign_labels()
 var _main_box: VBoxContainer
 var _controls_box: VBoxContainer
+var build_stats: PlayerStats
+var build_unlocked_snapshot: Variant = null
+## UI-only goal for this scene. A new/retried/resumed mission starts unpinned.
+var pinned_evolution := ""
+var _guide_panel: BuildGuidePanel
+var _guide_button: Button
+var _goal_label: Label
+var _page_scroll: ScrollContainer
 ## The action waiting for a key press in the Controls panel ("" for none).
 var _listening := ""
 
@@ -46,6 +54,9 @@ func _ready() -> void:
 func open() -> void:
 	_root.show()
 	_show_controls(false)
+	_page_scroll.custom_minimum_size.y = clampf(get_viewport().get_visible_rect().size.y - 100.0, 260.0, 580.0)
+	_guide_button.disabled = build_stats == null
+	_refresh_build_goal()
 	_resume.grab_focus.call_deferred()
 
 
@@ -75,7 +86,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		Sound.play("ui_click")
-		if _controls_box.visible:
+		if _guide_panel.visible:
+			_show_build_guide(false)
+		elif _controls_box.visible:
 			_show_controls(false)
 		else:
 			close()
@@ -99,7 +112,13 @@ func _build() -> void:
 		margin.add_theme_constant_override("margin_" + side, 24)
 	panel.add_child(margin)
 	var stack := VBoxContainer.new()
-	margin.add_child(stack)
+	_page_scroll = ScrollContainer.new()
+	_page_scroll.name = "PausePageScroll"
+	_page_scroll.custom_minimum_size.y = 580
+	_page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_page_scroll.follow_focus = true
+	margin.add_child(_page_scroll)
+	_page_scroll.add_child(stack)
 	var box := VBoxContainer.new()
 	box.custom_minimum_size.x = 440
 	box.add_theme_constant_override("separation", 10)
@@ -110,6 +129,14 @@ func _build() -> void:
 	_controls_box.add_theme_constant_override("separation", 6)
 	_controls_box.hide()
 	stack.add_child(_controls_box)
+	_guide_panel = BuildGuidePanel.new()
+	_guide_panel.name = "BuildGuide"
+	stack.add_child(_guide_panel)
+	_guide_panel.hide()
+	_guide_panel.back_requested.connect(func() -> void: _show_build_guide(false))
+	_guide_panel.goal_changed.connect(func(id: String) -> void:
+		pinned_evolution = id
+		_refresh_build_goal())
 
 	var title := _menu_label(30)
 	title.text = "Paused"
@@ -123,6 +150,9 @@ func _build() -> void:
 
 	box.add_child(_slider("Music", "music_volume"))
 	box.add_child(_slider("Sound", "sfx_volume"))
+	var opacity := _slider("Friendly bolts / aura opacity", "friendly_opacity")
+	opacity.tooltip_text = "Fade Magic Bolt and Frost Aura only. Other friendly effects, hostile shots, warnings, hero/ally markers and hitboxes are unchanged."
+	box.add_child(opacity)
 	box.add_child(_toggle("Screen shake", "shake"))
 	box.add_child(_toggle("Damage numbers", "numbers"))
 	var calm_toggle := _toggle("Calm effects  ·  gentler motion & flashes", "calm")
@@ -132,6 +162,20 @@ func _build() -> void:
 	bold_toggle.tooltip_text = "Brighter danger circles and lines."
 	box.add_child(bold_toggle)
 	box.add_child(_slider("Aim assist", "aim_assist"))
+	_guide_button = Button.new()
+	_guide_button.name = "OpenBuildGuide"
+	_guide_button.text = "Build guide   ·   evolution checklist"
+	_guide_button.custom_minimum_size.y = 42
+	_guide_button.pressed.connect(func() -> void:
+		Sound.play("ui_click")
+		_show_build_guide(true))
+	box.add_child(_guide_button)
+	_goal_label = _menu_label(13)
+	_goal_label.name = "PinnedBuildGoal"
+	_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_goal_label.custom_minimum_size.x = 440
+	_goal_label.add_theme_color_override("font_color", UiStyle.GOLD)
+	box.add_child(_goal_label)
 	var controls := Button.new()
 	controls.text = "Controls   ·   rebind keys"
 	controls.custom_minimum_size.y = 42
@@ -197,7 +241,8 @@ func _slider(text: String, key: String) -> Control:
 	label.custom_minimum_size.x = 150
 	row.add_child(label)
 	var slider := HSlider.new()
-	slider.min_value = 0.0
+	slider.name = "Setting_" + key
+	slider.min_value = 0.15 if key == "friendly_opacity" else 0.0
 	slider.max_value = 1.0
 	slider.step = 0.05
 	slider.value = MetaProgress.setting(key)
@@ -216,7 +261,7 @@ func _slider(text: String, key: String) -> Control:
 		Sound.apply_volumes()
 		if key == "sfx_volume":
 			Sound.play("ui_hover")
-		if key == "aim_assist":
+		if key in ["aim_assist", "friendly_opacity"]:
 			settings_changed.emit())
 	return row
 
@@ -235,10 +280,30 @@ func _toggle(text: String, key: String) -> Control:
 
 func _show_controls(on: bool) -> void:
 	_listening = ""
+	_guide_panel.hide()
 	_main_box.visible = not on
 	_controls_box.visible = on
 	if on:
 		_fill_controls()
+
+
+func _show_build_guide(on: bool) -> void:
+	if on and build_stats == null: return
+	_listening = ""
+	_main_box.visible = not on
+	_controls_box.hide()
+	_guide_panel.visible = on
+	_page_scroll.scroll_vertical = 0
+	if on:
+		_guide_panel.present(build_stats, build_unlocked_snapshot, pinned_evolution)
+	else:
+		_refresh_build_goal()
+		_guide_button.grab_focus.call_deferred()
+
+
+func _refresh_build_goal() -> void:
+	_goal_label.text = BuildGuide.goal_summary(pinned_evolution, build_stats) if build_stats != null else ""
+	_goal_label.visible = not _goal_label.text.is_empty()
 
 
 ## One row per rebindable action: its name and its key (click, then press the

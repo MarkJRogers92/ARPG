@@ -24,6 +24,8 @@ var _selected_id := ""
 var _committed := false
 var _committed_id := ""
 var _biome_index := 0
+var _state: Dictionary = {}
+var _scouted: Dictionary = {}
 var _details: Label
 var _confirm: Button
 var _heading: Label
@@ -39,6 +41,8 @@ func _ready() -> void:
 
 
 func present(state: Dictionary, available_routes: Array) -> void:
+	_state = state.duplicate(true)
+	_scouted = CampaignFacilities.scouted_nodes(state, available_routes)
 	_graph = state.get("graph", {})
 	_biome_index = int(state.get("biome_index", 0))
 	_available = available_routes.duplicate(true)
@@ -226,12 +230,26 @@ func _update_preview() -> void:
 	if int(node.get("depth", 0)) == 4:
 		if has_details:
 			_details.text = "%s · %s\n%s%s\n%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), danger, event_text, reward_copy, _route_status_copy()]
+		elif _scouted.has(_selected_id):
+			_details.text = "%s · BIOME FINALE · WAYFINDER SCOUTING\n15:00 survival before the final boss · %s\nBase Gold: %d. Events and equipment prizes remain veiled. %s" % [biome_names[biome].to_upper(), danger, int(contract_record.get("gold", 0)) * (biome + 1), _route_status_copy()]
 		else:
 			_details.text = "%s · BIOME FINALE · PREVIEW ONLY\n15:00 survival before the final boss; full danger and reward details remain veiled until revealed. %s" % [biome_names[biome].to_upper(), _route_status_copy()]
 	elif not has_details:
-		_details.text = "%s · preview only\n%s  ·  duration %s  ·  full danger and reward details remain veiled until revealed. %s" % [biome_names[biome].to_upper(), contract_name.to_upper(), _duration(contract), _route_status_copy()]
+		if _scouted.has(_selected_id):
+			_details.text = "%s · WAYFINDER SCOUTING · preview only\n%s · %s · %s\nBase Gold on clear: %d. Events and equipment prizes remain veiled; an Ash Map reveals them.\n%s" % [biome_names[biome].to_upper(), contract_name.to_upper(), _duration(contract), danger, int(contract_record.get("gold", 0)) * (biome + 1), _route_status_copy()]
+		else:
+			_details.text = "%s · preview only\n%s  ·  duration %s  ·  full danger and reward details remain veiled until revealed. %s" % [biome_names[biome].to_upper(), contract_name.to_upper(), _duration(contract), _route_status_copy()]
 	else:
 		_details.text = "%s · %s\n%s · %s%s\n%s\n%s" % [biome_names[biome].to_upper(), _duration(contract), contract_name.to_upper(), danger, event_text, reward_copy, _route_status_copy()]
+	var funding := CampaignFacilities.funding_copy(_state, node if has_details and _is_available(_selected_id) else {})
+	if not funding.is_empty(): _details.text += "\n" + funding
+	if has_details:
+		var commission := str(node.get("commission", ""))
+		if CampaignPlanning.BENEFITS.has(commission): _details.text += "\n" + CampaignPlanning.DETOURS[commission]["copy"] + "\nTOWN PROMISE · " + CampaignPlanning.BENEFITS[commission]["name"] + ": " + CampaignPlanning.BENEFITS[commission]["desc"]
+		if node.get("reward_theme", "") != "": _details.text += "\n" + RewardPools.selection_text(node["reward_theme"])
+		if node.has("committed_prize"): _details.text += "\nCommitted prize · " + str(node["committed_prize"]["data"]["name"]) + " (same roll on retry)"
+		var trial_copy := TacticTrials.description(contract)
+		if trial_copy != "": _details.text += "\n" + trial_copy
 	_confirm.text = "Route committed" if _committed else "Choose this route"
 	_confirm.disabled = _committed or not _is_available(_selected_id)
 	var committed_title := _node_title(_nodes[_committed_id]) if _nodes.has(_committed_id) else ""

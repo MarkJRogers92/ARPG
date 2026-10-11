@@ -7,12 +7,12 @@ extends RefCounted
 ## A random item. `quality` pushes the rarity roll toward better results; it
 ## combines the player's magic find with the enemy's own bonus (0 = none,
 ## 0.5 = +50% weight on magic, +100% on rare, +150% on legendary, ...).
-static func generate(ilvl: int, quality := 0.0, rng: RandomNumberGenerator = null) -> Item:
-	return generate_with(ilvl, roll_rarity(quality, rng), _pick(ItemData.SLOTS, rng), rng)
+static func generate(ilvl: int, quality := 0.0, rng: RandomNumberGenerator = null, theme := "") -> Item:
+	return generate_with(ilvl, roll_rarity(quality, rng), _pick(ItemData.SLOTS, rng), rng, theme)
 
 
 ## An item with a fixed rarity and slot (tests, bots, and debug tools use this).
-static func generate_with(ilvl: int, rarity: int, slot: String, rng: RandomNumberGenerator = null) -> Item:
+static func generate_with(ilvl: int, rarity: int, slot: String, rng: RandomNumberGenerator = null, theme := "") -> Item:
 	var item := Item.new()
 	item.slot = slot
 	item.ilvl = maxi(ilvl, 1)
@@ -29,9 +29,9 @@ static func generate_with(ilvl: int, rarity: int, slot: String, rng: RandomNumbe
 
 	var rules: Dictionary = ItemData.RARITIES[rarity]
 	var count: int = _range(rules["affixes"][0], rules["affixes"][1], rng)
-	item.affixes = _roll_affixes(item, count, rules["luck"], rng)
+	item.affixes = _roll_affixes(item, count, rules["luck"], rng, theme)
 	if rarity == ItemData.Rarity.LEGENDARY:
-		var powers := ItemData.powers_for(slot)
+		var powers := RewardPools.power_candidates(slot, theme)
 		if not powers.is_empty():
 			item.power = _pick(powers, rng)
 	item.name = _make_name(item, rng)
@@ -53,15 +53,13 @@ static func roll_rarity(quality := 0.0, rng: RandomNumberGenerator = null) -> in
 	return ItemData.Rarity.NORMAL
 
 
-static func _roll_affixes(item: Item, count: int, luck: float, rng: RandomNumberGenerator = null) -> Array[Dictionary]:
-	var pool: Array[Dictionary] = []
-	for a: Dictionary in ItemData.AFFIXES:
-		if item.slot in a["slots"] and item.rarity >= a.get("min_rarity", ItemData.Rarity.MAGIC):
-			pool.append(a)
+static func _roll_affixes(item: Item, count: int, luck: float, rng: RandomNumberGenerator = null, theme := "") -> Array[Dictionary]:
+	var pool := RewardPools.affix_candidates(item.slot, item.rarity, theme)
+	var themed := RewardPools.affix_candidates(item.slot, item.rarity, theme, true)
 
 	var out: Array[Dictionary] = []
 	while out.size() < count and not pool.is_empty():
-		var a := _pick_weighted(pool, rng)
+		var a := _pick_weighted(themed if out.is_empty() and not themed.is_empty() else pool, rng)
 		pool.erase(a)
 		# One affix per stat+op combination, so an item never stacks two
 		# flavors of the same bonus.
@@ -104,6 +102,7 @@ static func _make_name(item: Item, rng: RandomNumberGenerator = null) -> String:
 		ItemData.Rarity.NORMAL:
 			return item.base_name
 		ItemData.Rarity.MAGIC:
+			if item.affixes.is_empty(): return item.base_name
 			var first: Dictionary = ItemData.affix(item.affixes[0]["id"])
 			if item.affixes.size() == 1:
 				# One affix: randomly a prefix or a suffix.

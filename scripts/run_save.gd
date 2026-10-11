@@ -10,6 +10,9 @@ extends RefCounted
 ## (each minion's kind and rank; veterans' names are not kept), souls,
 ## rerolls, the run's shards and kills, the omen, pacts and Ascension, and
 ## the end screen's records.
+## Banish exclusions/remaining uses and measured combat stats also persist.
+## Synergy cards persist as upgrade_levels; queued pulses and Warding shrine
+## charges are transient, like the blessing itself.
 ## Not kept, on purpose: the horde itself (a crowd fit for the hour is raised
 ## around the hero instead), a mid-boss in the field (it comes back shortly),
 ## and whatever was in flight: shrines, goblins, chests, rifts, the Ferryman's
