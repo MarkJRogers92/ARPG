@@ -150,7 +150,7 @@ func _build() -> void:
 	_class_desc.custom_minimum_size = Vector2(640, 40)
 	_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_class_desc.modulate = Color(1, 1, 1, 0.8)
-	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"]
+	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"] + "\n" + HeroClass.SIGNATURES[MetaProgress.hero_class]
 	hero_row.add_child(_class_desc)
 	_relic_button = Button.new()
 	_relic_button.custom_minimum_size = Vector2(360, 40)
@@ -295,7 +295,14 @@ func _build() -> void:
 	_relic_overlay = _overlay()
 	_relic_box = VBoxContainer.new()
 	_relic_box.add_theme_constant_override("separation", 8)
-	(_relic_overlay.get_meta("box") as VBoxContainer).add_child(_relic_box)
+	var relic_scroll := ScrollContainer.new()
+	relic_scroll.name = "ReliquaryScroll"
+	relic_scroll.custom_minimum_size = Vector2(980, 500)
+	relic_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	relic_scroll.follow_focus = true
+	(_relic_overlay.get_meta("box") as VBoxContainer).add_child(relic_scroll)
+	_relic_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	relic_scroll.add_child(_relic_box)
 	_daily_overlay = _overlay()
 	_daily_box = VBoxContainer.new()
 	_daily_box.add_theme_constant_override("separation", 8)
@@ -434,6 +441,10 @@ func _fill_reliquary() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
 	_relic_box.add_child(title)
+	var goal := _menu_label(14)
+	goal.text = NextGoals.suggested()
+	goal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_relic_box.add_child(goal)
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 28)
 	_relic_box.add_child(columns)
@@ -453,8 +464,12 @@ func _fill_reliquary() -> void:
 		var d := Relics.data(id)
 		var owned := MetaProgress.relic_owned(id)
 		var action := "Carry" if owned else ("%s ★ needed" % d["stars"] if d.has("stars") else "Buy  ·  %d ◆" % d["cost"])
+		var description := str(d["desc"])
+		if d.has("trial"):
+			description += "\nUnlock: " + Relics.price_text(id) + "."
+			if not owned: action = "Locked"
 		var can: bool = owned or (not d.has("stars") and MetaProgress.shards >= d["cost"])
-		left.add_child(_pick_row(d["name"], d["desc"], MetaProgress.relic == id, action, can, func() -> void:
+		left.add_child(_pick_row(d["name"], description, MetaProgress.relic == id, action, can, func() -> void:
 			if MetaProgress.buy_relic(id):
 				MetaProgress.carry_relic(id), d["color"]))
 
@@ -484,6 +499,19 @@ func _fill_reliquary() -> void:
 			_fill_reliquary())
 		grid.add_child(b)
 
+	right.add_child(_heading("OPTIONAL STARTING PACKAGES"))
+	for id: String in Relics.PACKAGES:
+		var package: Dictionary = Relics.PACKAGES[id]
+		var owned := MetaProgress.package_owned(id)
+		var picked: bool = MetaProgress.relic == package["relic"] and MetaProgress.start_weapon == package["weapon"]
+		right.add_child(_pick_row(package["name"], "Uses your relic and weapon slots: %s + %s. Requires owned relic (stars or trial clear) and starting weapon." % [Relics.DEFS[package["relic"]]["name"], Upgrades.DEFS[package["weapon"]]["name"]], picked, "Use kit" if owned else "Locked", owned, func() -> void: MetaProgress.pick_package(id)))
+	right.add_child(_heading("TACTIC CONTRACT UNLOCKS"))
+	for choice: Dictionary in NextGoals.choice_rows():
+		if not str(choice["scope"]).begins_with("Account unlock"): continue
+		var row := _menu_label(13)
+		row.text = "%s · %d/%d stars · %s\nAvailable on a new campaign's roads; fixed kit, 3:00 target / 4:00 deadline." % [choice["name"], mini(choice["progress"], choice["target"]), choice["target"], "Owned" if choice["owned"] else "Locked"]
+		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		right.add_child(row)
 	right.add_child(_heading("LOST LORE   ·   new level-up cards"))
 	for id: String in Upgrades.DEFS:
 		var def: Dictionary = Upgrades.DEFS[id]
@@ -783,7 +811,7 @@ func _class_button(id: String) -> Button:
 			get_tree().reload_current_scene())
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		b.connect(signal_name, func() -> void:
-			_class_desc.text = d["desc"] + ("" if unlocked else "   (unlock for %d Soul Shards)" % d["cost"]))
+			_class_desc.text = d["desc"] + "\n" + HeroClass.SIGNATURES[id] + ("" if unlocked else "   (unlock for %d Soul Shards)" % d["cost"]))
 	return b
 
 

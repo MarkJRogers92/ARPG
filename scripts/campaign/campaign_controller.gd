@@ -46,6 +46,11 @@ func _command(kind: String, operation_id: String, arguments: Array, action: Call
 	# Materialize its additive defaults on the next committed operation.
 	if not next.has("stories"):
 		next["stories"] = SettlementStories.fresh()
+	if not next.has("facilities"):
+		next["facilities"] = CampaignFacilities.fresh()
+	if not next.has("facility_goal"):
+		next["facility_goal"] = {}
+	CampaignPlanning.materialize(next)
 	var response: Dictionary = action.call(next)
 	if not response.get("ok", false): return _error(response.get("error", "Command could not complete."))
 	response["operation_id"] = operation_id
@@ -68,7 +73,7 @@ func create(hero_class := "", campaign_seed := 0) -> Dictionary:
 	var mods := []
 	for mod: Dictionary in stats._mods:
 		if mod["source"] == "meta": mods.append({"stat": mod["stat"], "op": mod["op"], "value": mod["value"]})
-	var account := {"mods": mods, "relic": MetaProgress.current_relic(), "start_weapon": MetaProgress.current_start_weapon(), "rerolls": MetaProgress.rerolls(), "cards": MetaProgress.cards.duplicate(true)}
+	var account := {"mods": mods, "relic": MetaProgress.current_relic(), "start_weapon": MetaProgress.current_start_weapon(), "rerolls": MetaProgress.rerolls(), "cards": MetaProgress.cards.duplicate(true), "mastery_stars": MetaProgress.total_stars(), "trials": NextGoals.available_trials()}
 	var seed_value: int = campaign_seed if campaign_seed != 0 else int(Time.get_ticks_usec())
 	var next := CampaignState.fresh(hero, seed_value, account)
 	var rng := CampaignCatalog.stream(seed_value, "starting-gear")
@@ -115,6 +120,7 @@ func choose_route(node_id: String, operation_id := "") -> Dictionary:
 		for effect: Dictionary in next["effects"]:
 			if effect.get("node_id", "") == "next": effect["node_id"] = node_id
 		var node: Dictionary = next["graph"]["nodes"][node_id]
+		_commit_contract_prize(next, node)
 		if node["event"] != "" and next["event_count"] < 2:
 			next["event"] = _prepare_event(next, node)
 			next["event_count"] += 1
@@ -122,6 +128,28 @@ func choose_route(node_id: String, operation_id := "") -> Dictionary:
 		else:
 			next["event"] = {}
 			next["phase"] = "DEPARTURE_READY"
+		return {"ok": true})
+
+func buy_facility(facility_id: String, target_tier: int, operation_id := "") -> Dictionary:
+	return _command("facility", operation_id, [facility_id, target_tier], func(next: Dictionary) -> Dictionary:
+		var definition := CampaignFacilities.upgrade(facility_id, target_tier)
+		if definition.is_empty() or target_tier != CampaignFacilities.tier(next, facility_id) + 1:
+			return {"ok": false, "error": "Buy the next facility tier; that tier is unavailable or already owned."}
+		if next["gold"] < definition["cost"]: return {"ok": false, "error": "Not enough campaign Gold for this facility."}
+		next["gold"] -= definition["cost"]
+		next["facilities"][facility_id] = target_tier
+		if next["facility_goal"].get("id", "") == facility_id: next["facility_goal"] = {}
+		if facility_id == "workshop": _append_workshop_stock(next)
+		return {"ok": true, "payload": {"id": facility_id, "tier": target_tier, "cost": definition["cost"]}})
+
+func pin_facility(facility_id: String, target_tier := 0, operation_id := "") -> Dictionary:
+	return _command("facility_goal", operation_id, [facility_id, target_tier], func(next: Dictionary) -> Dictionary:
+		if facility_id == "":
+			next["facility_goal"] = {}
+			return {"ok": true}
+		if CampaignFacilities.upgrade(facility_id, target_tier).is_empty() or target_tier != CampaignFacilities.tier(next, facility_id) + 1:
+			return {"ok": false, "error": "Only the next facility tier can be pinned."}
+		next["facility_goal"] = {"id": facility_id, "tier": target_tier}
 		return {"ok": true})
 
 func _prepare_event(next: Dictionary, node: Dictionary) -> Dictionary:
@@ -252,11 +280,13 @@ func depart(operation_id := "") -> Dictionary:
 		if not next["veteran_candidate"].is_empty(): return {"ok": false, "error": "Keep or decline the veteran candidate before departure."}
 		if next["wager"].get("status", "") in ["open", "won"]: return {"ok": false, "error": "Take or finish your reserved Ferryman prize before departure."}
 		var node: Dictionary = next["graph"]["nodes"][next["selected_node"]]
+		if node["contract"] == "trial_reaction" and next.get("preparation", "") == "recruits": return {"ok": false, "error": "The elemental trial disables the army; discard recruits or choose another road."}
+		_commit_contract_prize(next, node)
 		var contract: Dictionary = CampaignCatalog.CONTRACTS[node["contract"]]
 		next["attempt_serial"] += 1
 		var veteran := {}
 		for rec: Dictionary in next["roster"]:
-			if rec["id"] == next["deployed_veteran"] and rec.get("pledge_node", "") == "":
+			if rec["id"] == next["deployed_veteran"] and CampaignPlanning.available(next, rec) and TacticTrials.army_allowed(node["contract"]):
 				veteran = rec.duplicate(true)
 				veteran["rank"] = mini(veteran["rank"], next["biome_index"] + 1)
 		var effects := []
@@ -271,11 +301,19 @@ func depart(operation_id := "") -> Dictionary:
 			"objectives": {"seals": 3 if node["contract"] == "breach" else 0,
 				"lantern_recovery": next["stories"].get("lantern_recovery", {}).get("status", "") == "accepted"},
 			"story_mission": "lantern_recovery" if next["stories"].get("lantern_recovery", {}).get("status", "") == "accepted" else "",
+			"preparation": str(next.get("preparation", "")), "commission": str(node.get("commission", "")),
+			"contract_prize": node["committed_prize"].duplicate(true),
+			"opportunity_roll": node.get("opportunity_roll", {}).duplicate(true),
 			"effects": effects, "clauses": next["clauses"].duplicate(true),
 			"starting_loadout": {"hero_class": next["hero_class"], "profile_snapshot": next["profile_snapshot"].duplicate(true),
 				"inventory": CampaignState.combat_inventory(next), "talents": next["talents"].duplicate(true), "specialization": next["specialization"],
-				"veteran": veteran, "gold": next["gold"]}}
+				"veteran": veteran, "gold": next["gold"], "facilities": CampaignFacilities.levels(next)}}
 		next["departure"] = spec.duplicate(true)
+		var survey_target := CampaignPlanning.survey_target(next)
+		if spec["preparation"] == "survey" and survey_target != "":
+			next["graph"]["nodes"][survey_target]["revealed"] = true
+		next["preparation"] = ""
+		next["town_benefits"] = {}
 		next["phase"] = "EXPEDITION_ACTIVE"
 		return {"ok": true, "spec": spec}, false)
 
@@ -295,6 +333,8 @@ func settle(result: Dictionary) -> Dictionary:
 	var elapsed_value = result.get("elapsed")
 	if not (elapsed_value is float or elapsed_value is int) or not is_finite(float(elapsed_value)) or float(elapsed_value) < 0.0: return _error("Invalid terminal combat time.")
 	if not result.get("objectives", {}) is Dictionary or not result.get("kills_by", {}) is Dictionary or not result.get("loose_shards", 0) is int: return _error("Invalid expedition report.")
+	var commission_claimed: Variant = result.get("objectives", {}).get("commission_claimed", false)
+	if not commission_claimed is bool or commission_claimed and not CampaignPlanning.BENEFITS.has(spec.get("commission", "")): return _error("Uncommitted town detour reported.")
 	var lantern_active := str(spec.get("story_mission", "")) == "lantern_recovery"
 	var lantern_recovered: Variant = result.get("objectives", {}).get("lantern_recovered", false)
 	if not lantern_recovered is bool or bool(lantern_recovered) and (not lantern_active or state.get("stories", {}).get("lantern_recovery", {}).get("status", "") != "accepted"):
@@ -305,6 +345,7 @@ func settle(result: Dictionary) -> Dictionary:
 		if not count is int or count < 0 or count > 1000000: return _error("Invalid Bestiary report.")
 	if result["outcome"] == "success" and not CampaignCatalog.valid_success(spec, result): return _error("The contract's success requirements were not met.")
 	var next := state.duplicate(true)
+	CampaignPlanning.materialize(next)
 	var summary := {"outcome": result["outcome"], "elapsed": float(elapsed_value), "gold": 0, "shard_conversion": 0,
 		"talent_points": 0, "biome_complete": false, "campaign_complete": false, "items": [], "report": result.get("report", {}).duplicate(true)}
 	if result["outcome"] == "success":
@@ -345,18 +386,27 @@ func settle(result: Dictionary) -> Dictionary:
 		next["talents"]["earned"] += talent_award
 		summary["talent_points"] = talent_award
 		var node: Dictionary = next["graph"]["nodes"][spec["node_id"]]
-		var prize := _item(next, CampaignCatalog.item_level(biome, node["depth"], true), ItemData.Rarity.LEGENDARY if spec["final_boss"] else ItemData.Rarity.RARE, node["reward_slot"], rng)
+		# New departures carry the exact route-commit roll through resume/retry.
+		# A legacy active departure retains its original settlement stream.
+		var prize: Dictionary = spec["contract_prize"].duplicate(true) if spec.has("contract_prize") else _item(next, CampaignCatalog.item_level(biome, node["depth"], true), ItemData.Rarity.LEGENDARY if spec["final_boss"] else ItemData.Rarity.RARE, node["reward_slot"], rng)
 		if spec["final_boss"]:
 			_store(next, prize)
 			summary["items"].append(prize["id"])
 		else:
 			next["wager"] = {"node_id": spec["node_id"], "stage": 0, "status": "open", "prizes": [prize], "chance": _first_odds(next, false), "outcome": {}}
 			summary["reserved_prize"] = prize["id"]
+		var commission := str(spec.get("commission", ""))
+		if CampaignPlanning.BENEFITS.has(commission) and commission_claimed:
+			next["town_benefits"][commission] = {"node_id": spec["node_id"], "expires": "departure"}
+			summary["town_message"] = CampaignPlanning.BENEFITS[commission]["name"] + ": " + CampaignPlanning.BENEFITS[commission]["desc"]
 		# This attempt's successes and account award commit in the same state.
 		next["successful_nodes"][spec["node_id"]] = receipt_id
 		next["cleared_nodes"].append(spec["node_id"])
 		for veteran: Dictionary in next["roster"]:
 			if veteran.get("pledge_node", "") == spec["node_id"]: veteran["pledge_node"] = ""
+			if next.get("fatigue_enabled", false):
+				var deployed_id := str(spec["starting_loadout"]["veteran"].get("id", ""))
+				veteran["fatigue"] = clampi(int(veteran.get("fatigue", 0)) + (1 if veteran["id"] == deployed_id else -1), 0, 2)
 		var survivor = result.get("veteran", {})
 		if survivor is Dictionary and not survivor.is_empty():
 			var deployed: Dictionary = spec["starting_loadout"]["veteran"]
@@ -372,7 +422,11 @@ func settle(result: Dictionary) -> Dictionary:
 		next["event"] = {}
 		var account_receipt := {"id": receipt_id + ":account", "shards": 20 if spec["final_boss"] else 5,
 			"kills": result.get("kills_by", {}).duplicate(true), "completed": spec["final_boss"] and biome == 2,
+			"realm_won": spec["biome_id"] if spec["final_boss"] else "",
 			"campaign_id": next["campaign_id"], "hero_class": next["hero_class"]}
+		if TacticTrials.DEFS.has(spec["contract_id"]):
+			account_receipt["unlock_relic"] = TacticTrials.DEFS[spec["contract_id"]]["relic"]
+			summary["choice_unlock"] = Relics.data(account_receipt["unlock_relic"])["name"] + " · selectable in the Reliquary, never auto-equipped"
 		next["outbox"].append(account_receipt)
 		if spec["final_boss"]:
 			summary["biome_complete"] = true
@@ -383,7 +437,7 @@ func settle(result: Dictionary) -> Dictionary:
 				summary["campaign_complete"] = true
 			else:
 				next["biome_index"] += 1
-				next["graph"] = CampaignCatalog.route(next["seed"], next["biome_index"])
+				next["graph"] = CampaignCatalog.route(next["seed"], next["biome_index"], next["profile_snapshot"].get("trials", []))
 				next["cleared_nodes"] = []
 				next["event_count"] = 0
 		_refresh_stock(next)
@@ -455,11 +509,20 @@ func _record(data: Dictionary, biome: int) -> Dictionary:
 	return {"id": data["campaign_id"], "data": data.duplicate(true), "locked": false, "junk": false,
 		"valuation": CampaignCatalog.valuation(data, biome), "reforged_biomes": []}
 
-func _item(next: Dictionary, level: int, rarity: int, slot: String, rng: RandomNumberGenerator) -> Dictionary:
+func _item(next: Dictionary, level: int, rarity: int, slot: String, rng: RandomNumberGenerator, theme := "") -> Dictionary:
 	next["item_serial"] += 1
-	var item := ItemGenerator.generate_with(level, rarity, slot, rng)
+	var item := ItemGenerator.generate_with(level, rarity, slot, rng, theme)
 	item.campaign_id = "%s:item:%d" % [next["campaign_id"], next["item_serial"]]
 	return _record(item.to_dict(), next["biome_index"])
+
+func _commit_contract_prize(next: Dictionary, node: Dictionary) -> void:
+	if not node.has("opportunity_roll"):
+		var opportunity_rng := CampaignCatalog.stream(node["seed"], "elemental-opportunity")
+		node["opportunity_roll"] = ItemGenerator.generate_with(CampaignCatalog.item_level(next["biome_index"], node["depth"]), ItemData.Rarity.MAGIC, "amulet", opportunity_rng, "elemental").to_dict()
+	if node.has("committed_prize"): return
+	var finale: bool = node["contract"] == "finale"
+	var rng := CampaignCatalog.stream(node["seed"], "contract-prize")
+	node["committed_prize"] = _item(next, CampaignCatalog.item_level(next["biome_index"], node["depth"], true), ItemData.Rarity.LEGENDARY if finale else ItemData.Rarity.RARE, node["reward_slot"], rng, str(node.get("reward_theme", "")))
 
 func _store(next: Dictionary, record: Dictionary) -> void:
 	var inv: Dictionary = next["inventory"]
@@ -486,16 +549,30 @@ func _refresh_stock(next: Dictionary) -> void:
 		var record := _item(next, CampaignCatalog.item_level(next["biome_index"], depth), rarity, ItemData.SLOTS[index], rng)
 		stock.append({"id": record["id"], "item": record, "price": record["valuation"], "purchased": false})
 	next["shop"] = stock
+	_append_workshop_stock(next)
+
+func _append_workshop_stock(next: Dictionary) -> void:
+	if CampaignFacilities.tier(next, "workshop") < 1: return
+	# A separate stream leaves all existing offers/rolls/copy IDs untouched.
+	var rng := CampaignCatalog.stream(next["seed"], "workshop-stock:%d" % next["shop_generation"])
+	var depth: int = mini(next["cleared_nodes"].size() + 1, 4)
+	for slot: String in ["boots", "amulet"]:
+		var present: bool = next["shop"].any(func(entry: Dictionary) -> bool: return entry.get("facility_stock", "") == slot)
+		if present: continue
+		var record := _item(next, CampaignCatalog.item_level(next["biome_index"], depth), ItemData.Rarity.MAGIC, slot, rng, "mobility")
+		next["shop"].append({"id": record["id"], "item": record, "price": record["valuation"], "purchased": false, "facility_stock": slot, "theme": "mobility"})
 
 func buy_item(stock_id: String, operation_id := "") -> Dictionary:
 	return _command("buy", operation_id, [stock_id], func(next: Dictionary) -> Dictionary:
 		for entry: Dictionary in next["shop"]:
 			if entry["id"] != stock_id: continue
 			if entry["purchased"]: return {"ok": false, "error": "That copy has already been purchased."}
-			if next["gold"] < entry["price"]: return {"ok": false, "error": "Not enough campaign Gold."}
+			var price := CampaignPlanning.market_cost(next, entry["price"])
+			if next["gold"] < price: return {"ok": false, "error": "Not enough campaign Gold."}
 			var slot_filled: bool = next["inventory"]["equipped"].has(entry["item"]["data"]["slot"])
 			if slot_filled and next["inventory"]["backpack"].size() >= Inventory.BACKPACK_SIZE: return {"ok": false, "error": "Make backpack space before buying."}
-			next["gold"] -= entry["price"]
+			next["gold"] -= price
+			next["town_benefits"].erase("supplier")
 			entry["purchased"] = true
 			_store(next, entry["item"])
 			return {"ok": true, "payload": entry["item"].duplicate(true)}
@@ -567,7 +644,7 @@ func reforge_item(item_id: String, operation_id := "") -> Dictionary:
 		if not next["inventory"]["items"].has(item_id): return {"ok": false, "error": "Unknown item copy."}
 		var record: Dictionary = next["inventory"]["items"][item_id]
 		var biome: int = next["biome_index"]
-		var cost := 60 * (biome + 1)
+		var cost := CampaignPlanning.reforge_cost(next)
 		if record["reforged_biomes"].has(biome): return {"ok": false, "error": "This item has already been reforged in this biome."}
 		if next["gold"] < cost: return {"ok": false, "error": "Not enough Gold for this reforge."}
 		var rng := CampaignCatalog.stream(next["seed"], "reforge:%s:%d" % [item_id, biome])
@@ -578,6 +655,7 @@ func reforge_item(item_id: String, operation_id := "") -> Dictionary:
 		var alternative := record.duplicate(true)
 		alternative["data"] = item.to_dict().duplicate(true)
 		next["gold"] -= cost
+		next["town_benefits"].erase("tools")
 		next["reforge"] = {"item_id": item_id, "old": old, "new": alternative, "cost": cost, "biome": biome}
 		return {"ok": true, "payload": next["reforge"].duplicate(true)})
 
@@ -629,7 +707,7 @@ func _veteran_record(source: Dictionary, id: String) -> Dictionary:
 	return {"id": id, "name": str(source.get("name", "Unnamed Veteran")), "swarm": str(source.get("swarm", "Grunts")),
 		"label": str(source.get("label", "Veteran")), "role": str(source.get("role", "brawler")), "elite": clampi(int(source.get("elite", 0)), 0, 1),
 		"deeds": maxi(0, int(source.get("deeds", 0))), "rank": clampi(int(source.get("rank", 1)), 1, 3),
-		"nights": maxi(0, int(source.get("nights", 0))), "pledge_node": ""}
+		"nights": maxi(0, int(source.get("nights", 0))), "pledge_node": "", "fatigue": 0}
 
 func choose_veteran(veteran_id: String, operation_id := "") -> Dictionary:
 	return _command("deploy", operation_id, [veteran_id], func(next: Dictionary) -> Dictionary:
@@ -638,10 +716,44 @@ func choose_veteran(veteran_id: String, operation_id := "") -> Dictionary:
 			return {"ok": true}
 		for veteran: Dictionary in next["roster"]:
 			if veteran["id"] == veteran_id:
-				if veteran["pledge_node"] != "": return {"ok": false, "error": "This veteran is pledged until the bound node clears."}
+				if not CampaignPlanning.available(next, veteran): return {"ok": false, "error": "This veteran is pledged or resting; ordinary recruits remain available."}
 				next["deployed_veteran"] = veteran_id
 				return {"ok": true}
 		return {"ok": false, "error": "Unknown campaign veteran."})
+
+func buy_preparation(id: String, operation_id := "") -> Dictionary:
+	return _command("preparation", operation_id, [id], func(next: Dictionary) -> Dictionary:
+		if id == "":
+			next["preparation"] = ""
+			return {"ok": true}
+		if not CampaignPlanning.PREPARATIONS.has(id) or next["preparation"] != "": return {"ok": false, "error": "Choose one preparation; discard the current slot before replacing it (no refund)."}
+		if id == "survey" and CampaignPlanning.survey_target(next) == "": return {"ok": false, "error": "Choose a route with a still-hidden connected road before buying a survey."}
+		if id == "recruits" and not TacticTrials.army_allowed(CampaignPlanning.selected_contract(next)): return {"ok": false, "error": "The elemental trial disables the army; choose recovery, survey or no preparation."}
+		var cost := CampaignPlanning.preparation_cost(next, id)
+		if next["gold"] < cost: return {"ok": false, "error": "Not enough Gold for this optional preparation; departing without one is always allowed."}
+		next["gold"] -= cost
+		next["town_benefits"].erase("veteran")
+		next["preparation"] = id
+		return {"ok": true, "payload": {"id": id, "cost": cost}})
+
+func set_fatigue(enabled: bool, operation_id := "") -> Dictionary:
+	return _command("fatigue", operation_id, [enabled], func(next: Dictionary) -> Dictionary:
+		next["fatigue_enabled"] = enabled
+		return {"ok": true})
+
+func recover_veteran(id: String, operation_id := "") -> Dictionary:
+	return _command("recover", operation_id, [id], func(next: Dictionary) -> Dictionary:
+		var cost: int = 20 * (next["biome_index"] + 1)
+		for veteran: Dictionary in next["roster"]:
+			if veteran["id"] != id: continue
+			if not next["fatigue_enabled"]: return {"ok": false, "error": "Veteran fatigue is off; recovery is not needed."}
+			if veteran["pledge_node"] != "": return {"ok": false, "error": "Recovery cannot release a pledged veteran; clear its bound node."}
+			if int(veteran.get("fatigue", 0)) == 0: return {"ok": false, "error": "This veteran is already rested."}
+			if next["gold"] < cost: return {"ok": false, "error": "Recovery is optional; use ordinary recruits while this veteran rests."}
+			next["gold"] -= cost
+			veteran["fatigue"] = 0
+			return {"ok": true, "payload": {"cost": cost}}
+		return {"ok": false, "error": "Unknown veteran."})
 
 func recruit_veteran(candidate_id: String, replace_id := "", operation_id := "") -> Dictionary:
 	return _command("recruit", operation_id, [candidate_id, replace_id], func(next: Dictionary) -> Dictionary:
@@ -722,12 +834,13 @@ func wager(pledge := false, operation_id := "") -> Dictionary:
 		if stage == 0: next["effects"] = next["effects"].filter(func(effect: Dictionary) -> bool: return effect["id"] != "loaded_passage")
 		if won:
 			var original: Dictionary = bet["prizes"][0]
-			var legendary := ItemGenerator.generate_with(original["data"]["ilvl"], ItemData.Rarity.LEGENDARY, original["data"]["slot"], rng)
+			var theme := str(next["graph"]["nodes"].get(bet["node_id"], {}).get("reward_theme", ""))
+			var legendary := ItemGenerator.generate_with(original["data"]["ilvl"], ItemData.Rarity.LEGENDARY, original["data"]["slot"], rng, theme)
 			if stage == 0:
 				legendary.campaign_id = original["id"]
 				bet["prizes"][0] = _record(legendary.to_dict(), next["biome_index"])
 			else:
-				var second := _item(next, legendary.ilvl, ItemData.Rarity.LEGENDARY, legendary.slot, rng)
+				var second := _item(next, legendary.ilvl, ItemData.Rarity.LEGENDARY, legendary.slot, rng, theme)
 				bet["prizes"].append(second)
 			bet["status"] = "won"
 		else:

@@ -49,6 +49,10 @@ func _ready() -> void:
 
 	var mesh := Models.bolt()
 	MultiMeshUtil.setup(self, mesh, capacity, mesh.surface_get_material(0))
+	# Friendly-only override: the hero's bolts fade with the "Friendly spell
+	# opacity" setting. This dedicated material is separate from the shared
+	# glow the hostile hazards use, so fading bolts never fades a threat.
+	material_override = Juice.friendly_glow_material()
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
 

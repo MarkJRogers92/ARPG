@@ -735,7 +735,7 @@ func _update_status(i: int, o: int, delta: float) -> void:
 	if b > 0.0 and hp[i] > 0.0:
 		var burnt := minf(burn_dps[i] * delta * damage_taken, hp[i])
 		hp[i] -= burnt
-		Elements.record(burnt, "Burning")
+		Elements.record(burnt, "Burning", self, i)
 		if hp[i] <= 0.0:
 			_die(i)
 	var tint := elite_tint if _elite[i] == 1 else Color.WHITE

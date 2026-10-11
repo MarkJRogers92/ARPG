@@ -10,6 +10,9 @@ const CONTRACTS := {
 	"breach": {"name": "Seal the Breach", "duration": 360.0, "deadline": 420.0, "gold": 110, "reward": "Sealkeeper's equipment", "danger": "Three scattered seals", "icon": "◇"},
 	"elite_hunt": {"name": "Elite Hunt", "duration": 300.0, "deadline": 420.0, "gold": 140, "reward": "Targeted upper-tier Rare", "danger": "A marked champion at 5:00", "icon": "✦"},
 	"cursed_cache": {"name": "Cursed Cache", "duration": 360.0, "deadline": 0.0, "gold": 100, "reward": "Optional cache treasure", "danger": "An optional cursed cache", "icon": "▣"},
+	"trial_army": {"name": "Commander's Vigil", "duration": 180.0, "deadline": 240.0, "gold": 90, "reward": "Army-themed Rare", "danger": "Army-led trial · hero weapons disabled", "icon": "⚑"},
+	"trial_dash": {"name": "Stormpath Trial", "duration": 180.0, "deadline": 240.0, "gold": 90, "reward": "Mobility-themed Rare", "danger": "Dash-led trial · hero auto-weapons disabled", "icon": "↯"},
+	"trial_reaction": {"name": "Rime and Spark", "duration": 180.0, "deadline": 240.0, "gold": 90, "reward": "Elemental-themed Rare", "danger": "Reaction trial · elemental auto-weapons only", "icon": "❄"},
 	"finale": {"name": "Biome Finale", "duration": 900.0, "deadline": 0.0, "gold": 250, "reward": "A realm conquered", "danger": "Survive 15:00, then defeat the realm boss", "icon": "♜"},
 }
 const CLAUSES := {
@@ -47,7 +50,7 @@ static func valuation(data: Dictionary, biome: int) -> int:
 static func sale_value(record: Dictionary) -> int:
 	return maxi(0, int(record.get("valuation", 0)) / 4)
 
-static func route(seed_value: int, biome: int) -> Dictionary:
+static func route(seed_value: int, biome: int, trials: Array = []) -> Dictionary:
 	var rng := stream(seed_value, "route:%d" % biome)
 	var nodes := {}
 	var layers := []
@@ -63,6 +66,17 @@ static func route(seed_value: int, biome: int) -> Dictionary:
 				"seed": int(rng.randi()), "event": event_ids[rng.randi_range(0, event_ids.size() - 1)] if rng.randf() < 0.65 else "",
 				"next": [], "reward_slot": ItemData.SLOTS[rng.randi_range(0, ItemData.SLOTS.size() - 1)]}
 			layer.append(id)
+		# Keep at least one ordinary contract at every junction. Only owned
+		# trials enter newly generated roads; legacy graphs remain unchanged.
+		var owned_trials := trials.filter(func(trial: Variant) -> bool: return TacticTrials.DEFS.has(trial))
+		if not owned_trials.is_empty():
+			var trial: String = owned_trials[(depth - 1 + biome) % owned_trials.size()]
+			nodes[layer[-1]]["contract"] = trial
+			nodes[layer[-1]]["elite"] = false
+		for id: String in layer:
+			var contract: String = nodes[id]["contract"]
+			nodes[id]["commission"] = CampaignPlanning.COMMISSIONS.get(contract, "")
+			nodes[id]["reward_theme"] = reward_theme(contract)
 		layers.append(layer)
 	var boss := "%d:boss" % biome
 	nodes[boss] = {"id": boss, "depth": 4, "contract": "finale", "elite": false, "seed": int(rng.randi()), "event": "", "next": [], "reward_slot": "weapon"}
@@ -76,11 +90,22 @@ static func route(seed_value: int, biome: int) -> Dictionary:
 				nodes[id]["next"] = [boss]
 	return {"seed": seed_value, "content_version": CONTENT_VERSION, "start": layers[0], "nodes": nodes}
 
+static func reward_theme(contract: String) -> String:
+	if TacticTrials.DEFS.has(contract): return TacticTrials.DEFS[contract]["theme"]
+	return {"hunt": "army", "breach": "elemental", "elite_hunt": "mobility", "cursed_cache": "army"}.get(contract, "")
+
 static func valid_success(spec: Dictionary, result: Dictionary) -> bool:
 	var t := float(result.get("elapsed", -1.0))
 	if not is_finite(t) or t < float(spec["duration"]) or (float(spec["deadline"]) > 0.0 and t > float(spec["deadline"]) + 0.05):
 		return false
 	var objectives: Dictionary = result.get("objectives", {})
+	if TacticTrials.DEFS.has(spec["contract_id"]):
+		var damage: Variant = objectives.get("trial_damage", {})
+		var dashes: Variant = objectives.get("trial_dashes", 0)
+		if not damage is Dictionary or not dashes is int or dashes < 0: return false
+		for value: Variant in damage.values():
+			if not (value is int or value is float) or not is_finite(float(value)) or float(value) < 0.0: return false
+		return bool(TacticTrials.progress(spec["contract_id"], damage, dashes)["done"])
 	match spec["contract_id"]:
 		"breach": return int(objectives.get("seals", 0)) >= 3
 		"elite_hunt": return objectives.get("elite_dead", false) == true

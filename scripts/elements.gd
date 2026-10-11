@@ -11,7 +11,7 @@ extends RefCounted
 ##
 ##   Shatter   lightning hits a chilled enemy: an ice burst hurts and chills
 ##             everything around it
-##   Melt      fire hits a chilled enemy: that hit deals 2.5x
+##   Melt      fire hits a chilled enemy: that hit deals MELT_MULT times damage
 ##   Overload  fire hits a shocked enemy, or lightning a burning one: an
 ##             explosion
 ##
@@ -55,13 +55,15 @@ static var _text_ready := {}
 ## damage really dealt by each this run, for the run report.
 static var source := "Other"
 static var damage_by := {}
+static var metrics := CombatLedger.new()
 
 
 ## Credits `amount` of real damage to `who` (or the current source).
-static func record(amount: float, who := "") -> void:
+static func record(amount: float, who := "", swarm: EnemySwarm = null, index := -1) -> void:
 	if amount > 0.0:
 		var k := who if who != "" else source
 		damage_by[k] = damage_by.get(k, 0.0) + amount
+		metrics.record(k, amount, metrics.target_key(swarm, index) if swarm != null and index >= 0 else "")
 
 
 static func reset() -> void:
@@ -72,6 +74,7 @@ static func reset() -> void:
 	_text_ready.clear()
 	source = "Other"
 	damage_by.clear()
+	metrics = CombatLedger.new()
 
 
 static func has_power(id: String) -> bool:
@@ -87,6 +90,9 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 		element = FIRE
 	var at := swarm.pos[i]
 	var react := player.stats.reaction_damage if player else 1.0
+	var melt_multiplier := 1.0
+	if player != null and player.challenge_id == "":
+		player.build_synergies.on_hit(player, swarm, i, source, element, amount)
 	match element:
 		LIGHTNING:
 			if swarm.chill[i] > 0.0:
@@ -99,6 +105,8 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 			if swarm.chill[i] > 0.0:
 				swarm.chill[i] = 0.0
 				amount *= MELT_MULT * react
+				melt_multiplier = MELT_MULT * react
+				metrics.reaction("Melt", 0.0, true)
 				_text(at, "MELT", COLORS[FIRE])
 				Sound.play("melt")
 			elif swarm.shock[i] > 0.0:
@@ -113,7 +121,13 @@ static func hit(swarm: EnemySwarm, i: int, amount: float, element := NONE, crit 
 
 	var before := swarm.hp[i]
 	var killed := swarm.damage(i, amount)
-	record(before - maxf(swarm.hp[i], 0.0))
+	var dealt := before - maxf(swarm.hp[i], 0.0)
+	# Split only the bonus part of Melt proportionally when overkill is capped.
+	var bonus := dealt * maxf(1.0 - 1.0 / melt_multiplier, 0.0)
+	record(dealt - bonus, "", swarm, i)
+	if bonus > 0.0:
+		record(bonus, "Reactions", swarm, i)
+		metrics.reaction("Melt", bonus)
 	Juice.number(at, amount, crit, COLORS.get(element, Color.WHITE).lightened(0.35))
 	if not killed:
 		apply_status(swarm, i, element)
@@ -167,14 +181,16 @@ static func flush() -> void:
 		var at: Vector2 = e["at"]
 		match e["kind"]:
 			"shatter":
-				_area(at, 2.6, e["damage"], FROST)
+				metrics.reaction("Shatter", 0.0, true)
+				_area(at, 2.6, e["damage"], FROST, "Shatter")
 				Juice.ring(at, COLORS[FROST], 18, 6.0, 0.4, 0.35)
 				Juice.burst(at, 1.0, Color(0.8, 0.95, 1.0), 10, 5.0, 0.35, 0.4, 3.0)
 				Juice.flash(at, COLORS[FROST], 3.0, 6.0, 0.2)
 				_text(at, "SHATTER", COLORS[FROST])
 				Sound.play("shatter")
 			"overload":
-				_area(at, 3.0, e["damage"], NONE)
+				metrics.reaction("Overload", 0.0, true)
+				_area(at, 3.0, e["damage"], NONE, "Overload")
 				Juice.ring(at, Color(1.0, 0.6, 0.9), 22, 8.0, 0.5, 0.4)
 				Juice.burst(at, 1.0, COLORS[FIRE], 14, 6.0, 0.45, 0.5, 4.0)
 				Juice.flash(at, Color(1.0, 0.55, 0.6), 4.0, 8.0, 0.25)
@@ -196,7 +212,7 @@ static func flush() -> void:
 
 ## Damage (and a status) to everything near `at`, without new reactions, so
 ## effects can't chain forever.
-static func _area(at: Vector2, r: float, amount: float, element: int) -> void:
+static func _area(at: Vector2, r: float, amount: float, element: int, reaction_kind := "") -> void:
 	for swarm in swarms:
 		var n := swarm.grid.query(at, r + swarm.radius)
 		var res := swarm.grid.results
@@ -206,7 +222,9 @@ static func _area(at: Vector2, r: float, amount: float, element: int) -> void:
 				continue
 			var before := swarm.hp[i]
 			var killed := swarm.damage(i, amount)
-			record(before - maxf(swarm.hp[i], 0.0), "Reactions")
+			var dealt := before - maxf(swarm.hp[i], 0.0)
+			record(dealt, "Reactions", swarm, i)
+			if reaction_kind != "": metrics.reaction(reaction_kind, dealt)
 			if not killed:
 				apply_status(swarm, i, element)
 

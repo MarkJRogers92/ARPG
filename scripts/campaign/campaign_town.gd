@@ -892,7 +892,7 @@ func _render_panel() -> void:
 
 
 func _current_action_focus_identity() -> Dictionary:
-	if _active_service not in ["market", "trainer", "ledger"] or not is_instance_valid(_content):
+	if _active_service not in ["market", "trainer", "ledger", "route", "roster"] or not is_instance_valid(_content):
 		return {}
 	var focused := get_viewport().gui_get_focus_owner()
 	if focused == null or not (_content == focused or _content.is_ancestor_of(focused)):
@@ -903,7 +903,7 @@ func _current_action_focus_identity() -> Dictionary:
 
 
 func _restore_town_action_focus(service: String, kind: String, item_id: String) -> void:
-	if not is_inside_tree() or _active_service != service or service not in ["market", "trainer", "ledger"] or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
+	if not is_inside_tree() or _active_service != service or service not in ["market", "trainer", "ledger", "route", "roster"] or str(_state.get("phase", "TOWN")) not in ["TOWN", "DEPARTURE_READY"]:
 		return
 	var current_focus := get_viewport().gui_get_focus_owner()
 	if current_focus != null and not current_focus.is_queued_for_deletion() and not (_content == current_focus or _content.is_ancestor_of(current_focus)):
@@ -912,7 +912,8 @@ func _restore_town_action_focus(service: String, kind: String, item_id: String) 
 	if _town_action_control_is_available(target):
 		target.grab_focus()
 		return
-	var fallback := _find_available_town_action_focus_target(_content)
+	# A completed stock purchase must not jump to the unrelated facility Buy.
+	var fallback := _find_available_town_action_focus_target(_content, kind)
 	if fallback != null:
 		fallback.grab_focus()
 		return
@@ -932,13 +933,13 @@ func _find_town_action_focus_target(node: Node, kind: String, item_id: String) -
 	return null
 
 
-func _find_available_town_action_focus_target(node: Node) -> Control:
+func _find_available_town_action_focus_target(node: Node, kind := "") -> Control:
 	if node.is_queued_for_deletion():
 		return null
-	if node is Control and not str(node.get_meta("town_action_focus_kind", "")).is_empty() and _town_action_control_is_available(node as Control):
+	if node is Control and not str(node.get_meta("town_action_focus_kind", "")).is_empty() and (kind.is_empty() or node.get_meta("town_action_focus_kind", "") == kind) and _town_action_control_is_available(node as Control):
 		return node as Control
 	for child: Node in node.get_children():
-		var target := _find_available_town_action_focus_target(child)
+		var target := _find_available_town_action_focus_target(child, kind)
 		if target != null:
 			return target
 	return null
@@ -973,6 +974,7 @@ func _render_route() -> void:
 	_content.add_child(route_view)
 	var available: Array = _controller.available_routes()
 	route_view.present(_state, available)
+	_render_facility("wayfinder")
 	_render_preparation_panel(selected)
 	_refresh_route_action()
 	var ready := _departure_blockers().is_empty()
@@ -1080,6 +1082,11 @@ func _render_preparation_panel(selected_node_id: String) -> void:
 			var service_button := _button("Open %s" % choice["label"], _select_service.bind(str(choice["service"])), Color(0.78, 0.85, 0.96))
 			service_button.custom_minimum_size.y = 32
 			row.add_child(service_button)
+	var preparation := str(_state.get("preparation", ""))
+	_add_copy_to(panel, "PAID SLOT · " + (CampaignPlanning.PREPARATIONS[preparation]["name"] + " · already paid; bank %d G" % int(_state.get("gold", 0)) if preparation != "" else "empty; optional"), UiStyle.GOLD)
+	for veteran: Dictionary in _state.get("roster", []):
+		if veteran["id"] == _state.get("deployed_veteran", ""):
+			_add_copy_to(panel, "SELECTED VETERAN · " + veteran["name"] + "\n" + CampaignPlanning.veteran_copy(_state, veteran, str(selected_node.get("contract", ""))), UiStyle.TEXT)
 
 
 func _departure_blockers() -> Array[Dictionary]:
@@ -1094,6 +1101,8 @@ func _departure_blockers() -> Array[Dictionary]:
 		blockers.append({"text": phase_copy})
 	if selected.is_empty() and phase != "EVENT_PENDING":
 		blockers.append({"text": "Choose and commit a route before departure."})
+	if _state.get("preparation", "") == "recruits" and not TacticTrials.army_allowed(CampaignPlanning.selected_contract(_state)):
+		blockers.append({"text": "Elemental trial disables the army; discard recruits or choose another road.", "service": "roster", "label": "Preparations"})
 	var inventory: Dictionary = _state.get("inventory", {})
 	var tray: Array = inventory.get("tray", [])
 	if not tray.is_empty():
@@ -1124,7 +1133,7 @@ func _optional_preparation_choices() -> Array[Dictionary]:
 			continue
 		var veteran: Dictionary = veteran_value
 		var veteran_id := str(veteran.get("id", ""))
-		var unpledged := str(veteran.get("pledge_node", "")).is_empty()
+		var unpledged := CampaignPlanning.available(_state, veteran)
 		if veteran_id == deployed and unpledged:
 			usable_deployed = true
 		elif available_veteran.is_empty() and unpledged:
@@ -1464,6 +1473,8 @@ func _render_reforge(parent: Control) -> void:
 
 func _render_market() -> void:
 	_add_copy("The Market's stock is saved for this town visit. Compare the item and listed cost before you buy.")
+	_render_town_benefits()
+	_render_facility("workshop")
 	var pending_reforge: Dictionary = _state.get("reforge", {})
 	if not pending_reforge.is_empty():
 		_render_reforge(_content)
@@ -1500,7 +1511,8 @@ func _render_market() -> void:
 		item_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(item_details)
 		_add_item_detail(item_details, item_record if not item_record.is_empty() else {"data": data, "valuation": stock_item.get("valuation", 0)})
-		var price := int(stock_item.get("price", stock_item.get("valuation", 0)))
+		var price := CampaignPlanning.market_cost(_state, int(stock_item.get("price", stock_item.get("valuation", 0))))
+		if stock_item.get("theme", "") != "": _add_copy_to(item_details, RewardPools.selection_text(stock_item["theme"]), UiStyle.MUTED)
 		var purchased := bool(stock_item.get("purchased", false))
 		var buy := _button("Purchased" if purchased else "Buy · %d G" % price, func() -> void: _command("buy_item", [id]), UiStyle.GOLD)
 		_set_town_action_focus_identity(buy, "market_stock", id)
@@ -1548,12 +1560,18 @@ func _render_starting_build_summary(parent: Control) -> void:
 		"Army capacity %d" % int(preview["minion_max"]),
 	]
 	var primary_text := str(preview["primary_attack_label"])
-	primary_text += " · %s dmg per hit · %s s cooldown" % [
-		_format_starting_build_number(float(preview["primary_damage"])),
-		_format_starting_build_cooldown(float(preview["primary_cooldown"])),
-	]
+	if preview.has("primary_summary"): primary_text += " · " + preview["primary_summary"]
+	else:
+		primary_text += " · %s dmg per hit · %s s cooldown" % [
+			_format_starting_build_number(float(preview["primary_damage"])),
+			_format_starting_build_cooldown(float(preview["primary_cooldown"])),
+		]
 	var summary := CampaignMenuStyle.label(13)
 	summary.text = "%s\nPrimary %s" % [" · ".join(metric_values), primary_text]
+	summary.text += "\n" + str(preview.get("signature", ""))
+	if preview.get("trial", "") != "": summary.text += "\n" + preview["trial"]
+	if CampaignFacilities.tier(_state, "veteran_hall") > 0:
+		summary.text += "\nCompany · %s minion damage · %s minion life · Veteran Hall benefits included." % [_format_starting_build_number(float(preview["minion_damage"])), _format_starting_build_number(float(preview["minion_hp"]))]
 	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	summary.modulate = Color(1.0, 1.0, 1.0, 0.84)
@@ -1589,6 +1607,11 @@ func _render_trainer() -> void:
 	var talents: Dictionary = _state.get("talents", {})
 	var allocated: Array = talents.get("allocated", [])
 	_add_copy("Campaign talents survive each expedition. Only successful node settlements grant points; refunds return them here.")
+	_add_copy(NextGoals.suggested(Realm.ORDER[clampi(int(_state.get("biome_index", 0)), 0, 2)]))
+	_add_copy(NextGoals.realm_goal())
+	for choice: Dictionary in NextGoals.choice_rows():
+		_add_copy("%s · %d/%d stars · %s · %s" % [choice["name"], mini(choice["progress"], choice["target"]), choice["target"], "Owned" if choice["owned"] else "Locked", choice["scope"]])
+	_add_copy("New tactic ownership enters a new campaign's road graph. This campaign uses its committed account snapshot.")
 	var points := CampaignMenuStyle.label(20)
 	points.text = "%d talent points available   ·   %d / 18 earned" % [int(talents.get("points", 0)), int(talents.get("earned", 0))]
 	points.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -1702,6 +1725,11 @@ func _render_roster() -> void:
 	var deployed := str(_state.get("deployed_veteran", ""))
 	var effective_rank_cap := int(_state.get("biome_index", 0)) + 1
 	_add_copy("Only one veteran travels with you. Campaign echoes recover after a failed attempt; their account Crypt originals remain untouched.")
+	_render_facility("veteran_hall")
+	_render_preparations()
+	var fatigue_enabled := bool(_state.get("fatigue_enabled", false))
+	_content.add_child(_button("Light veteran fatigue · %s (optional)" % ("ON" if fatigue_enabled else "OFF"), func() -> void: _command("set_fatigue", [not fatigue_enabled]), UiStyle.GOLD))
+	_add_copy("Only successful clears tick fatigue: deployed +1, idle -1; 2/2 rests. Failed attempts and reload do not tick. Ordinary recruits never tire; departure never requires a veteran.")
 	for veteran: Variant in roster:
 		if not veteran is Dictionary:
 			continue
@@ -1714,12 +1742,20 @@ func _render_roster() -> void:
 		var pledge_node := str(veteran.get("pledge_node", ""))
 		var pledge_copy := "Pledged until the next route clears" if pledge_node == "next" else ("Pledged to route %s" % pledge_node if not pledge_node.is_empty() else "Available")
 		info.text = "%s  ·  %s  ·  Rank %d (travels as %d; biome rank cap %d)\n%s\n%s" % [veteran.get("name", "Unnamed veteran"), _veteran_role_name(veteran), rank, effective_rank, effective_rank_cap, pledge_copy, _veteran_record_details(veteran)]
+		var contract := str(_state.get("graph", {}).get("nodes", {}).get(str(_state.get("selected_node", "")), {}).get("contract", ""))
+		info.text += "\n" + CampaignPlanning.veteran_copy(_state, veteran, contract)
 		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
 		var button := _button("Deployed" if deployed == id else "Deploy", func() -> void: _command("choose_veteran", [id]), UiStyle.GOLD)
-		button.disabled = deployed == id or not str(veteran.get("pledge_node", "")).is_empty()
+		button.disabled = deployed == id or not CampaignPlanning.available(_state, veteran)
 		row.add_child(button)
+		if fatigue_enabled and int(veteran.get("fatigue", 0)) > 0:
+			var cost: int = 20 * (int(_state.get("biome_index", 0)) + 1)
+			var recover := _button("Recover · %d G" % cost, func() -> void: _command("recover_veteran", [id]))
+			recover.disabled = int(_state.get("gold", 0)) < cost or veteran.get("pledge_node", "") != ""
+			row.add_child(recover)
+	_content.add_child(_button("Travel with ordinary recruits only", func() -> void: _command("choose_veteran", [""])))
 	var candidate: Dictionary = _state.get("veteran_candidate", {})
 	if not candidate.is_empty():
 		_add_subtitle(_content, "A VETERAN SURVIVED THE EXPEDITION")
@@ -1749,6 +1785,34 @@ func _render_roster() -> void:
 		_content.add_child(_button("Decline this veteran", func() -> void: _command("decline_veteran"), Color(0.8, 0.57, 0.51)))
 	if roster.is_empty() and candidate.is_empty():
 		_add_copy("No veteran is ready yet. Survive a mission and a named soul may choose to follow you home.")
+
+func _render_town_benefits() -> void:
+	for id: String in _state.get("town_benefits", {}):
+		_add_copy(CampaignPlanning.BENEFITS[id]["name"] + " · " + CampaignPlanning.BENEFITS[id]["desc"])
+
+func _render_preparations() -> void:
+	_render_town_benefits()
+	_add_subtitle(_content, "ONE OPTIONAL PREPARATION SLOT")
+	_add_copy("Paid once here; consumed on departure and frozen in that attempt. Resume restarts the same kit for free. Failure/retreat consumes it; a retry needs a new purchase. Discarding gives no refund.")
+	var selected := str(_state.get("preparation", ""))
+	for id: String in CampaignPlanning.PREPARATIONS:
+		var d: Dictionary = CampaignPlanning.PREPARATIONS[id]
+		var cost := CampaignPlanning.preparation_cost(_state, id)
+		_add_copy(d["name"] + " · " + d["desc"])
+		var bank := int(_state.get("gold", 0))
+		var button := _button("Packed" if selected == id else "Prepare · %d G · bank after %d G" % [cost, maxi(bank - cost, 0)], func() -> void: _command("buy_preparation", [id]), UiStyle.GOLD)
+		button.disabled = selected != "" or bank < cost
+		if id == "recruits" and not TacticTrials.army_allowed(CampaignPlanning.selected_contract(_state)):
+			button.disabled = true
+			button.tooltip_text = "The elemental trial disables the army."
+		if id == "survey":
+			var target := CampaignPlanning.survey_target(_state)
+			button.disabled = button.disabled or target == ""
+			button.tooltip_text = "Choose a route with a hidden successor first." if target == "" else "Reveals " + target + " on departure, even if this attempt fails."
+		_content.add_child(button)
+	if selected != "": _content.add_child(_button("Discard packed preparation (no refund)", func() -> void: _command("buy_preparation", [""])))
+	var funding := CampaignFacilities.funding_copy(_state)
+	if funding != "": _add_copy(funding)
 
 
 func _recruit_veteran(candidate_id: String, replace_id: String) -> void:
@@ -2038,6 +2102,8 @@ func _render_result() -> void:
 	_render_after_action_report(result)
 	if str(result.get("story_message", "")) != "":
 		_add_copy(str(result["story_message"]))
+	if str(result.get("town_message", "")) != "": _add_copy(str(result["town_message"]))
+	if str(result.get("choice_unlock", "")) != "": _add_copy("ACCOUNT CHOICE · " + str(result["choice_unlock"]))
 	var payment := int(result.get("gold", 0))
 	var conversion := int(result.get("shard_conversion", 0))
 	_add_copy("Gold banked from this result: +%d G   ·   contract / bonus %d G + shard conversion %d G" % [payment + conversion, payment, conversion])
@@ -2119,6 +2185,7 @@ func _render_story_journal() -> void:
 func _render_after_action_report(result: Dictionary) -> void:
 	var report_value: Variant = result.get("report", {})
 	var report: Dictionary = report_value if report_value is Dictionary else {}
+	if report.get("combat_metrics", {}) is Dictionary and not report.get("combat_metrics", {}).is_empty(): _add_copy(CombatLedger.summary(report["combat_metrics"]))
 	var objectives_value: Variant = report.get("objectives", {})
 	var objectives: Dictionary = objectives_value if objectives_value is Dictionary else {}
 	var outcome := str(result.get("outcome", "failure"))
@@ -2450,7 +2517,47 @@ func _sell_value(item_id: String) -> int:
 
 
 func _reforge_fee() -> int:
-	return int(_state.get("reforge_fee", 60 * (int(_state.get("biome_index", 0)) + 1)))
+	return CampaignPlanning.reforge_cost(_state)
+
+
+func _render_facility(id: String) -> void:
+	var rank := CampaignFacilities.tier(_state, id)
+	var definition: Dictionary = CampaignFacilities.DEFS[id]
+	var box := VBoxContainer.new()
+	box.name = "Facility_" + id
+	box.add_theme_constant_override("separation", 5)
+	_content.add_child(box)
+	_add_subtitle(box, "%s · TIER %d / 2" % [str(definition["name"]).to_upper(), rank])
+	_add_copy_to(box, "Campaign investment · travels with you through every town. Optional; no route requires it.", UiStyle.MUTED)
+	for owned_tier in range(1, rank + 1):
+		var owned := CampaignFacilities.upgrade(id, owned_tier)
+		_add_copy_to(box, "✓ " + str(owned["benefit"]), Color(0.67, 0.88, 0.75))
+	if rank >= 2:
+		_add_copy_to(box, "Fully upgraded for this campaign.", UiStyle.GOLD)
+		return
+	var next_tier := rank + 1
+	var upgrade := CampaignFacilities.upgrade(id, next_tier)
+	_add_copy_to(box, "Next · %s · %d G\n%s" % [upgrade["name"], upgrade["cost"], upgrade["benefit"]], UiStyle.TEXT)
+	if rank == 0:
+		var later := CampaignFacilities.upgrade(id, 2)
+		_add_copy_to(box, "Then · %s · %d G (requires tier 1)\n%s" % [later["name"], later["cost"], later["benefit"]], UiStyle.MUTED)
+	var gold := int(_state.get("gold", 0))
+	_add_copy_to(box, "Banked: %d G · After purchase: %d G%s" % [gold, maxi(0, gold - int(upgrade["cost"])), " · %d G still needed" % (int(upgrade["cost"]) - gold) if gold < int(upgrade["cost"]) else ""], UiStyle.MUTED)
+	var buttons := HBoxContainer.new()
+	box.add_child(buttons)
+	var buy := _button("Upgrade · %d G" % upgrade["cost"], func() -> void: _command("buy_facility", [id, next_tier]), UiStyle.GOLD)
+	buy.name = "BuyFacility_" + id
+	buy.disabled = gold < int(upgrade["cost"])
+	_set_town_action_focus_identity(buy, "facility_buy", id)
+	buttons.add_child(buy)
+	var goal := CampaignFacilities.goal(_state)
+	var pinned: bool = goal.get("id", "") == id and goal.get("tier", 0) == next_tier
+	var pin := _button("Unpin town goal" if pinned else "Pin as town goal", func() -> void:
+		_command("pin_facility", [""] if pinned else [id, next_tier]))
+	pin.name = "PinFacility_" + id
+	_set_town_action_focus_identity(pin, "facility_pin", id)
+	buttons.add_child(pin)
+	if pinned: _add_copy_to(box, CampaignFacilities.funding_copy(_state), UiStyle.GOLD)
 
 
 func _number(value: int) -> String:

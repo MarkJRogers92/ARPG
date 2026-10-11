@@ -226,6 +226,20 @@ const DEFS := {
 		"name": "Magnetism", "desc": "+30% pickup range", "max": 5,
 		"mods": [{"stat": "pickup_radius", "op": _MORE, "value": 0.30}],
 	},
+	# Synergy cards: behavioral upgrades with no innate snapshot powers. They
+	# activate from upgrade_levels and rely on the actual affected systems.
+	"synergy_relay": {
+		"name": "Frost Relay", "desc": "Chain Lightning hitting a chilled enemy releases a frost pulse beyond them.", "max": 1,
+		"mods": [], "synergy": true, "icon": "lightning",
+	},
+	"synergy_escort": {
+		"name": "Ashen Escort", "desc": "Soul Army hits on burning enemies release a fire pulse.", "max": 1,
+		"mods": [], "synergy": true, "icon": "legion",
+	},
+	"synergy_wake": {
+		"name": "Blade Wake", "desc": "Dashing while Spirit Blades are active sends blades streaking ahead.", "max": 1,
+		"mods": [], "synergy": true, "icon": "orbit",
+	},
 }
 
 const HEAL := {"id": "heal", "name": "Second Wind", "level": 0, "max": 0,
@@ -240,29 +254,50 @@ static func level_of(id: String, stats: PlayerStats) -> int:
 ## [{id, name, level, max, title, desc}], where level is the one you'd reach.
 ## Falls back to a heal if the pool runs dry. A weapon ready to evolve (see
 ## Evolutions) always takes the first place.
-static func roll(stats: PlayerStats, n := 3, unlocked_snapshot: Variant = null) -> Array[Dictionary]:
+##
+## Optional extras:
+##   banished    regular upgrade ids excluded from this roll (evolutions and
+##               the heal fallback are never banished).
+##   rng         a RandomNumberGenerator for reproducible rolls; when null the
+##               global RNG is used for backward compatibility.
+##   weighted    when true, owned weapons are modestly favoured, catalysts for
+##               owned evolving weapons are slightly favoured, and cards that
+##               touch stats already boosted by the hero's class are modestly
+##               favoured; exploration remains possible because every eligible
+##               card keeps a positive weight.
+static func roll(stats: PlayerStats, n := 3, unlocked_snapshot: Variant = null, banished: Array = [], rng: RandomNumberGenerator = null, weighted: bool = true) -> Array[Dictionary]:
+	if n <= 0:
+		return []
+
 	var pool: Array[String] = []
 	for id: String in DEFS:
-		if level_of(id, stats) < DEFS[id]["max"] and offered(id, stats, unlocked_snapshot):
-			pool.append(id)
-	pool.shuffle()
+		if level_of(id, stats) >= DEFS[id]["max"]:
+			continue
+		if not offered(id, stats, unlocked_snapshot):
+			continue
+		if _is_banished(id, banished):
+			continue
+		pool.append(id)
 
 	var out: Array[Dictionary] = []
-	for id in pool.slice(0, n):
-		var lvl := level_of(id, stats)
-		var def: Dictionary = DEFS[id]
-		out.append({
-			"id": id,
-			"name": def["name"],
-			"level": lvl + 1,
-			"max": def["max"],
-			"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
-			"icon": def.get("icon", id),
-			"desc": _desc(id, lvl, stats),
-		})
+	var remaining := pool.duplicate()
+	var weights := {}
+	if weighted:
+		for id: String in remaining:
+			weights[id] = _weight_for(id, stats)
+
+	while out.size() < n and not remaining.is_empty():
+		var id: String
+		if weighted:
+			id = _weighted_pick(remaining, weights, rng)
+		else:
+			id = _uniform_pick(remaining, rng)
+		remaining.erase(id)
+		out.append(_make_card(id, stats))
+
 	var evolving := Evolutions.ready(stats)
 	if not evolving.is_empty():
-		var card := Evolutions.card(evolving.pick_random())
+		var card := Evolutions.card(evolving.pick_random() if rng == null else evolving[rng.randi_range(0, evolving.size() - 1)])
 		if out.size() >= n:
 			out[0] = card
 		else:
@@ -274,7 +309,11 @@ static func roll(stats: PlayerStats, n := 3, unlocked_snapshot: Variant = null) 
 
 ## Whether this hero can be offered card `id` at all (see `bolt` and `only`).
 static func offered(id: String, stats: PlayerStats, unlocked_snapshot: Variant = null) -> bool:
-	var def: Dictionary = DEFS[id]
+	var def: Dictionary = DEFS.get(id, {})
+	if def.is_empty():
+		return false
+	if def.get("synergy", false):
+		return _synergy_offered(id, stats)
 	var reaper := stats.powers.has("reaping")
 	if reaper and def.get("bolt", false):
 		return false
@@ -287,8 +326,119 @@ static func offered(id: String, stats: PlayerStats, unlocked_snapshot: Variant =
 	return not def.has("only") or stats.powers.has(def["only"])
 
 
+## True for regular upgrade ids that may be banished. Evolutions and the heal
+## fallback are never banished through this API.
+static func is_banishable(id: String) -> bool:
+	return DEFS.has(id) and id != "heal"
+
+
+## True when `id` is a regular, non-maxed card that would otherwise be offered
+## to this hero, so a banish button can reasonably target it.
+static func can_banish(id: String, stats: PlayerStats, unlocked_snapshot: Variant = null) -> bool:
+	if not is_banishable(id):
+		return false
+	if level_of(id, stats) >= DEFS[id]["max"]:
+		return false
+	return offered(id, stats, unlocked_snapshot)
+
+
+static func _is_banished(id: String, banished: Array) -> bool:
+	if banished.is_empty():
+		return false
+	for entry: Variant in banished:
+		if entry is String and entry == id:
+			return true
+	return false
+
+
+static func _synergy_offered(id: String, stats: PlayerStats) -> bool:
+	match id:
+		"synergy_relay":
+			return stats.lightning_level > 0 or _has_chill_source(stats)
+		"synergy_escort":
+			return stats.minion_max > 0 and _has_burn_source(stats)
+		"synergy_wake":
+			return stats.orbit_level > 0
+	return false
+
+
+static func _has_chill_source(stats: PlayerStats) -> bool:
+	return stats.aura_level > 0 or stats.wisp_level > 0 or stats.chill_chance > 0.0
+
+
+static func _has_burn_source(stats: PlayerStats) -> bool:
+	return stats.ignite_chance > 0.0 or stats.trail_level > 0 or stats.powers.has("pyre")
+
+
+static func _weight_for(id: String, stats: PlayerStats) -> float:
+	var weight := 1.0
+	var lvl := level_of(id, stats)
+	var def: Dictionary = DEFS[id]
+	if lvl > 0 and (def.has("first_mods") or def.get("bolt", false)):
+		weight *= 1.5
+
+	for evo_id: String in Evolutions.DEFS:
+		var evo: Dictionary = Evolutions.DEFS[evo_id]
+		if evo["catalyst"] == id and not Evolutions.taken(evo_id, stats):
+			if level_of(evo["weapon"], stats) > 0:
+				weight *= 1.35
+				break # A shared catalyst gets one bonus, not multiplicative stacking.
+
+	# Early signature support comes from the class modifier source, not from
+	# arbitrary gear/upgrade strength. All eligible cards retain positive weight.
+	if stats.level <= 5:
+		var touched: Array = def["mods"] + def.get("first_mods", [])
+		for mod: Dictionary in stats._mods:
+			if mod.get("source", "") != "class": continue
+			if touched.any(func(candidate: Dictionary) -> bool: return candidate["stat"] == mod["stat"]):
+				weight *= 1.25
+				break
+	return minf(weight, 2.0)
+
+
+static func _weighted_pick(pool: Array[String], weights: Dictionary, rng: RandomNumberGenerator = null) -> String:
+	var total := 0.0
+	for id: String in pool:
+		total += float(weights.get(id, 1.0))
+	var pick := _randf(rng) * total
+	var cum := 0.0
+	for id: String in pool:
+		cum += float(weights.get(id, 1.0))
+		if pick <= cum:
+			return id
+	return pool[-1]
+
+
+static func _uniform_pick(pool: Array[String], rng: RandomNumberGenerator = null) -> String:
+	if rng == null:
+		return pool.pick_random()
+	return pool[rng.randi_range(0, pool.size() - 1)]
+
+
+static func _randf(rng: RandomNumberGenerator = null) -> float:
+	if rng == null:
+		return randf()
+	return rng.randf()
+
+
+static func _make_card(id: String, stats: PlayerStats) -> Dictionary:
+	var lvl := level_of(id, stats)
+	var def: Dictionary = DEFS[id]
+	return {
+		"id": id,
+		"name": def["name"],
+		"level": lvl + 1,
+		"max": def["max"],
+		"title": "%s  (Lv %d)" % [def["name"], lvl + 1],
+		"icon": def.get("icon", id),
+		"desc": _desc(id, lvl, stats),
+	}
+
+
 static func _desc(id: String, lvl: int, stats: PlayerStats) -> String:
 	var def: Dictionary = DEFS[id]
+	if def.get("synergy", false):
+		return def["desc"]
 	var text: String = def["desc_next"] if (lvl > 0 or already_active(id, stats)) and def.has("desc_next") else def["desc"]
 	if lvl == 0 and def.has("reaper_desc") and stats.powers.has("reaping"):
 		text = def["reaper_desc"]

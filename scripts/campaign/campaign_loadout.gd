@@ -3,7 +3,7 @@ extends RefCounted
 ## The single source for building a campaign hero before combat starts.
 
 
-static func apply(player: Player, hero_class: String, loadout: Dictionary, effects: Array) -> void:
+static func apply(player: Player, hero_class: String, loadout: Dictionary, effects: Array, contract := "") -> void:
 	var profile_snapshot: Dictionary = loadout.get("profile_snapshot", {})
 	player.stats.add_mods("meta", profile_snapshot.get("mods", []))
 	HeroClass.apply(player, hero_class)
@@ -20,9 +20,12 @@ static func apply(player: Player, hero_class: String, loadout: Dictionary, effec
 	var specialization := String(loadout.get("specialization", ""))
 	if specialization != "":
 		Specializations.apply(player.stats, hero_class, specialization)
+	player.stats.remove_source("campaign_facilities")
+	player.stats.add_mods("campaign_facilities", CampaignFacilities.army_mods(loadout))
 	for effect in effects:
 		if effect is Dictionary and effect.get("mods", []) is Array:
 			player.stats.add_mods("campaign_effects", effect.get("mods", []))
+	TacticTrials.apply(player, contract)
 	player.stats.recalculate()
 	player.stats.hp = player.stats.max_hp
 	player.dead = false
@@ -50,9 +53,10 @@ static func preview(state: Dictionary) -> Dictionary:
 		"inventory": inventory,
 		"talents": state["talents"].duplicate(true),
 		"specialization": String(state.get("specialization", "")),
+		"facilities": CampaignFacilities.levels(state),
 	}
 	var player := Player.new()
-	apply(player, hero_class, loadout, selected_effects)
+	apply(player, hero_class, loadout, selected_effects, str(nodes.get(selected_node, {}).get("contract", "")))
 	var stats: PlayerStats = player.stats
 	var result := {
 		"max_hp": stats.max_hp,
@@ -60,8 +64,12 @@ static func preview(state: Dictionary) -> Dictionary:
 		"move_speed": stats.move_speed,
 		"crit_chance": stats.crit_chance,
 		"minion_max": stats.minion_max,
+		"minion_damage": stats.minion_damage,
+		"minion_hp": stats.minion_hp,
 		"effect_count": selected_effects.size(),
 		"selected_node_id": selected_node,
+		"signature": HeroClass.SIGNATURES[hero_class],
+		"trial": TacticTrials.description(str(nodes.get(selected_node, {}).get("contract", ""))),
 	}
 	if not selected_effects.is_empty():
 		result["selected_effect_name"] = _effect_name(selected_effects[0])
@@ -80,6 +88,21 @@ static func preview(state: Dictionary) -> Dictionary:
 		result["primary_attack_label"] = "Bolts"
 		result["primary_damage"] = stats.bolt_damage
 		result["primary_cooldown"] = stats.bolt_cooldown
+	if player.challenge_id == "trial_army":
+		result["primary_attack_label"] = "Soul Army"
+		result["primary_damage"] = stats.minion_damage
+		result["primary_cooldown"] = 0.0
+		result["primary_summary"] = "%.1f base soldier DPS; recruit type/rank and attack cadence vary" % stats.minion_damage
+	elif player.challenge_id == "trial_dash":
+		result["primary_attack_label"] = "Stormstride · dash pulse"
+		result["primary_damage"] = stats.lightning_damage * 0.5
+		result["primary_cooldown"] = stats.dash_cooldown
+	elif player.challenge_id == "trial_reaction":
+		result["minion_max"] = 0
+		result["primary_attack_label"] = "Chain Lightning + Frost Aura + Wisp Lantern"
+		result["primary_damage"] = stats.lightning_damage
+		result["primary_cooldown"] = stats.lightning_cooldown
+	if player.challenge_id != "": result["signature"] = "" # The authored kit, not a disabled class weapon, is this encounter's goal.
 	player.free()
 	return result
 

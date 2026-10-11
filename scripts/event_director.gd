@@ -15,6 +15,7 @@ extends Node3D
 ## heal a quarter of your health.
 
 signal announced(text: String, color: Color)
+signal reward_revealed(title: String, detail: String, color: Color)
 
 ## Seconds until the first event, then between events.
 @export var first_at := 45.0
@@ -55,6 +56,28 @@ var _orbs: Array[Dictionary] = []
 var _goblin_left := 0.0
 ## Run shards earned from events, picked up by main.gd.
 var shards := 0
+var _opportunity_started := false
+var _opportunity_roll := {}
+var _opportunity_attempt := ""
+
+func configure_opportunity(roll: Dictionary = {}, attempt := "", consumed := false) -> void:
+	_opportunity_roll = roll.duplicate(true)
+	_opportunity_attempt = attempt
+	_opportunity_started = consumed
+
+## One optional, reachable shrine during the authored recovery phase. The
+## campaign's roll is committed in town; nothing is granted until it charges.
+func start_opportunity() -> bool:
+	if _opportunity_started or _player == null: return false
+	var at := _clear_spot(7.0, 10.0, shrine_radius + 0.5)
+	if at == Vector2.INF: return false
+	_opportunity_started = true
+	_start_shrine(at, "Warding")
+	var event: Dictionary = _events[-1]
+	event["opportunity"] = true
+	event["label"] = "ELEMENTAL SHRINE"
+	announced.emit("RECOVERY DETOUR · charge the Elemental shrine for a Magic amulet; no guardians. " + RewardPools.selection_text("elemental"), Elements.COLORS[Elements.FROST])
+	return true
 
 
 func setup(director: WaveDirector, player: Player, loot: LootManager, gems: GemSwarm,
@@ -139,8 +162,8 @@ func _clear_spot(min_r: float, max_r: float, clearance: float) -> Vector2:
 	return Vector2.INF
 
 
-func _start_shrine(at: Vector2) -> void:
-	var name: String = BLESSINGS.keys().pick_random()
+func _start_shrine(at: Vector2, chosen := "") -> void:
+	var name: String = chosen if BLESSINGS.has(chosen) else BLESSINGS.keys().pick_random()
 	var color: Color = BLESSINGS[name]["color"]
 	var root := Node3D.new()
 	root.position = Vector3(at.x, 0.0, at.y)
@@ -174,8 +197,8 @@ func _start_chest(at: Vector2) -> void:
 	root.add_child(model)
 	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.75, 0.3, 1.0, 0.5), 0.6, 3.0)
 	_events.append({"kind": "chest", "at": at, "node": root, "opened": false, "guards": [],
-			"color": Color(0.75, 0.3, 1.0), "label": "CURSED CHEST", "age": 0.0})
-	announced.emit("A cursed chest... dare you open it?", Color(0.8, 0.45, 1.0))
+			"color": Color(0.75, 0.3, 1.0), "label": "ARMY CHEST", "theme": "army", "age": 0.0})
+	announced.emit("Army chest · guardians guard a Legendary. " + RewardPools.selection_text("army"), Color(0.8, 0.45, 1.0))
 
 
 func _update_events(delta: float) -> void:
@@ -216,6 +239,11 @@ func _update_shrine(e: Dictionary, hero: Vector2, delta: float) -> bool:
 		Sound.play("shrine_charge", 1.0 + e["charge"] * 0.5)
 	if e["charge"] >= 1.0:
 		_bless(e["blessing"])
+		if e.get("opportunity", false):
+			var item := Item.from_dict(_opportunity_roll) if not _opportunity_roll.is_empty() else ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level), ItemData.Rarity.MAGIC, "amulet", null, "elemental")
+			if _opportunity_attempt != "": item.campaign_id = _opportunity_attempt + ":drop:opportunity"
+			_loot.drop(item, e["at"])
+			reward_revealed.emit("ELEMENTAL OFFERING", item.name + " · Magic amulet dropped; collect it to claim.", item.color())
 		Juice.ring(e["at"], e["color"], 40, 9.0, 0.6, 0.6)
 		Juice.flash(e["at"], e["color"], 6.0, 12.0, 0.6)
 		return true
@@ -254,13 +282,14 @@ func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 			if swarm.ids[k] == g[1] and swarm.hp[k] > 0.0:
 				return false
 	var item := ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level),
-			ItemData.Rarity.LEGENDARY, ItemData.SLOTS.pick_random())
+			ItemData.Rarity.LEGENDARY, ItemData.SLOTS.pick_random(), null, str(e.get("theme", "")))
 	_loot.drop(item, e["at"])
 	shards += 5
 	Sound.play("chest")
 	Juice.ring(e["at"], e["color"], 40, 8.0, 0.6, 0.6)
 	Juice.flash(e["at"], e["color"], 6.0, 10.0, 0.5)
 	announced.emit("The curse breaks!  +5 Soul Shards", Color(0.8, 0.45, 1.0))
+	reward_revealed.emit("THE CURSE BREAKS", item.name + " · Legendary dropped; collect it to claim. +5 Soul Shards", item.color())
 	return true
 
 
@@ -293,8 +322,11 @@ func bless_for(name: String, seconds: float) -> void:
 	stats.recalculate()
 	blessing = name
 	blessing_left = seconds
+	_player.warding_charge_left = 0.0
+	if name == "Warding" and _player.challenge_id == "":
+		_player.empower_warding(seconds)
 	Sound.play("shrine_done")
-	announced.emit("Blessing of %s: %s for %d s" % [name, BLESSINGS[name]["desc"], int(seconds)], BLESSINGS[name]["color"])
+	announced.emit("Blessing of %s: %s for %d s%s" % [name, BLESSINGS[name]["desc"], int(seconds), " · next successful dash spends one 3m frost pulse (20 base damage), even on a miss" if name == "Warding" and _player.challenge_id == "" else ""], BLESSINGS[name]["color"])
 
 
 func _update_blessing(delta: float) -> void:
@@ -302,6 +334,7 @@ func _update_blessing(delta: float) -> void:
 		return
 	blessing_left -= delta
 	if blessing_left <= 0.0:
+		_player.warding_charge_left = 0.0
 		_player.stats.remove_source("shrine")
 		_player.stats.recalculate()
 		blessing = ""

@@ -375,7 +375,9 @@ func _behavior_pause() -> void:
 	pause.open()
 	await process_frame
 	await process_frame
-	_check(_count_nodes(pause, "HSlider") == 3, "pause keeps all three volume/aim sliders")
+	_check(_count_nodes(pause, "HSlider") == 4, "pause keeps volume/aim sliders and adds friendly opacity")
+	for setting: String in ["music_volume", "sfx_volume", "aim_assist", "friendly_opacity"]:
+		_check(pause.find_child("Setting_" + setting, true, false) is HSlider, "pause retains independent setting " + setting)
 	_check(_count_nodes(pause, "CheckButton") == 4, "pause keeps shake, numbers, calm and bold toggles")
 	_check(_find_button_containing(pause, "Controls") != null, "pause keeps the Controls rebinding entry")
 	_check(_find_button_containing(pause, "Resume") != null, "pause keeps Resume")

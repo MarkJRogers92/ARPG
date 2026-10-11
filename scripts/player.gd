@@ -95,6 +95,26 @@ var shield_left := 0.0
 const CHILL_SLOW := 0.6
 const BURN_DPS := 5.0
 var _storm_tick := 0.0
+var build_synergies := BuildSynergies.new()
+var challenge_id := ""
+var dash_uses := 0
+var recovery_charge := false
+var warding_charge_left := 0.0
+
+## A shrine charge is transient. Only a successful dash spends it, even if the
+## pulse misses. The blessing's deadline bounds it; charges never stack.
+func empower_warding(seconds: float) -> void:
+	warding_charge_left = maxf(seconds, 0.0)
+
+func consume_warding() -> bool:
+	if warding_charge_left <= 0.0 or dead: return false
+	warding_charge_left = 0.0
+	var previous := Elements.source
+	Elements.source = "Warding Dash"
+	Elements.hit_area(pos2, 3.0, 20.0 * float(stats.values.get("damage", 1.0)), Elements.FROST)
+	Elements.source = previous
+	Juice.ring(pos2, Elements.COLORS[Elements.FROST], 18, 5.0, 0.3, 0.35)
+	return true
 
 
 ## Ground-plane position as Vector2(x, z), the space the swarms live in.
@@ -124,6 +144,11 @@ func _ready() -> void:
 	_reticle.top_level = true
 	_reticle.visible = false
 	add_child(_reticle)
+
+	# The hero's aura is a friendly-only visual (its own material), so it fades
+	# with the "Friendly spell opacity" setting. Hero/ally markers, warnings and
+	# hostile shots are deliberately never registered.
+	Juice.register_friendly_material(_aura_visual.material_override)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -193,6 +218,8 @@ func dash_cooldown_fraction() -> float:
 
 ## Movement and regen. Call before the enemy swarms step.
 func tick(delta: float) -> void:
+	build_synergies.tick(delta)
+	warding_charge_left = maxf(warding_charge_left - delta, 0.0)
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	_dash_cooldown = maxf(_dash_cooldown - delta, 0.0)
 	if Input.is_action_just_pressed("dash") and _dash_cooldown <= 0.0 and not dead:
@@ -200,9 +227,13 @@ func tick(delta: float) -> void:
 		_dash_dir = input.normalized() if input != Vector2.ZERO else _facing()
 		_dash_time = DASH_TIME
 		_dash_cooldown = stats.dash_cooldown
+		dash_uses += 1
+		if challenge_id not in ["trial_army", "trial_dash", "trial_reaction"]:
+			build_synergies.on_dash(self, _dash_dir)
+		consume_warding()
 		dashed.emit()
 		Sound.play("dash")
-		if stats.powers.has("blinkfire") and _nova:
+		if stats.powers.has("blinkfire") and _nova and challenge_id == "":
 			_nova.fire()
 	chilled = maxf(chilled - delta, 0.0)
 	shield_left = maxf(shield_left - delta, 0.0)
@@ -218,11 +249,13 @@ func tick(delta: float) -> void:
 		velocity = Vector3(_dash_dir.x, 0.0, _dash_dir.y) * stats.move_speed * DASH_SPEED
 		Juice.burst(pos2, 1.2, Color(0.5, 0.8, 1.0), 2, 1.0, 0.5, 0.35, 0.5)
 		_storm_tick -= delta
-		if stats.powers.has("stormstride") and _storm_tick <= 0.0:
+		if stats.powers.has("stormstride") and _storm_tick <= 0.0 and challenge_id != "trial_army":
 			# Stormstride: the dash path crackles with lightning.
 			_storm_tick = 0.05
+			var previous := Elements.source
 			Elements.source = "Stormstride"
 			Elements.hit_area(pos2, 1.8, stats.lightning_damage * 0.5, Elements.LIGHTNING)
+			Elements.source = previous
 			Juice.burst(pos2, 0.8, Elements.COLORS[Elements.LIGHTNING], 3, 3.0, 0.4, 0.4, 2.0)
 	else:
 		velocity = Vector3(input.x, 0.0, input.y) * stats.move_speed * (CHILL_SLOW if chilled > 0.0 else 1.0)
@@ -313,15 +346,17 @@ func _facing() -> Vector2:
 
 ## Auto-attacks. Call after the swarms step so targets are current.
 func update_weapons(delta: float) -> void:
-	_update_bolt(delta)
+	if challenge_id in ["trial_army", "trial_dash"]: return
+	if challenge_id != "trial_reaction": _update_bolt(delta)
 	_update_aura(delta)
 	if _lightning:
 		_lightning.update(delta)
-		_blades.update(delta)
-		_nova.update(delta)
-		_obol.update(delta)
-		_scythe.update(delta)
-		_spikes.update(delta)
+		if challenge_id != "trial_reaction":
+			_blades.update(delta)
+			_nova.update(delta)
+			_obol.update(delta)
+			_scythe.update(delta)
+			_spikes.update(delta)
 		_wisps.update(delta)
 		_trail.update(delta)
 
@@ -342,6 +377,11 @@ func take_damage(amount: float, cause := "Other") -> void:
 	if dealt > 0.0:
 		damage_taken_by[cause] = damage_taken_by.get(cause, 0.0) + dealt
 		last_cause = cause
+	if recovery_charge and stats.hp <= stats.max_hp * 0.25:
+		recovery_charge = false
+		stats.hp = maxf(stats.hp, 0.0) + stats.max_hp * 0.35
+		shield_left = maxf(shield_left, 0.8)
+		Sound.play("shrine_done", 0.9, -4.0)
 	if stats.hp <= 0.0:
 		stats.hp = 0.0
 		dead = true

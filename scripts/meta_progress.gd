@@ -89,7 +89,7 @@ const BESTIARY_STEPS := [100, 1000, 5000]
 const SAVE_VERSION := 3
 
 const SETTINGS := {"music_volume": 0.7, "sfx_volume": 0.8, "shake": true, "numbers": true,
-	"calm": false, "bold_telegraphs": false, "aim_assist": 0.0, "keys": {}}
+	"calm": false, "bold_telegraphs": false, "friendly_opacity": 1.0, "aim_assist": 0.0, "keys": {}}
 ## Campaign account rewards and their exact-once receipts are one profile write.
 static var campaign_receipts := {}
 static var campaign_completions: Array = []
@@ -147,7 +147,7 @@ static func load_save() -> void:
 		if saved_settings is Dictionary:
 			for key: String in saved_settings:
 				if SETTINGS.has(key):
-					settings[key] = saved_settings[key]
+					settings[key] = _sanitize_setting(key, saved_settings[key])
 		var saved_classes = data.get("classes", {})
 		if saved_classes is Dictionary:
 			classes = saved_classes
@@ -249,6 +249,8 @@ static func apply_campaign_receipt(receipt: Dictionary) -> bool:
 	if campaign_receipts.has(id): return true
 	for count in receipt["kills"].values():
 		if not count is int or count < 0: return false
+	var unlock: Variant = receipt.get("unlock_relic", "")
+	if not unlock is String or unlock != "" and not Relics.DEFS.has(unlock): return false
 	if campaign_fail_save: return false
 	var next := _snapshot()
 	next["shards"] += receipt["shards"]
@@ -256,11 +258,19 @@ static func apply_campaign_receipt(receipt: Dictionary) -> bool:
 		if not kind is String: return false
 		next["bestiary"][kind] = int(next["bestiary"].get(kind, 0)) + receipt["kills"][kind]
 	next["campaign_receipts"][id] = true
+	if unlock != "": next["relics"][unlock] = true
 	if receipt.get("completed", false):
 		next["campaign_completions"].append({"campaign_id": receipt.get("campaign_id", ""), "hero_class": receipt.get("hero_class", ""), "receipt_id": id})
+	var realm_won := str(receipt.get("realm_won", ""))
+	if Realm.REALMS.has(realm_won):
+		var realm_record: Dictionary = next["realms"].get(realm_won, {})
+		realm_record["won"] = true
+		next["realms"][realm_won] = realm_record
 	if not disabled and not CampaignSave.atomic_write(save_path, next, "", _valid_snapshot): return false
 	shards = next["shards"]
 	bestiary = next["bestiary"]
+	realms = next["realms"]
+	relics = next["relics"]
 	campaign_receipts = next["campaign_receipts"]
 	campaign_completions = next["campaign_completions"]
 	_extra_save_fields = next
@@ -577,6 +587,7 @@ static func relic_owned(id: String) -> bool:
 	var d := Relics.data(id)
 	if d.is_empty():
 		return false
+	if relics.get(id, false): return true # A trial receipt is an alternative to stars.
 	if d.has("stars"):
 		return total_stars() >= d["stars"]
 	return disabled or relics.get(id, false)
@@ -663,6 +674,20 @@ static var forced_relic := ""
 static var forced_weapon := ""
 
 
+static func package_owned(id: String) -> bool:
+	var package: Dictionary = Relics.PACKAGES.get(id, {})
+	return not package.is_empty() and relic_owned(package["relic"]) and weapon_unlocked(package["weapon"])
+
+
+static func pick_package(id: String) -> bool:
+	_ensure_loaded()
+	if not package_owned(id): return false
+	relic = Relics.PACKAGES[id]["relic"]
+	start_weapon = Relics.PACKAGES[id]["weapon"]
+	save()
+	return true
+
+
 static func setting(key: String):
 	_ensure_loaded()
 	return settings.get(key, SETTINGS[key])
@@ -670,8 +695,16 @@ static func setting(key: String):
 
 static func set_setting(key: String, value) -> void:
 	_ensure_loaded()
-	settings[key] = value
+	settings[key] = _sanitize_setting(key, value)
 	save()
+
+
+## Settings that carry a renderer value must stay inside safe bounds, whether
+## they come from the pause menu or a corrupt/hand-edited save.
+static func _sanitize_setting(key: String, value):
+	if key == "friendly_opacity":
+		return Juice.sanitize_friendly_opacity(value)
+	return value
 
 
 static func rerolls() -> int:

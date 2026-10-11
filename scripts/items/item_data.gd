@@ -135,6 +135,13 @@ const BASES := {
 ##   min_rarity     lowest rarity that can roll it (default MAGIC)
 ##   prefix, suffix name fragments for Magic items
 const AFFIXES := [
+	# These do not enter ordinary enemy/shop rolls; only an authored army pool.
+	{"id": "army_command", "theme": "army", "stat": "minion_damage", "op": _INC, "slots": ["weapon", "helm", "chest", "amulet", "ring"],
+		"min": 0.10, "max": 0.20, "step": 0.01, "weight": 80, "prefix": "Commanding", "suffix": "of the Legion"},
+	{"id": "army_shelter", "theme": "army", "stat": "minion_hp", "op": _INC, "slots": ["helm", "chest", "amulet", "ring"],
+		"min": 0.15, "max": 0.30, "step": 0.01, "weight": 80, "prefix": "Sheltering", "suffix": "of the Host"},
+	{"id": "army_souls", "theme": "army", "stat": "soul_chance", "op": _INC, "slots": ["boots", "amulet"],
+		"min": 0.15, "max": 0.30, "step": 0.01, "weight": 70, "prefix": "Soulbound", "suffix": "of Gathering"},
 	{"id": "damage", "stat": "damage", "op": _INC, "slots": ["weapon", "chest", "amulet", "ring"],
 		"min": 0.05, "max": 0.10, "step": 0.01, "weight": 100, "prefix": "Savage", "suffix": "of Power"},
 	{"id": "bolt_flat", "stat": "bolt_damage", "op": _ADD, "slots": ["weapon", "ring"],

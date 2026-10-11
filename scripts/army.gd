@@ -276,6 +276,7 @@ var _quiet := false
 
 
 func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
+	if not TacticTrials.army_allowed(_player.challenge_id): return false
 	if type < 0 or type >= _types.size():
 		return false
 	var stats := _player.stats

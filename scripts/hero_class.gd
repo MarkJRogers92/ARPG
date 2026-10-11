@@ -8,6 +8,13 @@ extends RefCounted
 
 const SOURCE := "class"
 const ORDER := ["battlemage", "necromancer", "pyromancer", "stormcaller", "reaper"]
+const SIGNATURES := {
+	"battlemage": "SIGNATURE · Aim piercing volleys through a line. Goal: Soul Lance (Sharper Bolts + Piercing Bolts).",
+	"necromancer": "SIGNATURE · Gather souls, then Hunt with the army. Goal: Funeral Bell + Soul Legion → Requiem.",
+	"pyromancer": "SIGNATURE · Ignite a crowd; fire spreads from its dead. Goal: Brimstone Trail + Kindling → Path of Cinders.",
+	"stormcaller": "SIGNATURE · Dash through the edge; chain shocks into chill or fire. Goal: Chain Lightning + Kindling → Storm Lord.",
+	"reaper": "SIGNATURE · Aim through a pack and catch the return cut. Goal: Reaping Scythe + Soul Harvest → Death's Harvest.",
+}
 
 const _ADD := PlayerStats.Op.ADD
 const _INC := PlayerStats.Op.INCREASED
