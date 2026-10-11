@@ -150,27 +150,33 @@ static func load_save() -> void:
 					settings[key] = _sanitize_setting(key, saved_settings[key])
 		var saved_classes = data.get("classes", {})
 		if saved_classes is Dictionary:
-			classes = saved_classes
-		hero_class = data.get("hero_class", "battlemage")
+			classes = _known(saved_classes, HeroClass.CLASSES)
+		var saved_hero = data.get("hero_class", "battlemage")
+		hero_class = saved_hero if saved_hero is String and HeroClass.CLASSES.has(saved_hero) else "battlemage"
 		var saved_bestiary = data.get("bestiary", {})
 		if saved_bestiary is Dictionary:
-			bestiary = saved_bestiary
+			bestiary = _int_map(saved_bestiary)
 		var saved_pacts = data.get("pacts", [])
 		if saved_pacts is Array:
 			pacts = saved_pacts.filter(func(p) -> bool: return RunModifiers.PACTS.has(p))
 		var saved_daily = data.get("daily", {})
 		if saved_daily is Dictionary:
-			daily = saved_daily
+			daily = _int_map(saved_daily)
 		# Added after version 3: older saves simply have no history yet.
 		var saved_runs = data.get("daily_runs", [])
 		if saved_runs is Array:
-			daily_runs = saved_runs.filter(func(r) -> bool: return r is Dictionary and r.has("date") and r.has("code"))
+			daily_runs = saved_runs.filter(func(r) -> bool: return r is Dictionary and r.get("date") is String and r.get("code") is String)
 		var saved_crypt = data.get("crypt", [])
 		if saved_crypt is Array:
-			crypt = saved_crypt.filter(func(v) -> bool: return v is Dictionary and v.has("id") and v.has("name"))
+			crypt = saved_crypt.filter(func(v) -> bool: return _valid_crypt_entry(v))
+			for v: Dictionary in crypt:
+				v["deeds"] = maxi(0, int(v["deeds"]))
+				v["rank"] = clampi(int(v["rank"]), 1, 3)
+				v["nights"] = maxi(0, int(v["nights"]))
+				v["elite"] = clampi(int(v["elite"]), 0, 1)
 		var saved_fallen = data.get("fallen", [])
 		if saved_fallen is Array:
-			fallen = saved_fallen.filter(func(v) -> bool: return v is Dictionary)
+			fallen = saved_fallen.filter(func(v) -> bool: return _valid_crypt_entry(v))
 		crypt_chosen = int(data.get("crypt_chosen", -1))
 		ascension_unlocked = clampi(int(data.get("ascension_unlocked", 0)), 0, RunModifiers.ASCENSION_MAX)
 		ascension = clampi(int(data.get("ascension", 0)), 0, ascension_unlocked)
@@ -190,7 +196,47 @@ static func load_save() -> void:
 		if saved_realms is Dictionary:
 			for id: String in saved_realms:
 				if Realm.REALMS.has(id) and saved_realms[id] is Dictionary:
-					realms[id] = saved_realms[id]
+					var record: Dictionary = saved_realms[id]
+					var clean := {}
+					if record.get("won") is bool and record["won"]:
+						clean["won"] = true
+					var endless_value = record.get("endless", 0.0)
+					if (endless_value is float or endless_value is int) and is_finite(float(endless_value)) and float(endless_value) > 0.0:
+						clean["endless"] = float(endless_value)
+					if not clean.is_empty():
+						realms[id] = clean
+
+
+## Coerces a saved String->count map to non-negative ints; drops bad keys/values
+## so one corrupt entry cannot zero Bestiary stars or Daily records.
+static func _int_map(saved: Variant) -> Dictionary:
+	var out := {}
+	if saved is Dictionary:
+		for key in saved:
+			if not key is String:
+				continue
+			var value = saved[key]
+			if value is int and value >= 0:
+				out[key] = value
+			elif value is float and is_finite(value) and int(value) >= 0:
+				out[key] = int(value)
+	return out
+
+
+## A Crypt/Fallen entry has the exact fields entomb() writes; anything else
+## cannot be raised, rested or counted safely.
+static func _valid_crypt_entry(v: Variant) -> bool:
+	if not v is Dictionary:
+		return false
+	if not v.get("id") is int or not v.get("name") is String:
+		return false
+	for field in ["swarm", "label", "role"]:
+		if not v.get(field) is String:
+			return false
+	for field in ["elite", "deeds", "rank", "nights"]:
+		if not v.get(field) is int:
+			return false
+	return true
 
 
 ## The ids in a saved {id: true} dictionary that still exist in `known`.
@@ -212,11 +258,21 @@ static func _read(path: String) -> Variant:
 
 ## The shared writer uses the same compatibility check as profile loading,
 ## so a malformed primary dictionary cannot replace a valid recovery backup.
+## Daily/Bestiary counts must be non-negative ints; otherwise a bad primary
+## would pass and block a good .rollback from loading.
 static func _valid_snapshot(data: Variant) -> bool:
 	if not data is Dictionary: return false
 	if not data.get("shards", 0) is int or data.get("shards", 0) < 0 or not data.get("ranks", {}) is Dictionary or not data.get("bestiary", {}) is Dictionary or not data.get("campaign_receipts", {}) is Dictionary: return false
+	for value in data.get("bestiary", {}).values():
+		if not value is int or value < 0: return false
+	if data.has("daily"):
+		if not data["daily"] is Dictionary: return false
+		for value in data["daily"].values():
+			if not value is int or value < 0: return false
 	for id in data.get("campaign_receipts", {}):
 		if not id is String or data["campaign_receipts"][id] != true: return false
+	for key in ["crypt", "fallen", "daily_runs"]:
+		if data.has(key) and not data[key] is Array: return false
 	return true
 
 
@@ -235,9 +291,12 @@ static func _snapshot() -> Dictionary:
 	return data.duplicate(true)
 
 
-static func save() -> void:
-	if disabled: return
-	CampaignSave.atomic_write(save_path, _snapshot(), "", _valid_snapshot)
+static func save() -> bool:
+	if disabled: return true
+	var ok := CampaignSave.atomic_write(save_path, _snapshot(), "", _valid_snapshot)
+	if not ok:
+		push_warning("MetaProgress: profile checkpoint could not be committed; previous progress is preserved.")
+	return ok
 
 
 ## Apply shards, successful-attempt Bestiary kills and a completion record in
@@ -283,8 +342,11 @@ static func record_kills(kills_by: Dictionary) -> Array:
 	_ensure_loaded()
 	var starred := []
 	for kind: String in kills_by:
+		var gain = kills_by[kind]
+		if not gain is int or gain <= 0:
+			continue
 		var before := stars(kind)
-		bestiary[kind] = bestiary.get(kind, 0) + kills_by[kind]
+		bestiary[kind] = int(bestiary.get(kind, 0)) + gain
 		if stars(kind) > before:
 			starred.append(kind)
 	save()
@@ -292,7 +354,8 @@ static func record_kills(kills_by: Dictionary) -> Array:
 
 
 static func stars(kind: String) -> int:
-	var n: int = bestiary.get(kind, 0)
+	var raw = bestiary.get(kind, 0)
+	var n: int = raw if raw is int and raw >= 0 else 0
 	var s := 0
 	for step: int in BESTIARY_STEPS:
 		if n >= step:
@@ -324,7 +387,10 @@ static func any_won() -> bool:
 
 static func record_daily(date: String, kills: int) -> bool:
 	_ensure_loaded()
-	if kills <= daily.get(date, -1):
+	var prev = daily.get(date, -1)
+	if not prev is int:
+		prev = -1
+	if kills <= prev:
 		return false
 	daily[date] = kills
 	save()
@@ -570,11 +636,13 @@ static func select_class(id: String) -> void:
 
 
 ## The class to play: the picked one, or the Battlemage for bots and tests.
+## An unknown saved class falls back to battlemage instead of blocking campaign create.
 static func current_class() -> String:
 	_ensure_loaded()
 	if disabled and forced_class == "":
 		return "battlemage"
-	return forced_class if forced_class != "" else hero_class
+	var picked := forced_class if forced_class != "" else hero_class
+	return picked if HeroClass.CLASSES.has(picked) else "battlemage"
 
 
 ## Bots can force a class (balance_bot's class= option).

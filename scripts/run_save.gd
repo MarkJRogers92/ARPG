@@ -33,41 +33,41 @@ const REBUILT := ["meta", "class", "relic", "realm", "omen", "pact", "ascension"
 
 
 static func exists() -> bool:
-	return FileAccess.file_exists(path)
+	return FileAccess.file_exists(path) or FileAccess.file_exists(path + ".bak")
+
+
+static func _valid_run(data: Variant) -> bool:
+	if not data is Dictionary:
+		return false
+	if int(data.get("version", 0)) != VERSION:
+		return false
+	if not Realm.REALMS.has(data.get("realm", "")):
+		return false
+	return true
 
 
 static func write(data: Dictionary) -> bool:
-	var tmp := path + ".tmp"
-	var file := FileAccess.open(tmp, FileAccess.WRITE)
-	if file == null:
-		return false
-	data["version"] = VERSION
-	file.store_var(data)
-	file.close()
-	var dir := DirAccess.open(path.get_base_dir())
-	if dir == null:
-		return false
-	if FileAccess.file_exists(path):
-		dir.remove(path.get_file())
-	return dir.rename(tmp.get_file(), path.get_file()) == OK
+	var copy := data.duplicate(true)
+	copy["version"] = VERSION
+	return CampaignSave.atomic_write(path, copy, "", _valid_run)
 
 
 ## The saved night, or {} if there is none (or it can't be read).
+## A damaged primary falls back to its .bak so a crash mid-write never loses
+## a suspended night; the .tmp staging file is never read.
 static func read() -> Dictionary:
-	if not exists():
-		return {}
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {}
-	var data = file.get_var()
-	if not (data is Dictionary) or int(data.get("version", 0)) != VERSION or not Realm.REALMS.has(data.get("realm", "")):
-		return {}
-	return data
+	for suffix in ["", ".bak"]:
+		var data = CampaignSave.read_variant(path + suffix)
+		if _valid_run(data):
+			return (data as Dictionary).duplicate(true)
+	return {}
 
 
 static func clear() -> void:
-	if exists():
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	for suffix in ["", ".bak", ".tmp"]:
+		var full: String = path + suffix
+		if FileAccess.file_exists(full):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(full))
 
 
 ## The stat modifiers worth saving: everything but gear and skills (restored

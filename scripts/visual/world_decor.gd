@@ -69,13 +69,14 @@ func _ready() -> void:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
-		mm.mesh = Models.prop(kind)
+		mm.mesh = null
 		mmi.multimesh = mm
 		var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		_layers[kind] = mmi
+	_ensure_layers()
 	for style: String in ["graveyard", "frozen", "ember"]:
 		var mmi := MultiMeshInstance3D.new()
 		var mm := MultiMesh.new()
@@ -89,6 +90,48 @@ func _ready() -> void:
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		_ground_layers[style] = mmi
+
+
+## Creates the MultiMesh layer shell for one prop kind. The mesh itself stays
+## null until _ensure_layers loads it on first use, so an Ember run never
+## loads Graveyard GLBs just by entering the scene.
+func _make_layer(kind: String) -> void:
+	var mmi := MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = null
+	mmi.multimesh = mm
+	var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+	_layers[kind] = mmi
+
+
+## Loads meshes only for kinds the current density or fixed showcase props can
+## place. Layers exist for every kind (tests read instance counts even for
+## empty densities); meshes load on demand. Called from _ready and before
+## every rebuild so a realm switch never misses a mesh it needs.
+func _ensure_layers() -> void:
+	for kind: String in Models.PROPS:
+		if density.get(kind, 0.0) > 0.0 and not _mesh_ready(kind):
+			_load_kind(kind)
+	for f in fixed:
+		if f is Dictionary and f.has("kind"):
+			var kind := str(f["kind"])
+			if kind != "" and Models.PROPS.has(kind) and not _mesh_ready(kind):
+				_load_kind(kind)
+
+
+func _mesh_ready(kind: String) -> bool:
+	return _layers.has(kind) and (_layers[kind] as MultiMeshInstance3D).multimesh.mesh != null
+
+
+func _load_kind(kind: String) -> void:
+	if not _layers.has(kind):
+		_make_layer(kind)
+	(_layers[kind] as MultiMeshInstance3D).multimesh.mesh = Models.prop(kind)
 
 
 ## Call every frame with the hero's ground position; rebuilds when needed.
@@ -125,6 +168,7 @@ func _rebuild() -> void:
 	if not cache_chunks:
 		_chunk_cache.clear()
 		_chunk_settings.clear()
+	_ensure_layers()
 	var result := _compute(_center, cache_chunks)
 	var xforms: Dictionary = result[0]
 	var colors: Dictionary = result[1]
@@ -135,12 +179,20 @@ func _rebuild() -> void:
 	ground_marks = result[5]
 	placed = xforms
 	for kind: String in Models.PROPS:
-		var mm: MultiMesh = _layers[kind].multimesh
-		var list: Array = xforms[kind]
+		var mm: MultiMesh = (_layers[kind] as MultiMeshInstance3D).multimesh
+		var list: Array = xforms.get(kind, [])
+		var clist: Array = colors.get(kind, [])
+		if mm.mesh == null:
+			if list.is_empty():
+				continue
+			mm.mesh = Models.prop(kind)
+			if mm.mesh == null:
+				push_error("WorldDecor: missing mesh for " + kind)
+				continue
 		mm.instance_count = list.size()
 		for i in list.size():
 			mm.set_instance_transform(i, list[i])
-			mm.set_instance_color(i, colors[kind][i])
+			mm.set_instance_color(i, clist[i] if i < clist.size() else Color.WHITE)
 	for style: String in _ground_layers:
 		var marks: Array = ground_marks.filter(func(m: Dictionary) -> bool: return m["style"] == style)
 		var mm: MultiMesh = _ground_layers[style].multimesh

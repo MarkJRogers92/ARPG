@@ -115,15 +115,16 @@ for entry in "${SUITES[@]}"; do
   flag="$log.timeout"
 
   # Portable per-suite timeout: background the suite, watch it with a killer
-  # sleeper (GNU timeout is not on macOS runners).
+  # sleeper (GNU timeout is not on macOS runners). The watcher traps EXIT so
+  # killing it also kills its sleep child instead of orphaning a 300 s sleep.
   # shellcheck disable=SC2086 # $extra splits into user args on purpose
   "$GODOT_BIN" --headless --path . --fixed-fps 60 -s "$suite" $extra >"$log" 2>&1 &
   pid=$!
-  ( sleep "$SUITE_TIMEOUT"; kill -9 "$pid" 2>/dev/null; echo >"$flag" ) &
+  ( sleep_pid=""; trap 'kill -9 $sleep_pid 2>/dev/null' EXIT; sleep "$SUITE_TIMEOUT" & sleep_pid=$!; wait $sleep_pid 2>/dev/null; kill -9 "$pid" 2>/dev/null; echo >"$flag" ) &
   watcher=$!
   wait "$pid" 2>/dev/null
   code=$?
-  if [ "$code" -eq 0 ] && grep -qE 'SCRIPT ERROR|Parse Error|Shader compilation' "$log"; then
+  if [ "$code" -eq 0 ] && grep -vE 'ObjectDB instances were leaked at exit|resources still in use at exit' "$log" | grep -qE 'SCRIPT ERROR|Parse Error|Shader compilation|ERROR:'; then
     code=1
   fi
   kill "$watcher" 2>/dev/null
