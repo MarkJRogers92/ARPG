@@ -212,7 +212,9 @@ static func validate(state: Variant) -> String:
 		if not result.get("outcome") in ["success", "failure", "retreat"] or not result.get("elapsed") is float or not is_finite(result["elapsed"]) or result["elapsed"] < 0.0: return "Invalid settled result."
 	if state["phase"] == "EXPEDITION_ACTIVE":
 		var departure: Dictionary = state["departure"]
-		if CampaignFacilities.levels(departure["starting_loadout"]) != CampaignFacilities.levels(state): return "Departure facility tiers differ from the committed campaign."
+		if departure.is_empty():
+			return "Missing departure checkpoint."
+		if CampaignFacilities.levels(departure.get("starting_loadout", {})) != CampaignFacilities.levels(state): return "Departure facility tiers differ from the committed campaign."
 		var node: Dictionary = graph["nodes"].get(departure.get("node_id", ""), {})
 		if departure.has("contract_prize") and departure["contract_prize"] != node.get("committed_prize", {}): return "Departure prize differs from its committed route."
 		if departure.has("opportunity_roll") and departure["opportunity_roll"] != node.get("opportunity_roll", {}): return "Departure opportunity differs from its committed route."

@@ -80,9 +80,10 @@ func _on_blocked(at: Vector2, s: EnemySwarm) -> void:
 	_tell(s, "%ss shrug off bolts and blades. Burn, freeze or blast them." % s.display_name, SHIELD_COLOR)
 
 
-## Heals every living non-boss enemy in the ring, up to its full health.
+## Heals every living non-boss enemy in the ring, up to its spawn-time max.
+## The cap comes from each enemy's stored spawn HP, never the current wave
+## multiplier, so pressure growth cannot overheal older enemies.
 func _on_mend(at: Vector2, s: EnemySwarm) -> void:
-	var mult := _director.hp_multiplier() if _director else 1.0
 	var healed := 0
 	for swarm in _swarms:
 		if swarm.boss or swarm.count == 0:
@@ -94,7 +95,7 @@ func _on_mend(at: Vector2, s: EnemySwarm) -> void:
 			var hp := swarm.hp[i]
 			if hp <= 0.0:
 				continue
-			var full := swarm.max_hp * mult * (swarm.elite_hp_mult if swarm.is_elite(i) else 1.0)
+			var full := swarm.max_for(i)
 			if hp < full:
 				swarm.hp[i] = minf(hp + full * MEND_SHARE, full)
 				healed += 1

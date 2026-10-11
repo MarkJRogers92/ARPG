@@ -165,6 +165,9 @@ const _MAX_PUSH := 1.5
 var count := 0
 var pos := PackedVector2Array()
 var hp := PackedFloat32Array()
+## Spawn-time max HP per row (max_hp * hp_mult * elite_mult); heals cap here
+## so a later pressure rise cannot overheal above what the enemy spawned with.
+var _cap := PackedFloat32Array()
 var ids := PackedInt32Array()
 ## Spatial index over `pos`, rebuilt at the start of every step().
 var grid: SpatialHash
@@ -218,6 +221,7 @@ func _ready() -> void:
 	set_process(false) # main.gd drives step() so update order is explicit
 	pos.resize(capacity)
 	hp.resize(capacity)
+	_cap.resize(capacity)
 	ids.resize(capacity)
 	_push.resize(capacity)
 	_advance.resize(capacity)
@@ -319,12 +323,19 @@ func is_elite(i: int) -> bool:
 	return _elite[i] == 1
 
 
+## Spawn-time max HP for row `i`; heals must cap here, not at the current
+## wave multiplier (which rises with pressure/time).
+func max_for(i: int) -> float:
+	return _cap[i]
+
+
 ## Adds an enemy (an elite if `elite`). Returns false when the swarm is full.
 func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	if count >= capacity:
 		return false
 	pos[count] = at
 	hp[count] = max_hp * hp_mult * (elite_hp_mult if elite else 1.0)
+	_cap[count] = hp[count]
 	_elite[count] = 1 if elite else 0
 	_scale[count] = elite_scale if elite else 1.0
 	_fire[count] = randf_range(0.5, 1.0) * (raise_interval if raise_interval > 0.0 else (mend_interval if mend_interval > 0.0 else fire_interval))
@@ -815,6 +826,7 @@ func _flush_dead() -> void:
 		if i != last:
 			pos[i] = pos[last]
 			hp[i] = hp[last]
+			_cap[i] = _cap[last]
 			ids[i] = ids[last]
 			if _variant_layer != null:
 				_appearance[i] = _appearance[last]
