@@ -140,13 +140,13 @@ static func load_save() -> void:
 		shards = int(data.get("shards", 0))
 		var saved = data.get("ranks", {})
 		if saved is Dictionary:
-			for id: String in saved:
-				if UPGRADES.has(id):
-					ranks[id] = clampi(int(saved[id]), 0, UPGRADES[id]["max"])
+			for id in saved:
+				if id is String and UPGRADES.has(id):
+					ranks[id] = clampi(_int_or(saved[id], 0), 0, UPGRADES[id]["max"])
 		var saved_settings = data.get("settings", {})
 		if saved_settings is Dictionary:
-			for key: String in saved_settings:
-				if SETTINGS.has(key):
+			for key in saved_settings:
+				if key is String and SETTINGS.has(key):
 					settings[key] = _sanitize_setting(key, saved_settings[key])
 		var saved_classes = data.get("classes", {})
 		if saved_classes is Dictionary:
@@ -177,13 +177,13 @@ static func load_save() -> void:
 		var saved_fallen = data.get("fallen", [])
 		if saved_fallen is Array:
 			fallen = saved_fallen.filter(func(v) -> bool: return _valid_crypt_entry(v))
-		crypt_chosen = int(data.get("crypt_chosen", -1))
-		ascension_unlocked = clampi(int(data.get("ascension_unlocked", 0)), 0, RunModifiers.ASCENSION_MAX)
-		ascension = clampi(int(data.get("ascension", 0)), 0, ascension_unlocked)
+		crypt_chosen = _int_or(data.get("crypt_chosen", -1), -1)
+		ascension_unlocked = clampi(_int_or(data.get("ascension_unlocked", 0), 0), 0, RunModifiers.ASCENSION_MAX)
+		ascension = clampi(_int_or(data.get("ascension", 0), 0), 0, ascension_unlocked)
 		var saved_nemesis = data.get("nemesis", {})
-		if saved_nemesis is Dictionary and saved_nemesis.has("name"):
+		if _valid_nemesis(saved_nemesis):
 			nemesis = saved_nemesis
-		nemeses_slain = int(data.get("nemeses_slain", 0))
+		nemeses_slain = _int_or(data.get("nemeses_slain", 0), 0)
 		# Version 3: the Reliquary. Older saves simply have none of it.
 		relics = _known(data.get("relics", {}), Relics.DEFS)
 		weapons = _known(data.get("weapons", {}), Relics.WEAPONS)
@@ -194,8 +194,8 @@ static func load_save() -> void:
 		start_weapon = saved_weapon if saved_weapon is String and weapons.has(saved_weapon) else ""
 		var saved_realms = data.get("realms", {})
 		if saved_realms is Dictionary:
-			for id: String in saved_realms:
-				if Realm.REALMS.has(id) and saved_realms[id] is Dictionary:
+			for id in saved_realms:
+				if id is String and Realm.REALMS.has(id) and saved_realms[id] is Dictionary:
 					var record: Dictionary = saved_realms[id]
 					var clean := {}
 					if record.get("won") is bool and record["won"]:
@@ -221,6 +221,30 @@ static func _int_map(saved: Variant) -> Dictionary:
 			elif value is float and is_finite(value) and int(value) >= 0:
 				out[key] = int(value)
 	return out
+
+
+## A saved number the loader can convert. Anything else takes the default, so one
+## corrupt field cannot abort the load half-way and strand the rest of the profile
+## (see _int_map).
+static func _int_or(value: Variant, fallback: int) -> int:
+	if value is int:
+		return value
+	if value is float and is_finite(value):
+		return int(value)
+	return fallback
+
+
+## A rival record has exactly the fields nemesis_escaped() writes; anything else
+## cannot be ranked, stolen from or displayed safely (see title_screen).
+static func _valid_nemesis(v: Variant) -> bool:
+	if not v is Dictionary:
+		return false
+	if not v.get("name") is String:
+		return false
+	for field in ["rank", "stolen", "escapes"]:
+		if not v.get(field) is int:
+			return false
+	return true
 
 
 ## A Crypt/Fallen entry has the exact fields entomb() writes; anything else

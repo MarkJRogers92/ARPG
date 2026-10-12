@@ -28,6 +28,7 @@ func _initialize() -> void:
 	_run(&"_test_skill_points", _test_skill_points())
 	_run(&"_test_new_weapons", _test_new_weapons())
 	_run(&"_test_meta_progress", _test_meta_progress())
+	_run(&"_test_corrupt_profile_fields", _test_corrupt_profile_fields())
 	_run(&"_test_daily_codes", _test_daily_codes())
 	_run(&"_test_elite_rate", _test_elite_rate())
 	_run(&"_test_legendaries", _test_legendaries())
@@ -776,6 +777,36 @@ func _test_meta_progress() -> bool:
 	_check(MetaProgress.rerolls() == 3, "Insight ranks give rerolls")
 	_check(MetaProgress.run_bonus(330.0, 450) == 13, "run bonus: 2 per full minute + a sixth of the root of the kills")
 	_check(MetaProgress.run_bonus(1140.0, 254884) < 200, "a huge night no longer pays thousands (%d)" % MetaProgress.run_bonus(1140.0, 254884))
+	_wipe_save()
+	MetaProgress.save_path = "user://meta.save"
+	MetaProgress.disabled = was_disabled
+	MetaProgress.load_save()
+	return true
+
+
+## A profile whose container types satisfy the gate but whose values the loader
+## cannot convert. One bad value must never abort the load and leave the profile
+## half-reset: the readable fields must still arrive.
+func _test_corrupt_profile_fields() -> bool:
+	print("corrupt profile fields")
+	var was_disabled := MetaProgress.disabled
+	MetaProgress.disabled = false
+	MetaProgress.save_path = "user://test_meta_corrupt.save"
+	_wipe_save()
+	var old := FileAccess.open(MetaProgress.save_path, FileAccess.WRITE)
+	old.store_var({"version": 3, "shards": 500, "bestiary": {}, "campaign_receipts": {},
+			"ranks": {1: 2, "vigor": 3}, "settings": {"friendly_opacity": {"a": 1}},
+			"crypt_chosen": {"a": 1}, "ascension": [], "ascension_unlocked": "lots", "nemeses_slain": {},
+			"nemesis": {"name": "Kestrel"}, "realms": {"graveyard": {"won": true}}})
+	old.close()
+	MetaProgress.load_save()
+	_check(MetaProgress.shards == 500, "the fields before a corrupt one still load")
+	_check(MetaProgress.ranks.get("vigor") == 3, "a readable rank survives a corrupt key")
+	_check(MetaProgress.crypt_chosen == -1, "a corrupt Crypt choice is dropped")
+	_check(MetaProgress.ascension == 0 and MetaProgress.ascension_unlocked == 0, "a corrupt Ascension is dropped")
+	_check(MetaProgress.nemeses_slain == 0, "a corrupt nemesis count is dropped")
+	_check(MetaProgress.nemesis.is_empty(), "a nemesis missing its fields is dropped whole")
+	_check(MetaProgress.realms.has("graveyard"), "and the fields after every corrupt one still load")
 	_wipe_save()
 	MetaProgress.save_path = "user://meta.save"
 	MetaProgress.disabled = was_disabled

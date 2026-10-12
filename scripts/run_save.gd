@@ -43,6 +43,12 @@ static func _valid_run(data: Variant) -> bool:
 		return false
 	if not Realm.REALMS.has(data.get("realm", "")):
 		return false
+	# restore() reads elapsed without a default: a slot this loader cannot hand
+	# over must not be offered, or pressing Resume deletes the only copy and only
+	# then fails.
+	var elapsed_value = data.get("elapsed")
+	if not (elapsed_value is float or elapsed_value is int):
+		return false
 	return true
 
 
@@ -53,10 +59,12 @@ static func write(data: Dictionary) -> bool:
 
 
 ## The saved night, or {} if there is none (or it can't be read).
-## A damaged primary falls back to its .bak so a crash mid-write never loses
-## a suspended night; the .tmp staging file is never read.
+## A damaged primary falls back to its .bak so a crash mid-write never loses a
+## suspended night. A complete .tmp is read too: a rename that fails after the
+## staged write leaves the whole night there, and clear() would otherwise delete
+## the only copy. read_variant rejects a partial file, so this is safe.
 static func read() -> Dictionary:
-	for suffix in ["", ".bak"]:
+	for suffix in ["", ".bak", ".tmp"]:
 		var data = CampaignSave.read_variant(path + suffix)
 		if _valid_run(data):
 			return (data as Dictionary).duplicate(true)

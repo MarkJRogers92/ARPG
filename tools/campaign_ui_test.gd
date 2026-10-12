@@ -318,7 +318,7 @@ func _run_behavior_test() -> void:
 	await _test_ledger_offer_inspection(failures)
 	await _test_real_stolen_arsenal_acceptance(failures)
 	(town._service_buttons["route"] as Button).grab_focus()
-	_test_real_snapshot_rendering(town, controller, failures)
+	await _test_real_snapshot_rendering(town, controller, failures)
 	await _test_reforge_pending_after_reload(temp_root, failures)
 	await _test_veteran_recruitment_details(temp_root, failures)
 	await _test_equipment_tools(failures)

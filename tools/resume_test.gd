@@ -32,7 +32,23 @@ func _check(ok: bool, message: String) -> void:
 
 func _process(_delta: float) -> bool:
 	_frame += 1
-	if _stage == 0 and _frame == 2:
+	if _stage == 0 and _frame == 1:
+		# A slot the restore cannot consume must not be offered: offering it
+		# would clear the slot and then fail on the way in (see RunSave._valid_run).
+		var bad := FileAccess.open(RunSave.path, FileAccess.WRITE)
+		bad.store_var({"version": 1, "realm": "frozen"})
+		bad.close()
+		_check(RunSave.read().is_empty(), "a slot with no elapsed is refused, not resumed")
+		_check(RunSave.exists(), "and it is left on disk to inspect")
+		RunSave.clear()
+		# A staged write whose rename failed is still the whole night: readable
+		# rather than deleted by the next clear() (read_variant rejects a partial).
+		var staged := FileAccess.open(RunSave.path + ".tmp", FileAccess.WRITE)
+		staged.store_var({"version": 1, "realm": "frozen", "elapsed": 120.0})
+		staged.close()
+		_check(not RunSave.read().is_empty(), "a complete staged write is still resumable")
+		RunSave.clear()
+	elif _stage == 0 and _frame == 2:
 		var player: Player = _main.get_node("Player")
 		player.invulnerable = true
 		# A night with some history: time, upgrades, a path, gear, skills, an army.

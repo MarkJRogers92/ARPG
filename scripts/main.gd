@@ -810,12 +810,11 @@ func _begin_night() -> void:
 func _settle_run(seconds: float) -> int:
 	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
 	MetaProgress.add_shards(shards)
-	for kind: String in MetaProgress.record_kills(_kills_by):
-		_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
+	var starred := MetaProgress.record_kills(_kills_by)
+	var daily_best := false
 	var code := ""
 	if Realm.daily:
-		if MetaProgress.record_daily(Realm.today(), kills):
-			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
+		daily_best = MetaProgress.record_daily(Realm.today(), kills)
 		# The shareable code, on the end screen and in the Daily history.
 		var hero := MetaProgress.current_class()
 		code = DailyCode.encode(Realm.today(), kills, roundi(elapsed), won, hero)
@@ -823,13 +822,25 @@ func _settle_run(seconds: float) -> int:
 				"class": hero, "code": code}, _daily_logged)
 		_daily_logged = true
 	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report())
-	_rest_veterans()
+	# One authoritative write after every award, and before anything is promised:
+	# a toast must never bank progress the disk does not have. The earlier saves
+	# inside each mutator stay for their other callers.
+	var banked := MetaProgress.save()
+	if banked:
+		for kind: String in starred:
+			_hud.toast("Bestiary: a new star for %s (+1%% damage, for good)" % kind, UiStyle.GOLD)
+		if daily_best:
+			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
+	_rest_veterans(banked)
+	if not banked:
+		_hud.toast("Progress could not be saved. Your rewards were not banked.", Color(1.0, 0.45, 0.4))
 	return shards
 
 
 ## The night is over: veterans from the Crypt go back to rest with their new
-## deeds, and the greatest new one joins them.
-func _rest_veterans() -> void:
+## deeds, and the greatest new one joins them. `banked` is whether the profile
+## write committed: the Crypt line is only promised when it did.
+func _rest_veterans(banked: bool) -> void:
 	var newcomer := false
 	for v: Dictionary in _army.veterans():
 		if v["crypt"] >= 0:
@@ -839,7 +850,8 @@ func _rest_veterans() -> void:
 			var id := MetaProgress.entomb(v)
 			if id >= 0:
 				_army.mark_crypt(v["slot"], id)
-				_hud.toast("%s is laid to rest in the Crypt. Choose who rises next on the title screen." % v["name"], Army.VETERAN_COLOR)
+				if banked:
+					_hud.toast("%s is laid to rest in the Crypt. Choose who rises next on the title screen." % v["name"], Army.VETERAN_COLOR)
 
 
 ## Frenzy decays by half every ~1.4 s; tiers add attack and move speed.
