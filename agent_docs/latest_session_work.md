@@ -1,6 +1,6 @@
 # Latest session work
 
-Current published checkpoint: creature variants and Ember lighting merged via PR #46 as `70fc018` on `claude/focused-fermat-m7jhtk`, following the approved scenery release in PR #45. The installed Mac app is still PR #45 (`7029bf9`) pending the authorized combined delivery. Verified scenery chunk reuse and audio regression coverage are committed on `perf/bounded-decor-cache`, integrated with PR #46; publication/installation is in progress. The audio shutdown warning remains an upstream engine limitation. Check `git status` for current working-tree state.
+Current published checkpoint: `2669ff0` on `claude/focused-fermat-m7jhtk` — PR #50 (`feat/report-driven-improvements`) merged on top of PRs #46–#49, so the runtime source at `1e875e9` is published. The evidence in this line and the entries below is the PR #47 checkpoint (`f86cd93`), the build verified and installed at `/Applications/Soulbound.app`; nothing here re-verifies PRs #48–#50 as an install. Local working tree: uncommitted review fixes to profile and save handling on `feat/report-driven-improvements` (HEAD `1e875e9`). Final delivery-status notes below are local documentation updates only; the runtime source is published. The audio shutdown warning remains an upstream engine limitation. Check `git status` for current working-tree state.
 
 Earlier entries record their status and evidence at the time, not the current branch or installed build. Their historical test counts (including 23 before the composition suite and 24 afterward) are unchanged.
 
@@ -400,3 +400,33 @@ Evidence and rollback:
 `/Users/markrogers/Desktop/art/reviews/soulbound-delivery-cache-creatures-20261009/`.
 Push, PR merge, CI-release matching and installation remain pending at this
 entry's commit; the final delivery record is added only after actual completion.
+
+### Completed delivery — PR #47 / `f86cd93` (local status record)
+
+Pushed `perf/bounded-decor-cache` at `3186d5d`, merged
+[PR #47](https://github.com/MarkJRogers92/ARPG/pull/47) as
+`f86cd93194ce651c7c1409840bcc59e540e3334f`, and fast-forwarded the local default
+branch to that exact merge. [Build run 38021226707](https://github.com/MarkJRogers92/ARPG/actions/runs/38021226707)
+passed; Mac, Windows and Linux releases all target the merge SHA. No source or
+workflow changes were made after those verified release commits.
+
+Installed the pinned Mac release at `/Applications/Soulbound.app` after checking
+the published asset SHA-256/size, ZIP integrity/paths, universal x86_64+arm64
+binary, ad-hoc bundle signature, and every installed file against the downloaded
+bundle. Both staged and installed exported packs passed **105** checks for all
+24 props, six creature models/rigs/shaders, biome composition/collision/glow and
+active cache reuse/parity/eviction. The full Godot engine inspected the pack;
+the actual release executable's existing CLI permission controls were unchanged.
+Actual staged/installed headless startup and installed native Metal/OpenGL
+startup passed without script/shader errors. All **367** original non-log
+profile files remain byte-identical. Verified original app/profile backups and
+the replaced app are retained under the delivery folder's `rollback/`.
+
+Audio warnings remain the documented engine limitation; no warning-free exit
+or full human campaign is claimed. Sol handled delivery; Claude Haiku 5.5
+reviewed the incoming update. Earlier runtime work also used DeepSeek V4.1 Flash
+for audio investigation/regressions. No premium models. The user's unrelated
+untracked review file is unchanged. Final evidence: `delivery-verification.json`
+in `/Users/markrogers/Desktop/art/reviews/soulbound-delivery-cache-creatures-20261009/`.
+Only these final documentation-status notes are uncommitted; shipped runtime
+source and tests match the merged/released commit.

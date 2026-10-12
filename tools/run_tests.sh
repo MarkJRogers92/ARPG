@@ -15,6 +15,10 @@
 # (resume_test, smoke-style bots) behave the same as the plain unit ones.
 # aim_test.gd needs a real display (it moves the mouse cursor), so it is not
 # in the default list; run it separately under xvfb on a server.
+# tactic_trial_smoke.gd is also outside the default list: it plays a full
+# mission per trial, so it is a manual/pre-release check rather than a
+# per-change gate. Run it for each trial id:
+#   "$GODOT" --headless --path . --fixed-fps 60 -s tools/tactic_trial_smoke.gd -- trial_army
 #
 # Exit code 0 iff every suite passed; logs land in a temp dir and failures
 # print their last lines.
@@ -124,6 +128,12 @@ for entry in "${SUITES[@]}"; do
   watcher=$!
   wait "$pid" 2>/dev/null
   code=$?
+  # A suite that exits 0 but printed an engine or script error fails anyway.
+  # `resources still in use at exit` is an ERROR line in Godot 4.6 and 4.7, so
+  # filtering it keeps the known leak diagnostics from failing every suite; the
+  # ObjectDB leak prints as a WARNING and so never needed filtering. There is no
+  # audio pattern here: no audio shutdown line is an ERROR today, and one added
+  # to this list would silently hide a real push_error from a suite.
   if [ "$code" -eq 0 ] && grep -vE 'ObjectDB instances were leaked at exit|resources still in use at exit' "$log" | grep -qE 'SCRIPT ERROR|Parse Error|Shader compilation|ERROR:'; then
     code=1
   fi

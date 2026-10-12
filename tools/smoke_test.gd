@@ -72,7 +72,7 @@ func _process(_delta: float) -> bool:
 	if not finished:
 		return false
 
-	var ok: bool = _main.kills > 0 and _upgrades_taken > 0
+	var ok: bool = _main.kills > 0 and _upgrades_taken > 0 and not _main._game_over
 	print("%s  (died=%s, kills=%d, upgrades taken=%d)" % [
 			"SMOKE TEST PASSED" if ok else "SMOKE TEST FAILED",
 			_main._game_over, _main.kills, _upgrades_taken])
