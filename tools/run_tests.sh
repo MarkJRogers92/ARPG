@@ -53,6 +53,7 @@ SUITES=(
   "tools/specialist_variants_test.gd"
   "tools/creature_variants_test.gd"
   "tools/combat_readability_test.gd"
+  "tools/combat_text_test.gd"
   "tools/visual_polish_test.gd"
   "tools/combat_cues_test.gd"
   "tools/crossroads_shrine_test.gd"

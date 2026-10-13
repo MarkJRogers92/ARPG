@@ -973,6 +973,10 @@ interface with concise rules and keyboard focus. See [run UI polish and checks](
 [menu continuity / safer exits](docs/visuals/MENU_CONTINUITY.md), and
 [Build Guide / Controls polish](docs/visuals/GUIDE_CONTROLS_POLISH.md).
 
+Floating combat text uses a capped priority budget to reduce overlap while
+preserving each displayed hit value. [Combat text checks and limits](docs/visuals/COMBAT_TEXT_READABILITY.md)
+cover Calm mode, damage telemetry and the crowded-game performance proxies.
+
 ## Skill tree
 
 You earn a **skill point every 2 levels** (`Player.skill_point_every_levels`; 0 turns
