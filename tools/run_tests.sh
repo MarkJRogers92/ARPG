@@ -53,6 +53,7 @@ SUITES=(
   "tools/specialist_variants_test.gd"
   "tools/creature_variants_test.gd"
   "tools/combat_readability_test.gd"
+  "tools/visual_polish_test.gd"
   "tools/hero_visual_test.gd"
   "tools/aegis_visual_test.gd"
   "tools/hero_roster_test.gd"
