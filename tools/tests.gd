@@ -1920,7 +1920,10 @@ func _test_landmarks() -> bool:
 
 	var weapon := ItemGenerator.generate_with(5, ItemData.Rarity.MAGIC, "weapon")
 	player.inventory.pickup(weapon)
-	_check(go.call("forge") and bank[0] == 7, "the forge takes 8 shards")
+	_check(go.call("forge") and bank[0] == 15 and marks.offer_forge(), "forge inspection is free and opens a choice")
+	marks._choose_forge("roll")
+	_check(bank[0] == 7 and player.inventory.equipped.get("weapon") == weapon, "the roll takes 8 shards but keeps the original until acceptance")
+	marks._choose_forge("take")
 	var reforged: Item = player.inventory.equipped.get("weapon")
 	_check(reforged != weapon and reforged.rarity == ItemData.Rarity.MAGIC, "and reforges the weapon at the same rarity")
 

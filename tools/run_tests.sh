@@ -58,6 +58,8 @@ SUITES=(
   "tools/combat_cues_test.gd"
   "tools/crossroads_shrine_test.gd"
   "tools/gear_impact_test.gd"
+  "tools/field_forge_test.gd"
+  "tools/nearby_loot_test.gd"
   "tools/sealbound_chest_test.gd"
   "tools/run_ui_polish_test.gd"
   "tools/menu_continuity_test.gd"

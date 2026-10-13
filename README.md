@@ -490,7 +490,7 @@ its kind and position, so walking away and back doesn't reset it.
 | Bell gibbet, wind chime, chained gong | Ring it: 4+ elite champions rise around it; kill them all for two good items and 6 Soul Shards |
 | Soul altar | Sacrifice a minion: +12% damage for the night (stacks per altar) |
 | Stone well, frozen pond | Toss in 5 run shards: a Rare item, a full heal, a blessing, +10 shards, or nothing |
-| Forge | 8 run shards: reforge your weapon at the same rarity, 3 item levels higher |
+| Forge | Inspect free; pay 8 run shards for one same-rarity weapon at player-derived item level +3, then keep your original or the roll. Not a guaranteed upgrade. Each forge rolls once; spent forges survive Save & Quit. |
 | Cauldron | 6 souls: brew a 45 s blessing |
 | Fishing hut | Rest: heal to full |
 | Forbidden tome | +1 skill point, -8% max HP for the night |
@@ -959,6 +959,12 @@ the `density` table on the `Decor` node.
   otherwise it goes to the 24-slot backpack. A full backpack leaves it on the
   ground. Magic and better drops have a light beam (taller for better rarities);
   Rare and better show their name.
+- **Nearby loot:** Equipment’s Nearby tab compares ground items within normal
+  pickup reach. Inspect first, free backpack space if needed, then Collect the
+  exact item while paused. Filled slots send collected items to the backpack;
+  empty slots equip normally. Ground loot is transient, so collect anything you
+  want to keep before Save & Quit. Campaign’s success and no-discard rules still
+  apply.
 - **Inventory screen (Tab):** worn gear, backpack (▲ marks likely upgrades), the
   selected item compared against what you wear, live stats, equip / unequip /
   discard, and "Quick-equip by item score". **Build impact** previews the actual

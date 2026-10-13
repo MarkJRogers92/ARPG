@@ -57,7 +57,7 @@ static func text(before: PlayerStats, after: PlayerStats) -> String:
 	if after.hp < before.hp:
 		lines.append("[color=#e0a18f][b]Health reduced on equip[/b]\nCurrent HP: %s → %s[/color]" % [format_value("hp",before.hp),format_value("hp",after.hp)])
 	for id: String in before.powers:
-		if not after.powers.has(id):lines.append("[color=#e0a18f][b]Loses a power[/b][/color]\n%s" % _power_description(id))
+		if not after.powers.has(id):lines.append("[color=#e0a18f][b]Loses a power[/b][/color]\n%s" % _power_description(id).trim_prefix("Grants "))
 	for id: String in after.powers:
 		if not before.powers.has(id):lines.append("[color=#a5cfaa][b]Unlocks a power[/b][/color]\n%s" % _power_description(id))
 	for id: String in ["synergy_relay", "synergy_escort", "synergy_wake"]:

@@ -13,6 +13,15 @@ const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd
 
 var _inventory: Inventory
 var _stats: PlayerStats
+var _player: Player
+var _loot: LootManager
+var _source_tabs: TabContainer
+var _nearby_list: ItemList
+var _nearby_hint: Label
+var _nearby_drops: Array[LootDrop] = []
+var _selected_drop: LootDrop
+var _selected_from_ground := false
+var _collecting := false
 
 var _root: Control
 var _equipment_list: ItemList
@@ -43,7 +52,9 @@ func _ready() -> void:
 	_root.hide()
 
 
-func setup(player: Player, campaign_combat := false) -> void:
+func setup(player: Player, campaign_combat := false, loot: LootManager = null) -> void:
+	_player = player
+	_loot = loot
 	_inventory = player.inventory
 	_stats = player.stats
 	_campaign_combat = campaign_combat
@@ -59,7 +70,7 @@ func is_open() -> bool:
 func open() -> void:
 	_refresh()
 	_root.show()
-	(_backpack_list if _backpack_list.item_count > 0 else _equipment_list).grab_focus.call_deferred()
+	(_nearby_list if _source_tabs.current_tab == 1 else (_backpack_list if _backpack_list.item_count > 0 else _equipment_list)).grab_focus.call_deferred()
 
 
 func close() -> void:
@@ -81,6 +92,23 @@ func _input(event: InputEvent) -> void:
 # --- actions ---------------------------------------------------------------------
 
 func _on_equip_pressed() -> void:
+	if _collecting: return
+	if _selected_from_ground:
+		if _player.dead or not is_instance_valid(_selected_drop) or _loot == null:
+			_refresh(); return
+		var item := _selected
+		_collecting = true
+		var result := _loot.collect(_selected_drop, _player.pos2, _stats.pickup_radius, _inventory)
+		_collecting = false
+		if result in ["equipped","backpack"]:
+			_selected_drop = null; _selected_from_ground = false; _selected = null; _selected_worn = false
+		_refresh()
+		if result in ["equipped","backpack"]:
+			_selection_name.text = item.name
+			_selection_meta.text = "Collected · Backpack" if result == "backpack" else "Collected · Equipped"
+			_impact.text = "Stored in Backpack. Select it there to review or equip." if result == "backpack" else "Equipped in the previously empty slot."
+			_nearby_list.grab_focus()
+		return
 	if _selected == null:
 		return
 	if _selected_worn:
@@ -90,17 +118,21 @@ func _on_equip_pressed() -> void:
 
 
 func _on_discard_pressed() -> void:
-	if not _campaign_combat and _selected != null and not _selected_worn:
+	if _collecting: return
+	if not _campaign_combat and _selected != null and not _selected_worn and not _selected_from_ground:
 		var item := _selected
 		_selected = null
 		_inventory.discard(item)
 
 
 func _on_upgrades_pressed() -> void:
-	_inventory.equip_upgrades()
+	if not _collecting: _inventory.equip_upgrades()
 
 
 func _on_equipment_selected(index: int) -> void:
+	if index < 0 or index >= ItemData.SLOTS.size(): return
+	_selected_drop = null; _selected_from_ground = false
+	_nearby_list.deselect_all()
 	_backpack_list.deselect_all()
 	_selected = _inventory.equipped.get(ItemData.SLOTS[index])
 	_selected_worn = true
@@ -108,10 +140,32 @@ func _on_equipment_selected(index: int) -> void:
 
 
 func _on_backpack_selected(index: int) -> void:
+	if index < 0 or index >= _inventory.backpack.size(): return
+	_selected_drop = null; _selected_from_ground = false
+	_nearby_list.deselect_all()
 	_equipment_list.deselect_all()
 	_selected = _inventory.backpack[index]
 	_selected_worn = false
 	_show_details()
+
+
+func _on_nearby_selected(index: int) -> void:
+	if index < 0 or index >= _nearby_drops.size() or not is_instance_valid(_nearby_drops[index]): return
+	_equipment_list.deselect_all(); _backpack_list.deselect_all()
+	_selected_from_ground = true
+	_selected_drop = _nearby_drops[index]
+	_selected = _selected_drop.item
+	_selected_worn = false
+	_show_details()
+
+
+func _on_source_changed(index: int) -> void:
+	_selected_drop = null; _selected_from_ground = false; _selected = null; _selected_worn = false
+	if index == 1 and not _nearby_drops.is_empty():
+		_nearby_list.select(0); _on_nearby_selected(0)
+	elif index == 0 and not _inventory.backpack.is_empty():
+		_backpack_list.select(0); _on_backpack_selected(0)
+	else: _show_details()
 
 
 # --- drawing ---------------------------------------------------------------------
@@ -131,11 +185,25 @@ func _refresh() -> void:
 		_backpack_list.set_item_custom_fg_color(index, RunUi.TEXT)
 	_backpack_title.text = "Backpack  %d / %d" % [_inventory.backpack.size(), Inventory.BACKPACK_SIZE]
 
+	_nearby_drops = _loot.nearby(_player.pos2, _stats.pickup_radius) if _loot != null else []
+	_nearby_list.clear()
+	for node: LootDrop in _nearby_drops:
+		var index := _nearby_list.add_item(node.item.name, _icons.icon(node.item))
+		_nearby_list.set_item_tooltip(index, node.item.subtitle())
+	_source_tabs.set_tab_title(1, "Nearby · %d" % _nearby_drops.size())
+	_nearby_hint.text = "Within pickup reach. " + ("New loot is kept on a successful return." if _campaign_combat else "Uncollected ground loot is not saved.")
+	if _nearby_drops.is_empty(): _nearby_hint.text = "No loot within pickup reach. Move closer, then reopen Equipment."
+	if not is_instance_valid(_selected_drop) or not _nearby_drops.has(_selected_drop):
+		_selected_drop = null; _selected_from_ground = false
+
 	# Keep the selection if the item is still around.
 	if _selected != null:
 		var worn: Item = _inventory.equipped.get(_selected.slot)
 		var in_pack := _inventory.backpack.find(_selected)
-		if worn == _selected:
+		if _selected_drop != null:
+			_selected_worn = false
+			_nearby_list.select(_nearby_drops.find(_selected_drop))
+		elif worn == _selected:
 			_selected_worn = true
 			_equipment_list.select(ItemData.SLOTS.find(_selected.slot))
 		elif in_pack >= 0:
@@ -155,23 +223,34 @@ func _show_details() -> void:
 	_equip_button.text = "Unequip" if _selected_worn else "Equip"
 	_discard_button.disabled = _campaign_combat or _selected == null or _selected_worn
 	_discard_button.tooltip_text = "Banked campaign gear can only be discarded in town." if _campaign_combat else ""
+	if _selected_drop != null:
+		_equip_button.text = "Collect"
+		_equip_button.disabled = _player.dead or (_inventory.equipped.has(_selected.slot) and _inventory.is_full())
+		_equip_button.tooltip_text = "Make one backpack space to collect this item." if _equip_button.disabled else "Uses normal pickup rules: fills an empty equipment slot, otherwise stores in your backpack."
+		_discard_button.disabled = true
+		_discard_button.tooltip_text = "Nearby items stay on the ground until collected."
 	_icons.show_item(_selected)
 	if _selected == null:
 		_selection_name.text = "Inspect your gear"
 		_selection_meta.text = "Choose an item to compare"
 		_details.text = "[color=#%s]Select an item.[/color]" % CampaignMenuStyle.MUTED.to_html(false)
-		_impact.text = "Preview the change before you equip. Select worn gear to see what removing it would change."
+		_impact.text = "No loot within pickup reach. Move closer, then reopen Equipment." if _source_tabs.current_tab == 1 else "Preview the change before you equip. Select worn gear to see what removing it would change."
 		return
 
 	var item := _selected
 	_selection_name.text = item.name
 	_selection_name.tooltip_text = item.name
-	_selection_meta.text = "%s · %s" % [ItemData.RARITIES[item.rarity]["name"],ItemData.SLOT_NAMES[item.slot]]
+	_selection_meta.text = ("On ground · " if _selected_drop != null else "") + "%s · %s" % [ItemData.RARITIES[item.rarity]["name"],ItemData.SLOT_NAMES[item.slot]]
 	_selection_meta.add_theme_color_override("font_color",RunUi.GOLD if item.rarity >= ItemData.Rarity.RARE else RunUi.MUTED)
 	var after := _inventory.preview_swap(item.slot, null if _selected_worn else item)
 	_impact.text = "[font_size=12][color=#b5b4ab]%s[/color][/font_size]\n" % ("PREVIEW: UNEQUIP" if _selected_worn else "PREVIEW: EQUIP")
 	if _selected_worn and _inventory.is_full():
 		_impact.text += "[color=#ffb46b]Backpack full. Free one space to unequip.[/color]\n\n"
+	if _selected_drop != null:
+		_impact.text = "[font_size=12][color=#b5b4ab]IF EQUIPPED AFTER COLLECTION[/color][/font_size]\n"
+		if _inventory.equipped.has(item.slot) and _inventory.is_full():
+			_impact.text += "[color=#e0a18f]Backpack full. " + ("Manage carried gear in town." if _campaign_combat else "Free one space in Backpack, then collect here.") + "[/color]\n"
+		else: _impact.text += "Collecting " + ("equips this empty slot." if not _inventory.equipped.has(item.slot) else "stores it in your backpack; your worn item stays equipped.") + "\n"
 	_impact.text += GearImpact.text(_stats, after)
 	_impact.scroll_to_line(0)
 	_details.scroll_to_line(0)
@@ -199,7 +278,7 @@ func _show_details() -> void:
 			lines += "[color=#%s]%s[/color]\n[color=#%s]Estimated fit; compare bonuses and powers.[/color]\n" % [
 					"7ee08a" if better else "e08a7e", "▲ Likely upgrade" if better else "▼ Likely downgrade",
 					CampaignMenuStyle.MUTED.to_html(false)]
-	_details.text = lines
+	_details.text = lines.replace("CARRIED","GROUND").replace("Carried power","Ground power") if _selected_drop != null else lines
 
 
 func _modifier_comparison_text(worn: Item, offered: Item) -> String:
@@ -299,7 +378,7 @@ func _build() -> void:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
 	var hint := _menu_label(12)
-	hint.text = "Tab / Esc   Close     ·     Enter   Equip / unequip"
+	hint.text = "Tab / Esc   Close     ·     Enter   Selected action"
 	hint.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	header.add_child(hint)
 
@@ -321,10 +400,27 @@ func _build() -> void:
 	var middle := _card(body, 270)
 	_backpack_title = _section_label("Backpack")
 	middle.add_child(_backpack_title)
-	_backpack_list = _make_list(Vector2(270, 456))
+	_source_tabs = TabContainer.new()
+	_source_tabs.custom_minimum_size = Vector2(270,456)
+	_source_tabs.get_tab_bar().focus_mode = Control.FOCUS_ALL
+	middle.add_child(_source_tabs)
+	_backpack_list = _make_list(Vector2(270,410))
+	_backpack_list.name = "Backpack"
 	_backpack_list.item_selected.connect(_on_backpack_selected)
 	_backpack_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
-	middle.add_child(_backpack_list)
+	_source_tabs.add_child(_backpack_list)
+	var nearby_box := VBoxContainer.new(); nearby_box.name = "Nearby"
+	_source_tabs.add_child(nearby_box)
+	_nearby_list = _make_list(Vector2(270,348))
+	_nearby_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_nearby_list.item_selected.connect(_on_nearby_selected)
+	_nearby_list.item_activated.connect(func(_i: int) -> void: _on_equip_pressed())
+	nearby_box.add_child(_nearby_list)
+	_nearby_hint = RunUi.label(12,RunUi.MUTED)
+	_nearby_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_nearby_hint.custom_minimum_size = Vector2(270,48)
+	nearby_box.add_child(_nearby_hint)
+	_source_tabs.tab_changed.connect(_on_source_changed)
 
 	var right := _card(body, 390)
 	var selected_header:=HBoxContainer.new()
