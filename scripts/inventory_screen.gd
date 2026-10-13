@@ -19,6 +19,8 @@ var _equipment_list: ItemList
 var _backpack_list: ItemList
 var _backpack_title: Label
 var _details: RichTextLabel
+var _impact: RichTextLabel
+var _detail_tabs: TabContainer
 var _stats_text: RichTextLabel
 var _equip_button: Button
 var _discard_button: Button
@@ -67,6 +69,11 @@ func _input(event: InputEvent) -> void:
 	if is_open() and (event.is_action_pressed("inventory") or event.is_action_pressed("ui_cancel")):
 		close()
 		get_viewport().set_input_as_handled()
+	elif is_open() and get_viewport().gui_get_focus_owner() in [_impact, _details]:
+		var focused := get_viewport().gui_get_focus_owner() as RichTextLabel
+		if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+			focused.get_v_scroll_bar().value += 48.0 if event.is_action_pressed("ui_down") else -48.0
+			get_viewport().set_input_as_handled()
 
 
 # --- actions ---------------------------------------------------------------------
@@ -141,16 +148,25 @@ func _refresh() -> void:
 
 
 func _show_details() -> void:
-	_equip_button.disabled = _selected == null
+	_equip_button.disabled = _selected == null or (_selected_worn and _inventory.is_full())
+	_equip_button.tooltip_text = "Backpack full. Swap a carried item or free one space before unequipping." if _selected_worn and _inventory.is_full() else ""
 	_equip_button.text = "Unequip" if _selected_worn else "Equip"
 	_discard_button.disabled = _campaign_combat or _selected == null or _selected_worn
 	_discard_button.tooltip_text = "Banked campaign gear can only be discarded in town." if _campaign_combat else ""
 	_icons.show_item(_selected)
 	if _selected == null:
 		_details.text = "[color=#%s]Select an item.[/color]" % CampaignMenuStyle.MUTED.to_html(false)
+		_impact.text = "Select carried gear to preview the real swap. Select worn gear to preview removing it. Nothing changes until you equip or unequip."
 		return
 
 	var item := _selected
+	var after := _inventory.preview_swap(item.slot, null if _selected_worn else item)
+	_impact.text = "[b]%s[/b]\n%s\n\n" % [item.name, "PREVIEW: UNEQUIP" if _selected_worn else "PREVIEW: EQUIP"]
+	if _selected_worn and _inventory.is_full():
+		_impact.text += "[color=#ffb46b]Backpack full. Free one space to unequip.[/color]\n\n"
+	_impact.text += GearImpact.text(_stats, after)
+	_impact.scroll_to_line(0)
+	_details.scroll_to_line(0)
 	var lines := "[font_size=24][color=#%s][b]%s[/b][/color][/font_size]\n" % [item.color().to_html(false), item.name]
 	lines += "[color=#%s]%s  ·  %s[/color]\n\n" % [CampaignMenuStyle.MUTED.to_html(false), item.subtitle(), ItemData.SLOT_NAMES[item.slot]]
 	if item.power != "":
@@ -304,11 +320,23 @@ func _build() -> void:
 
 	var right := _card(body, 380)
 	right.add_child(_section_label("Selected"))
-	right.add_child(_icons.make_preview(Vector2(380, 84)))
-	_details = _make_text(Vector2(380, 328))
+	right.add_child(_icons.make_preview(Vector2(380, 60)))
+	_detail_tabs = TabContainer.new()
+	_detail_tabs.custom_minimum_size = Vector2(380, 350)
+	_detail_tabs.get_tab_bar().focus_mode = Control.FOCUS_ALL
+	right.add_child(_detail_tabs)
+	_impact = _make_text(Vector2(380, 300))
+	_impact.name = "Build impact"
+	_impact.focus_mode = Control.FOCUS_ALL
+	_impact.add_theme_font_size_override("normal_font_size", 14)
+	_impact.add_theme_font_size_override("bold_font_size", 14)
+	_detail_tabs.add_child(_impact)
+	_details = _make_text(Vector2(380, 300))
+	_details.name = "Item rolls"
+	_details.focus_mode = Control.FOCUS_ALL
 	_details.add_theme_font_size_override("normal_font_size", 14)
 	_details.add_theme_font_size_override("bold_font_size", 14)
-	right.add_child(_details)
+	_detail_tabs.add_child(_details)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
 	right.add_child(buttons)
@@ -325,7 +353,8 @@ func _build() -> void:
 
 	# Footer
 	_upgrades_button = Button.new()
-	_upgrades_button.text = "Equip all likely upgrades (▲)"
+	_upgrades_button.text = "Quick-equip by item score (▲)"
+	_upgrades_button.tooltip_text = "Uses the existing rough item score, not build synergy. Inspect Build impact to review actual stats and powers before swapping."
 	_upgrades_button.custom_minimum_size = Vector2(0, 38)
 	_upgrades_button.pressed.connect(_on_upgrades_pressed)
 	column.add_child(_upgrades_button)

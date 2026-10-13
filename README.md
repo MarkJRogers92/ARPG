@@ -954,8 +954,12 @@ the `density` table on the `Decor` node.
   Rare and better show their name.
 - **Inventory screen (Tab):** worn gear, backpack (▲ marks likely upgrades), the
   selected item compared against what you wear, live stats, equip / unequip /
-  discard, and "equip all likely upgrades". The upgrade hint is a rough score
-  from `ItemData.STAT_INFO`, not a promise.
+  discard, and "Quick-equip by item score". **Build impact** previews the actual
+  character stats, HP-cap loss, abilities/powers and owned-link prerequisites
+  after the selected swap. **Item rolls** retains the original bonus comparison.
+  Inspecting or canceling never changes the build. A full backpack blocks
+  unequipping with a reason, but still permits swaps. The ▲ hint and quick-equip
+  use the original rough score from `ItemData.STAT_INFO`, not a build-fit promise.
 
 ## Skill tree
 
