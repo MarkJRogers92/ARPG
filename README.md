@@ -81,7 +81,8 @@ bindings (`scripts/controls.gd`; saved with the settings).
 The pause menu also has the comfort and accessibility settings:
 
 - **Calm effects** (photosensitivity): no hit-stop or slow motion, light
-  flashes at 30%, and the rift glitch at a fifth of its strength.
+  flashes at 30%, a steady gentler low-health tint, and the rift glitch at a fifth of its strength.
+  The HP bar also says LOW HEALTH below one-third health.
 - **Bold warnings**: every ground warning (hazards, boss slams, mid-boss moves,
   meteors, bloater fuses, Lancer and Colossus lines) drawn brighter and near
   opaque (`HazardDirector.make_warning`, `Juice.warning_color`).
@@ -94,7 +95,9 @@ style: once you move the mouse, the hero faces the cursor and shoots toward it
 (a ring on the ground marks the spot) while WASD walks independently, so you can
 back away while firing. The right stick aims the same way while held. Until you
 touch the mouse, after you release the stick, or after pressing T, bolts auto-aim
-at the nearest enemy.
+at the nearest enemy. The bottom hint shows the current AUTO, MOUSE or STICK
+aim state. Dash shows READY or its actual remaining cooldown in seconds, alongside
+your bound key; Warding charges use the same timer.
 
 The game starts fullscreen. The UI is laid out for 1280×720 and scales with the
 screen (stretch mode `canvas_items`, aspect `expand`), so it stays the same size
@@ -222,10 +225,13 @@ Every 40 to 55 seconds something worth walking to appears out of sight,
 announced with a message and pointed to by an arrow at the screen edge (bosses
 get arrows too). See `scripts/event_director.gd`:
 
-- **Shrine.** Stand in its circle for a few seconds to charge it and get a 30 s
-  blessing: Fury (+60% damage), Haste (+35% move and attack speed), Plenty
+- **Shrine / Crossroads shrine.** Stand in a circle for a few seconds to charge
+  it and get a 30 s blessing. Random shrine discoveries can offer two labeled
+  alternatives: hold the one you want, and the other disappears when it completes.
+  Leaving the circle decays partial charge. At most one pair is active; cramped
+  sites use a single shrine. The existing blessings are: Fury (+60% damage), Haste (+35% move and attack speed), Plenty
   (double XP and souls) or Warding (much less damage taken). The HUD shows
-  the time left.
+  the time left. Authored campaign recovery remains its single Warding shrine.
 - **Treasure goblin.** A thief that runs from you for 22 s. Catch it for 3
   items, a shower of XP gems, 3 Soul Shards and a health orb.
 - **Cursed chest.** Opening it summons a ring of elite guardians (more in

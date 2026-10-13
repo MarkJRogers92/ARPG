@@ -674,6 +674,9 @@ func _process(delta: float) -> void:
 	if prompt == "" and (not _campaign or (not _expedition_terminal and not _player.dead)):
 		prompt = _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 		prompt_color = RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	if prompt == "" and not _player.dead and not _expedition_terminal:
+		prompt = _events.discovery_prompt
+		prompt_color = _events.discovery_color
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 
 	if not won or _endless:
@@ -704,9 +707,10 @@ func _process(delta: float) -> void:
 			snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
 
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
-			_bosses.current_boss_name(), _bosses.boss_health())
+			_bosses.current_boss_name(), _bosses.boss_health(), _player.dash_cooldown_remaining())
 	_hud.set_dash_charge(_player.warding_charge_left)
 	_update_clock()
 	# Music: the drums swell with the size of the horde and the hour.
@@ -762,8 +766,11 @@ func _market_frame(delta: float) -> void:
 	_decor.follow(origin)
 	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
-	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
+	_hud.set_hurt(false, delta)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0, _player.dash_cooldown_remaining())
+	_hud.set_dash_charge(_player.warding_charge_left)
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
 	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])

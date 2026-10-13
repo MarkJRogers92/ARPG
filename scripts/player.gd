@@ -216,6 +216,11 @@ func dash_cooldown_fraction() -> float:
 	return clampf(_dash_cooldown / stats.dash_cooldown, 0.0, 1.0)
 
 
+## Actual time remaining, including cooldown changes since the dash was spent.
+func dash_cooldown_remaining() -> float:
+	return maxf(_dash_cooldown, 0.0)
+
+
 ## Movement and regen. Call before the enemy swarms step.
 func tick(delta: float) -> void:
 	build_synergies.tick(delta)

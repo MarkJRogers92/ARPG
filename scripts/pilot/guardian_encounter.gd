@@ -101,4 +101,5 @@ func _refresh_guardian_readout() -> void:
 			label = guardians.display_name + " · " + phase
 			health = clampf(guardians.hp[i] / maxf(guardians._cap[i], 0.001), 0.0, 1.0)
 			break
-	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), label, health)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), label, health, _player.dash_cooldown_remaining())
+	_hud.set_dash_charge(_player.warding_charge_left)

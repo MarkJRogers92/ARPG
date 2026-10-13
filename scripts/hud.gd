@@ -84,6 +84,9 @@ var _campaign_guidance_label: Label
 var _banish_row: HBoxContainer
 var _dismiss_reward: Button
 var _reward_reveal_shown := false
+var _dash_seconds := -1.0
+var _dash_ready := true
+var _aim_status := "AUTO"
 
 
 func _ready() -> void:
@@ -103,7 +106,8 @@ func _process(_delta: float) -> void:
 func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill_points := 0) -> void:
 	_hp_bar.max_value = stats.max_hp
 	_hp_bar.value = stats.hp
-	_hp_text.text = "%d / %d" % [mini(ceili(stats.hp), roundi(stats.max_hp)), roundi(stats.max_hp)]
+	var low_health := stats.hp > 0.0 and stats.hp < stats.max_hp / 3.0
+	_hp_text.text = "%d / %d%s" % [mini(ceili(stats.hp), roundi(stats.max_hp)), roundi(stats.max_hp), "  ·  LOW HEALTH" if low_health else ""]
 	_xp_bar.max_value = stats.xp_to_next
 	_xp_bar.value = stats.xp
 	_level_label.text = str(stats.level)
@@ -112,16 +116,23 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_time_label.text = _clock_text if _clock_text != "" else _format_time(elapsed)
 	_time_label.add_theme_color_override("font_color", _clock_color)
 	_kills_label.text = "%d" % kills
-	_debug_label.text = "%d FPS   %d enemies   %s inventory   %s skills   %s aim   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies,
-			Controls.tag("inventory"), Controls.tag("skill_tree"), Controls.tag("toggle_aim")]
+	_debug_label.text = "%d FPS   %d enemies   %s inventory   %s skills   AIM: %s · %s mouse toggle   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies,
+			Controls.tag("inventory"), Controls.tag("skill_tree"), _aim_status, Controls.tag("toggle_aim")]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
 
 
 ## Reddens the screen edges while the hero is taking contact damage.
 func set_hurt(hurting: bool, delta: float) -> void:
 	_hurt = minf(_hurt + delta * 4.0, 1.0) if hurting else maxf(_hurt - delta * 2.0, 0.0)
-	var pulse := _low_hp * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008))
-	(_vignette.material as ShaderMaterial).set_shader_parameter("hurt", maxf(_hurt * 0.6, pulse * 0.7))
+	# Calm keeps a quieter, steady warning; the explicit HP text carries the
+	# same information without requiring a pulsing or color-only screen cue.
+	var strength: float
+	if Juice.calm:
+		strength = maxf(_hurt * 0.18, _low_hp * 0.21)
+	else:
+		var pulse := _low_hp * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008))
+		strength = maxf(_hurt * 0.6, pulse * 0.7)
+	(_vignette.material as ShaderMaterial).set_shader_parameter("hurt", strength)
 
 
 ## A short message that fades out, e.g. loot pickups. Newest at the bottom.
@@ -130,8 +141,10 @@ func toast(text: String, color := Color.WHITE) -> void:
 	label.text = text
 	label.modulate = color
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = minf(620.0, get_viewport().get_visible_rect().size.x * 0.5)
 	_toasts.add_child(label)
-	while _toasts.get_child_count() > 6:
+	while _toasts.get_child_count() > 4:
 		var oldest := _toasts.get_child(0)
 		_toasts.remove_child(oldest)
 		oldest.queue_free()
@@ -143,11 +156,13 @@ func toast(text: String, color := Color.WHITE) -> void:
 
 ## The bits of the HUD beyond the basics: Soul Shards found this run, the dash
 ## cooldown (0 = ready) and the boss health bar (`boss_health` < 0 hides it).
-func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_health: float) -> void:
+func refresh_extras(shards: int, dash_cooldown: float, boss_name: String, boss_health: float, dash_seconds := -1.0) -> void:
 	_shards_label.text = str(shards)
 	_dash_bar.value = 1.0 - dash_cooldown
-	_dash_label.text = "DASH  " + Controls.tag("dash") if dash_cooldown <= 0.0 else "DASH"
-	_dash_label.modulate = Color(1, 1, 1, 0.9 if dash_cooldown <= 0.0 else 0.45)
+	_dash_seconds = dash_seconds
+	_dash_ready = dash_seconds <= 0.0 if dash_seconds >= 0.0 else dash_cooldown <= 0.0
+	set_dash_charge(0.0)
+	_dash_label.modulate = Color(1, 1, 1, 1.0 if _dash_ready else 0.85)
 	_boss_box.visible = boss_health >= 0.0
 	if _boss_box.visible:
 		_boss_label.text = boss_name
@@ -212,10 +227,18 @@ func dismiss_reward() -> void:
 	_dismiss_reward.hide()
 
 func set_dash_charge(seconds: float) -> void:
+	var status := "READY" if _dash_ready else ("%.1f s" % (ceilf(_dash_seconds * 10.0) / 10.0) if _dash_seconds >= 0.0 else "COOLING")
+	_dash_label.text = "%s %s · %s" % ["WARDING" if seconds > 0.0 else "DASH", status, Controls.tag("dash")]
 	if seconds > 0.0:
-		_dash_label.text = "WARDING READY · " + Controls.tag("dash") if _dash_bar.value >= 1.0 else "WARDING CHARGED · dash cooling"
 		_dash_label.tooltip_text = "Next successful dash spends one 3m frost pulse, even on a miss. Expires in %d s." % ceili(seconds)
 	else: _dash_label.tooltip_text = ""
+
+
+func set_aim_status(mode: Player.Aim, mouse_enabled: bool) -> void:
+	match mode:
+		Player.Aim.MOUSE: _aim_status = "MOUSE"
+		Player.Aim.STICK: _aim_status = "STICK"
+		_: _aim_status = "AUTO" if mouse_enabled else "AUTO (mouse off)"
 
 
 func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
@@ -798,7 +821,7 @@ func _build() -> void:
 	_toasts.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_toasts.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_toasts.offset_right = -16.0
-	_toasts.offset_bottom = -16.0
+	_toasts.offset_bottom = -120.0
 	root.add_child(_toasts)
 
 	# Level-up cards.

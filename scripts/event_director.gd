@@ -42,6 +42,9 @@ const BLESSINGS := {
 ## The blessing in effect ("" for none) and its seconds left.
 var blessing := ""
 var blessing_left := 0.0
+## Nearby paired-shrine guidance; other interaction prompts retain priority.
+var discovery_prompt := ""
+var discovery_color := Color.WHITE
 
 var _director: WaveDirector
 var _player: Player
@@ -141,7 +144,8 @@ func _start_random() -> void:
 		return
 	match kind:
 		"shrine":
-			_start_shrine(at)
+			if not _start_crossroads(at):
+				_start_shrine(at)
 		"goblin":
 			_goblin_left = goblin_time
 			var near := _clear_spot(10.0, 12.0, 1.0)
@@ -164,6 +168,11 @@ func _clear_spot(min_r: float, max_r: float, clearance: float) -> Vector2:
 
 func _start_shrine(at: Vector2, chosen := "") -> void:
 	var name: String = chosen if BLESSINGS.has(chosen) else BLESSINGS.keys().pick_random()
+	_events.append(_make_shrine(at, name))
+	announced.emit("A Shrine of %s appears nearby" % name, BLESSINGS[name]["color"])
+
+
+func _make_shrine(at: Vector2, name: String) -> Dictionary:
 	var color: Color = BLESSINGS[name]["color"]
 	var root := Node3D.new()
 	root.position = Vector3(at.x, 0.0, at.y)
@@ -181,9 +190,84 @@ func _start_shrine(at: Vector2, chosen := "") -> void:
 	light.light_cull_mask = 1
 	light.position = Vector3(0, 3.0, 0)
 	root.add_child(light)
-	_events.append({"kind": "shrine", "at": at, "node": root, "fill": fill, "ring": ring,
-			"charge": 0.0, "blessing": name, "color": color, "label": "SHRINE", "age": 0.0})
-	announced.emit("A Shrine of %s appears nearby" % name, color)
+	return {"kind": "shrine", "at": at, "node": root, "fill": fill, "ring": ring,
+			"charge": 0.0, "blessing": name, "color": color, "label": "SHRINE", "age": 0.0}
+
+
+## At most one paired discovery at a time. Unclear sites fall back to a normal
+## shrine; authored campaign opportunities still call _start_shrine directly.
+func _start_crossroads(at: Vector2) -> bool:
+	if _events.any(func(e: Dictionary) -> bool: return e["kind"] == "crossroads"):
+		return false
+	var choices_at: Array[Vector2] = []
+	for k in 8:
+		var offset := Vector2.from_angle(float(k) * PI / 8.0) * (shrine_radius + 1.0)
+		if not Obstacles.blocked(at - offset, shrine_radius + 0.5) and not Obstacles.blocked(at + offset, shrine_radius + 0.5):
+			choices_at.assign([at - offset, at + offset])
+			break
+	if choices_at.is_empty(): return false
+	var names := BLESSINGS.keys()
+	var first: String = names.pick_random()
+	names.erase(first)
+	var second: String = names.pick_random()
+	var parent := Node3D.new()
+	add_child(parent)
+	var choices: Array[Dictionary] = []
+	for i in 2:
+		var choice := _make_shrine(choices_at[i], first if i == 0 else second)
+		(choice["node"] as Node3D).reparent(parent)
+		var label := Label3D.new()
+		label.text = "%s\n%s\n%d seconds · choose one" % [String(choice["blessing"]).to_upper(), BLESSINGS[choice["blessing"]]["desc"], roundi(blessing_time)]
+		label.font_size = 36
+		label.outline_size = 10
+		label.pixel_size = 0.008
+		label.position.y = 4.8
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.modulate = choice["color"].lerp(Color.WHITE, 0.45)
+		label.no_depth_test = false
+		label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(choice["node"] as Node3D).add_child(label)
+		choices.append(choice)
+	_events.append({"kind":"crossroads", "at":at, "node":parent, "choices":choices,
+		"color":Color(0.9,0.8,1.0), "label":"CHOOSE A BLESSING", "age":0.0, "claimed":false})
+	announced.emit("Crossroads shrine · %s or %s? Hold one circle; the other fades." % [first,second], Color(0.9,0.8,1.0))
+	return true
+
+
+func _update_crossroads(e: Dictionary, hero: Vector2, delta: float) -> bool:
+	if bool(e["claimed"]): return true
+	if _player.dead: return false
+	for choice: Dictionary in e["choices"]:
+		var inside := hero.distance_to(choice["at"]) <= shrine_radius
+		var before: float = choice["charge"]
+		choice["charge"] = clampf(before + (delta / shrine_charge_time if inside else -delta * 0.3), 0.0, 1.0)
+		(choice["fill"] as MeshInstance3D).scale = Vector3.ONE * maxf(choice["charge"], 0.02)
+		if inside and int(before * 4.0) != int(choice["charge"] * 4.0):
+			Sound.play("shrine_charge", 1.0 + choice["charge"] * 0.5)
+		if choice["charge"] >= 1.0:
+			e["claimed"] = true # commit before any signal callback can re-enter
+			_bless(choice["blessing"])
+			Juice.ring(choice["at"], choice["color"], 40, 9.0, 0.6, 0.6)
+			Juice.flash(choice["at"], choice["color"], 6.0, 12.0, 0.6)
+			return true
+	return false
+
+
+func _refresh_discovery_prompt(hero: Vector2) -> void:
+	discovery_prompt = ""
+	var nearest := INF
+	for e: Dictionary in _events:
+		if e["kind"] != "crossroads" or bool(e["claimed"]): continue
+		for choice: Dictionary in e["choices"]:
+			var distance: float = hero.distance_to(choice["at"])
+			if distance > shrine_radius + 4.0 or distance >= nearest: continue
+			nearest = distance
+			var name: String = choice["blessing"]
+			var action := "Step into this circle to choose"
+			if distance <= shrine_radius:
+				action = "Hold %.1f s · other shrine fades" % (ceilf((1.0 - float(choice["charge"])) * shrine_charge_time * 10.0) / 10.0)
+			discovery_prompt = "%s · %s · %s" % [name.to_upper(), BLESSINGS[name]["desc"], action]
+			discovery_color = choice["color"]
 
 
 func _start_chest(at: Vector2) -> void:
@@ -211,6 +295,8 @@ func _update_events(delta: float) -> void:
 		match e["kind"]:
 			"shrine":
 				done = _update_shrine(e, hero, delta)
+			"crossroads":
+				done = _update_crossroads(e, hero, delta)
 			"chest":
 				done = _update_chest(e, hero)
 		# Unused events fade away after a while.
@@ -220,6 +306,7 @@ func _update_events(delta: float) -> void:
 			e["node"].queue_free()
 			_events.remove_at(i)
 		i -= 1
+	_refresh_discovery_prompt(hero)
 	if _goblins.alive_count() > 0:
 		_goblin_left -= delta
 		if _goblin_left <= 0.0:
