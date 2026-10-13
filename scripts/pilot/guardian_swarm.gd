@@ -12,6 +12,12 @@ const MAX_LIVE := 3
 const MAX_CORPSES := 3
 const COMBAT_STEP := 1.0 / 120.0
 const WALK_REFERENCE_SPEED := 2.2
+## CPU-skinned Idle body: 2.1674886 m. Match the native Ogre Warlord mesh (4.669 m).
+const BODY_SCALE := 4.6689997 / 2.1674886
+const ATTACK_AIM_OFFSET := deg_to_rad(-20.0)
+const WINDUP_SECONDS := 0.65
+const WINDUP_RATE := Presentation.ATTACK_OPEN / WINDUP_SECONDS
+const ATTACK_SECONDS := WINDUP_SECONDS + 1.20 - Presentation.ATTACK_OPEN
 ## The compact sword's actual blade, excluding the hilt (local +Y).
 const BLADE_BASE := Vector3(0.0, 0.25, 0.0)
 const BLADE_TIP := Vector3(0.0, 0.962, 0.0)
@@ -19,9 +25,9 @@ const BLADE_RADIUS := 0.06
 const PLAYER_BOTTOM := 0.45
 const PLAYER_TOP := 1.25
 
-@export var sword_damage := 12.0
-@export var engage_distance := 1.35
-@export var recovery_pause := 0.55
+@export var sword_damage := 24.0
+@export var engage_distance := 3.0
+@export var recovery_pause := 0.9
 @export var stagger_cooldown := 3.0
 var player: Player
 var visuals: Dictionary = {} # stable enemy ID -> presentation/timers
@@ -65,8 +71,8 @@ func spawn(at: Vector2, hp_mult := 1.0, elite := false) -> bool:
 	var i := count - 1
 	actor.name = "Guardian_%d" % ids[i]
 	actor.position = Vector3(at.x, 0.0, at.y)
-	actor.scale = Vector3.ONE * _scale[i]
-	visuals[ids[i]] = {"actor": actor, "cooldown": 0.5, "stagger": 0.0, "hit_swing": -1}
+	actor.scale = Vector3.ONE * BODY_SCALE * _scale[i]
+	visuals[ids[i]] = {"actor": actor, "cooldown": 1.0, "stagger": 0.0, "hit_swing": -1, "attack_yaw": 0.0, "start_yaw": 0.0, "windup": 0.0, "telegraph": _make_cut_telegraph(actor)}
 	return true
 
 func step(delta: float, target: Vector2) -> void:
@@ -104,13 +110,23 @@ func step(delta: float, target: Vector2) -> void:
 			actor.set_locomotion(moving)
 			if mobile and not moving and to.length() <= engage_distance * _scale[i] + 0.1 and entry.cooldown <= 0.0 and is_instance_valid(player) and not player.dead:
 				if actor.play_attack() > 0:
-					entry.cooldown = Presentation.CLIP_SECONDS[&"Attack"] + recovery_pause
+					entry.cooldown = ATTACK_SECONDS + recovery_pause
+					entry.start_yaw = actor.rotation.y
+					entry.attack_yaw = atan2(to.x, to.y) + ATTACK_AIM_OFFSET
+					entry.windup = 0.0
 			var was_attack: bool = actor.state == &"Attack"
 			var before: float = actor.state_elapsed
+			if was_attack and before < Presentation.ATTACK_OPEN:
+				entry.windup += tick
+				# Lock the target at commitment; only ease to that fixed cut direction.
+				actor.rotation.y = lerp_angle(entry.start_yaw, entry.attack_yaw, minf(entry.windup / 0.18, 1.0))
 			var old_blade := blade_segment(actor)
 			var animation_dt := tick
+			if was_attack and before < Presentation.ATTACK_OPEN:
+				var until_active := (Presentation.ATTACK_OPEN - before) / WINDUP_RATE
+				animation_dt = minf(tick, until_active) * WINDUP_RATE + maxf(tick - until_active, 0.0)
 			if actor.state == &"Walk" and tick > 0.0:
-				animation_dt *= clampf(previous_position.distance_to(pos[i]) / (WALK_REFERENCE_SPEED * tick), 0.0, 2.0)
+				animation_dt *= clampf(previous_position.distance_to(pos[i]) / (WALK_REFERENCE_SPEED * BODY_SCALE * _scale[i] * tick), 0.0, 2.0)
 			actor.advance_presentation(animation_dt)
 			if was_attack and actor.state == &"Attack" and before < Presentation.ATTACK_CLOSE and actor.state_elapsed >= Presentation.ATTACK_OPEN:
 				var blade := blade_segment(actor)
@@ -118,6 +134,7 @@ func step(delta: float, target: Vector2) -> void:
 				_try_sword_hit(i, entry, old_blade, blade, hero_at)
 			_flash[i] = maxf(_flash[i] - tick * 6.0, 0.0)
 			_tint_actor(i, actor)
+			entry.telegraph.visible = actor.state == &"Attack" and actor.state_elapsed < Presentation.ATTACK_CLOSE
 		for actor: Node3D in corpses:
 			actor.advance_presentation(tick)
 	for index in range(corpses.size() - 1, -1, -1):
@@ -145,7 +162,7 @@ static func blade_segment(actor: Node3D) -> PackedVector3Array:
 	var pose: Transform3D = actor.skeleton.global_transform * actor.skeleton.get_bone_global_pose(grip)
 	return PackedVector3Array([pose * BLADE_BASE, pose * BLADE_TIP])
 
-static func blade_hits_player(old: PackedVector3Array, blade: PackedVector3Array, at: Vector2, hero_radius := Player.RADIUS) -> bool:
+static func blade_hits_player(old: PackedVector3Array, blade: PackedVector3Array, at: Vector2, hero_radius := Player.RADIUS, blade_radius := BLADE_RADIUS) -> bool:
 	var bottom := Vector3(at.x, PLAYER_BOTTOM, at.y)
 	var top := Vector3(at.x, PLAYER_TOP, at.y)
 	# A 120 Hz blade sample plus base/mid/tip sweeps against the upright hero
@@ -153,13 +170,13 @@ static func blade_hits_player(old: PackedVector3Array, blade: PackedVector3Array
 	var segments := [[blade[0], blade[1]], [old[0], blade[0]], [old[1], blade[1]], [(old[0]+old[1])*0.5, (blade[0]+blade[1])*0.5]]
 	for segment: Array in segments:
 		var nearest := Geometry3D.get_closest_points_between_segments(segment[0], segment[1], bottom, top)
-		if nearest[0].distance_squared_to(nearest[1]) <= pow(hero_radius + BLADE_RADIUS, 2): return true
+		if nearest[0].distance_squared_to(nearest[1]) <= pow(hero_radius + blade_radius, 2): return true
 	return false
 
 func _try_sword_hit(i: int, entry: Dictionary, old: PackedVector3Array, blade: PackedVector3Array, hero_at: Vector2) -> void:
 	var actor: Node3D = entry.actor
 	if not is_instance_valid(player) or player.dead or entry.hit_swing == actor.swing_id: return
-	if not blade_hits_player(old, blade, hero_at): return
+	if not blade_hits_player(old, blade, hero_at, Player.RADIUS, BLADE_RADIUS * BODY_SCALE * _scale[i]): return
 	# Consume even an invulnerable/dashing contact: one attempt per accepted swing.
 	entry.hit_swing = actor.swing_id
 	contact_attempts += 1
@@ -181,6 +198,7 @@ func _die(i: int) -> void:
 		visuals.erase(ids[i])
 		actor.position = Vector3(pos[i].x, 0.0, pos[i].y)
 		actor.play_death()
+		actor.get_node("CutTelegraph").hide()
 		for material: ShaderMaterial in actor._material_keepalive:
 			material.set_shader_parameter("hit_flash", 0.0)
 		if corpses.size() >= MAX_CORPSES:
@@ -205,3 +223,31 @@ func _tint_actor(i: int, actor: Node3D) -> void:
 	for material: ShaderMaterial in actor._material_keepalive:
 		material.set_shader_parameter("status_tint", tint)
 		material.set_shader_parameter("hit_flash", _flash[i])
+
+func _make_cut_telegraph(actor: Node3D) -> MeshInstance3D:
+	# Conservative directional warning, never a damage shape. Real blade decides hits.
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in 24:
+		var a := deg_to_rad(-50.0 + k * 100.0 / 24.0) - ATTACK_AIM_OFFSET
+		var b := deg_to_rad(-50.0 + (k + 1) * 100.0 / 24.0) - ATTACK_AIM_OFFSET
+		var near_a := Vector3(sin(a), 0.0, cos(a)) * (1.3 / BODY_SCALE)
+		var near_b := Vector3(sin(b), 0.0, cos(b)) * (1.3 / BODY_SCALE)
+		var far_a := Vector3(sin(a), 0.0, cos(a)) * (3.8 / BODY_SCALE)
+		var far_b := Vector3(sin(b), 0.0, cos(b)) * (3.8 / BODY_SCALE)
+		for p: Vector3 in [near_a, far_a, far_b, near_a, far_b, near_b]: mesh.surface_add_vertex(p)
+	mesh.surface_end()
+	var warning := MeshInstance3D.new()
+	warning.name = "CutTelegraph"
+	warning.mesh = mesh
+	warning.position.y = 0.025 / BODY_SCALE
+	warning.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.albedo_color = Color(1.0, 0.48, 0.12, 0.28)
+	warning.material_override = material
+	warning.visible = false
+	actor.add_child(warning)
+	return warning

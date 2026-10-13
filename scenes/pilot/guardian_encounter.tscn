@@ -9,15 +9,15 @@ script = ExtResource("2")
 
 [node name="Guardians" type="MultiMeshInstance3D" parent="."]
 script = ExtResource("3")
-max_hp = 200.0
-move_speed = 2.2
-radius = 0.55
-xp_value = 12
-knockback_taken = 0.35
+max_hp = 900.0
+move_speed = 2.4
+radius = 1.2
+xp_value = 75
+knockback_taken = 0.1
 spawn_share = 0.0
 contact_dps = 0.0
-body_height = 2.2
+body_height = 4.6689997
 display_name = "Soulforged Guardian"
 color = Color(0.4, 0.65, 0.8, 1.0)
 capacity = 3
-loot_chance = 0.15
+loot_chance = 0.5

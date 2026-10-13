@@ -17,6 +17,9 @@ var max_visuals := 0
 var max_deaths := 0
 var output := ""
 var finishing := false
+var dodge_frames := 0
+var dodged_swings := {}
+var dodge_attempts := 0
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -40,14 +43,21 @@ func _start() -> void:
 func _process(_delta: float) -> bool:
 	if main == null or finishing: return false
 	frame += 1
-	# Let the first enemy enter melee, then move/dash sideways once each cycle.
-	var cycle := frame % 900
+	# Take an initial real contact, then react to subsequent visible windups.
 	Input.action_release("move_left")
 	Input.action_release("move_right")
 	Input.action_release("dash")
-	if cycle >= 380 and cycle < 425: Input.action_press("move_left")
-	if cycle >= 800 and cycle < 845: Input.action_press("move_right")
-	if cycle == 390: Input.action_press("dash")
+	for id: int in swarm.visuals:
+		var actor: Node3D = swarm.visuals[id].actor
+		var key := "%d:%d" % [id,actor.swing_id]
+		if blade_contacts > 0 and actor.state == &"Attack" and actor.state_elapsed >= 0.18 and actor.state_elapsed < 0.35 and not dodged_swings.has(key):
+			dodged_swings[key] = true
+			dodge_attempts += 1
+			dodge_frames = 30
+			Input.action_press("dash")
+	if dodge_frames > 0:
+		Input.action_press("move_left")
+		dodge_frames -= 1
 	var hud: Hud = main.get_node("Hud")
 	if hud._upgrade_root.visible: hud._choose(0)
 	for id: int in swarm.visuals:
@@ -67,8 +77,8 @@ func _process(_delta: float) -> bool:
 
 func _finish() -> void:
 	for action: String in ["move_left","move_right","dash"]: Input.action_release(action)
-	var result := {"frames": frame, "seconds": main.elapsed, "guardian_kills": guardian_kills, "distinct_guardian_ids": seen_ids.size(), "blade_contacts": blade_contacts, "blade_damage": blade_damage, "contact_frames": contact_frames, "hit_pose_frames": incoming_hits, "states": states.keys(), "max_live_visuals": max_visuals, "max_death_visuals": max_deaths, "main_kills": main.kills, "hero_hp": player.stats.hp, "hero_level": player.stats.level, "hero_dead": player.dead, "camera": str(main.get_node("CameraRig/Camera3D").get_path()), "asset_sha256": FileAccess.get_sha256("res://assets/meshy_pilot/guardian_one_hand.glb")}
-	var passed: bool = guardian_kills >= 1 and seen_ids.size() >= 2 and blade_contacts >= 1 and incoming_hits > 0 and states.has("Walk") and states.has("Attack") and states.has("Death") and max_visuals <= 3 and max_deaths <= 3 and not player.dead
+	var result := {"frames": frame, "seconds": main.elapsed, "guardian_kills": guardian_kills, "distinct_guardian_ids": seen_ids.size(), "blade_contacts": blade_contacts, "blade_damage": blade_damage, "dodge_attempts": dodge_attempts, "contact_frames": contact_frames, "hit_pose_frames": incoming_hits, "states": states.keys(), "max_live_visuals": max_visuals, "max_death_visuals": max_deaths, "main_kills": main.kills, "hero_hp": player.stats.hp, "hero_level": player.stats.level, "hero_dead": player.dead, "camera": str(main.get_node("CameraRig/Camera3D").get_path()), "asset_sha256": FileAccess.get_sha256("res://assets/meshy_pilot/guardian_one_hand.glb")}
+	var passed: bool = guardian_kills >= 1 and seen_ids.size() >= 2 and blade_contacts >= 1 and incoming_hits > 0 and states.has("Walk") and states.has("Attack") and states.has("Death") and max_visuals <= 1 and max_deaths <= 3 and dodge_attempts > 0 and not player.dead
 	result.passed = passed
 	print("GUARDIAN MAIN SMOKE: ", JSON.stringify(result))
 	if output != "":

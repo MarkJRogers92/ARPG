@@ -37,7 +37,7 @@ func _ready() -> void:
 		_hud.realms_pressed.disconnect(connection.callable)
 	_hud.realms_pressed.connect(_return_to_normal_title)
 	spawn_guardian()
-	_hud.toast("GUARDIAN ENCOUNTER · WASD move · Space dash · G adds a guardian (max 3)", Color(0.65, 0.85, 1.0))
+	_hud.toast("GUARDIAN ENCOUNTER · WASD move · Space dash · G summons the mid-boss (max 1)", Color(0.65, 0.85, 1.0))
 
 func _process(delta: float) -> void:
 	super._process(delta)
@@ -51,8 +51,8 @@ func _process(delta: float) -> void:
 		_respawn_in = 5.0
 
 func spawn_guardian() -> bool:
-	if guardians == null or _player.dead: return false
-	var at := _player.pos2 + Vector2(3.5, -3.5).rotated(guardians.alive_count() * TAU / 3.0)
+	if guardians == null or _player.dead or guardians.alive_count() >= 1: return false
+	var at := _player.pos2 + Vector2(5.0, -5.0)
 	at = Obstacles.resolve_slide(at, guardians.radius, Vector2.ZERO)
 	return guardians.spawn(at)
 

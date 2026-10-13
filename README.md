@@ -11,7 +11,7 @@ is the `GAME_TITLE` constant in `scripts/title_screen.gd`.)
 
 ## Guardian integration preview (opt-in)
 
-This branch includes a playable one-handed guardian encounter through the normal
+This branch includes a playable Ogre Warlord-sized one-handed mid-boss through the normal
 Main combat and camera. Open `scenes/pilot/guardian_encounter.tscn` and press F6.
 See [controls, combat contract and validation](docs/meshy_pilot/GUARDIAN_INTEGRATION.md).
 The default scene and existing enemies are unchanged.
