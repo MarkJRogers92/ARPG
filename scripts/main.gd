@@ -304,11 +304,11 @@ func _ready() -> void:
 		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
 		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.9, 0.6), 24, 3.0, 0.4, 1.0, 8.0))
 	_loot.item_picked.connect(_on_item_picked)
-	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full", Color(1.0, 0.45, 0.4)))
+	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full · %s Gear → Nearby to compare loot" % Controls.tag("inventory"), RunUi.GOLD))
 	_player.leveled_up.connect(_try_level_up)
 	_player.died.connect(_on_player_died)
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
-	_inventory_screen.setup(_player, _campaign)
+	_inventory_screen.setup(_player, _campaign, _loot)
 	_inventory_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_skill_screen.setup(_player)
 	_skill_screen.read_only = _campaign
@@ -736,7 +736,8 @@ func _process(delta: float) -> void:
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()
 	if not _campaign and not _game_over and (not won or _endless):
-		_events.offer_chest(_landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
+		if not _landmarks.offer_forge():
+			_events.offer_chest(_landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 
 func _on_mission_phase(phase: Dictionary) -> void:
 	if _game_over or won and not _endless: return
@@ -918,6 +919,7 @@ func capture() -> Dictionary:
 		"damage_by": Elements.damage_by,
 		"combat_metrics": Elements.metrics.snapshot(), "banished": _banished.duplicate(), "banishes_left": _banishes_left,
 		"phase_reward_done": _phase_reward_done,
+		"used_field_forges": _landmarks.used_forges(),
 	}
 
 
@@ -932,6 +934,7 @@ func _restore(d: Dictionary) -> void:
 	kills = d.get("kills", 0)
 	_kills_by = d.get("kills_by", {})
 	_run_shards = d.get("run_shards", 0)
+	_landmarks.restore_used_forges(d.get("used_field_forges", []))
 	_rerolls = d.get("rerolls", _rerolls)
 	_spec_chosen = d.get("spec_chosen", false)
 	_bosses.spawned = d.get("bosses_spawned", 0)

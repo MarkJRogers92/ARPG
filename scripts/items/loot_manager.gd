@@ -98,3 +98,39 @@ func _trim() -> void:
 				victim = i
 		drops[victim].queue_free()
 		drops.remove_at(victim)
+
+
+## Read-only view, using precisely the automatic pickup reach. Stable ordering
+## helps compare a crowded pile; it does not change automatic pickup priority.
+func nearby(hero: Vector2, pickup_radius: float) -> Array[LootDrop]:
+	var out: Array[LootDrop] = []
+	var reach := maxf(min_pickup_radius, pickup_radius * pickup_factor)
+	for node: LootDrop in drops:
+		if is_instance_valid(node) and not node.is_queued_for_deletion() and hero.distance_squared_to(node.pos2) <= reach * reach:
+			out.append(node)
+	out.sort_custom(func(a: LootDrop, b: LootDrop) -> bool:
+		if a.item.rarity != b.item.rarity: return a.item.rarity > b.item.rarity
+		var da := hero.distance_squared_to(a.pos2)
+		var db := hero.distance_squared_to(b.pos2)
+		return a.item.uid < b.item.uid if is_equal_approx(da, db) else da < db)
+	return out
+
+
+## An explicit inventory-screen pickup. Remove ownership before inventory
+## signals fire, so a re-entrant/stale click cannot collect the same drop twice.
+func collect(node: LootDrop, hero: Vector2, pickup_radius: float, inventory: Inventory) -> String:
+	if not is_instance_valid(node) or node.is_queued_for_deletion(): return "gone"
+	var index := drops.find(node)
+	if index < 0: return "gone"
+	var reach := maxf(min_pickup_radius, pickup_radius * pickup_factor)
+	if hero.distance_squared_to(node.pos2) > reach * reach: return "far"
+	if inventory.equipped.has(node.item.slot) and inventory.is_full(): return "full"
+	var item := node.item
+	drops.remove_at(index)
+	var result := inventory.pickup(item)
+	if result == "full":
+		drops.insert(mini(index,drops.size()), node)
+		return result
+	node.queue_free()
+	item_picked.emit(item, result)
+	return result
