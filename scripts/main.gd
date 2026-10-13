@@ -845,7 +845,7 @@ func _settle_run(seconds: float) -> int:
 			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
 	_rest_veterans(banked)
 	if not banked:
-		_hud.toast("Progress could not be saved. Your rewards were not banked.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Progress could not be saved. Your rewards were not banked.", RunUi.LOSS, "", true)
 	return shards
 
 
@@ -986,7 +986,7 @@ func _suspend() -> void:
 		get_tree().paused = false
 		get_tree().reload_current_scene()
 	else:
-		_hud.toast("Couldn't save the night.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Save failed. Your run is still open. Try again before quitting.", RunUi.LOSS, "", true)
 
 
 ## The end screen's look back: what hurt, what killed, and the night's curve.
@@ -1335,9 +1335,8 @@ func _on_item_picked(item: Item, result: String) -> void:
 	Sound.play("pickup")
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
-	_hud.toast("%s: %s" % [verb, item.name], item.color())
+	_hud.toast("%s: %s%s" % [verb,item.name,"\nLegendary power · inspect Gear" if item.power != "" else ""],item.color(),item.power_text() if item.power != "" else "")
 	if item.power != "":
-		_hud.toast("★ " + item.power_text(), item.color())
 		Juice.flash(_player.pos2, item.color(), 5.0, 10.0, 0.5)
 		_fx.ring(_player.pos2, item.color(), 40, 8.0, 0.6, 0.6)
 

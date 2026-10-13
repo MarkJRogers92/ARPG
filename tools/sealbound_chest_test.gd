@@ -36,8 +36,7 @@ func inspect() -> bool:
 	Input.action_release("interact")
 	return opened
 func select_action(index: int) -> void:
-	var children:=events._chest_panel._buttons.get_children().filter(func(n: Node) -> bool:return not n.is_queued_for_deletion())
-	(children[index] as Button).pressed.emit()
+	events._chest_panel.action_button(["hunt","seal","leave"][index]).pressed.emit()
 func slay(e: Dictionary) -> void:
 	for g: Array in e["guards"]:
 		var swarm: EnemySwarm=g[0]
@@ -134,8 +133,8 @@ func _run() -> void:
 	e=fresh();var saved_types:=events._swarms.duplicate();events._swarms.clear();inspect();select_action(1)
 	check(not e["opened"] and e["guards"].is_empty() and not paused,"no capacity safely leaves chest unconsumed")
 	events._swarms.assign(saved_types);Obstacles.set_circles([[Vector2(4,0),1.0]],Rect2(-15,-15,30,30))
-	inspect();var buttons:=events._chest_panel._buttons.get_children().filter(func(n: Node) -> bool:return not n.is_queued_for_deletion())
-	check(buttons[1].disabled and not buttons[0].disabled,"blocked five-metre circle disables only Sealbound")
+	inspect()
+	check(events._chest_panel.action_button("seal").disabled and not events._chest_panel.action_button("hunt").disabled,"blocked five-metre circle disables only Sealbound")
 	events._choose_chest("seal");check(not e["opened"],"programmatic blocked choice also rejected")
 	Obstacles.clear()
 	# Unused expiry and death cannot grant, including stale callbacks.

@@ -87,6 +87,8 @@ var _reward_reveal_shown := false
 var _dash_seconds := -1.0
 var _dash_ready := true
 var _aim_status := "AUTO"
+var _reward_backdrop: Panel
+var _run_root: Control
 
 
 func _ready() -> void:
@@ -100,6 +102,16 @@ func _ready() -> void:
 ## effects end on time there too (see Juice.tick()).
 func _process(_delta: float) -> void:
 	Juice.tick()
+	for notice in _toasts.get_children():
+		notice.visible = not get_tree().paused or bool(notice.get_meta("important",false))
+	if _reward_reveal_shown:
+		_title_card.visible = not get_tree().paused
+		_reward_backdrop.visible = not get_tree().paused
+		_reward_backdrop.position = _title_card.position - Vector2(14,12)
+		_reward_backdrop.size = _title_card.size + Vector2(28,24)
+		_reward_backdrop.modulate.a = _title_card.modulate.a
+	else:
+		_reward_backdrop.hide()
 
 
 ## Refresh the always-on display. Cheap enough to call every frame.
@@ -116,8 +128,8 @@ func refresh(stats: PlayerStats, elapsed: float, kills: int, enemies: int, skill
 	_time_label.text = _clock_text if _clock_text != "" else _format_time(elapsed)
 	_time_label.add_theme_color_override("font_color", _clock_color)
 	_kills_label.text = "%d" % kills
-	_debug_label.text = "%d FPS   %d enemies   %s inventory   %s skills   AIM: %s · %s mouse toggle   [F11] fullscreen" % [Engine.get_frames_per_second(), enemies,
-			Controls.tag("inventory"), Controls.tag("skill_tree"), _aim_status, Controls.tag("toggle_aim")]
+	_debug_label.text = "%s Gear   %s Skills   ·   AIM: %s   %s Toggle   ·   [F11] Fullscreen" % [Controls.tag("inventory"),Controls.tag("skill_tree"),_aim_status,Controls.tag("toggle_aim")]
+	_debug_label.tooltip_text = "%d FPS · %d enemies" % [Engine.get_frames_per_second(),enemies]
 	_low_hp = clampf(1.0 - stats.hp / maxf(stats.max_hp, 1.0) * 3.0, 0.0, 1.0)
 
 
@@ -136,21 +148,27 @@ func set_hurt(hurting: bool, delta: float) -> void:
 
 
 ## A short message that fades out, e.g. loot pickups. Newest at the bottom.
-func toast(text: String, color := Color.WHITE) -> void:
-	var label := UiStyle.label(18)
+func toast(text: String, color := Color.WHITE, detail := "", important := false) -> void:
+	var label := RunUi.label(14)
 	label.text = text
-	label.modulate = color
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.set_meta("important",important)
+	label.tooltip_text = detail if detail != "" else text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size.x = minf(620.0, get_viewport().get_visible_rect().size.x * 0.5)
+	label.max_lines_visible = 3
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.custom_minimum_size.x = minf(350.0, get_viewport().get_visible_rect().size.x * 0.32)
+	RunUi.frame_label(label,color.lerp(RunUi.EDGE,0.65),10)
 	_toasts.add_child(label)
-	while _toasts.get_child_count() > 4:
-		var oldest := _toasts.get_child(0)
-		_toasts.remove_child(oldest)
-		oldest.queue_free()
+	while _toasts.get_child_count() > 3:
+		var ordinary := _toasts.get_children().filter(func(n: Node) -> bool:return not bool(n.get_meta("important",false)))
+		var oldest: Node = ordinary[0] if not ordinary.is_empty() else _toasts.get_child(0)
+		_toasts.remove_child(oldest);oldest.queue_free()
+	if label.is_queued_for_deletion():return
 	var tween := create_tween()
-	tween.tween_interval(3.5)
-	tween.tween_property(label, "modulate:a", 0.0, 0.8)
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
+	tween.tween_interval(7.0 if important else 4.5)
+	tween.tween_property(label, "modulate:a", 0.0, 0.5)
 	tween.tween_callback(label.queue_free)
 
 
@@ -174,7 +192,7 @@ func set_power(text: String, color: Color) -> void:
 	_power_label.visible = text != ""
 	if _power_label.visible:
 		_power_label.text = text
-		_power_label.add_theme_color_override("font_color", color)
+		_power_label.add_theme_color_override("font_color", RunUi.MUTED)
 
 
 ## The shrine blessing in effect ("" hides it) and its seconds left.
@@ -182,12 +200,20 @@ func set_blessing(blessing_name: String, seconds: float, color: Color) -> void:
 	_blessing_label.visible = blessing_name != ""
 	if _blessing_label.visible:
 		_blessing_label.text = "✦ Blessing of %s   %d s" % [blessing_name, ceili(seconds)]
-		_blessing_label.add_theme_color_override("font_color", color)
-		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 else 1.0
+		_blessing_label.add_theme_color_override("font_color", RunUi.SOUL)
+		_blessing_label.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() * 0.006)) if seconds < 5.0 and not Juice.calm else 1.0
 
 
 ## A boss arrives: its name across the screen for a moment.
 func title_card(boss_name: String, subtitle: String, color: Color, campaign_arrival := false) -> void:
+	_title_card.show()
+	_title_card.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_title_card.offset_left = -600;_title_card.offset_right = 600
+	_title_card.move_child(_title_sub,0)
+	_title_main.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	_title_sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	_title_sub.max_lines_visible=-1
+	_title_main.add_theme_constant_override("outline_size",4)
 	_reward_reveal_shown = false
 	_dismiss_reward.hide()
 	if is_instance_valid(_title_tween) and _title_tween.is_running():
@@ -213,18 +239,33 @@ func title_card(boss_name: String, subtitle: String, color: Color, campaign_arri
 
 ## Presentation only: loot/settlement owners have already granted or dropped it.
 func reveal_reward(title: String, detail: String, color: Color) -> void:
-	title_card(title, detail, color, true)
-	_reward_reveal_shown = true
-	_dismiss_reward.show()
+	if is_instance_valid(_title_tween):_title_tween.kill()
+	_title_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_title_card.offset_left=-372;_title_card.offset_right=-32
+	_title_card.offset_top=126;_title_card.offset_bottom=250
+	_title_card.scale=Vector2.ONE;_title_card.modulate.a=0.0;_title_card.show()
+	_title_card.move_child(_title_main,0)
+	_title_main.text=title.capitalize();_title_main.add_theme_font_size_override("font_size",20)
+	_title_main.add_theme_color_override("font_color",RunUi.GOLD);_title_main.add_theme_constant_override("outline_size",0)
+	_title_sub.text=detail;_title_sub.tooltip_text=detail;_title_sub.max_lines_visible=6;_title_sub.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
+	_title_sub.add_theme_font_size_override("font_size",14)
+	_title_sub.modulate=Color.WHITE;_title_sub.add_theme_color_override("font_color",RunUi.TEXT)
+	_title_main.horizontal_alignment=HORIZONTAL_ALIGNMENT_LEFT;_title_sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_LEFT
+	_reward_backdrop.add_theme_stylebox_override("panel",RunUi.panel(0,color.lerp(RunUi.EDGE,0.65)))
+	_reward_reveal_shown=true;_dismiss_reward.show()
+	_title_tween=create_tween()
+	_title_tween.tween_property(_title_card,"modulate:a",1.0,0.15)
+	_title_tween.tween_interval(4.5)
+	_title_tween.tween_property(_title_card,"modulate:a",0.0,0.4)
 	_title_tween.finished.connect(func() -> void:
-		_reward_reveal_shown = false
-		_dismiss_reward.hide(), CONNECT_ONE_SHOT)
+		_reward_reveal_shown=false;_dismiss_reward.hide();_reward_backdrop.hide(),CONNECT_ONE_SHOT)
 
 func dismiss_reward() -> void:
 	if is_instance_valid(_title_tween): _title_tween.kill()
 	_title_card.modulate.a = 0.0
 	_reward_reveal_shown = false
 	_dismiss_reward.hide()
+	_reward_backdrop.hide()
 
 func set_dash_charge(seconds: float) -> void:
 	var status := "READY" if _dash_ready else ("%.1f s" % (ceilf(_dash_seconds * 10.0) / 10.0) if _dash_seconds >= 0.0 else "COOLING")
@@ -244,7 +285,7 @@ func set_aim_status(mode: Player.Aim, mouse_enabled: bool) -> void:
 func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 	_omen_label.text = "OMEN: %s%s" % [omen_name.to_upper(), ("   ·   HEAT %d" % heat) if heat > 0 else ""]
 	_omen_label.tooltip_text = desc
-	_omen_label.add_theme_color_override("font_color", color)
+	_omen_label.add_theme_color_override("font_color", RunUi.MUTED)
 
 
 ## The run report on the end screen: damage by source, best first.
@@ -302,6 +343,7 @@ func set_night(progress: float, glow: float, on := true) -> void:
 ## The Ferryman's side bet countdown ("" hides it).
 func set_bet(text: String) -> void:
 	_bet_label.text = text
+	_bet_label.visible = text != ""
 
 
 ## Campaign objective and contract/finale clock.
@@ -539,7 +581,8 @@ func _build() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.theme = UiStyle.theme()
+	root.theme = RunUi.theme()
+	_run_root = root
 	add_child(root)
 
 	_vignette = ColorRect.new()
@@ -551,31 +594,34 @@ func _build() -> void:
 	root.add_child(_vignette)
 
 	# XP across the very top of the screen.
-	_xp_bar = UiStyle.bar(Color(0.3, 0.75, 1.0), 8)
+	_xp_bar = UiStyle.bar(RunUi.SOUL, 5)
 	_xp_bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_xp_bar.offset_left = 4
 	_xp_bar.offset_right = -4
 	_xp_bar.offset_top = 4
-	_xp_bar.offset_bottom = 12
+	_xp_bar.offset_bottom = 9
 	_xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_xp_bar)
 
 	# Top left: level badge and health.
 	var vitals := HBoxContainer.new()
-	vitals.position = Vector2(14, 22)
+	vitals.position = Vector2.ZERO
 	vitals.add_theme_constant_override("separation", 10)
 	vitals.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(vitals)
+	var vitals_frame:=PanelContainer.new()
+	vitals_frame.position=Vector2(16,22)
+	vitals_frame.add_theme_stylebox_override("panel",RunUi.panel(10))
+	root.add_child(vitals_frame);vitals_frame.add_child(vitals)
 
 	var badge := PanelContainer.new()
-	badge.custom_minimum_size = Vector2(54, 54)
-	var badge_style := UiStyle.box(Color(0.08, 0.07, 0.06, 0.92), UiStyle.GOLD, 3, 27)
+	badge.custom_minimum_size = Vector2(42, 54)
+	var badge_style := RunUi.panel(5,RunUi.EDGE)
 	badge_style.shadow_color = Color(1.0, 0.75, 0.3, 0.25)
-	badge_style.shadow_size = 6
+	badge_style.shadow_size = 0
 	badge.add_theme_stylebox_override("panel", badge_style)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitals.add_child(badge)
-	_level_label = UiStyle.label(24)
+	_level_label = RunUi.label(24)
 	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_level_label.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -587,28 +633,28 @@ func _build() -> void:
 	hp_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitals.add_child(hp_column)
 	_hp_bar = UiStyle.bar(Color(0.78, 0.13, 0.15), 22)
-	_hp_bar.custom_minimum_size.x = 280
+	_hp_bar.custom_minimum_size.x = 250
 	_hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hp_column.add_child(_hp_bar)
-	_hp_text = UiStyle.label(15)
+	_hp_text = RunUi.label(15)
 	_hp_text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_hp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_hp_bar.add_child(_hp_text)
-	_skill_label = UiStyle.label(16)
+	_skill_label = RunUi.label(16)
 	_skill_label.add_theme_color_override("font_color", UiStyle.GOLD)
 	_skill_label.visible = false
 	hp_column.add_child(_skill_label)
 
 	# Top center: the run timer.
-	_time_label = UiStyle.label(30)
+	_time_label = RunUi.label(26)
 	_time_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_time_label.offset_top = 18
+	_time_label.offset_top = 26
 	_time_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
 	root.add_child(_time_label)
-	_expedition_label = UiStyle.label(15)
+	_expedition_label = RunUi.label(15)
 	_expedition_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_expedition_label.offset_top = 58
 	_expedition_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -616,7 +662,7 @@ func _build() -> void:
 	_expedition_label.add_theme_color_override("font_color", Color(0.58, 0.88, 1.0))
 	_expedition_label.visible = false
 	root.add_child(_expedition_label)
-	_campaign_guidance_label = UiStyle.label(14)
+	_campaign_guidance_label = RunUi.label(14)
 	_campaign_guidance_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_campaign_guidance_label.offset_top = 184
 	_campaign_guidance_label.offset_left = -560
@@ -653,9 +699,9 @@ func _build() -> void:
 	skull.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	skull.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kills_row.add_child(skull)
-	_kills_label = UiStyle.label(24)
+	_kills_label = RunUi.label(20)
 	kills_row.add_child(_kills_label)
-	_frenzy_label = UiStyle.label(18)
+	_frenzy_label = RunUi.label(18)
 	_frenzy_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.25))
 	_frenzy_label.add_theme_constant_override("outline_size", 6)
 	_frenzy_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -665,8 +711,8 @@ func _build() -> void:
 	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kills_row.add_child(gem)
-	_shards_label = UiStyle.label(24)
-	_shards_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
+	_shards_label = RunUi.label(20)
+	_shards_label.add_theme_color_override("font_color", RunUi.GOLD)
 	kills_row.move_child(gem, 0)
 	kills_row.add_child(_shards_label)
 	kills_row.move_child(_shards_label, 1)
@@ -687,7 +733,7 @@ func _build() -> void:
 	_dash_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_dash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dash_row.add_child(_dash_bar)
-	_dash_label = UiStyle.label(12)
+	_dash_label = RunUi.label(12)
 	dash_row.add_child(_dash_label)
 
 	var soul_row := HBoxContainer.new()
@@ -700,8 +746,8 @@ func _build() -> void:
 	_soul_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_soul_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	soul_row.add_child(_soul_bar)
-	_soul_label = UiStyle.label(12)
-	_soul_label.add_theme_color_override("font_color", Color(0.6, 0.88, 1.0))
+	_soul_label = RunUi.label(12)
+	_soul_label.add_theme_color_override("font_color", RunUi.MUTED)
 	soul_row.add_child(_soul_label)
 
 	# Top center, under the timer: the boss health bar.
@@ -716,7 +762,7 @@ func _build() -> void:
 	boss_column.visible = false
 	root.add_child(boss_column)
 	_boss_box = boss_column
-	_boss_label = UiStyle.label(18)
+	_boss_label = RunUi.label(18)
 	_boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_label.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
 	boss_column.add_child(_boss_label)
@@ -726,7 +772,7 @@ func _build() -> void:
 	boss_column.add_child(_boss_bar)
 
 	# Under the boss bar: the shrine blessing in effect.
-	_blessing_label = UiStyle.label(18)
+	_blessing_label = RunUi.label(18)
 	_blessing_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_blessing_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_blessing_label.offset_top = 126
@@ -741,8 +787,8 @@ func _build() -> void:
 	root.add_child(_power_label)
 
 	# Under the army bar: this night's omen (and pact heat).
-	_omen_label = UiStyle.label(14)
-	_omen_label.position = Vector2(100, 116)
+	_omen_label = RunUi.label(14)
+	_omen_label.position = Vector2(28, 136)
 	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(_omen_label)
 
@@ -757,48 +803,55 @@ func _build() -> void:
 	_title_card.offset_right = 600
 	_title_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_card.modulate.a = 0.0
+	_reward_backdrop=Panel.new()
+	_reward_backdrop.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	_reward_backdrop.hide()
+	root.add_child(_reward_backdrop)
 	root.add_child(_title_card)
-	_title_sub = UiStyle.label(18)
+	_title_sub = RunUi.label(18)
 	_title_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_sub.modulate = Color(1, 1, 1, 0.75)
 	_title_card.add_child(_title_sub)
-	_title_main = UiStyle.label(56)
+	_title_main = RunUi.label(56)
 	_title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_main.add_theme_constant_override("outline_size", 14)
 	_title_main.add_theme_color_override("font_outline_color", Color(0.1, 0.0, 0.0, 0.95))
 	_title_card.add_child(_title_main)
 	_dismiss_reward = Button.new()
-	_dismiss_reward.text = "Dismiss reveal · Enter"
-	_dismiss_reward.custom_minimum_size = Vector2(240, 30)
-	_dismiss_reward.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_dismiss_reward.text = "Dismiss · Enter"
+	_dismiss_reward.custom_minimum_size = Vector2(130, 28)
+	_dismiss_reward.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_dismiss_reward.pressed.connect(dismiss_reward)
 	_dismiss_reward.hide()
 	_title_card.add_child(_dismiss_reward)
 
 	# Under the blessing: the Ferryman's side bet.
-	_bet_label = UiStyle.label(18)
+	_bet_label = RunUi.label(14)
 	_bet_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_bet_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_bet_label.offset_top = 152
-	_bet_label.offset_left = -260
-	_bet_label.offset_right = 260
+	_bet_label.offset_top = 178
+	_bet_label.offset_left = -275
+	_bet_label.offset_right = 275
 	_bet_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_bet_label.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	RunUi.frame_label(_bet_label,RunUi.SOUL,9)
+	_bet_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	_bet_label.hide()
 	_bet_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_bet_label)
 
 	# Bottom center: what the nearby landmark does (see Landmarks).
-	_prompt_label = UiStyle.label(20)
+	_prompt_label = RunUi.label(15)
 	_prompt_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_prompt_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_prompt_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_prompt_label.offset_bottom = -64
-	_prompt_label.offset_left = -500
-	_prompt_label.offset_right = 500
+	_prompt_label.offset_left = -330
+	_prompt_label.offset_right = 330
 	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_prompt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_prompt_label.add_theme_constant_override("outline_size", 8)
+	RunUi.frame_label(_prompt_label,RunUi.EDGE,10)
+	_prompt_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	_prompt_label.hide()
 	root.add_child(_prompt_label)
 
@@ -809,8 +862,8 @@ func _build() -> void:
 	_marker_canvas.draw.connect(_draw_markers)
 	root.add_child(_marker_canvas)
 
-	_debug_label = UiStyle.label(13)
-	_debug_label.modulate = Color(1, 1, 1, 0.5)
+	_debug_label = RunUi.label(13)
+	_debug_label.add_theme_color_override("font_color",RunUi.MUTED)
 	_debug_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	_debug_label.position += Vector2(12, -26)
 	root.add_child(_debug_label)
@@ -820,9 +873,12 @@ func _build() -> void:
 	_toasts.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_toasts.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_toasts.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_toasts.offset_right = -16.0
+	_toasts.offset_right = -20.0
+	_toasts.add_theme_constant_override("separation",6)
 	_toasts.offset_bottom = -120.0
-	root.add_child(_toasts)
+	var notice_layer:=CanvasLayer.new();notice_layer.layer=16;add_child(notice_layer)
+	var notice_root:=Control.new();notice_root.set_anchors_preset(Control.PRESET_FULL_RECT);notice_root.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	notice_layer.add_child(notice_root);notice_root.add_child(_toasts)
 
 	# Level-up cards.
 	var upgrade_box := VBoxContainer.new()

@@ -55,8 +55,7 @@ func _process(_delta: float) -> bool:
 				wait_frames+=1
 				if wait_frames==60:_capture.call_deferred("Sealbound_Offer_Gameplay")
 				if wait_frames==240:
-					var buttons:=events._chest_panel._buttons.get_children().filter(func(n: Node) -> bool:return not n.is_queued_for_deletion())
-					(buttons[1] as Button).pressed.emit();phase=2;accepted_count=chest["guards"].size()
+					events._chest_panel.action_button("seal").pressed.emit();phase=2;accepted_count=chest["guards"].size()
 		2:
 			if not chest.get("opened",false):push_error("Chest acceptance failed");_finish.call_deferred();return false
 			if chest["charge"]<4.0 and not stepped_out:

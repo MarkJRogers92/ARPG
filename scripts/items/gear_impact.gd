@@ -53,26 +53,25 @@ static func format_value(key: String, value: float) -> String:
 
 static func text(before: PlayerStats, after: PlayerStats) -> String:
 	if before == null or after == null: return "No preview available."
-	var lines: Array[String] = ["[color=#b8c6d0]YOUR BUILD · NOW → AFTER SWAP[/color]"]
+	var lines: Array[String] = []
 	if after.hp < before.hp:
-		lines.append("[color=#ffb46b]HP CAP: current health %s → %s[/color]" % [format_value("hp",before.hp),format_value("hp",after.hp)])
+		lines.append("[color=#e0a18f][b]Health reduced on equip[/b]\nCurrent HP: %s → %s[/color]" % [format_value("hp",before.hp),format_value("hp",after.hp)])
 	for id: String in before.powers:
-		if not after.powers.has(id):
-			lines.append("[color=#ffb46b]LOSE POWER: %s[/color]" % _power_description(id))
+		if not after.powers.has(id):lines.append("[color=#e0a18f][b]Loses a power[/b][/color]\n%s" % _power_description(id))
 	for id: String in after.powers:
-		if not before.powers.has(id):
-			lines.append("[color=#8bdba4]GAIN POWER: %s[/color]" % _power_description(id))
+		if not before.powers.has(id):lines.append("[color=#a5cfaa][b]Unlocks a power[/b][/color]\n%s" % _power_description(id))
 	for id: String in ["synergy_relay", "synergy_escort", "synergy_wake"]:
 		var was_ready := BuildSynergies.live(id,before)
 		var ready := BuildSynergies.live(id,after)
-		if was_ready != ready:
-			lines.append("[color=#%s]%s: %s[/color]" % ["8bdba4" if ready else "ffb46b", "LINK REQUIREMENTS MET" if ready else "LINK REQUIREMENTS LOST", Upgrades.DEFS[id]["name"]])
+		if was_ready != ready:lines.append("[color=#%s]%s: %s[/color]" % ["a5cfaa" if ready else "e0a18f","Link ready" if ready else "Link requirements lost",Upgrades.DEFS[id]["name"]])
 	var changes := rows(before,after)
-	if changes.is_empty(): lines.append("No effective numeric changes.")
-	for row: Dictionary in changes:
-		var color := "8bdba4" if row["gain"] else "ffb46b"
-		lines.append("%s: %s → [color=#%s]%s[/color]" % [row["label"],row["before_text"],color,row["after_text"]])
-	lines.append("\n[color=#aab7c2]Includes your class, gear, upgrades and active buffs. Effective stats, not predicted DPS. Item rolls shows the original bonuses.[/color]")
+	if changes.is_empty():lines.append("No effective stat changes.")
+	else:
+		lines.append("[table=3][cell][color=#b5b4ab]STAT[/color][/cell][cell][color=#b5b4ab]NOW[/color][/cell][cell][color=#b5b4ab]AFTER[/color][/cell]")
+		for row: Dictionary in changes:
+			lines.append("[cell]%s[/cell][cell][color=#b5b4ab]%s[/color][/cell][cell][color=#%s]%s[/color][/cell]" % [row["label"],row["before_text"],"a5cfaa" if row["gain"] else "e0a18f",row["after_text"]])
+		lines.append("[/table]")
+	lines.append("\n[color=#b5b4ab]Includes your current buffs. Effective stats, not estimated DPS.[/color]")
 	return "\n".join(lines)
 
 static func _power_description(id: String) -> String:

@@ -227,13 +227,13 @@ func _start_crossroads(at: Vector2) -> bool:
 		var choice := _make_shrine(choices_at[i], first if i == 0 else second)
 		(choice["node"] as Node3D).reparent(parent)
 		var label := Label3D.new()
-		label.text = "%s\n%s\n%d seconds · choose one" % [String(choice["blessing"]).to_upper(), BLESSINGS[choice["blessing"]]["desc"], roundi(blessing_time)]
-		label.font_size = 36
-		label.outline_size = 10
-		label.pixel_size = 0.008
-		label.position.y = 4.8
+		label.text = "%s\n%s" % [String(choice["blessing"]).to_upper(), BLESSINGS[choice["blessing"]]["desc"]]
+		label.font_size = 32
+		label.outline_size = 5
+		label.pixel_size = 0.010
+		label.position = Vector3(0,2.8,1.8)
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.modulate = choice["color"].lerp(Color.WHITE, 0.45)
+		label.modulate = RunUi.TEXT
 		label.no_depth_test = false
 		label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		(choice["node"] as Node3D).add_child(label)
@@ -271,7 +271,7 @@ func _refresh_discovery_prompt(hero: Vector2) -> void:
 			var distance: float = hero.distance_to(e["at"])
 			if distance <= 6.0 and distance < nearest:
 				nearest = distance
-				discovery_prompt = "%s · Legendary +5 shards; optional Sealbound bonus" % (Controls.tag("interact") + " Inspect chest" if distance <= 3.0 else "Approach cursed chest")
+				discovery_prompt = "%s · choose your challenge" % (Controls.tag("interact") + " Inspect chest" if distance <= 3.0 else "Approach cursed chest")
 				discovery_color = e["color"]
 		if e["kind"] != "crossroads" or bool(e["claimed"]): continue
 		for choice: Dictionary in e["choices"]:
@@ -279,10 +279,10 @@ func _refresh_discovery_prompt(hero: Vector2) -> void:
 			if distance > shrine_radius + 4.0 or distance >= nearest: continue
 			nearest = distance
 			var name: String = choice["blessing"]
-			var action := "Step into this circle to choose"
+			var action := "Hold the circle · %d s blessing · choose one" % roundi(blessing_time)
 			if distance <= shrine_radius:
-				action = "Hold %.1f s · other shrine fades" % (ceilf((1.0 - float(choice["charge"])) * shrine_charge_time * 10.0) / 10.0)
-			discovery_prompt = "%s · %s · %s" % [name.to_upper(), BLESSINGS[name]["desc"], action]
+				action = "Hold %.1f s · lasts %d s · choose one" % [ceilf((1.0 - float(choice["charge"])) * shrine_charge_time * 10.0) / 10.0,roundi(blessing_time)]
+			discovery_prompt = "%s · %s" % [name.to_upper(), action]
 			discovery_color = choice["color"]
 
 
@@ -298,7 +298,7 @@ func _start_chest(at: Vector2, offer_choice := false) -> void:
 	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.75, 0.3, 1.0, 0.5), 0.6, 3.0)
 	_events.append({"kind": "chest", "at": at, "node": root, "opened": false, "guards": [],
 			"color": Color(0.75, 0.3, 1.0), "label": "ARMY CHEST", "theme": "army", "age": 0.0, "choice": offer_choice, "paid": false})
-	announced.emit(("CURSED CHEST · inspect to choose a hunt or Sealbound ritual. " if offer_choice else "Army chest · guardians guard a Legendary. ") + RewardPools.selection_text("army"), Color(0.8, 0.45, 1.0))
+	announced.emit("Cursed chest nearby · inspect to choose your challenge." if offer_choice else "Army chest · defeat its guardians for a Legendary.", Color(0.8, 0.45, 1.0))
 
 
 func _update_events(delta: float) -> void:
@@ -410,17 +410,20 @@ func offer_chest(allow_interaction := true) -> bool:
 		if e["kind"] != "chest" or not e.get("choice", false) or e["opened"] or _player.pos2.distance_to(e["at"]) > 3.0: continue
 		if _chest_panel == null:
 			_chest_panel = WagerPanel.new()
-			_chest_panel.heading = "THE CURSED CHEST"
-			_chest_panel.flavor_text = "Choose your risk. Leaving costs nothing."
+			_chest_panel.heading = "Cursed chest"
+			_chest_panel.flavor_text = "Break the curse. Choose how you fight."
 			add_child(_chest_panel)
 			_chest_panel.chosen.connect(_choose_chest)
 		_chest_offer = e
 		var n := 5 + Realm.index(Realm.current)
-		_chest_panel.show_state({"prize":"Army Legendary + 5 Soul Shards", "prize_color":Color(0.8,0.45,1.0),
-			"detail":"HUNT: slay %d champions anywhere for the original reward.\nSEALBOUND: slay %d champions (+2). Also charge the 5 m circle for 12 s within 35 s to earn +5 bonus shards." % [n,n+2],
-			"odds":"Outside: charge drains at half speed. Combat continues during the ritual.\nTimeout loses only the bonus; the base reward still drops when all champions fall.",
-			"result":"Save & Quit ends unfinished rituals.",
-			"actions":[["hunt","Hunt (%d)" % n,true],["seal","Sealbound (%d)" % (n+2),not Obstacles.blocked(e["at"],SEAL_RADIUS+0.5)],["leave","Leave",true]]})
+		_chest_panel.show_state({"prize":"An Army-themed Legendary awaits either victory.",
+			"detail":"Hunt: %d champions. Sealbound: %d champions (+2)." % [n,n+2],
+			"cards":{
+				"hunt":{"eyebrow":"THE ORIGINAL CHALLENGE","title":"Hunt","reward":"Legendary  +  5 shards","challenge":"Defeat %d champions.\nFight anywhere. No time limit." % n},
+				"seal":{"eyebrow":"OPTIONAL RITUAL","title":"Sealbound","reward":"Legendary  +  up to 10 shards","challenge":"Defeat %d champions (+2).\nHold the 5 m circle for 12 s within 35 s.\nComplete it for +5 bonus shards." % (n+2)}},
+			"odds":"Leaving the circle drains charge at half speed. Timeout loses only the +5 bonus.\nThe Legendary and base 5 shards still drop when every champion falls.",
+			"result":"Leave freely. Save & Quit ends unfinished chests and rituals.",
+			"actions":[["hunt","Choose Hunt",true],["seal","Choose Sealbound",not Obstacles.blocked(e["at"],SEAL_RADIUS+0.5)],["leave","Leave",true]]})
 		get_tree().paused = true
 		return true
 	return false
@@ -468,8 +471,8 @@ func _choose_chest(action: String) -> void:
 		for key: String in ["seal_ring","seal_fill"]:
 			(e[key].material_override as ShaderMaterial).set_shader_parameter("pulse_speed",0.0)
 		var label := Label3D.new()
-		label.position = Vector3(0,2.0,0); label.font_size = 28; label.pixel_size = 0.012
-		label.outline_size = 8; label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position = Vector3(0,2.0,0); label.font_size = 26; label.pixel_size = 0.010
+		label.outline_size = 4; label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.modulate = SEAL_COLOR; (e["node"] as Node3D).add_child(label); e["seal_label"] = label
 	Sound.play("chest")
 	announced.emit("%d champions awakened. %s" % [n,"Charge the seal for +5 shards; base reward survives timeout." if e["seal"] else "Slay them all for the original chest reward."],e["color"])
@@ -497,8 +500,9 @@ func _update_choice_chest(e: Dictionary, hero: Vector2, delta: float) -> bool:
 		for i in swarm.count:
 			if swarm.ids[i] == g[1] and swarm.hp[i] > 0.0: alive += 1; break
 	var state := "BONUS SECURED" if charged else ("BONUS EXPIRED" if e["left"] <= 0.0 else "SEAL %.1f / 12 s · %d s left" % [float(e["charge"]),ceili(e["left"])])
-	chest_hint = "%s · %d champions · %s" % [state,alive,"base reward dropped" if e["paid"] else "Legendary +5 shards on victory"]
-	(e["seal_label"] as Label3D).text = state + "\n" + ("Return to charge" if not charged and e["left"] > 0 and hero.distance_to(e["at"]) > SEAL_RADIUS else "%d champions remaining" % alive)
+	chest_hint = "%s  /  %d champion%s%s" % [state,alive,"" if alive==1 else "s","  /  base reward dropped" if e["paid"] else ""]
+	(e["seal_label"] as Label3D).text = "Return to charge" if not charged and e["left"] > 0 and hero.distance_to(e["at"]) > SEAL_RADIUS else "SEALBOUND"
+	(e["seal_label"] as Label3D).visible = not charged and e["left"] > 0
 	(e["seal_fill"] as MeshInstance3D).scale = Vector3.ONE * maxf(float(e["charge"])/SEAL_CHARGE,0.02)
 	(e["seal_ring"] as MeshInstance3D).visible = e["left"] > 0 and not charged
 	(e["seal_fill"] as MeshInstance3D).visible = e["left"] > 0 and not charged
@@ -546,7 +550,7 @@ func bless_for(name: String, seconds: float) -> void:
 	if name == "Warding" and _player.challenge_id == "":
 		_player.empower_warding(seconds)
 	Sound.play("shrine_done")
-	announced.emit("Blessing of %s: %s for %d s%s" % [name, BLESSINGS[name]["desc"], int(seconds), " · next successful dash spends one 3m frost pulse (20 base damage), even on a miss" if name == "Warding" and _player.challenge_id == "" else ""], BLESSINGS[name]["color"])
+	announced.emit("Blessing of %s: %s · %d s%s" % [name, "+150 armor" if name == "Warding" else BLESSINGS[name]["desc"], int(seconds), "\nNext dash: 20 base frost damage / 3 m. Spent on use, even on a miss." if name == "Warding" and _player.challenge_id == "" else ""], BLESSINGS[name]["color"])
 
 
 func _update_blessing(delta: float) -> void:

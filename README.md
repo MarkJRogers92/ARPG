@@ -968,6 +968,9 @@ the `density` table on the `Decor` node.
   unequipping with a reason, but still permits swaps. The ▲ hint and quick-equip
   use the original rough score from `ItemData.STAT_INFO`, not a build-fit promise.
 
+The run HUD, Equipment comparison and chest choices share a restrained dark
+interface with concise rules and keyboard focus. See [run UI polish and checks](docs/visuals/RUN_UI_POLISH.md).
+
 ## Skill tree
 
 You earn a **skill point every 2 levels** (`Player.skill_point_every_levels`; 0 turns

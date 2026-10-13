@@ -161,7 +161,7 @@ func _run() -> void:
 	hud.toast("Blessing of Warding: +150 armor (about half the damage) for 30 s · next successful dash spends one 3m frost pulse (20 base damage), even on a miss")
 	await process_frame
 	await process_frame
-	check(hud._toasts.get_child_count() == 4, "notification stack has a bounded visible count")
+	check(hud._toasts.get_child_count() == 3, "notification stack has a bounded visible count")
 	var toast := hud._toasts.get_child(-1) as Label
 	check(toast.get_global_rect().position.x >= 8 and toast.get_global_rect().end.x <= root.get_visible_rect().size.x - 8, "long reward notice wraps inside the viewport")
 	check(toast.get_global_rect().end.y < hud._prompt_label.get_global_rect().position.y, "notice stack stays above interaction guidance")

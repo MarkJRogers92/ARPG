@@ -58,6 +58,7 @@ SUITES=(
   "tools/crossroads_shrine_test.gd"
   "tools/gear_impact_test.gd"
   "tools/sealbound_chest_test.gd"
+  "tools/run_ui_polish_test.gd"
   "tools/postmortem_test.gd"
   "tools/hero_visual_test.gd"
   "tools/aegis_visual_test.gd"
