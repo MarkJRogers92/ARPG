@@ -85,6 +85,9 @@ void fragment() {
 
 	float dirt_mask = smoothstep(0.5, 0.6, fbm(p * 0.045 + vec2(7.0, 3.0)) + detail * 0.12);
 	vec3 col = mix(grass, dirt * (0.75 + 0.5 * detail), dirt_mask);
+	// Reuse existing noise for shallow shading relief: no geometry/collision change.
+	float height = detail * 0.045 + blades * 0.008;
+	float surface_roughness = 0.96;
 
 	// Flagstone plazas.
 	float plaza = smoothstep(0.64, 0.69, fbm(p * 0.035 + vec2(31.0, -12.0)));
@@ -97,7 +100,10 @@ void fragment() {
 		// Moss creeps in from the edges of the plaza.
 		float moss = smoothstep(0.35, 0.75, (1.0 - plaza) + detail * 0.6 - 0.3);
 		slab = mix(slab, grass, moss * 0.8);
-		col = mix(col, slab, plaza * (1.0 - missing));
+		float stone_mask = plaza * (1.0 - missing);
+		col = mix(col, slab, stone_mask);
+		height = mix(height, smoothstep(0.0, 0.12, v.x) * 0.07 + detail * 0.018, stone_mask);
+		surface_roughness = mix(surface_roughness, mix(0.72, 0.88, detail), stone_mask * edge);
 	}
 
 	// Pebbles and specks.
@@ -109,6 +115,8 @@ void fragment() {
 		float drift = smoothstep(0.3, 0.65, fbm(p * 0.09 + vec2(5.0, 1.0)) * 0.7 + detail * 0.45);
 		float cover = clamp(snow * (0.55 + drift * 0.8), 0.0, 1.0);
 		col = mix(col, snow_color * (0.88 + 0.12 * blades), cover);
+		height = mix(height, drift * 0.16 + blades * 0.006, cover);
+		surface_roughness = mix(surface_roughness, 0.89, cover);
 	}
 	if (lava > 0.0) {
 		vec2 cv = voronoi(p * 0.32 + vec2(11.0, 4.0));
@@ -120,7 +128,12 @@ void fragment() {
 				+ vec3(0.6, 0.12, 0.02) * region * lava * (1.0 - smoothstep(0.0, 0.2, cv.x)) * 0.25;
 	}
 
+	// Derivatives operate on the reused height field in view space.
+	vec3 relief_position = (VIEW_MATRIX * vec4(world_pos + vec3(0.0, height, 0.0), 1.0)).xyz;
+	vec3 relief_normal = normalize(cross(dFdx(relief_position), dFdy(relief_position)));
+	if (dot(relief_normal, NORMAL) < 0.0) { relief_normal = -relief_normal; }
+	NORMAL = normalize(mix(NORMAL, relief_normal, 0.75));
 	ALBEDO = col;
-	ROUGHNESS = 0.95;
+	ROUGHNESS = surface_roughness;
 	SPECULAR = 0.2;
 }

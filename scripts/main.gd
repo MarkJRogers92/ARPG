@@ -493,6 +493,7 @@ func _finish_expedition_frame() -> void:
 		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
 		"died": _player.dead, "last_cause": _player.last_cause,
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"objectives": _expedition_result.get("objectives", {}).duplicate(true)}
 	_expedition_result = _expedition_result.duplicate(true)
 	var outcome := str(_expedition_result.get("outcome", "failure"))
@@ -566,6 +567,7 @@ func _process(delta: float) -> void:
 		_market_frame(delta)
 		return
 	elapsed += delta
+	_player.combat_time = elapsed
 	var available := CombatLedger.available(_player.stats, _army.count, _player.challenge_id, _swarms)
 	if _player.warding_charge_left > 0.0: available.append("Warding Dash")
 	Elements.metrics.tick(delta, available)
@@ -614,6 +616,7 @@ func _process(delta: float) -> void:
 	_landmarks.shards = 0
 	_ferryman.shards = 0
 	var hint := "" if _campaign else _ferryman.bet_text
+	if hint == "" and not _campaign: hint = _events.chest_hint
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
@@ -672,6 +675,9 @@ func _process(delta: float) -> void:
 	if prompt == "" and (not _campaign or (not _expedition_terminal and not _player.dead)):
 		prompt = _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 		prompt_color = RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+	if prompt == "" and not _player.dead and not _expedition_terminal:
+		prompt = _events.discovery_prompt
+		prompt_color = _events.discovery_color
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 
 	if not won or _endless:
@@ -702,9 +708,10 @@ func _process(delta: float) -> void:
 			snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
 
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
-			_bosses.current_boss_name(), _bosses.boss_health())
+			_bosses.current_boss_name(), _bosses.boss_health(), _player.dash_cooldown_remaining())
 	_hud.set_dash_charge(_player.warding_charge_left)
 	_update_clock()
 	# Music: the drums swell with the size of the horde and the hour.
@@ -728,6 +735,8 @@ func _process(delta: float) -> void:
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()
+	if not _campaign and not _game_over and (not won or _endless):
+		_events.offer_chest(_landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 
 func _on_mission_phase(phase: Dictionary) -> void:
 	if _game_over or won and not _endless: return
@@ -760,8 +769,11 @@ func _market_frame(delta: float) -> void:
 	_decor.follow(origin)
 	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
-	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
+	_hud.set_hurt(false, delta)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0, _player.dash_cooldown_remaining())
+	_hud.set_dash_charge(_player.warding_charge_left)
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
 	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
@@ -833,7 +845,7 @@ func _settle_run(seconds: float) -> int:
 			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
 	_rest_veterans(banked)
 	if not banked:
-		_hud.toast("Progress could not be saved. Your rewards were not banked.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Progress could not be saved. Your rewards were not banked.", RunUi.LOSS, "", true)
 	return shards
 
 
@@ -902,6 +914,7 @@ func capture() -> Dictionary:
 		"gear": gear, "backpack": bag, "skills": _player.skills.to_dict(),
 		"army": _army.snapshot(), "souls": _army.souls,
 		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"damage_by": Elements.damage_by,
 		"combat_metrics": Elements.metrics.snapshot(), "banished": _banished.duplicate(), "banishes_left": _banishes_left,
 		"phase_reward_done": _phase_reward_done,
@@ -944,6 +957,8 @@ func _restore(d: Dictionary) -> void:
 	_timeline.assign(d.get("timeline", []))
 	_player.damage_taken_by = d.get("taken", {})
 	_player.last_cause = d.get("last_cause", "")
+	_player.combat_time = elapsed
+	_player.recent_damage = DeathRecap.recent_snapshot(d.get("recent_damage", []), elapsed)
 	Elements.damage_by = d.get("damage_by", {})
 	Elements.metrics.restore(d.get("combat_metrics", {}), Elements.damage_by)
 	_banished.clear()
@@ -971,13 +986,14 @@ func _suspend() -> void:
 		get_tree().paused = false
 		get_tree().reload_current_scene()
 	else:
-		_hud.toast("Couldn't save the night.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Save failed. Your run is still open. Try again before quitting.", RunUi.LOSS, "", true)
 
 
 ## The end screen's look back: what hurt, what killed, and the night's curve.
 func _show_recap(died: bool) -> void:
 	DeathRecap.add_sample(_timeline, elapsed, _player.stats.hp / _player.stats.max_hp, _director.pressure)
-	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline)
+	var recent := DeathRecap.recent_summary(_player.recent_damage, elapsed)
+	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline, recent if died else {})
 
 
 ## A Lancer's charge ran into the hero.
@@ -1319,9 +1335,8 @@ func _on_item_picked(item: Item, result: String) -> void:
 	Sound.play("pickup")
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
-	_hud.toast("%s: %s" % [verb, item.name], item.color())
+	_hud.toast("%s: %s%s" % [verb,item.name,"\nLegendary power · inspect Gear" if item.power != "" else ""],item.color(),item.power_text() if item.power != "" else "")
 	if item.power != "":
-		_hud.toast("★ " + item.power_text(), item.color())
 		Juice.flash(_player.pos2, item.color(), 5.0, 10.0, 0.5)
 		_fx.ring(_player.pos2, item.color(), 40, 8.0, 0.6, 0.6)
 

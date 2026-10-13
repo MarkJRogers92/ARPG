@@ -2185,7 +2185,6 @@ func _render_story_journal() -> void:
 func _render_after_action_report(result: Dictionary) -> void:
 	var report_value: Variant = result.get("report", {})
 	var report: Dictionary = report_value if report_value is Dictionary else {}
-	if report.get("combat_metrics", {}) is Dictionary and not report.get("combat_metrics", {}).is_empty(): _add_copy(CombatLedger.summary(report["combat_metrics"]))
 	var objectives_value: Variant = report.get("objectives", {})
 	var objectives: Dictionary = objectives_value if objectives_value is Dictionary else {}
 	var outcome := str(result.get("outcome", "failure"))
@@ -2215,8 +2214,13 @@ func _render_after_action_report(result: Dictionary) -> void:
 			if float(amount) > 0.0:
 				has_damage = true
 				break
-		if has_damage:
+		if has_damage or died:
 			_add_copy(DeathRecap.summary(damage, last_cause, died))
+	if died_value is bool and died_value:
+		var recent := DeathRecap.recent_summary(report.get("recent_damage", []), float(result.get("elapsed", 0.0)))
+		if not recent["takeaway"].is_empty(): _add_copy(recent["takeaway"])
+		_add_copy(recent["trail"])
+	if report.get("combat_metrics", {}) is Dictionary and not report.get("combat_metrics", {}).is_empty(): _add_copy(CombatLedger.summary(report["combat_metrics"]))
 	if not bool(result.get("biome_complete", false)) and contract_id == "breach" and objectives.get("seals") is int and int(objectives["seals"]) >= 0:
 		_add_copy("Seal objective: %d / 3" % int(objectives["seals"]))
 	elif not bool(result.get("biome_complete", false)) and contract_id == "elite_hunt" and objectives.get("elite_dead") is bool:

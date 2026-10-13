@@ -216,6 +216,11 @@ func dash_cooldown_fraction() -> float:
 	return clampf(_dash_cooldown / stats.dash_cooldown, 0.0, 1.0)
 
 
+## Actual time remaining, including cooldown changes since the dash was spent.
+func dash_cooldown_remaining() -> float:
+	return maxf(_dash_cooldown, 0.0)
+
+
 ## Movement and regen. Call before the enemy swarms step.
 func tick(delta: float) -> void:
 	build_synergies.tick(delta)
@@ -365,16 +370,20 @@ func update_weapons(delta: float) -> void:
 ## latest hit: the end screen's "why I died" (see DeathRecap).
 var damage_taken_by := {}
 var last_cause := ""
+var combat_time := 0.0 # Main combat time; excludes pauses, town and death animation.
+var recent_damage: Array[Dictionary] = []
 
 
 ## Damage before armor; armor is applied here. `cause` names what hit, for the
 ## death recap ("Ghoul", "Meteors", "Ogre Warlord's slam"...).
 func take_damage(amount: float, cause := "Other") -> void:
-	if dead or invulnerable or is_dashing() or shield_left > 0.0:
+	if not is_finite(amount) or amount <= 0.0 or dead or invulnerable or is_dashing() or shield_left > 0.0:
 		return
 	var dealt := minf(amount * stats.damage_taken_factor(), stats.hp)
 	stats.hp -= amount * stats.damage_taken_factor()
 	if dealt > 0.0:
+		cause = DeathRecap.clean_cause(cause)
+		DeathRecap.record_recent(recent_damage, combat_time, cause, dealt)
 		damage_taken_by[cause] = damage_taken_by.get(cause, 0.0) + dealt
 		last_cause = cause
 	if recovery_charge and stats.hp <= stats.max_hp * 0.25:

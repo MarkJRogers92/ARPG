@@ -8,6 +8,7 @@ const Presentation := preload("res://scripts/pilot/guardian_presentation_one_han
 const ACTOR := preload("res://assets/meshy_pilot/guardian_one_hand.glb")
 const SWORD := preload("res://assets/meshy_pilot/soulforged_one_hand.glb")
 const STATUS_SHADER := preload("res://shaders/guardian.gdshader")
+const WARNING_SHADER := preload("res://shaders/guardian_warning.gdshader")
 const MAX_LIVE := 3
 const MAX_CORPSES := 3
 const COMBAT_STEP := 1.0 / 120.0
@@ -133,8 +134,6 @@ func step(delta: float, target: Vector2) -> void:
 				if before < Presentation.ATTACK_OPEN: old_blade = blade
 				_try_sword_hit(i, entry, old_blade, blade, hero_at)
 			_flash[i] = maxf(_flash[i] - tick * 6.0, 0.0)
-			_tint_actor(i, actor)
-			entry.telegraph.visible = actor.state == &"Attack" and actor.state_elapsed < Presentation.ATTACK_CLOSE
 		for actor: Node3D in corpses:
 			actor.advance_presentation(tick)
 	for index in range(corpses.size() - 1, -1, -1):
@@ -142,6 +141,11 @@ func step(delta: float, target: Vector2) -> void:
 			var corpse := corpses[index]
 			corpses.remove_at(index)
 			corpse.queue_free()
+	# Cosmetic writes once per frame, not once per 120 Hz collision sample.
+	for i in count:
+		if hp[i] > 0.0 and visuals.has(ids[i]):
+			_tint_actor(i, visuals[ids[i]].actor)
+			_update_cut_telegraph(visuals[ids[i]])
 	_previous_target = target
 	_have_target = true
 	grid.rebuild(pos, count)
@@ -189,7 +193,9 @@ func damage(i: int, amount: float) -> bool:
 	var killed := super.damage(i, amount)
 	if not killed and amount > 0.0 and visuals.has(ids[i]):
 		var entry: Dictionary = visuals[ids[i]]
-		if entry.stagger <= 0.0 and entry.actor.play_hit(): entry.stagger = stagger_cooldown
+		if entry.stagger <= 0.0 and entry.actor.play_hit():
+			entry.stagger = stagger_cooldown
+			_update_cut_telegraph(entry) # Interrupted cuts lose their ink in this frame.
 	return killed
 
 func _die(i: int) -> void:
@@ -223,31 +229,32 @@ func _tint_actor(i: int, actor: Node3D) -> void:
 	for material: ShaderMaterial in actor._material_keepalive:
 		material.set_shader_parameter("status_tint", tint)
 		material.set_shader_parameter("hit_flash", _flash[i])
+		material.set_shader_parameter("hit_strength", 0.25 if Juice.calm else 1.0)
 
 func _make_cut_telegraph(actor: Node3D) -> MeshInstance3D:
 	# Conservative directional warning, never a damage shape. Real blade decides hits.
-	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	for k in 24:
-		var a := deg_to_rad(-50.0 + k * 100.0 / 24.0) - ATTACK_AIM_OFFSET
-		var b := deg_to_rad(-50.0 + (k + 1) * 100.0 / 24.0) - ATTACK_AIM_OFFSET
-		var near_a := Vector3(sin(a), 0.0, cos(a)) * (1.3 / BODY_SCALE)
-		var near_b := Vector3(sin(b), 0.0, cos(b)) * (1.3 / BODY_SCALE)
-		var far_a := Vector3(sin(a), 0.0, cos(a)) * (3.8 / BODY_SCALE)
-		var far_b := Vector3(sin(b), 0.0, cos(b)) * (3.8 / BODY_SCALE)
-		for p: Vector3 in [near_a, far_a, far_b, near_a, far_b, near_b]: mesh.surface_add_vertex(p)
-	mesh.surface_end()
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2.ONE * (7.8 / BODY_SCALE)
 	var warning := MeshInstance3D.new()
 	warning.name = "CutTelegraph"
 	warning.mesh = mesh
 	warning.position.y = 0.025 / BODY_SCALE
 	warning.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.albedo_color = Color(1.0, 0.48, 0.12, 0.28)
+	var material := ShaderMaterial.new()
+	material.shader = WARNING_SHADER
+	material.set_shader_parameter("body_scale", BODY_SCALE)
 	warning.material_override = material
 	warning.visible = false
 	actor.add_child(warning)
 	return warning
+
+func _update_cut_telegraph(entry: Dictionary) -> void:
+	var actor: Node3D = entry.actor
+	var warning: MeshInstance3D = entry.telegraph
+	warning.visible = actor.state == &"Attack" and actor.state_elapsed < Presentation.ATTACK_CLOSE
+	if not warning.visible: return
+	var material := warning.material_override as ShaderMaterial
+	material.set_shader_parameter("progress", clampf(actor.state_elapsed / Presentation.ATTACK_OPEN, 0.0, 1.0))
+	material.set_shader_parameter("active", actor.state_elapsed >= Presentation.ATTACK_OPEN)
+	material.set_shader_parameter("color", Juice.warning_color(Color(1.0, 0.48, 0.12, 0.78)))
+	material.set_shader_parameter("stroke_width", 0.12 if Juice.bold_telegraphs else 0.075)

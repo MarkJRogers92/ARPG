@@ -81,7 +81,8 @@ bindings (`scripts/controls.gd`; saved with the settings).
 The pause menu also has the comfort and accessibility settings:
 
 - **Calm effects** (photosensitivity): no hit-stop or slow motion, light
-  flashes at 30%, and the rift glitch at a fifth of its strength.
+  flashes at 30%, a steady gentler low-health tint, and the rift glitch at a fifth of its strength.
+  The HP bar also says LOW HEALTH below one-third health.
 - **Bold warnings**: every ground warning (hazards, boss slams, mid-boss moves,
   meteors, bloater fuses, Lancer and Colossus lines) drawn brighter and near
   opaque (`HazardDirector.make_warning`, `Juice.warning_color`).
@@ -94,7 +95,9 @@ style: once you move the mouse, the hero faces the cursor and shoots toward it
 (a ring on the ground marks the spot) while WASD walks independently, so you can
 back away while firing. The right stick aims the same way while held. Until you
 touch the mouse, after you release the stick, or after pressing T, bolts auto-aim
-at the nearest enemy.
+at the nearest enemy. The bottom hint shows the current AUTO, MOUSE or STICK
+aim state. Dash shows READY or its actual remaining cooldown in seconds, alongside
+your bound key; Warding charges use the same timer.
 
 The game starts fullscreen. The UI is laid out for 1280×720 and scales with the
 screen (stretch mode `canvas_items`, aspect `expand`), so it stays the same size
@@ -172,6 +175,15 @@ Meteors 20%..."), with a small chart of health and pressure through the
 night. Every source of damage passes its cause to `Player.take_damage`
 (contact by enemy name, shots by who fired them, slams, hazards, mid-boss
 moves, blasts, burning); `scripts/death_recap.gd` has the summary and chart.
+The post-mortem also keeps a bounded recent-damage trail (up to ten combat
+seconds, grouped in half-second buckets), using actual HP lost after armor
+and overkill. One factual takeaway names the largest recorded recent source.
+The cause appears above outgoing weapon statistics; restart/realm actions stay
+visible beneath the scrolling details. Press Up from the actions to read/scroll
+with arrows or D-pad, and Enter/Escape to return to the actions. Campaign death
+reports retain the same recent history through the return to town and reopening
+its pending result. Older saves without this optional history still load.
+See [post-mortem validation](docs/visuals/POSTMORTEM.md).
 
 **Death.** When the hero falls, time slows, the army bursts apart minion by
 minion, the hero's souls scatter up into the dark and the hero crumples; the
@@ -213,15 +225,25 @@ Every 40 to 55 seconds something worth walking to appears out of sight,
 announced with a message and pointed to by an arrow at the screen edge (bosses
 get arrows too). See `scripts/event_director.gd`:
 
-- **Shrine.** Stand in its circle for a few seconds to charge it and get a 30 s
-  blessing: Fury (+60% damage), Haste (+35% move and attack speed), Plenty
+- **Shrine / Crossroads shrine.** Stand in a circle for a few seconds to charge
+  it and get a 30 s blessing. Random shrine discoveries can offer two labeled
+  alternatives: hold the one you want, and the other disappears when it completes.
+  Leaving the circle decays partial charge. At most one pair is active; cramped
+  sites use a single shrine. The existing blessings are: Fury (+60% damage), Haste (+35% move and attack speed), Plenty
   (double XP and souls) or Warding (much less damage taken). The HUD shows
-  the time left.
+  the time left. Authored campaign recovery remains its single Warding shrine.
 - **Treasure goblin.** A thief that runs from you for 22 s. Catch it for 3
   items, a shower of XP gems, 3 Soul Shards and a health orb.
-- **Cursed chest.** Opening it summons a ring of elite guardians (more in
-  later realms). Kill them all to break the curse for a Legendary and 5 Soul
-  Shards.
+- **Cursed chest.** In Classic, approach and press Interact to inspect without
+  starting combat. **Hunt** keeps the original guardian fight (5, 6 or 7 by
+  realm) for an Army Legendary and 5 Soul Shards. **Sealbound** adds two
+  champions: charge the visible 5 m circle for 12 seconds within 35 seconds
+  for another 5 shards. Outside the circle, charge drains at half speed.
+  Timeout loses only the bonus; killing all guardians still grants the base
+  reward. Leaving the offer costs nothing. At most one choice chest is active.
+  Authored chests retain their existing route. Unfinished chests/rituals and
+  uncollected ground loot remain transient on Save & Quit. See
+  [Sealbound verification](docs/visuals/SEALBOUND_CHESTS.md).
 - **Health orbs.** Half of all elites drop one (other enemies very rarely).
   Walk over it to heal a quarter of your health.
 
@@ -939,8 +961,21 @@ the `density` table on the `Decor` node.
   Rare and better show their name.
 - **Inventory screen (Tab):** worn gear, backpack (▲ marks likely upgrades), the
   selected item compared against what you wear, live stats, equip / unequip /
-  discard, and "equip all likely upgrades". The upgrade hint is a rough score
-  from `ItemData.STAT_INFO`, not a promise.
+  discard, and "Quick-equip by item score". **Build impact** previews the actual
+  character stats, HP-cap loss, abilities/powers and owned-link prerequisites
+  after the selected swap. **Item rolls** retains the original bonus comparison.
+  Inspecting or canceling never changes the build. A full backpack blocks
+  unequipping with a reason, but still permits swaps. The ▲ hint and quick-equip
+  use the original rough score from `ItemData.STAT_INFO`, not a build-fit promise.
+
+The run HUD, Equipment comparison and chest choices share a restrained dark
+interface with concise rules and keyboard focus. See [run UI polish and checks](docs/visuals/RUN_UI_POLISH.md),
+[menu continuity / safer exits](docs/visuals/MENU_CONTINUITY.md), and
+[Build Guide / Controls polish](docs/visuals/GUIDE_CONTROLS_POLISH.md).
+
+Floating combat text uses a capped priority budget to reduce overlap while
+preserving each displayed hit value. [Combat text checks and limits](docs/visuals/COMBAT_TEXT_READABILITY.md)
+cover Calm mode, damage telemetry and the crowded-game performance proxies.
 
 ## Skill tree
 

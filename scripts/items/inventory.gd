@@ -106,6 +106,32 @@ func _sync(slot: String) -> void:
 	refresh_powers()
 
 
+## Read-only try-on. Uses the same slot synchronization as a real equip, on
+## disposable stats/inventory containers. Item records and runtime IDs are shared
+## read-only; no Item.from_dict, signals, HP changes or saves touch the live build.
+## A null candidate previews unequipping that slot, even if the backpack is full.
+func preview_swap(slot: String, candidate: Item = null) -> PlayerStats:
+	if not slot in ItemData.SLOTS or (candidate != null and candidate.slot != slot):
+		return null
+	var after := PlayerStats.new()
+	after._mods = _stats._mods.duplicate(true)
+	after.innate_powers = _stats.innate_powers.duplicate(true)
+	after.powers = _stats.powers.duplicate(true)
+	after.upgrade_levels = _stats.upgrade_levels.duplicate(true)
+	after.hp = _stats.hp
+	after.level = _stats.level
+	after.xp = _stats.xp
+	after.xp_to_next = _stats.xp_to_next
+	var preview := Inventory.new(after)
+	preview.equipped = equipped.duplicate()
+	if candidate == null:
+		preview.equipped.erase(slot)
+	else:
+		preview.equipped[slot] = candidate
+	preview._sync(slot)
+	return after
+
+
 ## Rebuilds stats.powers from the class's innate powers and the worn items.
 func refresh_powers() -> void:
 	_stats.powers = _stats.innate_powers.duplicate()

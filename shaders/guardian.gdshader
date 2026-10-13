@@ -14,6 +14,7 @@ uniform float flat_glow = 0.0;
 
 uniform vec4 status_tint : source_color = vec4(1.0);
 uniform float hit_flash = 0.0;
+uniform float hit_strength = 1.0;
 varying float v_glow;
 
 void vertex() {
@@ -21,8 +22,11 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = mix(COLOR.rgb * status_tint.rgb, vec3(1.0), hit_flash * 0.6);
+	// Preserve armor/value separation under continuous fire; the rim carries the hit.
+	float hit = pow(clamp(hit_flash, 0.0, 1.0), 2.0) * hit_strength;
+	ALBEDO = mix(COLOR.rgb * status_tint.rgb, vec3(0.85, 0.75, 0.55), hit * 0.12);
 	ROUGHNESS = roughness;
 	float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	EMISSION = COLOR.rgb * v_glow * glow_strength + rim_color * rim * rim_strength;
+	EMISSION = COLOR.rgb * v_glow * glow_strength + rim_color * rim * rim_strength
+		+ vec3(0.9, 0.65, 0.3) * rim * hit * 0.8;
 }

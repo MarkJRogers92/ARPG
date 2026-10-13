@@ -41,6 +41,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	_refresh_guardian_readout()
 	if guardians == null or _game_over or _in_title or _player.dead: return
 	if guardians.alive_count() == 0:
 		_respawn_in -= minf(delta, 0.05)
@@ -79,3 +80,26 @@ func _return_to_normal_title() -> void:
 	_saved_title = true
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _refresh_guardian_readout() -> void:
+	# Reuse the existing bar; a real campaign boss always keeps priority.
+	if guardians == null or _bosses.boss_alive() or _bosses.final_alive(): return
+	var label := ""
+	var health := -1.0
+	if not _game_over and not _in_title and not _player.dead:
+		for i in guardians.count:
+			if guardians.hp[i] <= 0.0 or not guardians.visuals.has(guardians.ids[i]): continue
+			var entry: Dictionary = guardians.visuals[guardians.ids[i]]
+			var actor: Node3D = entry.actor
+			var phase := "GUARDING"
+			match actor.state:
+				&"Attack":
+					phase = "WIND-UP" if actor.state_elapsed < GuardianSwarm.Presentation.ATTACK_OPEN else ("CUT" if actor.state_elapsed < GuardianSwarm.Presentation.ATTACK_CLOSE else "RECOVERING")
+				&"Hit": phase = "STAGGERED"
+				&"Walk": phase = "APPROACHING"
+				_: if actor.swing_id > 0 and entry.cooldown > 0.0: phase = "RECOVERING"
+			label = guardians.display_name + " · " + phase
+			health = clampf(guardians.hp[i] / maxf(guardians._cap[i], 0.001), 0.0, 1.0)
+			break
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), label, health, _player.dash_cooldown_remaining())
+	_hud.set_dash_charge(_player.warding_charge_left)
