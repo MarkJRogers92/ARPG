@@ -48,6 +48,9 @@ var _goal_label: Label
 var _page_scroll: ScrollContainer
 ## The action waiting for a key press in the Controls panel ("" for none).
 var _listening := ""
+var _controls_focus_action := ""
+var _controls_feedback := ""
+var _binding_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -96,9 +99,20 @@ func _input(event: InputEvent) -> void:
 		if key and key.pressed and not key.echo:
 			get_viewport().set_input_as_handled()
 			var code := key.physical_keycode if key.physical_keycode != 0 else key.keycode
+			_controls_focus_action = _listening
+			var label := _control_label(_listening)
 			if code != KEY_ESCAPE:
+				var old_name := Controls.key_name(_listening)
+				var swapped := ""
+				for pair: Array in Controls.ACTIONS:
+					if pair[0] != _listening and Controls.key_code(pair[0]) == code:
+						swapped = str(pair[1])
 				Controls.rebind(_listening, code)
+				_controls_feedback = "%s: %s" % [label, Controls.key_name(_listening)]
+				if swapped != "": _controls_feedback += " · %s moved to %s" % [swapped, old_name]
 				Sound.play("ui_click")
+			else:
+				_controls_feedback = "%s unchanged: %s" % [label, Controls.key_name(_listening)]
 			_listening = ""
 			_fill_controls()
 		return
@@ -168,7 +182,7 @@ func _build() -> void:
 
 	box.add_child(_slider("Music", "music_volume"))
 	box.add_child(_slider("Sound", "sfx_volume"))
-	var opacity := _slider("Friendly spell opacity", "friendly_opacity")
+	var opacity := _slider("Bolt / aura opacity", "friendly_opacity")
 	opacity.tooltip_text = "Fade Magic Bolt and Frost Aura only. Other friendly effects, hostile shots, warnings, hero/ally markers and hitboxes are unchanged."
 	box.add_child(opacity)
 	box.add_child(_toggle("Screen shake", "shake"))
@@ -390,6 +404,8 @@ func _show_controls(on: bool) -> void:
 	_controls_box.visible = on
 	_page_scroll.scroll_vertical = 0
 	if on:
+		_controls_focus_action = ""
+		_controls_feedback = ""
 		_fill_controls()
 	else:
 		_focus_resume.call_deferred()
@@ -417,6 +433,7 @@ func _refresh_build_goal() -> void:
 ## One row per rebindable action: its name and its key (click, then press the
 ## new key). A key taken from another action swaps with it.
 func _fill_controls() -> void:
+	_binding_buttons.clear()
 	for child in _controls_box.get_children():
 		_controls_box.remove_child(child)
 		child.queue_free()
@@ -426,27 +443,53 @@ func _fill_controls() -> void:
 	title.add_theme_color_override("font_color", RunUi.TEXT)
 	_controls_box.add_child(title)
 	var hint := _menu_label(13)
-	hint.text = "Click a key, then press the new one (Esc cancels). Gamepad buttons and the arrow keys stay as they are."
+	hint.text = "Choose a key, then press its replacement. Used keys swap. Esc cancels.\nArrow keys and controller mappings stay unchanged."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.modulate = Color(1, 1, 1, 0.7)
 	_controls_box.add_child(hint)
+	var feedback := RunUi.label(14, RunUi.SOUL)
+	feedback.name = "BindingFeedback"
+	feedback.text = "Binding %s · press a key, or Esc to cancel" % _control_label(_listening) if _listening != "" else _controls_feedback
+	feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	feedback.visible = feedback.text != ""
+	_controls_box.add_child(feedback)
+	var groups := HBoxContainer.new()
+	groups.add_theme_constant_override("separation", 24)
+	_controls_box.add_child(groups)
+	var movement := VBoxContainer.new()
+	var actions := VBoxContainer.new()
+	for group: VBoxContainer in [movement, actions]:
+		group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		group.custom_minimum_size.x = 300
+		group.add_theme_constant_override("separation", 8)
+		groups.add_child(group)
+		var heading := RunUi.label(12, RunUi.MUTED)
+		heading.text = "MOVEMENT" if group == movement else "ACTIONS"
+		group.add_child(heading)
 	for pair: Array in Controls.ACTIONS:
 		var action: String = pair[0]
+		var group: VBoxContainer = movement if action.begins_with("move_") else actions
 		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
 		var label := _menu_label(15)
 		label.text = pair[1]
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(label)
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(170, 32)
-		b.add_theme_font_size_override("font_size", 16)
-		b.text = "press a key..." if _listening == action else Controls.key_name(action)
+		b.custom_minimum_size = Vector2(118, 36)
+		b.add_theme_font_size_override("font_size", 14)
+		b.text = "Press a key…" if _listening == action else Controls.key_name(action)
+		b.name = "Bind_" + action
+		_binding_buttons[action] = b
+		if _listening == action: b.add_theme_stylebox_override("normal", RunUi.panel(8, RunUi.SOUL))
 		b.pressed.connect(func() -> void:
 			Sound.play("ui_click")
+			if _binding_buttons.get(action) != b or not is_open() or not _controls_box.visible: return
 			_listening = action
+			_controls_focus_action = action
 			_fill_controls())
 		row.add_child(b)
-		_controls_box.add_child(row)
+		group.add_child(row)
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", 12)
@@ -456,6 +499,8 @@ func _fill_controls() -> void:
 	reset.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		Controls.reset()
+		_controls_feedback = "Keyboard bindings restored to defaults."
+		_controls_focus_action = ""
 		_fill_controls())
 	buttons.add_child(reset)
 	var back := Button.new()
@@ -471,8 +516,14 @@ func _fill_controls() -> void:
 
 func _focus_control_key() -> void:
 	if not is_inside_tree() or not is_open() or not _controls_box.visible: return
-	var keys := _controls_box.find_children("*", "Button", true, false)
-	if not keys.is_empty(): keys[0].grab_focus()
+	var target: Button = _binding_buttons.get(_controls_focus_action, _binding_buttons.get("move_up"))
+	if is_instance_valid(target) and target.is_inside_tree(): target.grab_focus()
+
+
+func _control_label(action: String) -> String:
+	for pair: Array in Controls.ACTIONS:
+		if pair[0] == action: return pair[1]
+	return action
 
 
 func _menu_label(font_size: int) -> Label:
