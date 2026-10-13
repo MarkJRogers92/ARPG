@@ -493,6 +493,7 @@ func _finish_expedition_frame() -> void:
 		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
 		"died": _player.dead, "last_cause": _player.last_cause,
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"objectives": _expedition_result.get("objectives", {}).duplicate(true)}
 	_expedition_result = _expedition_result.duplicate(true)
 	var outcome := str(_expedition_result.get("outcome", "failure"))
@@ -566,6 +567,7 @@ func _process(delta: float) -> void:
 		_market_frame(delta)
 		return
 	elapsed += delta
+	_player.combat_time = elapsed
 	var available := CombatLedger.available(_player.stats, _army.count, _player.challenge_id, _swarms)
 	if _player.warding_charge_left > 0.0: available.append("Warding Dash")
 	Elements.metrics.tick(delta, available)
@@ -902,6 +904,7 @@ func capture() -> Dictionary:
 		"gear": gear, "backpack": bag, "skills": _player.skills.to_dict(),
 		"army": _army.snapshot(), "souls": _army.souls,
 		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"damage_by": Elements.damage_by,
 		"combat_metrics": Elements.metrics.snapshot(), "banished": _banished.duplicate(), "banishes_left": _banishes_left,
 		"phase_reward_done": _phase_reward_done,
@@ -944,6 +947,8 @@ func _restore(d: Dictionary) -> void:
 	_timeline.assign(d.get("timeline", []))
 	_player.damage_taken_by = d.get("taken", {})
 	_player.last_cause = d.get("last_cause", "")
+	_player.combat_time = elapsed
+	_player.recent_damage = DeathRecap.recent_snapshot(d.get("recent_damage", []), elapsed)
 	Elements.damage_by = d.get("damage_by", {})
 	Elements.metrics.restore(d.get("combat_metrics", {}), Elements.damage_by)
 	_banished.clear()
@@ -977,7 +982,8 @@ func _suspend() -> void:
 ## The end screen's look back: what hurt, what killed, and the night's curve.
 func _show_recap(died: bool) -> void:
 	DeathRecap.add_sample(_timeline, elapsed, _player.stats.hp / _player.stats.max_hp, _director.pressure)
-	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline)
+	var recent := DeathRecap.recent_summary(_player.recent_damage, elapsed)
+	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline, recent if died else {})
 
 
 ## A Lancer's charge ran into the hero.

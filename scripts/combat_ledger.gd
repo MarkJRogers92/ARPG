@@ -86,6 +86,8 @@ static func summary(report_data: Dictionary, limit := 6) -> String:
 	var lines: Array[String] = ["REAL DAMAGE · %d total · DPS / available combat seconds; unique targets per source" % int(report_data.get("total", 0))]
 	for row: Dictionary in report_data.get("rows", []).slice(0, limit):
 		var performance := "unmeasured legacy time" if not row.get("measured", true) else ("%.1f DPS / %.1f s" % [row["dps"], row["active_seconds"]] if row["dps"] >= 0.0 else "no active-time sample")
+		if row.get("measured", true) and row["dps"] >= 0.0 and row["active_seconds"] < 1.0:
+			performance = "%.2f s sample · DPS not shown under 1 s" % row["active_seconds"]
 		lines.append("%s · %d damage · %s · %d hits · %d%s targets" % [row["source"], int(row["damage"]), performance, row["hits"], row["targets"], "+" if row.get("targets_capped", false) else ""])
 	var reactions_text: Array[String] = []
 	for kind: String in report_data.get("reactions", {}):

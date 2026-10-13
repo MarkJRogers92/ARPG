@@ -57,6 +57,9 @@ var _omen_label: Label
 var _report: Label
 var _recap_label: Label
 var _recap_chart: DeathRecap
+var _recent_damage_label: Label
+var _takeaway_label: Label
+var _recap_scroll: ScrollContainer
 var _title_card: VBoxContainer
 var _title_main: Label
 var _title_sub: Label
@@ -67,6 +70,7 @@ var _altar: AltarPanel
 var _end_title: Label
 var _endless_button: Button
 var _restart_button: Button
+var _end_action_started := false
 ## Copies the Daily Night's code (only shown after one).
 var _code_button: Button
 var _daily_code := ""
@@ -222,9 +226,13 @@ func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 
 ## The run report on the end screen: damage by source, best first.
 ## "Why I died": the causes line and the health / pressure chart.
-func set_recap(text: String, samples: Array[Vector3]) -> void:
+func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -> void:
 	_recap_label.text = text
 	_recap_chart.show_samples(samples)
+	_recent_damage_label.text = recent.get("trail", "")
+	_takeaway_label.text = recent.get("takeaway", "")
+	_recent_damage_label.visible = not _recent_damage_label.text.is_empty()
+	_takeaway_label.visible = not _takeaway_label.text.is_empty()
 
 
 ## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
@@ -441,6 +449,9 @@ func show_victory(realm_name: String, elapsed: float, kills: int, level: int, sh
 
 
 func _show_end(title: String, color: Color, line: String, shards: int, victory: bool) -> void:
+	_end_action_started = false
+	_restart_button.disabled = false
+	_endless_button.disabled = false
 	_end_title.text = title
 	_end_title.add_theme_color_override("font_color", color)
 	_game_over_label.text = line
@@ -448,6 +459,7 @@ func _show_end(title: String, color: Color, line: String, shards: int, victory: 
 	_endless_button.visible = victory
 	_restart_button.text = "Play again" if victory else "Rise again"
 	_altar.refresh()
+	_recap_scroll.scroll_vertical = 0
 	_game_over_root.show()
 
 
@@ -456,6 +468,15 @@ func hide_end() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _game_over_root.visible and _recap_scroll.has_focus():
+		if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+			_recap_scroll.scroll_vertical += 56 if event.is_action_pressed("ui_down") else -56
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_cancel"):
+			_restart_button.grab_focus()
+			get_viewport().set_input_as_handled()
+			return
 	# Handled here because the HUD keeps running while the game is paused.
 	if event.is_action_pressed("toggle_fullscreen"):
 		var window := get_window()
@@ -838,16 +859,25 @@ func _build() -> void:
 	_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_report.custom_minimum_size.x = 820
 	_report.modulate = Color(1, 1, 1, 0.85)
-	over_box.add_child(_report)
 	_recap_label = UiStyle.label(16)
 	_recap_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_recap_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_recap_label.custom_minimum_size.x = 820
 	_recap_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.62))
 	over_box.add_child(_recap_label)
+	_takeaway_label = UiStyle.label(17)
+	_takeaway_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_takeaway_label.custom_minimum_size.x = 820
+	_takeaway_label.add_theme_color_override("font_color", UiStyle.GOLD)
+	over_box.add_child(_takeaway_label)
+	_recent_damage_label = UiStyle.label(16)
+	_recent_damage_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_recent_damage_label.custom_minimum_size.x = 820
+	over_box.add_child(_recent_damage_label)
 	_recap_chart = DeathRecap.new()
 	_recap_chart.visible = false
 	over_box.add_child(_recap_chart)
+	over_box.add_child(_report)
 	_shards_earned_label = UiStyle.label(20)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
@@ -857,15 +887,14 @@ func _build() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", 14)
-	over_box.add_child(buttons)
 	_endless_button = _end_button("Endless  (keep going)", Color(1.0, 0.82, 0.4))
-	_endless_button.pressed.connect(endless_pressed.emit)
+	_endless_button.pressed.connect(_end_action.bind(endless_pressed.emit))
 	buttons.add_child(_endless_button)
 	_restart_button = _end_button("Rise again")
-	_restart_button.pressed.connect(restart_pressed.emit)
+	_restart_button.pressed.connect(_end_action.bind(restart_pressed.emit))
 	buttons.add_child(_restart_button)
 	var realms := _end_button("Choose realm")
-	realms.pressed.connect(realms_pressed.emit)
+	realms.pressed.connect(_end_action.bind(realms_pressed.emit))
 	buttons.add_child(realms)
 	_code_button = _end_button("Copy daily code", UiStyle.GOLD)
 	_code_button.visible = false
@@ -873,10 +902,25 @@ func _build() -> void:
 		DisplayServer.clipboard_set(_daily_code)
 		toast("Copied: " + _daily_code, UiStyle.GOLD))
 	buttons.add_child(_code_button)
-	_game_over_root = _make_overlay(root, over_box, true)
+	_game_over_root = _make_overlay(root, over_box, true, buttons)
+	_recap_scroll = _game_over_root.find_child("RecapScroll", true, false)
+	_recap_scroll.focus_mode = Control.FOCUS_ALL
+	for button: Button in buttons.get_children():
+		button.focus_neighbor_top = button.get_path_to(_recap_scroll)
+	_recap_scroll.focus_neighbor_bottom = _recap_scroll.get_path_to(_restart_button)
 	_game_over_root.visibility_changed.connect(func() -> void:
 		if _game_over_root.visible:
 			(_endless_button if _endless_button.visible else _restart_button).grab_focus())
+
+
+func _end_action(callback: Callable) -> void:
+	# Scene reload detaches Main immediately; repeated activation in that same
+	# frame must not call its now-detached callbacks a second time.
+	if _end_action_started: return
+	_end_action_started = true
+	_restart_button.disabled = true
+	_endless_button.disabled = true
+	callback.call()
 
 
 func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
@@ -1011,7 +1055,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 
 ## A dimmed full-screen overlay with `content` centered on it (in a panel if
 ## `framed`). Returns the (initially hidden) overlay; show()/hide() it.
-func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
+func _make_overlay(parent: Control, content: Control, framed: bool, footer: Control = null) -> Control:
 	var overlay := ColorRect.new()
 	overlay.color = Color(0.0, 0.0, 0.02, 0.68)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1038,12 +1082,16 @@ func _make_overlay(parent: Control, content: Control, framed: bool) -> Control:
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 36)
 	panel.add_child(margin)
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 12)
+	margin.add_child(layout)
 	var scroll := ScrollContainer.new()
 	scroll.name = "RecapScroll"
-	scroll.custom_minimum_size = Vector2(880, minf(600.0, get_viewport().get_visible_rect().size.y - 90.0))
+	scroll.custom_minimum_size = Vector2(880, minf(520.0, get_viewport().get_visible_rect().size.y - 160.0))
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true
-	margin.add_child(scroll)
+	layout.add_child(scroll)
+	if footer != null: layout.add_child(footer)
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(content)
 	return overlay

@@ -172,6 +172,15 @@ Meteors 20%..."), with a small chart of health and pressure through the
 night. Every source of damage passes its cause to `Player.take_damage`
 (contact by enemy name, shots by who fired them, slams, hazards, mid-boss
 moves, blasts, burning); `scripts/death_recap.gd` has the summary and chart.
+The post-mortem also keeps a bounded recent-damage trail (up to ten combat
+seconds, grouped in half-second buckets), using actual HP lost after armor
+and overkill. One factual takeaway names the largest recorded recent source.
+The cause appears above outgoing weapon statistics; restart/realm actions stay
+visible beneath the scrolling details. Press Up from the actions to read/scroll
+with arrows or D-pad, and Enter/Escape to return to the actions. Campaign death
+reports retain the same recent history through the return to town and reopening
+its pending result. Older saves without this optional history still load.
+See [post-mortem validation](docs/visuals/POSTMORTEM.md).
 
 **Death.** When the hero falls, time slows, the army bursts apart minion by
 minion, the hero's souls scatter up into the dark and the hero crumples; the
