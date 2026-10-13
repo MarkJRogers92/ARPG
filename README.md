@@ -234,9 +234,16 @@ get arrows too). See `scripts/event_director.gd`:
   the time left. Authored campaign recovery remains its single Warding shrine.
 - **Treasure goblin.** A thief that runs from you for 22 s. Catch it for 3
   items, a shower of XP gems, 3 Soul Shards and a health orb.
-- **Cursed chest.** Opening it summons a ring of elite guardians (more in
-  later realms). Kill them all to break the curse for a Legendary and 5 Soul
-  Shards.
+- **Cursed chest.** In Classic, approach and press Interact to inspect without
+  starting combat. **Hunt** keeps the original guardian fight (5, 6 or 7 by
+  realm) for an Army Legendary and 5 Soul Shards. **Sealbound** adds two
+  champions: charge the visible 5 m circle for 12 seconds within 35 seconds
+  for another 5 shards. Outside the circle, charge drains at half speed.
+  Timeout loses only the bonus; killing all guardians still grants the base
+  reward. Leaving the offer costs nothing. At most one choice chest is active.
+  Authored chests retain their existing route. Unfinished chests/rituals and
+  uncollected ground loot remain transient on Save & Quit. See
+  [Sealbound verification](docs/visuals/SEALBOUND_CHESTS.md).
 - **Health orbs.** Half of all elites drop one (other enemies very rarely).
   Walk over it to heal a quarter of your health.
 

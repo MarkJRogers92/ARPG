@@ -616,6 +616,7 @@ func _process(delta: float) -> void:
 	_landmarks.shards = 0
 	_ferryman.shards = 0
 	var hint := "" if _campaign else _ferryman.bet_text
+	if hint == "" and not _campaign: hint = _events.chest_hint
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
@@ -734,6 +735,8 @@ func _process(delta: float) -> void:
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()
+	if not _campaign and not _game_over and (not won or _endless):
+		_events.offer_chest(_landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 
 func _on_mission_phase(phase: Dictionary) -> void:
 	if _game_over or won and not _endless: return

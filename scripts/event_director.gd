@@ -59,6 +59,14 @@ var _orbs: Array[Dictionary] = []
 var _goblin_left := 0.0
 ## Run shards earned from events, picked up by main.gd.
 var shards := 0
+const SEAL_RADIUS := 5.0
+const SEAL_CHARGE := 12.0
+const SEAL_WINDOW := 35.0
+const SEAL_BONUS := 5
+const SEAL_COLOR := Color(0.35, 0.95, 0.8)
+var _chest_panel: WagerPanel
+var _chest_offer: Dictionary = {}
+var chest_hint := ""
 var _opportunity_started := false
 var _opportunity_roll := {}
 var _opportunity_attempt := ""
@@ -136,6 +144,8 @@ func _start_random() -> void:
 	var kinds := ["shrine", "shrine", "goblin", "chest"]
 	if _goblins.alive_count() > 0:
 		kinds.erase("goblin")
+	if _events.any(func(e: Dictionary) -> bool: return e["kind"] == "chest" and e.get("choice", false)):
+		kinds.erase("chest")
 	var kind: String = kinds.pick_random()
 	# Somewhere off screen, clear of solid scenery so it can be reached.
 	var at := _clear_spot(15.0, 19.0, shrine_radius + 0.5)
@@ -153,7 +163,7 @@ func _start_random() -> void:
 			announced.emit("A treasure goblin! Catch it before it escapes!", Color(1.0, 0.85, 0.3))
 			Sound.play("goblin")
 		"chest":
-			_start_chest(at)
+			_start_chest(at, true)
 
 
 ## A random point `min_r`..`max_r` from the hero with `clearance` around it
@@ -257,6 +267,12 @@ func _refresh_discovery_prompt(hero: Vector2) -> void:
 	discovery_prompt = ""
 	var nearest := INF
 	for e: Dictionary in _events:
+		if e["kind"] == "chest" and e.get("choice", false) and not e["opened"]:
+			var distance: float = hero.distance_to(e["at"])
+			if distance <= 6.0 and distance < nearest:
+				nearest = distance
+				discovery_prompt = "%s · Legendary +5 shards; optional Sealbound bonus" % (Controls.tag("interact") + " Inspect chest" if distance <= 3.0 else "Approach cursed chest")
+				discovery_color = e["color"]
 		if e["kind"] != "crossroads" or bool(e["claimed"]): continue
 		for choice: Dictionary in e["choices"]:
 			var distance: float = hero.distance_to(choice["at"])
@@ -270,7 +286,7 @@ func _refresh_discovery_prompt(hero: Vector2) -> void:
 			discovery_color = choice["color"]
 
 
-func _start_chest(at: Vector2) -> void:
+func _start_chest(at: Vector2, offer_choice := false) -> void:
 	var root := Node3D.new()
 	root.position = Vector3(at.x, 0.0, at.y)
 	add_child(root)
@@ -281,11 +297,13 @@ func _start_chest(at: Vector2) -> void:
 	root.add_child(model)
 	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.75, 0.3, 1.0, 0.5), 0.6, 3.0)
 	_events.append({"kind": "chest", "at": at, "node": root, "opened": false, "guards": [],
-			"color": Color(0.75, 0.3, 1.0), "label": "ARMY CHEST", "theme": "army", "age": 0.0})
-	announced.emit("Army chest · guardians guard a Legendary. " + RewardPools.selection_text("army"), Color(0.8, 0.45, 1.0))
+			"color": Color(0.75, 0.3, 1.0), "label": "ARMY CHEST", "theme": "army", "age": 0.0, "choice": offer_choice, "paid": false})
+	announced.emit(("CURSED CHEST · inspect to choose a hunt or Sealbound ritual. " if offer_choice else "Army chest · guardians guard a Legendary. ") + RewardPools.selection_text("army"), Color(0.8, 0.45, 1.0))
 
 
 func _update_events(delta: float) -> void:
+	if _player.dead: return
+	chest_hint = ""
 	var hero := _player.pos2
 	var i := _events.size() - 1
 	while i >= 0:
@@ -298,7 +316,7 @@ func _update_events(delta: float) -> void:
 			"crossroads":
 				done = _update_crossroads(e, hero, delta)
 			"chest":
-				done = _update_chest(e, hero)
+				done = _update_choice_chest(e, hero, delta) if e.get("choice", false) else _update_chest(e, hero)
 		# Unused events fade away after a while.
 		if not done and e["age"] > 90.0 and not e.get("opened", false):
 			done = true
@@ -338,6 +356,8 @@ func _update_shrine(e: Dictionary, hero: Vector2, delta: float) -> bool:
 
 
 func _update_chest(e: Dictionary, hero: Vector2) -> bool:
+	if e.get("paid", false): return true
+	if _player.dead: return false
 	if not e["opened"]:
 		e["retry"] = maxf(e.get("retry", 0.0) - get_process_delta_time(), 0.0)
 		if hero.distance_to(e["at"]) <= 1.8 and e["retry"] <= 0.0:
@@ -368,6 +388,7 @@ func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 		for k in swarm.count:
 			if swarm.ids[k] == g[1] and swarm.hp[k] > 0.0:
 				return false
+	e["paid"] = true # Commit before callbacks; stale/reentrant updates cannot pay twice.
 	var item := ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level),
 			ItemData.Rarity.LEGENDARY, ItemData.SLOTS.pick_random(), null, str(e.get("theme", "")))
 	_loot.drop(item, e["at"])
@@ -378,6 +399,118 @@ func _update_chest(e: Dictionary, hero: Vector2) -> bool:
 	announced.emit("The curse breaks!  +5 Soul Shards", Color(0.8, 0.45, 1.0))
 	reward_revealed.emit("THE CURSE BREAKS", item.name + " · Legendary dropped; collect it to claim. +5 Soul Shards", item.color())
 	return true
+
+
+## Called by Main after other interactions and the full damage/death frame.
+## No proximity opening: the player must inspect, then explicitly choose.
+func offer_chest(allow_interaction := true) -> bool:
+	if not allow_interaction or _player.dead or get_tree().paused: return false
+	if not Input.is_action_just_pressed("interact"): return false
+	for e: Dictionary in _events:
+		if e["kind"] != "chest" or not e.get("choice", false) or e["opened"] or _player.pos2.distance_to(e["at"]) > 3.0: continue
+		if _chest_panel == null:
+			_chest_panel = WagerPanel.new()
+			_chest_panel.heading = "THE CURSED CHEST"
+			_chest_panel.flavor_text = "Choose your risk. Leaving costs nothing."
+			add_child(_chest_panel)
+			_chest_panel.chosen.connect(_choose_chest)
+		_chest_offer = e
+		var n := 5 + Realm.index(Realm.current)
+		_chest_panel.show_state({"prize":"Army Legendary + 5 Soul Shards", "prize_color":Color(0.8,0.45,1.0),
+			"detail":"HUNT: slay %d champions anywhere for the original reward.\nSEALBOUND: slay %d champions (+2). Also charge the 5 m circle for 12 s within 35 s to earn +5 bonus shards." % [n,n+2],
+			"odds":"Outside: charge drains at half speed. Combat continues during the ritual.\nTimeout loses only the bonus; the base reward still drops when all champions fall.",
+			"result":"Save & Quit ends unfinished rituals.",
+			"actions":[["hunt","Hunt (%d)" % n,true],["seal","Sealbound (%d)" % (n+2),not Obstacles.blocked(e["at"],SEAL_RADIUS+0.5)],["leave","Leave",true]]})
+		get_tree().paused = true
+		return true
+	return false
+
+
+func _choose_chest(action: String) -> void:
+	if _chest_offer.is_empty() or _chest_panel == null or not _chest_panel.is_open(): return
+	var e := _chest_offer
+	_chest_offer = {} # clear before any external callback or repeat click
+	_chest_panel.close()
+	get_tree().paused = false
+	if action not in ["hunt","seal"] or _player.dead or not _events.has(e) or e["opened"]: return
+	if action == "seal" and Obstacles.blocked(e["at"],SEAL_RADIUS+0.5): return
+	var n := 5 + Realm.index(Realm.current) + (2 if action == "seal" else 0)
+	# Reserve a complete plan first: no partial encounter or free reward at capacity.
+	var types := _swarms.filter(func(s: EnemySwarm) -> bool: return not s.boss and not s.flee and s.spawn_share > 0.0)
+	var plan: Array = []
+	var reserved := {}
+	for k in n:
+		var candidates := types.filter(func(s: EnemySwarm) -> bool: return s.count + int(reserved.get(s,0)) < s.capacity)
+		if candidates.is_empty(): break
+		var swarm: EnemySwarm = candidates.pick_random()
+		var at := Vector2.INF
+		for attempt in 16:
+			var p: Vector2 = e["at"] + Vector2.from_angle(TAU * (float(k)/n + float(attempt)/16.0)) * (7.0 + float(attempt % 3))
+			if not Obstacles.blocked(p,swarm.radius * swarm.elite_scale + 0.5) and plan.all(func(row: Array) -> bool: return p.distance_to(row[1]) > 2.0): at = p; break
+		if at == Vector2.INF: break
+		plan.append([swarm,at]); reserved[swarm] = int(reserved.get(swarm,0)) + 1
+	if plan.size() != n:
+		announced.emit("No room for all champions. The chest stays sealed; try again later.",UiStyle.MUTED)
+		return
+	e["opened"] = true
+	e["seal"] = action == "seal"
+	e["left"] = SEAL_WINDOW
+	e["charge"] = 0.0
+	e["bonus_paid"] = false
+	for spawn_plan: Array in plan:
+		var swarm: EnemySwarm = spawn_plan[0]
+		swarm.spawn(spawn_plan[1],_director.hp_multiplier(),true)
+		e["guards"].append([swarm,swarm.ids[swarm.count-1]])
+	e["label"] = "SEALBOUND" if e["seal"] else "GUARDIANS"
+	if e["seal"]:
+		e["seal_ring"] = HazardDirector.make_decal(e["node"],Vector2.ZERO,Color(SEAL_COLOR,0.85),1.0,SEAL_RADIUS*2.0/0.82) # ground_glow outline is at UV radius 0.82
+		e["seal_fill"] = HazardDirector.make_decal(e["node"],Vector2.ZERO,Color(SEAL_COLOR,0.16),0.0,SEAL_RADIUS*2.0)
+		for key: String in ["seal_ring","seal_fill"]:
+			(e[key].material_override as ShaderMaterial).set_shader_parameter("pulse_speed",0.0)
+		var label := Label3D.new()
+		label.position = Vector3(0,2.0,0); label.font_size = 28; label.pixel_size = 0.012
+		label.outline_size = 8; label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.modulate = SEAL_COLOR; (e["node"] as Node3D).add_child(label); e["seal_label"] = label
+	Sound.play("chest")
+	announced.emit("%d champions awakened. %s" % [n,"Charge the seal for +5 shards; base reward survives timeout." if e["seal"] else "Slay them all for the original chest reward."],e["color"])
+
+
+func _update_choice_chest(e: Dictionary, hero: Vector2, delta: float) -> bool:
+	if _player.dead: return false
+	if not e["opened"]: return false
+	if e.get("finished",false): return true
+	if e["seal"] and e["left"] > 0.0 and e["charge"] < SEAL_CHARGE:
+		var step := minf(maxf(delta,0.0),float(e["left"]))
+		e["charge"] = clampf(e["charge"] + (step if hero.distance_to(e["at"]) <= SEAL_RADIUS else -step*0.5),0.0,SEAL_CHARGE)
+		e["left"] = maxf(float(e["left"]) - step,0.0)
+		if e["left"] <= 0.0 and e["charge"] < SEAL_CHARGE:
+			announced.emit("Seal expired. No bonus; your Legendary +5 shards still await the champions' defeat.",UiStyle.MUTED)
+	var base_ready := _update_chest(e,hero)
+	if not e["seal"]:
+		e["finished"] = base_ready
+		return base_ready
+	var charged: bool = e["charge"] >= SEAL_CHARGE
+	e["label"] = "GUARDIANS + BONUS" if charged else ("GUARDIANS" if e["left"] <= 0.0 else "SEALBOUND")
+	var alive := 0
+	for g: Array in e["guards"]:
+		var swarm: EnemySwarm = g[0]
+		for i in swarm.count:
+			if swarm.ids[i] == g[1] and swarm.hp[i] > 0.0: alive += 1; break
+	var state := "BONUS SECURED" if charged else ("BONUS EXPIRED" if e["left"] <= 0.0 else "SEAL %.1f / 12 s · %d s left" % [float(e["charge"]),ceili(e["left"])])
+	chest_hint = "%s · %d champions · %s" % [state,alive,"base reward dropped" if e["paid"] else "Legendary +5 shards on victory"]
+	(e["seal_label"] as Label3D).text = state + "\n" + ("Return to charge" if not charged and e["left"] > 0 and hero.distance_to(e["at"]) > SEAL_RADIUS else "%d champions remaining" % alive)
+	(e["seal_fill"] as MeshInstance3D).scale = Vector3.ONE * maxf(float(e["charge"])/SEAL_CHARGE,0.02)
+	(e["seal_ring"] as MeshInstance3D).visible = e["left"] > 0 and not charged
+	(e["seal_fill"] as MeshInstance3D).visible = e["left"] > 0 and not charged
+	if base_ready and (charged or e["left"] <= 0.0):
+		e["finished"] = true
+		if charged and not e["bonus_paid"]:
+			e["bonus_paid"] = true
+			shards += SEAL_BONUS
+			announced.emit("Sealbound complete! +5 bonus Soul Shards.",SEAL_COLOR)
+		chest_hint = ""
+		return true
+	return false
 
 
 func _on_goblin_died(at: Vector2, _xp: int) -> void:

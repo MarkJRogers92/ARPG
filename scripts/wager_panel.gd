@@ -6,6 +6,9 @@ extends CanvasLayer
 
 signal chosen(action: String)
 
+var heading := "THE FERRYMAN"
+var flavor_text := "\"Every soul pays the toll. Will you pay it twice, for a richer crossing?\""
+
 var _root: Control
 var _title: Label
 var _prize: Label
@@ -88,12 +91,12 @@ func _build() -> void:
 	box.add_theme_constant_override("separation", 12)
 	margin.add_child(box)
 	_title = UiStyle.label(34)
-	_title.text = "THE FERRYMAN"
+	_title.text = heading
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.add_theme_color_override("font_color", Color(0.75, 0.9, 1.0))
 	box.add_child(_title)
 	var flavor := UiStyle.label(15)
-	flavor.text = "\"Every soul pays the toll. Will you pay it twice, for a richer crossing?\""
+	flavor.text = flavor_text
 	flavor.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	flavor.modulate = Color(1, 1, 1, 0.6)
 	box.add_child(flavor)
