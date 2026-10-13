@@ -969,7 +969,8 @@ the `density` table on the `Decor` node.
   use the original rough score from `ItemData.STAT_INFO`, not a build-fit promise.
 
 The run HUD, Equipment comparison and chest choices share a restrained dark
-interface with concise rules and keyboard focus. See [run UI polish and checks](docs/visuals/RUN_UI_POLISH.md).
+interface with concise rules and keyboard focus. See [run UI polish and checks](docs/visuals/RUN_UI_POLISH.md) and
+[menu continuity / safer exits](docs/visuals/MENU_CONTINUITY.md).
 
 ## Skill tree
 

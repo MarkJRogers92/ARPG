@@ -381,7 +381,7 @@ func _behavior_pause() -> void:
 	_check(_count_nodes(pause, "CheckButton") == 4, "pause keeps shake, numbers, calm and bold toggles")
 	_check(_find_button_containing(pause, "Controls") != null, "pause keeps the Controls rebinding entry")
 	_check(_find_button_containing(pause, "Resume") != null, "pause keeps Resume")
-	_check(_find_button_containing(pause, "Save and quit") != null, "pause keeps Save and quit")
+	_check(_find_button_containing(pause, "Save & quit") != null, "pause keeps Save and quit")
 	_check(_find_button_containing(pause, "Abandon run") != null, "pause keeps the Classic abandon wording")
 	_check(pause.get_viewport().gui_get_focus_owner() == pause._resume, "pause opens focused on Resume")
 	var classic_height := _content_min_height(pause._root)
@@ -399,7 +399,7 @@ func _behavior_pause() -> void:
 	pause.campaign_mode = true
 	pause._show_controls(false)
 	await process_frame
-	_check(str(pause._save_button.text).contains("restart from departure"), "campaign pause explains the run restarts from departure")
+	_check(str(pause._campaign_notice.text).contains("restart from departure"), "campaign pause explains the run restarts from departure")
 	_check(str(pause._quit_button.text).contains("Retreat"), "campaign pause labels quitting as a retreat to town")
 	_check(pause._campaign_notice.visible, "campaign pause shows the retreat notice")
 	var campaign_height := _content_min_height(pause._root)

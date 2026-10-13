@@ -33,6 +33,7 @@ var _toasts: VBoxContainer
 var _vignette: ColorRect
 var _upgrade_root: Control
 var _upgrade_row: HBoxContainer
+var _upgrade_generation := 0
 var _upgrade_ids: Array[String] = []
 var _game_over_root: Control
 var _game_over_label: Label
@@ -103,7 +104,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	Juice.tick()
 	for notice in _toasts.get_children():
-		notice.visible = not get_tree().paused or bool(notice.get_meta("important",false))
+		notice.visible = (not get_tree().paused and not _game_over_root.visible) or bool(notice.get_meta("important",false))
 	if _reward_reveal_shown:
 		_title_card.visible = not get_tree().paused
 		_reward_backdrop.visible = not get_tree().paused
@@ -458,7 +459,9 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
 func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click", banishes := 0) -> void:
-	_upgrade_title.text = heading
+	_upgrade_generation += 1
+	var generation := _upgrade_generation
+	_upgrade_title.text = heading.capitalize()
 	_upgrade_subtitle.text = subheading
 	_reroll_button.visible = rerolls > 0
 	_reroll_button.text = "Reroll  %s   ·   %d left" % [Controls.tag("reroll"), rerolls]
@@ -477,22 +480,22 @@ func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL U
 		_upgrade_row.add_child(card)
 		var banish := Button.new()
 		banish.name = "Banish_" + str(choice["id"])
-		banish.custom_minimum_size = Vector2(260, 34)
-		banish.text = "Banish this card · %d left" % banishes
+		banish.custom_minimum_size = Vector2(280, 34)
+		banish.text = "Banish · %d left" % banishes
 		banish.tooltip_text = "Remove this regular card for this night/mission attempt; no level is spent. Classic suspend keeps exclusions. Evolutions cannot be banished."
 		banish.disabled = not Upgrades.DEFS.has(choice["id"]) or banishes <= 0
-		banish.pressed.connect(func() -> void: banish_requested.emit(str(choice["id"])))
+		banish.pressed.connect(func() -> void:
+			if generation == _upgrade_generation and _upgrade_root.visible and not banish.disabled:
+				banish_requested.emit(str(choice["id"])))
 		_banish_row.add_child(banish)
-		# Deal the cards in one by one.
-		card.modulate.a = 0.0
-		card.scale = Vector2(0.85, 0.85)
-		var tween := card.create_tween().set_parallel()
-		tween.tween_property(card, "modulate:a", 1.0, 0.18).set_delay(0.06 * i)
-		tween.tween_property(card, "scale", Vector2.ONE, 0.25).set_delay(0.06 * i) \
-				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		if i == 0:
-			card.grab_focus.call_deferred()
+			_focus_upgrade.call_deferred(card, generation)
 	_upgrade_root.show()
+
+
+func _focus_upgrade(card: Button, generation: int) -> void:
+	if generation == _upgrade_generation and _upgrade_root.visible and is_instance_valid(card) and card.is_inside_tree():
+		card.grab_focus()
 
 
 ## What the clock at the top says ("DAWN IN 12:34", "SLAY THE LICH KING"...).
@@ -570,6 +573,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _choose(index: int) -> void:
+	if not _upgrade_root.visible or index < 0 or index >= _upgrade_ids.size(): return
+	_upgrade_generation += 1
 	_upgrade_root.hide()
 	Sound.play("card_pick")
 	upgrade_chosen.emit(_upgrade_ids[index])
@@ -883,19 +888,19 @@ func _build() -> void:
 	# Level-up cards.
 	var upgrade_box := VBoxContainer.new()
 	upgrade_box.add_theme_constant_override("separation", 6)
-	var title := UiStyle.label(38)
+	var title := RunUi.label(32)
 	_upgrade_title = title
-	title.text = "LEVEL UP"
+	title.text = "Level up"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
-	title.add_theme_color_override("font_outline_color", Color(0.35, 0.18, 0.0, 0.9))
-	title.add_theme_constant_override("outline_size", 10)
+	title.add_theme_color_override("font_outline_color", RunUi.INK)
+	title.add_theme_constant_override("outline_size", 0)
 	upgrade_box.add_child(title)
-	var subtitle := UiStyle.label(16)
+	var subtitle := RunUi.label(15)
 	_upgrade_subtitle = subtitle
 	subtitle.text = "Choose a power   ·   1 / 2 / 3 or click"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.modulate = Color(1, 1, 1, 0.6)
+	subtitle.add_theme_color_override("font_color", RunUi.MUTED)
 	upgrade_box.add_child(subtitle)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 14
@@ -914,7 +919,7 @@ func _build() -> void:
 	_reroll_button = Button.new()
 	_reroll_button.custom_minimum_size = Vector2(240, 40)
 	_reroll_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_reroll_button.focus_mode = Control.FOCUS_NONE
+	_reroll_button.focus_mode = Control.FOCUS_ALL
 	_reroll_button.pressed.connect(func() -> void:
 		Sound.play("reroll")
 		reroll_requested.emit())
@@ -924,13 +929,13 @@ func _build() -> void:
 	# Game over.
 	var over_box := VBoxContainer.new()
 	over_box.add_theme_constant_override("separation", 12)
-	_end_title = UiStyle.label(56)
+	_end_title = RunUi.label(38)
 	_end_title.text = "YOU DIED"
 	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_end_title.add_theme_color_override("font_color", Color(0.85, 0.12, 0.1))
-	_end_title.add_theme_constant_override("outline_size", 12)
+	_end_title.add_theme_constant_override("outline_size", 0)
 	over_box.add_child(_end_title)
-	_game_over_label = UiStyle.label(22)
+	_game_over_label = RunUi.label(18)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
 	_report = UiStyle.label(16)
@@ -957,16 +962,16 @@ func _build() -> void:
 	_recap_chart.visible = false
 	over_box.add_child(_recap_chart)
 	over_box.add_child(_report)
-	_shards_earned_label = UiStyle.label(20)
+	_shards_earned_label = RunUi.label(18)
 	_shards_earned_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_shards_earned_label.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
+	_shards_earned_label.add_theme_color_override("font_color", RunUi.GOLD)
 	over_box.add_child(_shards_earned_label)
 	_altar = AltarPanel.new()
 	over_box.add_child(_altar)
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", 14)
-	_endless_button = _end_button("Endless  (keep going)", Color(1.0, 0.82, 0.4))
+	_endless_button = _end_button("Continue endless", RunUi.GOLD)
 	_endless_button.pressed.connect(_end_action.bind(endless_pressed.emit))
 	buttons.add_child(_endless_button)
 	_restart_button = _end_button("Rise again")
@@ -1005,8 +1010,8 @@ func _end_action(callback: Callable) -> void:
 func _end_button(text: String, color := Color.TRANSPARENT) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(210, 54)
-	b.add_theme_font_size_override("font_size", 20)
+	b.custom_minimum_size = Vector2(210, 44)
+	b.add_theme_font_size_override("font_size", 16)
 	b.pressed.connect(func() -> void: Sound.play("ui_click"))
 	if color.a > 0.0:
 		b.add_theme_color_override("font_color", color)
@@ -1018,27 +1023,21 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	var tint = choice["color"] if choice.has("color") else CARD_COLORS.get(id, "core")
 	var color: Color = tint if tint is Color else SkillData.BRANCHES[tint]
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(260, 480) if not str(choice.get("affected", "")).is_empty() else Vector2(220, 310)
-	card.pivot_offset = card.custom_minimum_size * 0.5
-	var normal := UiStyle.box(Color(0.075, 0.07, 0.085, 0.97), color.darkened(0.45), 2, 12)
-	normal.shadow_color = Color(0, 0, 0, 0.5)
-	normal.shadow_size = 12
-	var hover := UiStyle.box(Color(0.11, 0.1, 0.11, 0.98), color, 3, 12)
-	hover.shadow_color = Color(color, 0.35)
-	hover.shadow_size = 16
+	card.custom_minimum_size = Vector2(280, 420)
+	var normal := RunUi.panel(16, color.lerp(RunUi.EDGE, 0.65))
+	normal.border_width_top = 3
+	var hover := RunUi.panel(16, RunUi.GOLD)
+	hover.bg_color = RunUi.SURFACE
+	hover.border_width_top = 3
 	for state in ["normal", "disabled"]:
 		card.add_theme_stylebox_override(state, normal)
 	for state in ["hover", "pressed", "hover_pressed", "focus"]:
 		card.add_theme_stylebox_override(state, hover)
-	card.pressed.connect(_choose.bind(index))
+	var generation := _upgrade_generation
+	card.pressed.connect(func() -> void:
+		if generation == _upgrade_generation: _choose(index))
 	for signal_name in ["mouse_entered", "focus_entered"]:
-		card.connect(signal_name, func() -> void:
-			Sound.play("ui_hover")
-			card.create_tween().tween_property(card, "scale", Vector2(1.05, 1.05), 0.12))
-	for signal_name in ["mouse_exited", "focus_exited"]:
-		card.connect(signal_name, func() -> void:
-			if not card.has_focus() or signal_name == "focus_exited":
-				card.create_tween().tween_property(card, "scale", Vector2.ONE, 0.12))
+		card.connect(signal_name, func() -> void: Sound.play("ui_hover"))
 
 	var column := VBoxContainer.new()
 	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1047,45 +1046,48 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	column.add_theme_constant_override("separation", 8)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(column)
+	column.minimum_size_changed.connect(func() -> void:
+		card.custom_minimum_size.y = maxf(420.0, column.get_combined_minimum_size().y + 32.0))
 
 	var top := HBoxContainer.new()
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(top)
-	var key := UiStyle.label(15)
+	var key := RunUi.label(15)
 	key.text = str(index + 1)
 	key.modulate = Color(1, 1, 1, 0.5)
 	top.add_child(key)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(spacer)
-	var tag := UiStyle.label(14)
+	var tag := RunUi.label(14)
 	var level: int = choice.get("level", 0)
 	tag.text = "NEW" if level == 1 else ("" if level == 0 else "RANK %d" % level)
-	tag.add_theme_color_override("font_color", UiStyle.GOLD if level == 1 else Color(color, 0.85))
+	tag.add_theme_color_override("font_color", RunUi.GOLD if level == 1 else RunUi.MUTED)
 	if choice.has("tag"):
 		tag.text = choice["tag"]
-		tag.add_theme_color_override("font_color", UiStyle.GOLD)
-		normal.border_color = UiStyle.GOLD
-		normal.border_width_left = 3
-		normal.border_width_right = 3
+		tag.add_theme_color_override("font_color", RunUi.GOLD)
+		normal.border_color = RunUi.GOLD
+		normal.border_width_left = 1
+		normal.border_width_right = 1
 		normal.border_width_top = 3
-		normal.border_width_bottom = 3
-		normal.shadow_color = Color(UiStyle.GOLD, 0.45)
-		normal.shadow_size = 18
+		normal.border_width_bottom = 1
+		normal.shadow_color = Color.TRANSPARENT
+		normal.shadow_size = 0
 	top.add_child(tag)
 
 	var icon := UiIcons.new()
 	icon.icon = choice.get("icon", id)
 	icon.color = color
-	icon.custom_minimum_size = Vector2(96, 96)
+	icon.custom_minimum_size = Vector2(64, 64)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(icon)
 
-	var name_label := UiStyle.label(21)
+	var name_label := RunUi.label(21)
 	name_label.text = choice.get("name", choice.get("title", id))
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_color_override("font_color", color.lightened(0.25))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", RunUi.TEXT)
 	column.add_child(name_label)
 
 	# Rank pips: filled up to the rank this card gives.
@@ -1113,20 +1115,20 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(rule)
 
-	var desc := UiStyle.label(17)
+	var desc := RunUi.label(16)
 	desc.text = choice["desc"]
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	desc.add_theme_constant_override("outline_size", 2)
 	column.add_child(desc)
 	if not str(choice.get("affected", "")).is_empty():
-		var affected := UiStyle.label(13)
+		var affected := RunUi.label(13)
 		affected.name = "AffectedAbilities"
 		affected.text = str(choice["affected"])
-		affected.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		affected.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		affected.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		affected.add_theme_color_override("font_color", Color(0.7, 0.88, 1.0))
+		affected.add_theme_color_override("font_color", RunUi.SOUL)
 		affected.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		column.add_child(affected)
 	return card
@@ -1136,7 +1138,8 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 ## `framed`). Returns the (initially hidden) overlay; show()/hide() it.
 func _make_overlay(parent: Control, content: Control, framed: bool, footer: Control = null) -> Control:
 	var overlay := ColorRect.new()
-	overlay.color = Color(0.0, 0.0, 0.02, 0.68)
+	overlay.color = Color(0.015, 0.02, 0.025, 0.9)
+	overlay.theme = RunUi.theme()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.hide()
 	parent.add_child(overlay)
@@ -1155,7 +1158,7 @@ func _make_overlay(parent: Control, content: Control, framed: bool, footer: Cont
 		scroll.add_child(content)
 		return overlay
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiStyle.panel())
+	panel.add_theme_stylebox_override("panel", RunUi.panel(0))
 	center.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
