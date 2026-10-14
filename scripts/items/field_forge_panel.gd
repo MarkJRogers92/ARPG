@@ -15,8 +15,8 @@ func _build() -> void:
 	_comparison.bbcode_enabled = true
 	_comparison.custom_minimum_size.y = 220
 	_comparison.focus_mode = Control.FOCUS_ALL
-	_comparison.add_theme_font_size_override("normal_font_size", 15)
-	_comparison.add_theme_font_size_override("bold_font_size", 15)
+	_comparison.add_theme_font_size_override("normal_font_size", 17)
+	_comparison.add_theme_font_size_override("bold_font_size", 17)
 	var box := _odds.get_parent()
 	_scroll = box.get_parent() as ScrollContainer
 	box.add_child(_comparison)

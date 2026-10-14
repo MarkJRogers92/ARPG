@@ -243,11 +243,11 @@ func _show_details() -> void:
 	_selection_meta.text = ("On ground · " if _selected_drop != null else "") + "%s · %s" % [ItemData.RARITIES[item.rarity]["name"],ItemData.SLOT_NAMES[item.slot]]
 	_selection_meta.add_theme_color_override("font_color",RunUi.GOLD if item.rarity >= ItemData.Rarity.RARE else RunUi.MUTED)
 	var after := _inventory.preview_swap(item.slot, null if _selected_worn else item)
-	_impact.text = "[font_size=12][color=#b5b4ab]%s[/color][/font_size]\n" % ("PREVIEW: UNEQUIP" if _selected_worn else "PREVIEW: EQUIP")
+	_impact.text = "[font_size=14][color=#b5b4ab]%s[/color][/font_size]\n" % ("PREVIEW: UNEQUIP" if _selected_worn else "PREVIEW: EQUIP")
 	if _selected_worn and _inventory.is_full():
 		_impact.text += "[color=#ffb46b]Backpack full. Free one space to unequip.[/color]\n\n"
 	if _selected_drop != null:
-		_impact.text = "[font_size=12][color=#b5b4ab]IF EQUIPPED AFTER COLLECTION[/color][/font_size]\n"
+		_impact.text = "[font_size=14][color=#b5b4ab]IF EQUIPPED AFTER COLLECTION[/color][/font_size]\n"
 		if _inventory.equipped.has(item.slot) and _inventory.is_full():
 			_impact.text += "[color=#e0a18f]Backpack full. " + ("Manage carried gear in town." if _campaign_combat else "Free one space in Backpack, then collect here.") + "[/color]\n"
 		else: _impact.text += "Collecting " + ("equips this empty slot." if not _inventory.equipped.has(item.slot) else "stores it in your backpack; your worn item stays equipped.") + "\n"
@@ -444,14 +444,14 @@ func _build() -> void:
 	_impact = _make_text(Vector2(390, 318))
 	_impact.name = "Build impact"
 	_impact.focus_mode = Control.FOCUS_ALL
-	_impact.add_theme_font_size_override("normal_font_size", 15)
-	_impact.add_theme_font_size_override("bold_font_size", 15)
+	_impact.add_theme_font_size_override("normal_font_size", 17)
+	_impact.add_theme_font_size_override("bold_font_size", 17)
 	_detail_tabs.add_child(_impact)
 	_details = _make_text(Vector2(390, 318))
 	_details.name = "Item rolls"
 	_details.focus_mode = Control.FOCUS_ALL
-	_details.add_theme_font_size_override("normal_font_size", 15)
-	_details.add_theme_font_size_override("bold_font_size", 15)
+	_details.add_theme_font_size_override("normal_font_size", 17)
+	_details.add_theme_font_size_override("bold_font_size", 17)
 	_detail_tabs.add_child(_details)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
@@ -502,7 +502,7 @@ func _card(parent: Control, min_width: float) -> VBoxContainer:
 func _make_list(min_size: Vector2) -> ItemList:
 	var list := ItemList.new()
 	list.custom_minimum_size = min_size
-	list.add_theme_font_size_override("font_size", 15)
+	list.add_theme_font_size_override("font_size", 17)
 	list.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	list.allow_reselect = true
 	list.fixed_icon_size = Vector2i(32, 32)
@@ -517,8 +517,8 @@ func _make_text(min_size: Vector2) -> RichTextLabel:
 	text.add_theme_constant_override("line_separation",4)
 	text.add_theme_constant_override("table_h_separation",12)
 	text.add_theme_constant_override("table_v_separation",6)
-	text.add_theme_font_size_override("normal_font_size", 15)
-	text.add_theme_font_size_override("bold_font_size", 15)
+	text.add_theme_font_size_override("normal_font_size", 17)
+	text.add_theme_font_size_override("bold_font_size", 17)
 	return text
 
 

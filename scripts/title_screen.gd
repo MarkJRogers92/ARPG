@@ -22,6 +22,7 @@ var _resume_night: Button
 var _campaign_new: Button
 var _first_realm: Button
 var _class_desc: Label
+var _class_heading: Label
 var _pact_overlay: Control
 var _pact_box: VBoxContainer
 var _pact_button: Button
@@ -88,29 +89,40 @@ func _build() -> void:
 	_root.theme = CampaignMenuStyle.make_theme(UiStyle.theme())
 	add_child(_root)
 	var shade := ColorRect.new()
-	shade.color = Color(0.0, 0.0, 0.02, 0.45)
+	shade.color = Color(0.015, 0.019, 0.025, 0.66)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(shade)
 
+	var content_margin := MarginContainer.new()
+	content_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content_margin.add_theme_constant_override("margin_left", 36)
+	content_margin.add_theme_constant_override("margin_right", 36)
+	content_margin.add_theme_constant_override("margin_top", 4)
+	content_margin.add_theme_constant_override("margin_bottom", 4)
+	_root.add_child(content_margin)
 	var column := VBoxContainer.new()
-	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_theme_constant_override("separation", 6)
-	_root.add_child(column)
+	content_margin.add_child(column)
 
-	var title := UiStyle.heading(48)
+	var brand := HBoxContainer.new()
+	brand.alignment = BoxContainer.ALIGNMENT_CENTER
+	brand.add_theme_constant_override("separation", 30)
+	column.add_child(brand)
+	var title := UiStyle.heading(64)
 	title.text = GAME_TITLE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	title.add_theme_color_override("font_outline_color", Color(0.025, 0.035, 0.045, 0.9))
 	title.add_theme_constant_override("outline_size", 2)
-	column.add_child(title)
-	var tagline := _menu_label(16)
-	tagline.text = "Survive the night.   Bind the dead.   Greet the dawn."
-	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tagline.modulate = Color(1, 1, 1, 0.75)
-	column.add_child(tagline)
+	brand.add_child(title)
+	var tagline := _menu_label(18)
+	tagline.text = "Survive the night.\nBind the dead. Greet the dawn."
+	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tagline.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tagline.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
+	brand.add_child(tagline)
 	# A suspended night takes the tagline's place.
 	var saved := RunSave.read()
 	if not saved.is_empty():
@@ -125,11 +137,8 @@ func _build() -> void:
 		resume.pressed.connect(func() -> void:
 			Sound.play("ui_click")
 			resume_requested.emit(saved))
-		column.add_child(resume)
+		brand.add_child(resume)
 		_resume_night = resume
-	var gap := Control.new()
-	gap.custom_minimum_size.y = 8
-	column.add_child(gap)
 
 	# Heroes: pick one, or buy one with Soul Shards.
 	var heroes := HBoxContainer.new()
@@ -138,42 +147,70 @@ func _build() -> void:
 	column.add_child(heroes)
 	for id: String in HeroClass.ORDER:
 		heroes.add_child(_class_button(id))
-	# The hero's description, and beside it the Reliquary (relic, starting
-	# weapon and lost lore for the next night).
-	var hero_row := HBoxContainer.new()
-	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	hero_row.add_theme_constant_override("separation", 18)
-	column.add_child(hero_row)
-	_class_desc = _menu_label(15)
-	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_class_desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_class_desc.custom_minimum_size = Vector2(640, 40)
+	# Preparation is one scan row: hero/loadout left, campaign actions right.
+	var preparation := HBoxContainer.new()
+	preparation.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preparation.add_theme_constant_override("separation", 16)
+	column.add_child(preparation)
+	var hero_panel := PanelContainer.new()
+	hero_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.card_box(Color("11191f"), Color("504b40"), 1, 5, 12))
+	preparation.add_child(hero_panel)
+	var hero_stack := VBoxContainer.new()
+	hero_stack.custom_minimum_size.x = 644
+	hero_stack.add_theme_constant_override("separation", 8)
+	hero_panel.add_child(hero_stack)
+	var hero_header := HBoxContainer.new()
+	hero_header.add_theme_constant_override("separation", 12)
+	hero_stack.add_child(hero_header)
+	_class_heading = UiStyle.heading(22)
+	_class_heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	hero_header.add_child(_class_heading)
+	var hero_spacer := Control.new()
+	hero_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero_header.add_child(hero_spacer)
+	var description_scroll := ScrollContainer.new()
+	description_scroll.name = "HeroDescriptionScroll"
+	description_scroll.custom_minimum_size = Vector2(644, 108)
+	description_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	description_scroll.follow_focus = true
+	description_scroll.focus_mode = Control.FOCUS_ALL
+	description_scroll.gui_input.connect(func(event: InputEvent) -> void:
+		if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+			description_scroll.scroll_vertical += 28 if event.is_action_pressed("ui_down") else -28
+			description_scroll.accept_event())
+	hero_stack.add_child(description_scroll)
+	_class_desc = _menu_label(16)
+	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_class_desc.modulate = Color(1, 1, 1, 0.8)
-	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"] + "\n" + HeroClass.SIGNATURES[MetaProgress.hero_class]
-	hero_row.add_child(_class_desc)
+	_class_desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_class_desc.custom_minimum_size.x = 644
+	description_scroll.add_child(_class_desc)
+	_show_class_details(MetaProgress.hero_class)
 	_relic_button = Button.new()
-	_relic_button.custom_minimum_size = Vector2(360, 40)
-	_relic_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_relic_button.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
+	_relic_button.custom_minimum_size = Vector2(360, 42)
+	_relic_button.clip_text = true
+	_relic_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_relic_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_relic_button.add_theme_color_override("font_color", Color(0.89, 0.81, 1.0))
 	_relic_button.tooltip_text = "Relics, a starting weapon and lost lore, bought with Soul Shards and Bestiary stars."
 	_relic_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_reliquary()
 		_relic_overlay.show())
-	hero_row.add_child(_relic_button)
+	hero_header.add_child(_relic_button)
 	_refresh_relic_button()
-	var gap3 := Control.new()
-	gap3.custom_minimum_size.y = 2
-	column.add_child(gap3)
 
 	var campaign_panel := PanelContainer.new()
-	campaign_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("151f28"), Color("4b5558"), 1, 8))
-	campaign_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	column.add_child(campaign_panel)
+	campaign_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.card_box(Color("171a1d"), Color("75654b"), 1, 5, 12))
+	preparation.add_child(campaign_panel)
 	var campaign_stack := VBoxContainer.new()
-	campaign_stack.add_theme_constant_override("separation", 5)
+	campaign_stack.custom_minimum_size.x = 420
+	campaign_stack.add_theme_constant_override("separation", 6)
 	campaign_panel.add_child(campaign_stack)
+	var campaign_heading := UiStyle.heading(22)
+	campaign_heading.text = "The campaign"
+	campaign_heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	campaign_stack.add_child(campaign_heading)
 	var campaigns := HBoxContainer.new()
 	campaigns.alignment = BoxContainer.ALIGNMENT_CENTER
 	campaigns.add_theme_constant_override("separation", 8)
@@ -181,14 +218,14 @@ func _build() -> void:
 	var campaign_new := Button.new()
 	_campaign_new = campaign_new
 	campaign_new.text = "New Campaign"
-	campaign_new.custom_minimum_size = Vector2(230, 46)
+	campaign_new.custom_minimum_size = Vector2(206, 42)
 	campaign_new.add_theme_stylebox_override("normal", CampaignMenuStyle.quiet_box())
 	campaign_new.tooltip_text = "A persistent adventurer across three realms. Short expeditions, town services, and biome bosses."
 	campaign_new.pressed.connect(_new_campaign)
 	campaigns.add_child(campaign_new)
 	_campaign_continue = Button.new()
 	_campaign_continue.text = "Continue Campaign"
-	_campaign_continue.custom_minimum_size = Vector2(300, 46)
+	_campaign_continue.custom_minimum_size = Vector2(206, 42)
 	_campaign_continue.disabled = not CampaignSave.resumable()
 	_campaign_continue.add_theme_stylebox_override("normal", CampaignMenuStyle.primary_box())
 	_campaign_continue.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("715a30"), CampaignMenuStyle.SOUL, 1))
@@ -196,24 +233,30 @@ func _build() -> void:
 	_campaign_continue.tooltip_text = "Town and results are saved. An active expedition restarts from its departure checkpoint."
 	_campaign_continue.pressed.connect(func() -> void: _open_campaign(false))
 	campaigns.add_child(_campaign_continue)
-	_campaign_summary = _menu_label(13)
-	_campaign_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_campaign_summary = _menu_label(14)
+	_campaign_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_campaign_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_campaign_summary.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	campaign_stack.add_child(_campaign_summary)
 	_refresh_campaign_state()
-	var classic_label := _menu_label(15)
+	var classic_row := HBoxContainer.new()
+	classic_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	classic_row.add_theme_constant_override("separation", 16)
+	column.add_child(classic_row)
+	var classic_label := UiStyle.heading(22)
 	classic_label.text = "Classic Night"
 	classic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	classic_label.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
-	column.add_child(classic_label)
-	var classic_hint := _menu_label(12)
+	classic_row.add_child(classic_label)
+	var classic_hint := _menu_label(15)
 	classic_hint.text = "Choose a realm for a single night"
 	classic_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	classic_hint.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
-	column.add_child(classic_hint)
+	classic_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	classic_row.add_child(classic_hint)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 22)
+	row.add_theme_constant_override("separation", 16)
 	column.add_child(row)
 	for id: String in Realm.ORDER:
 		var card := _realm_card(id)
@@ -221,9 +264,6 @@ func _build() -> void:
 		if _first_realm == null and not card.disabled:
 			_first_realm = card
 
-	var gap2 := Control.new()
-	gap2.custom_minimum_size.y = 4
-	column.add_child(gap2)
 	var bottom := HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom.add_theme_constant_override("separation", 10)
@@ -386,6 +426,7 @@ func _refresh_relic_button() -> void:
 	if weapon != "":
 		parts.append("starts with " + weapon)
 	_relic_button.text = "   ·   ".join(parts)
+	_relic_button.tooltip_text = _relic_button.text + "\nRelics, a starting weapon and lost lore, bought with Soul Shards and Bestiary stars."
 
 
 func _refresh_campaign_summary() -> void:
@@ -792,7 +833,7 @@ func _class_button(id: String) -> Button:
 	var picked := MetaProgress.hero_class == id
 	var accent: Color = d["accent"]
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(200, 48)
+	b.custom_minimum_size = Vector2(217, 48)
 	if picked:
 		b.text = "✓ " + d["name"]
 	elif unlocked:
@@ -811,8 +852,15 @@ func _class_button(id: String) -> Button:
 			get_tree().reload_current_scene())
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		b.connect(signal_name, func() -> void:
-			_class_desc.text = d["desc"] + "\n" + HeroClass.SIGNATURES[id] + ("" if unlocked else "   (unlock for %d Soul Shards)" % d["cost"]))
+			_show_class_details(id))
 	return b
+
+
+func _show_class_details(id: String) -> void:
+	var data := HeroClass.data(id)
+	_class_heading.text = data["name"]
+	(_class_desc.get_parent() as ScrollContainer).scroll_vertical = 0
+	_class_desc.text = data["desc"] + "\n" + HeroClass.SIGNATURES[id] + ("" if MetaProgress.class_unlocked(id) else "   (unlock for %d Soul Shards)" % data["cost"])
 
 
 func _realm_card(id: String) -> Button:
@@ -821,7 +869,7 @@ func _realm_card(id: String) -> Button:
 	var unlocked := MetaProgress.is_unlocked(id)
 	var won := MetaProgress.is_won(id)
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(330, 260)
+	card.custom_minimum_size = Vector2(368, 280)
 	card.disabled = not unlocked
 	card.pivot_offset = card.custom_minimum_size * 0.5
 	var normal := UiStyle.box(Color(0.06, 0.06, 0.08, 0.92), accent.darkened(0.5), 2, 12)
@@ -862,7 +910,7 @@ func _realm_card(id: String) -> Button:
 	night.text = "Night %d   ·   %s" % [Realm.index(id) + 1, "◆".repeat(Realm.index(id) + 1) + "◇".repeat(2 - Realm.index(id))]
 	night.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	col.add_child(night)
-	var name_label := UiStyle.heading(25)
+	var name_label := UiStyle.heading(26)
 	name_label.text = d["name"]
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", accent.lightened(0.2) if unlocked else UiStyle.MUTED)
@@ -877,7 +925,7 @@ func _realm_card(id: String) -> Button:
 	rule.custom_minimum_size.y = 1
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(rule)
-	var desc := _menu_label(15)
+	var desc := _menu_label(16)
 	desc.text = d["rule"]
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL

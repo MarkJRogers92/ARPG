@@ -63,6 +63,18 @@
       "sha256": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0",
       "vendored_sha256": "e87c2ed7ff174c637d55fa381939ebb96f43f0415ad94605a37589228f4cbf4f",
       "normalization": "Trailing whitespace removed; license wording and copyright retained."
+    },
+    {
+      "file": "SourceSans3-Medium.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-Medium.otf",
+      "sha256": "02607dc31274d1589a996b8a78e71f256f56d1633a797fe8103dbd8fa9893db6",
+      "downloaded": "2026-10-14"
+    },
+    {
+      "file": "SourceSans3-MediumIt.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-MediumIt.otf",
+      "sha256": "d2655b319171f712079bcab2352c0c54f166d1d4d8c2d0b9ce55278667562254",
+      "downloaded": "2026-10-14"
     }
   ],
   "derivatives": [

@@ -10,7 +10,7 @@ const BRONZE_SOFT := Color("554d42")
 const GOLD := Color("d8b56c")
 const SOUL := Color("88b8c1")
 const TEXT := Color("e1e3df")
-const MUTED := Color("a4adb2")
+const MUTED := Color("c1c8c4")
 const DISABLED := Color("737c81")
 ## Item-comparison deltas. "Good" and "bad" are read through the stat's own
 ## weight sign, so a lower dash cooldown still reads as an improvement.

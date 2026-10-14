@@ -5,7 +5,7 @@ const INK := Color("10161d")
 const SURFACE := Color("192129")
 const EDGE := Color("655c4d")
 const TEXT := Color("e8e3d7")
-const MUTED := Color("b5b4ab")
+const MUTED := Color("c5cac1")
 const GOLD := Color("d5b879")
 const SOUL := Color("99c7c0")
 const GAIN := Color("a5cfaa")
@@ -26,7 +26,7 @@ static func heading(size: int, color: Color=TEXT) -> Label:
 	return l
 static func theme() -> Theme:
 	var t:=preload("res://scripts/campaign/campaign_menu_style.gd").make_theme(UiStyle.theme())
-	t.default_font_size=15
+	t.default_font_size=16
 	t.set_color("font_color","Label",TEXT);t.set_color("default_color","RichTextLabel",TEXT)
 	t.set_color("font_color","ItemList",TEXT)
 	t.set_stylebox("panel","ItemList",panel(8,Color("384047")))
