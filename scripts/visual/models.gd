@@ -916,12 +916,28 @@ const PROPS := ["grass", "rock", "bush", "mushroom", "bones", "tree", "grave", "
 		"warden_bone_barricade", "warden_mausoleum", "warden_iron_gate", "warden_sarcophagus", "warden_soul_brazier",
 		"warden_grave_fence", "warden_ritual_circle", "wastes_frost_shrine", "wastes_glacial_cluster", "wastes_supply_sled",
 		"wastes_rune_cairn", "wastes_dead_pine", "wastes_ice_barricade", "rift_archway", "rift_magma_vent",
-		"rift_crucible_forge", "rift_scorched_waystone", "rift_ashen_tree", "rift_obsidian_barricade"]
+		"rift_crucible_forge", "rift_scorched_waystone", "rift_ashen_tree", "rift_obsidian_barricade",
+		# Variants of the Meshy scenery (RealmProps): a second grave, a second Frozen tree, the Ember rock.
+		"celtic_cross", "frozen_deadtree", "magma_rock",
+		# Blender filler props (RealmProps): per-realm grass and bushes, bone piles, candles and markers.
+		"grass_graveyard_a", "grass_graveyard_b", "grass_graveyard_c", "grass_frozen_a", "grass_frozen_b",
+		"grass_ember_a", "grass_ember_b", "bush_graveyard", "bush_frozen", "bush_ember", "bone_pile_a", "bone_pile_b",
+		"candle_cluster_a", "candle_cluster_b", "grave_markers", "rune_menhir_graveyard", "rune_menhir_frozen",
+		"rune_menhir_ember", "cairn_frozen", "iron_stakes_ember"]
 
 
 static func prop(kind: String) -> ArrayMesh:
 	if AssetProps.has(kind):
 		return AssetProps.mesh(kind)
+	# Textured Meshy scenery replaces the code-built scatter props of the same name.
+	if RealmProps.enabled and RealmProps.has(kind):
+		return RealmProps.mesh(kind)
+	return code_prop(kind)
+
+
+## The original code-built scenery mesh (also the falling ice shard, which wants a
+## single spike rather than the Meshy cluster).
+static func code_prop(kind: String) -> ArrayMesh:
 	return _cached("prop|" + kind, func() -> ArrayMesh:
 		var k := MeshKit.new()
 		var rng := RandomNumberGenerator.new()
