@@ -4,6 +4,10 @@ Current published checkpoint: `2669ff0` on `claude/focused-fermat-m7jhtk` — PR
 
 Earlier entries record their status and evidence at the time, not the current branch or installed build. Their historical test counts (including 23 before the composition suite and 24 afterward) are unchanged.
 
+## 2026-10-14 — New night systems and world visual overhaul (PR #57)
+
+Branch `claude/loving-clarke-tbvmop`. Added Epitaphs, Danse Macabre, real moon phases, Whispered Vows and Hungering gear (each with its own suite), then overhauled the world look: per-realm ground shader, lighting/grade pass (`shaders/grade.gdshader`, `Realm._LOOKS`), 15 Meshy realm props (225 credits) plus 18 Blender filler props in `assets/environment/realm_props/`, and pickup/hero FX. Hero and enemy models untouched. Evidence: 60/60 headless suites and the 420 s smoke bot pass on Linux Godot 4.6; Xvfb screenshots of all realms reviewed. Not measured: GPU frame times on real hardware; no human playtest yet. Ember ambient fill must stay at the `creature_variants_test` floor.
+
 ## Expedition campaign — 2026-10-08
 
 Current status: local Market and departure UI fixes are accepted at `c7ec967` on `fix/campaign-market-departure`, based on published PR #25 (`fb69741`). See the final entry below. Overnight automation remains PAUSED; historical schedule notes describe earlier checkpoints only.
