@@ -275,6 +275,14 @@ which the pause menu's sliders control.
   the start and under the army bar. The eight are Blood Moon, Soul Tide, Glass
   Cannon, Midas Night, Swift Night, Restless Dead, Ferryman's Favor and Quiet
   Night. Each has an upside and a cost.
+- **The real moon** (`scripts/moon_phase.gd`): the lunar phase on your
+  calendar date shapes every Classic night, shown on the title screen (with a
+  lit-moon glyph) and under the omen line. New Moon: a darker night, 25% more
+  elites, +20% Soul Shards. Waxing: +10% XP. Full: +30% soul chance, enemies
+  move 8% faster. Waning: +15% magic find. It stacks with omens, pacts and
+  Ascension; the Daily Night reads the Daily's date (00:00 UTC) so everyone
+  shares its moon; Expedition runs ignore it. Bots play with no moon
+  (`moon=full` on the balance bot opts in). A saved night keeps its moon.
 - **Pact of Night** (title screen, once you've conquered a realm): stack
   opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
   heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to

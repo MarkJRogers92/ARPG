@@ -73,6 +73,7 @@ SUITES=(
   "tools/build_guide_test.gd"
   "tools/build_choices_test.gd"
   "tools/combat_ledger_test.gd"
+  "tools/moon_phase_test.gd"
   "tools/mission_rhythm_test.gd"
   "tools/reward_pools_test.gd"
   "tools/deferred_ui_test.gd"

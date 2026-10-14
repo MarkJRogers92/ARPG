@@ -23,6 +23,8 @@ const DAWN := {"sun": Color(1.0, 0.86, 0.62), "sun_e": 1.7, "amb": Color(0.78, 0
 
 ## 0 through most of the night, rising to 1 as dawn nears.
 var first_light := 0.0
+## The night's light, scaled (the New Moon dims it; see MoonPhase). Dawn is unaffected.
+var light_scale := 1.0
 
 var _boss := 0.0
 var _sun_high: Basis
@@ -59,9 +61,9 @@ func tick(delta: float, game_time: float, boss_alive: bool) -> void:
 	var first := smoothstep(0.0, 1.0, first_light) * 0.55 * (1.0 - dawn_k)
 	var env := environment_node.environment
 	sun.light_color = (a["sun"] as Color).lerp(b["sun"], k).lerp(FIRST["sun"], first).lerp(BOSS["sun"], boss).lerp(DAWN["sun"], dawn_k)
-	sun.light_energy = lerpf(lerpf(a["sun_e"], b["sun_e"], k), DAWN["sun_e"], dawn_k)
+	sun.light_energy = lerpf(lerpf(a["sun_e"], b["sun_e"], k) * light_scale, DAWN["sun_e"], dawn_k)
 	env.ambient_light_color = (a["amb"] as Color).lerp(b["amb"], k).lerp(FIRST["amb"], first).lerp(BOSS["amb"], boss).lerp(DAWN["amb"], dawn_k)
-	env.ambient_light_energy = lerpf(lerpf(a["amb_e"], b["amb_e"], k), DAWN["amb_e"], dawn_k)
+	env.ambient_light_energy = lerpf(lerpf(a["amb_e"], b["amb_e"], k) * light_scale, DAWN["amb_e"], dawn_k)
 	env.fog_light_color = (a["fog"] as Color).lerp(b["fog"], k).lerp(FIRST["fog"], first).lerp(BOSS["fog"], boss).lerp(DAWN["fog"], dawn_k)
 	_tilt_sun(smoothstep(0.0, 1.0, first_light), dawn_k)
 	env.fog_density = lerpf(lerpf(a.get("fog_d", 0.008), b.get("fog_d", 0.008), k), DAWN["fog_d"], dawn_k)
