@@ -28,7 +28,7 @@ func _ready() -> void:
 	plane.size = Vector2(2, 2)
 	mesh = plane
 	_material = ShaderMaterial.new()
-	_material.shader = load("res://shaders/ground_glow.gdshader")
+	_material.shader = load("res://shaders/shock_ring.gdshader")
 	_material.set_shader_parameter("ring", 1.0)
 	_material.set_shader_parameter("pulse_speed", 0.0)
 	material_override = _material

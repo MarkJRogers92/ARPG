@@ -135,6 +135,9 @@ func drop_orb(at: Vector2) -> void:
 	mi.position = Vector3(at.x, 0.8, at.y)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+	# A small rose rune circle on the ground under it (a child, so it goes with the orb).
+	var ring := HazardDirector.make_decal(mi, Vector2.ZERO, Color(1.0, 0.3, 0.35, 0.6), 1.0, 1.7, Models.rune_material(Color(1.0, 0.32, 0.4, 0.6), 8.0))
+	ring.position = Vector3(0.0, -0.72, 0.0)
 	_orbs.append({"at": at, "node": mi, "age": 0.0})
 
 
@@ -190,7 +193,7 @@ func _make_shrine(at: Vector2, name: String) -> Dictionary:
 	var model := MeshInstance3D.new()
 	model.mesh = Models.shrine(color)
 	root.add_child(model)
-	var ring := HazardDirector.make_decal(root, Vector2.ZERO, Color(color, 0.7), 1.0, shrine_radius * 2.0)
+	var ring := HazardDirector.make_decal(root, Vector2.ZERO, Color(color, 0.7), 1.0, shrine_radius * 2.0, Models.rune_material(Color(color, 0.75), 12.0))
 	var fill := HazardDirector.make_decal(root, Vector2.ZERO, Color(color, 0.3), 0.0, shrine_radius * 2.0)
 	fill.scale = Vector3.ONE * 0.02
 	var light := OmniLight3D.new()

@@ -128,7 +128,7 @@ static func clean(v: Variant) -> Dictionary:
 func setup(player: Player, army: Army) -> void:
 	_player = player
 	_army = army
-	_ring = HazardDirector.make_decal(self, Vector2.ZERO, Color(COLOR, 0.5), 0.85, 1.0)
+	_ring = HazardDirector.make_decal(self, Vector2.ZERO, Color(COLOR, 0.5), 0.85, 1.0, Models.rune_material(Color(COLOR, 0.55)))
 	_ring.visible = false
 
 

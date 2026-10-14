@@ -24,6 +24,16 @@ static func material(shader: String, params := {}, key := "") -> ShaderMaterial:
 	return _materials[id]
 
 
+## A painted rune circle for a friendly ground ring (shrines, markets, graves). Each call
+## makes its own material, since these rings get tinted and scaled individually.
+static func rune_material(color: Color, glyphs := 10.0) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/rune_ring.gdshader")
+	m.set_shader_parameter("color", color)
+	m.set_shader_parameter("glyphs", glyphs)
+	return m
+
+
 static func kit_material() -> ShaderMaterial:
 	return material("kit")
 
@@ -869,13 +879,22 @@ static func aegis_bubble() -> ArrayMesh:
 		return k.commit(material("glow")))
 
 
-## An XP crystal (a double pyramid), centered on its middle.
+## An XP "soul-glass" shard: a tall faceted hexagonal bipyramid, centered on its waist.
 static func gem() -> ArrayMesh:
 	return _cached("gem", func() -> ArrayMesh:
 		var k := MeshKit.new()
-		k.cylinder(0.0, 0.13, 0.24, MeshKit.at(Vector3(0, 0.12, 0)), Color.WHITE, 0.3, 5, true)
-		k.cylinder(0.13, 0.0, 0.16, MeshKit.at(Vector3(0, -0.08, 0)), Color(0.85, 0.85, 0.85), 0.0, 5, true)
+		k.cylinder(0.0, 0.11, 0.22, MeshKit.at(Vector3(0, 0.11, 0)), Color.WHITE, 0.0, 6, true)
+		k.cylinder(0.11, 0.0, 0.15, MeshKit.at(Vector3(0, -0.075, 0)), Color.WHITE, 0.0, 6, true)
 		return k.commit(material("gem")))
+
+
+## A soul: a wispy teardrop flame (bulb at the bottom, tip at y = 0.55), unlike the shards.
+static func soul() -> ArrayMesh:
+	return _cached("soul", func() -> ArrayMesh:
+		var k := MeshKit.new()
+		k.sphere(0.1, MeshKit.at(Vector3(0, 0.1, 0)), Color.WHITE, 0.0, 8, 5, false)
+		k.cylinder(0.0, 0.098, 0.45, MeshKit.at(Vector3(0, 0.325, 0)), Color.WHITE, 0.0, 8, false)
+		return k.commit(material("soul")))
 
 
 # --- props ------------------------------------------------------------------------

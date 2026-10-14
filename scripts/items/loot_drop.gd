@@ -37,10 +37,13 @@ func _ready() -> void:
 
 	var glow := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2.ONE * (1.4 + 0.35 * item.rarity)
+	plane.size = Vector2.ONE * (1.7 + 0.4 * item.rarity)
 	glow.mesh = plane
-	glow.material_override = Models.material("ground_glow", {
-		"color": Color(color, 0.35 + 0.12 * item.rarity), "ring": 0.6,
+	# A painted rune circle (legendary adds a crown of gold rays and embers).
+	var legendary: bool = item.rarity >= ItemData.Rarity.LEGENDARY
+	glow.material_override = Models.material("rune_ring", {
+		"color": Color(color, 0.4 + 0.12 * item.rarity), "flourish": 1.0 if legendary else 0.0,
+		"pulse_speed": 2.0 + 0.5 * item.rarity,
 	}, "loot%d" % item.rarity)
 	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	glow.position.y = 0.04
@@ -53,13 +56,14 @@ func _ready() -> void:
 		cylinder.top_radius = 0.25 + 0.05 * item.rarity
 		cylinder.bottom_radius = 0.18 + 0.04 * item.rarity
 		cylinder.height = height
-		cylinder.radial_segments = 12
+		cylinder.radial_segments = 16
 		cylinder.rings = 1
 		cylinder.cap_top = false
 		cylinder.cap_bottom = false
 		beam.mesh = cylinder
 		beam.material_override = Models.material("beam", {
 			"color": Color(color, 0.45 + 0.1 * item.rarity), "height": height,
+			"flourish": 1.0 if legendary else 0.0,
 		}, "beam%d" % item.rarity)
 		beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		beam.position.y = height * 0.5
