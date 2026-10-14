@@ -74,6 +74,7 @@ SUITES=(
   "tools/build_choices_test.gd"
   "tools/combat_ledger_test.gd"
   "tools/moon_phase_test.gd"
+  "tools/danse_macabre_test.gd"
   "tools/mission_rhythm_test.gd"
   "tools/vows_test.gd"
   "tools/epitaphs_test.gd"

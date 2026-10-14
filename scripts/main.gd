@@ -594,6 +594,7 @@ func _process(delta: float) -> void:
 	_player.combat_time = elapsed
 	var available := CombatLedger.available(_player.stats, _army.count, _player.challenge_id, _swarms)
 	if _player.warding_charge_left > 0.0: available.append("Warding Dash")
+	if _army.dance.active: available.append(DanseMacabre.SOURCE)
 	Elements.metrics.tick(delta, available)
 
 	_player.tick(delta)
@@ -756,6 +757,7 @@ func _process(delta: float) -> void:
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
+	_hud.refresh_requiem(_army.dance, _army.count)
 	if _campaign:
 		_hud.set_expedition(_expedition.objective_text(), _expedition.clock_text(_director.elapsed))
 		var guidance := ""
@@ -811,6 +813,7 @@ func _market_frame(delta: float) -> void:
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
 	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
+	_hud.refresh_requiem(_army.dance, _army.count)
 
 
 ## Pacts and this night's Omen (and the Daily Night's fixed seed).
@@ -961,7 +964,7 @@ func capture() -> Dictionary:
 		"hp_frac": stats.hp / stats.max_hp, "pending_levels": _player.pending_levels,
 		"upgrades": stats.upgrade_levels.duplicate(), "mods": RunSave.lasting_mods(stats),
 		"gear": gear, "backpack": bag, "skills": _player.skills.to_dict(),
-		"army": _army.snapshot(), "souls": _army.souls,
+		"army": _army.snapshot(), "souls": _army.souls, "requiem": _army.dance.meter,
 		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
 		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"damage_by": Elements.damage_by,
@@ -1006,6 +1009,7 @@ func _restore(d: Dictionary) -> void:
 	stats.hp = stats.max_hp * clampf(d.get("hp_frac", 1.0), 0.05, 1.0)
 	_army.restore(d.get("army", []))
 	_army.souls = d.get("souls", 0)
+	_army.dance.meter = clampi(int(d.get("requiem", 0)), 0, DanseMacabre.MAX) # optional: older saves have none
 	_timeline.assign(d.get("timeline", []))
 	_player.damage_taken_by = d.get("taken", {})
 	_player.last_cause = d.get("last_cause", "")
@@ -1139,6 +1143,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("army_stance"):
 		_army.cycle_stance()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("danse_macabre") and not get_tree().paused \
+			and not _player.dead and not _rift.in_market():
+		# Danse Macabre: the army's ultimate (full Requiem meter, 3+ minions).
+		if _army.start_dance():
+			get_viewport().set_input_as_handled()
 
 
 func _open_screen(screen: Node) -> void:

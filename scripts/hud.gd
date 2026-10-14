@@ -82,6 +82,8 @@ var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
+var _requiem_bar: ProgressBar
+var _requiem_label: Label
 var _expedition_label: Label
 var _campaign_guidance_label: Label
 var _banish_row: HBoxContainer
@@ -481,6 +483,25 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance 
 			("   %s %s" % [stance, Controls.tag("army_stance")]) if stance != "" else ""]
 
 
+## The Requiem meter: souls the full army couldn't use. Full, it pulses and
+## names the key; while the dance runs it counts down.
+func refresh_requiem(dance: DanseMacabre, minions: int) -> void:
+	if _requiem_bar == null:
+		return
+	var ready := dance.can_start(minions)
+	if dance.active:
+		_requiem_bar.value = DanseMacabre.MAX * (1.0 - dance.progress())
+		_requiem_label.text = "DANSE MACABRE  %.1fs" % (DanseMacabre.DURATION - dance.time)
+	else:
+		_requiem_bar.value = dance.meter
+		_requiem_label.text = DanseMacabre.label(dance.meter, Controls.tag("danse_macabre")) \
+				+ ("" if dance.meter < DanseMacabre.MAX or ready else "  (needs %d minions)" % DanseMacabre.MIN_MINIONS)
+	var glow := ready or dance.active
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.008) if glow else 1.0
+	_requiem_bar.modulate = Color(pulse, pulse, pulse * 1.1) if glow else Color.WHITE
+	_requiem_label.add_theme_color_override("font_color", Color(0.85, 0.7, 1.0) if glow else RunUi.MUTED)
+
+
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
 func show_upgrades(choices: Array[Dictionary], rerolls := 0, heading := "LEVEL UP", subheading := "Choose a power   ·   1 / 2 / 3 or click", banishes := 0) -> void:
 	_upgrade_generation += 1
@@ -778,6 +799,22 @@ func _build() -> void:
 	_soul_label = RunUi.world_label(12)
 	_soul_label.add_theme_color_override("font_color", RunUi.MUTED)
 	soul_row.add_child(_soul_label)
+
+	# Requiem meter (Danse Macabre): overflow souls, under the SOULS / ARMY row.
+	var requiem_row := HBoxContainer.new()
+	requiem_row.add_theme_constant_override("separation", 8)
+	requiem_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_column.add_child(requiem_row)
+	hp_column.move_child(requiem_row, 3)
+	_requiem_bar = UiStyle.bar(Color(0.75, 0.55, 1.0), 6)
+	_requiem_bar.max_value = DanseMacabre.MAX
+	_requiem_bar.custom_minimum_size.x = 110
+	_requiem_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_requiem_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	requiem_row.add_child(_requiem_bar)
+	_requiem_label = RunUi.world_label(12)
+	_requiem_label.add_theme_color_override("font_color", RunUi.MUTED)
+	requiem_row.add_child(_requiem_label)
 
 	# Top center, under the timer: the boss health bar.
 	var boss_column := VBoxContainer.new()

@@ -127,6 +127,8 @@ var campaign_rank_cap := -1
 var _tag: Array = []
 
 var stance := "hunt"
+## The Danse Macabre ultimate and its Requiem meter (see DanseMacabre).
+var dance := DanseMacabre.new()
 
 var _player: Player
 var _swarms: Array[EnemySwarm] = []
@@ -233,10 +235,14 @@ static func soul_value(type: int, elite: bool, boss: bool) -> int:
 func collect_soul(value: int) -> void:
 	var type := (value % 100) - 1
 	if value >= 200:
-		_raise(type, true, true)
+		if not _raise(type, true, true):
+			dance.add_overflow() # Requiem: a soul with no place to go
 	elif value >= 100:
-		_raise(type, true, false)
+		if not _raise(type, true, false):
+			dance.add_overflow()
 	else:
+		if count >= _player.stats.minion_max:
+			dance.add_overflow()
 		souls += 1
 		_votes[type] = _votes.get(type, 0) + 1
 		_try_raise()
@@ -559,11 +565,22 @@ func step(delta: float) -> void:
 		_update_away(delta)
 	var hero := _player.pos2
 	var stats := _player.stats
+	var dancing := dance.active
+	if dancing:
+		dance.advance(delta)
+		dancing = dance.active
+		if not dancing:
+			Juice.ring(hero, Color(0.55, 0.85, 1.0), 36, 9.0, 0.5, 0.6)
 	var k := count - 1
 	while k >= 0:
 		var t: Dictionary = _types[_type[k]]
 		var p := _pos[k]
 		var before_move := p
+		if dancing:
+			# Danse Macabre: out of the AI and into the ring; invulnerable.
+			_dance_move(k, delta, hero)
+			k -= 1
+			continue
 		_visual_attack[k] = maxf(_visual_attack[k] - delta / 0.28, 0.0)
 		# Too far behind (the hero ran off): reappear at the hero's side.
 		if p.distance_squared_to(hero) > 30.0 * 30.0:
@@ -643,7 +660,72 @@ func step(delta: float) -> void:
 			if _hp[k] <= 0.0:
 				_remove(k, true)
 		k -= 1
+	if dancing and dance.strike_due():
+		_dance_strike(hero)
 	_draw()
+
+
+## Calls the Danse Macabre if the meter is full and there are enough minions.
+func start_dance() -> bool:
+	if not dance.start(count):
+		return false
+	var hero := _player.pos2
+	for k in count:
+		_target_id[k] = -1
+	Juice.ring(hero, Color(0.55, 0.85, 1.0), 48, 12.0, 0.6, 0.7)
+	Juice.burst(hero, 1.0, Color(0.7, 0.92, 1.0), 30, 6.0, 0.4, 0.8, 5.0)
+	Juice.flash(hero, Color(0.5, 0.85, 1.0), 6.0, 10.0, 0.5)
+	Juice.shake(0.15)
+	Sound.play("funeral_bell", 1.0, -3.0)
+	Sound.play("nova", 0.8, -4.0)
+	return true
+
+
+## Moves dancer `k` toward its place in the ring.
+func _dance_move(k: int, delta: float, hero: Vector2) -> void:
+	var goal := DanseMacabre.slot(k, count, hero, dance.angle, dance.radius())
+	var before := _pos[k]
+	var p := before.lerp(goal, 1.0 - exp(-12.0 * delta))
+	_pos[k] = p
+	_hurt[k] = 0.25
+	var tangent := (goal - hero).orthogonal().normalized()
+	if tangent != Vector2.ZERO:
+		_facing[k] = tangent
+	_visual_motion[k] = 1.0
+	_visual_attack[k] = maxf(_visual_attack[k] - delta / 0.28, 0.0)
+
+
+## Each dancer's damage per tick: its usual hit (veteran rank included) times 1.5.
+func _dance_damage(k: int) -> float:
+	var t: Dictionary = _types[_type[k]]
+	return _player.stats.minion_damage * t["damage"] * (2.0 if _elite[k] == 1 else 1.0) * RANKS[_rank[k]]["power"] * DanseMacabre.DAMAGE_MULT
+
+
+## Everything touching a dancer is hurt (credited to "Danse Macabre") and thrown outward.
+func _dance_strike(hero: Vector2) -> void:
+	var previous := Elements.source
+	Elements.source = DanseMacabre.SOURCE
+	for k in count:
+		var at := _pos[k]
+		var dmg := _dance_damage(k)
+		var kills := 0
+		for swarm in _swarms:
+			var n := swarm.grid.query(at, DanseMacabre.REACH + swarm.radius)
+			var hits := swarm.grid.results.slice(0, n)
+			var deaths_before := EnemySwarm.deaths
+			for i in hits:
+				if swarm.hp[i] <= 0.0:
+					continue
+				var out := swarm.pos[i] - hero
+				if out.length_squared() < 0.0001:
+					out = Vector2.from_angle(randf() * TAU)
+				swarm.pos[i] += out.normalized() * DanseMacabre.KNOCKBACK * swarm.knockback_taken
+				Elements.hit(swarm, i, dmg)
+			kills += EnemySwarm.deaths - deaths_before
+		if kills > 0:
+			credit(k, kills)
+		Juice.burst(at, 0.9, Color(0.55, 0.88, 1.0), 2, 2.5, 0.3, 0.25, 1.5)
+	Elements.source = previous
 
 
 func _target_alive(k: int) -> bool:

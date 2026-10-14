@@ -598,6 +598,12 @@ to the army count):
 | Guard | within 6 m, only up to 5.5 m from you; forms up tight | normal | half damage |
 | Swarm | within 18 m, up to 28 m from you; elites and bosses first | 25% faster | 25% more damage |
 
+## Danse Macabre
+
+Souls gathered while your army is already full no longer go to waste: each one fills the **Requiem** meter under the SOULS / ARMY readout (40 to fill; elite and boss souls that find no room count too). When it is full and at least 3 minions stand, it pulses and shows its key: press **R** (gamepad **Y**; rebindable in Controls) to call the Danse Macabre.
+
+For 8 seconds every minion leaves its AI and circles the hero in an evenly spaced ring, widening from 4.5 m to 7 m and spinning faster, from 1.5 to 4 rad/s. The dancers can't be hurt. Every enemy within 1.4 m of one takes a hit every quarter second (the minion's usual hit, veteran rank included, times 1.5) and is thrown outward; the run report credits it to "Danse Macabre". Then the army goes back to hunting and the meter starts again from empty. It can't be called while paused, in the Night Market or after the hero falls. It works in Expedition missions too, and a suspended night keeps the meter. Code: `scripts/danse_macabre.gd` (state and maths), with small hooks in `Army`.
+
 ## Veterans and the Crypt
 
 Minions count their kills (every enemy death during a minion's swing or slam
