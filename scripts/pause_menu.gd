@@ -22,6 +22,7 @@ var can_save := true:
 			_save_button.tooltip_text = "" if value else "Not while the master of the realm is up."
 
 var _root: Control
+var _heading_label: Label
 var _resume: Button
 var _save_button: Button
 var _quit_button: Button
@@ -60,13 +61,22 @@ func _ready() -> void:
 	_root.hide()
 
 
-func open() -> void:
+func open(from_title := false) -> void:
 	_exit_started = false
+	_heading_label.text = "Settings" if from_title else "Paused"
+	_resume.text = "Back  [Esc]" if from_title else "Resume  [Esc]"
+	_save_button.visible = not from_title
+	_quit_button.visible = not from_title
+	_guide_button.visible = not from_title
+	_campaign_labels()
 	_root.show()
 	_show_controls(false)
 	_page_scroll.custom_minimum_size.y = clampf(get_viewport().get_visible_rect().size.y - 100.0, 260.0, 580.0)
 	_guide_button.disabled = build_stats == null
 	_refresh_build_goal()
+	if from_title:
+		_campaign_notice.hide()
+		_goal_label.hide()
 	_page_scroll.scroll_vertical = 0
 	_focus_resume.call_deferred()
 
@@ -171,6 +181,7 @@ func _build() -> void:
 		_refresh_build_goal())
 
 	var title := UiStyle.heading(30)
+	_heading_label = title
 	title.text = "Paused"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.add_theme_color_override("font_color", RunUi.TEXT)

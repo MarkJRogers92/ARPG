@@ -189,8 +189,8 @@ func _town_gallery() -> void:
 	controller.free()
 	for suffix in ["", ".bak", ".previous", ".rollback", ".tmp"]: DirAccess.remove_absolute(ProjectSettings.globalize_path(CampaignSave.path + suffix))
 	main._title.open()
-	main._title._relic_overlay.show()
 	main._title._fill_reliquary()
+	main._title._open_overlay(main._title._relic_overlay)
 	var reliquary_copy := ""
 	for label: Label in main._title._relic_box.find_children("*", "Label", true, false): reliquary_copy += label.text + "\n"
 	check(reliquary_copy.contains("Requires owned relic (stars or trial clear)") and reliquary_copy.contains(Relics.price_text("blade_compass")), "package and relic copy includes trial receipt as an alternative to stars")

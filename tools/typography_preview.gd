@@ -33,13 +33,14 @@ func _run() -> void:
 		main.set_process(false)
 		var title := main.get_node("TitleScreen") as TitleScreen
 		title.open()
+		await shot("title", physical, [title._home_new, title._campaign_continue, title._home_classic, title._home_settings])
+		title._show_selection("classic")
 		if title.has_method("_show_class_details"):
 			for id: String in HeroClass.ORDER:
 				title._show_class_details(id); await settle()
-				var quit_button := _find_button_containing(title, "Quit")
-				_check(root.get_visible_rect().grow(1).encloses(quit_button.get_global_rect()), "all class details preserve the footer: " + id)
+				_check(root.get_visible_rect().grow(1).encloses(title._selection_back.get_global_rect()), "all class details preserve Back: " + id)
 			title._show_class_details(MetaProgress.hero_class)
-		await shot("title", physical, [title._campaign_new, title._campaign_continue, title._first_realm, _find_button_containing(title, "Quit")])
+		await shot("classic-selection", physical, [title._relic_button, title._first_realm, title._selection_back])
 		title.close(); paused = false; main.queue_free()
 		for i in 5: await process_frame
 		Elements.player = null; Elements.swarms.clear()
