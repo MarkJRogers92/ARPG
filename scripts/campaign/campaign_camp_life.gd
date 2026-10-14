@@ -97,6 +97,7 @@ func _build_workers() -> void:
 	# without drawing attention away from the service approaches.
 	var mara := _worker("Mara", "mara", MARA_AT, Color(0.36, 0.43, 0.36), Color(0.72, 0.58, 0.37), 0.4)
 	_mara_label = Label3D.new()
+	_mara_label.font = UiStyle.EMPHASIS
 	_mara_label.name = "MaraName"
 	_mara_label.text = "MARA"
 	_mara_label.font_size = 46
@@ -107,6 +108,7 @@ func _build_workers() -> void:
 	_mara_label.modulate = Color(0.96, 0.86, 0.66)
 	mara.add_child(_mara_label)
 	_prompt = Label3D.new()
+	_prompt.font = UiStyle.EMPHASIS
 	_prompt.name = "MaraTalkPrompt"
 	_prompt.text = "[%s]  Speak with Mara" % Controls.tag("interact")
 	_prompt.font_size = 42

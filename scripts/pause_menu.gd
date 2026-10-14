@@ -22,6 +22,7 @@ var can_save := true:
 			_save_button.tooltip_text = "" if value else "Not while the master of the realm is up."
 
 var _root: Control
+var _heading_label: Label
 var _resume: Button
 var _save_button: Button
 var _quit_button: Button
@@ -60,13 +61,22 @@ func _ready() -> void:
 	_root.hide()
 
 
-func open() -> void:
+func open(from_title := false) -> void:
 	_exit_started = false
+	_heading_label.text = "Settings" if from_title else "Paused"
+	_resume.text = "Back  [Esc]" if from_title else "Resume  [Esc]"
+	_save_button.visible = not from_title
+	_quit_button.visible = not from_title
+	_guide_button.visible = not from_title
+	_campaign_labels()
 	_root.show()
 	_show_controls(false)
 	_page_scroll.custom_minimum_size.y = clampf(get_viewport().get_visible_rect().size.y - 100.0, 260.0, 580.0)
 	_guide_button.disabled = build_stats == null
 	_refresh_build_goal()
+	if from_title:
+		_campaign_notice.hide()
+		_goal_label.hide()
 	_page_scroll.scroll_vertical = 0
 	_focus_resume.call_deferred()
 
@@ -170,13 +180,14 @@ func _build() -> void:
 		pinned_evolution = id
 		_refresh_build_goal())
 
-	var title := _menu_label(30)
+	var title := UiStyle.heading(30)
+	_heading_label = title
 	title.text = "Paused"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.add_theme_color_override("font_color", RunUi.TEXT)
 	box.add_child(title)
 	var settings_heading := _menu_label(12)
-	settings_heading.text = "SETTINGS"
+	settings_heading.text = "Settings"
 	settings_heading.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	box.add_child(settings_heading)
 
@@ -296,7 +307,7 @@ func _confirm_exit() -> void:
 		box.custom_minimum_size.x = 520
 		box.add_theme_constant_override("separation", 18)
 		panel.add_child(box)
-		_exit_title = RunUi.label(26)
+		_exit_title = RunUi.heading(26)
 		box.add_child(_exit_title)
 		_exit_message = RunUi.label(16, RunUi.MUTED)
 		_exit_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -437,7 +448,7 @@ func _fill_controls() -> void:
 	for child in _controls_box.get_children():
 		_controls_box.remove_child(child)
 		child.queue_free()
-	var title := _menu_label(24)
+	var title := UiStyle.heading(24)
 	title.text = "Controls"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.add_theme_color_override("font_color", RunUi.TEXT)
@@ -464,7 +475,7 @@ func _fill_controls() -> void:
 		group.add_theme_constant_override("separation", 8)
 		groups.add_child(group)
 		var heading := RunUi.label(12, RunUi.MUTED)
-		heading.text = "MOVEMENT" if group == movement else "ACTIONS"
+		heading.text = "Movement" if group == movement else "Actions"
 		group.add_child(heading)
 	for pair: Array in Controls.ACTIONS:
 		var action: String = pair[0]
@@ -527,7 +538,7 @@ func _control_label(action: String) -> String:
 
 
 func _menu_label(font_size: int) -> Label:
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", font_size)
+	var label := UiStyle.label(font_size)
+	label.add_theme_constant_override("outline_size", 0)
 	label.add_theme_color_override("font_color", RunUi.TEXT)
 	return label

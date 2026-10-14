@@ -28,6 +28,7 @@ const MIN_READ_TIME := 0.16
 func _ready() -> void:
 	for i in pool_size:
 		var label := Label3D.new()
+		label.font = UiStyle.EMPHASIS
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.no_depth_test = true
 		label.fixed_size = false

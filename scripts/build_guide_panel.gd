@@ -80,7 +80,7 @@ func _focus_recipe(id: String) -> void:
 func _build() -> void:
 	custom_minimum_size.x = 760
 	add_theme_constant_override("separation", 12)
-	var header := RunUi.label(26)
+	var header := RunUi.heading(26)
 	header.text = "Build guide"
 	add_child(header)
 	var policy := RunUi.label(13, RunUi.MUTED)
@@ -114,7 +114,7 @@ func _build() -> void:
 	_next_step.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail_box.add_child(_next_step)
 	var preview_heading := RunUi.label(12, RunUi.MUTED)
-	preview_heading.text = "ON EVOLUTION"
+	preview_heading.text = "On evolution"
 	detail_box.add_child(preview_heading)
 	_details_scroll = ScrollContainer.new()
 	_details_scroll.name = "EvolutionDetailsScroll"
@@ -128,7 +128,7 @@ func _build() -> void:
 			_details_scroll.scroll_vertical += 48 if event.is_action_pressed("ui_down") else -48
 			_details_scroll.accept_event())
 	detail_box.add_child(_details_scroll)
-	_details = RunUi.label(14)
+	_details = RunUi.label(15)
 	_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_details_scroll.add_child(_details)

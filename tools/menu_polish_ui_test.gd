@@ -268,6 +268,7 @@ func _behavior_locked_realms(height: int) -> void:
 	var main: Node = await _mount_main()
 	var title := main.get_node("TitleScreen") as TitleScreen
 	title.open()
+	title._show_selection("classic")
 	for i in 4:
 		await process_frame
 	_check(_content_min_height(title._root) <= float(height), "locked title fits viewport")
@@ -293,10 +294,14 @@ func _behavior_title(height: int) -> void:
 	await process_frame
 	await process_frame
 	_check(title._campaign_continue.disabled, "no save leaves Continue Campaign disabled")
-	_check(title._default_focus() == title._campaign_new, "no save makes New Campaign the first keyboard focus")
+	_check(title._default_focus() == title._home_new, "no save makes New Campaign the first keyboard focus")
 	_check(title._campaign_summary.text.contains("Three realms"), "no save summarises the campaign premise")
 	_check(_find_button_containing(title, "New Campaign") != null, "New Campaign is present")
 	_check(_find_button_containing(title, "Continue Campaign") != null, "Continue Campaign is present")
+	_check(title._home.visible and not title._selection_page.visible, "opening page does not crowd hero and realm choices")
+	title._show_selection("classic")
+	await process_frame
+	await process_frame
 	var hero_names := 0
 	for id: String in HeroClass.ORDER:
 		if _find_button_containing(title, str(HeroClass.CLASSES[id]["name"])) != null:
@@ -304,7 +309,7 @@ func _behavior_title(height: int) -> void:
 	_check(hero_names == HeroClass.ORDER.size(), "every hero (%d) stays reachable on the title" % hero_names)
 	var realms := 0
 	for i in Realm.ORDER.size():
-		if _find_label_containing(title, "NIGHT %d" % (i + 1)) != null:
+		if _find_label_containing(title, "Night %d" % (i + 1)) != null:
 			realms += 1
 	_check(realms == Realm.ORDER.size(), "every Classic realm (%d) stays reachable on the title" % realms)
 	for entry: String in ["Altar of Souls", "Bestiary", "The Crypt", "Daily Night", "Pact of Night"]:
@@ -362,7 +367,7 @@ func _behavior_title(height: int) -> void:
 	_check(not CampaignSave.resumable(), "an abandoned run is not resumable")
 	_check(title._campaign_continue.disabled, "an abandoned run disables Continue Campaign")
 	_check(title._campaign_summary.text.contains("set aside"), "summary explains the abandoned run instead of implying a live town")
-	_check(title._default_focus() == title._campaign_new, "an abandoned run falls back to New Campaign")
+	_check(title._default_focus() == title._home_new, "an abandoned run falls back to New Campaign")
 	main.free()
 	Realm.in_title = false
 

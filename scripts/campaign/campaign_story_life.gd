@@ -242,6 +242,7 @@ func _build_prop(kind: String) -> void:
 
 func _label(text_value: String) -> Label3D:
 	var label := Label3D.new()
+	label.font = UiStyle.EMPHASIS
 	label.text = text_value
 	label.font_size = 38
 	label.pixel_size = 0.004

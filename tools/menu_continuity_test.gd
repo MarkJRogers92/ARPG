@@ -42,7 +42,7 @@ func _run() -> void:
  main=load("res://scenes/main.tscn").instantiate();root.add_child(main);current_scene=main;await frames()
  check(main._title.is_open(),"real start screen is open")
  await snap("Start")
- main._title._first_realm.grab_focus();await action("ui_accept");main=current_scene
+ main._title._show_selection("classic");await frames();main._title._first_realm.grab_focus();await action("ui_accept");main=current_scene
  check(not main._in_title and not paused and main._hud.visible,"keyboard Classic choice mounts running Main")
  main.set_process(false)
  if not movie:
@@ -51,7 +51,7 @@ func _run() -> void:
   main._pause._exit_accept.grab_focus();await action("ui_accept")
   main=current_scene
   check(main._title.is_open() and not paused,"confirmed Classic abandon returns to the actual title")
-  main._title._first_realm.grab_focus();await action("ui_accept");main=current_scene;main.set_process(false)
+  main._title._show_selection("classic");await frames();main._title._first_realm.grab_focus();await action("ui_accept");main=current_scene;main.set_process(false)
   check(not main._in_title,"a new run starts normally after confirmed abandon")
  var hud: Hud=main._hud;var pause: PauseMenu=main._pause
  if not movie:
@@ -152,7 +152,7 @@ func _run() -> void:
  if realms:realms.grab_focus();await action("ui_accept")
  main=current_scene;check(main._title.is_open() and not paused,"end-run return reloads clean title")
  await snap("Return_Title")
- main._title._campaign_new.grab_focus();await action("ui_accept")
+ main._title._show_selection("campaign");await frames();main._title._campaign_new.grab_focus();await action("ui_accept")
  var shell:=current_scene as CampaignShell
  check(shell!=null and shell.controller.state["phase"]=="TOWN","title New Campaign reaches actual town hub")
  if shell:

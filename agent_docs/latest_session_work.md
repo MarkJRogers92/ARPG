@@ -430,3 +430,7 @@ untracked review file is unchanged. Final evidence: `delivery-verification.json`
 in `/Users/markrogers/Desktop/art/reviews/soulbound-delivery-cache-creatures-20261009/`.
 Only these final documentation-status notes are uncommitted; shipped runtime
 source and tests match the merged/released commit.
+
+## 2026-10-14 — Quiet Fantasy menu and typography, local review
+
+Local branch `codex/quiet-fantasy-menu` starts from typography candidate `51ac16a`, based on shipped PR #55 release `6ea0037`. Mark's selected B concept was materialized from Library and inspected before implementation. Quiet primary navigation, real saved-campaign card, separate hero/loadout/realm preparation, preserved progression facilities, title Settings, and menu-only 3D framing are complete. Final checks: 54/54 full suites, 161 menu flow checks, 36 native menu captures plus 45 typography layouts at 960×540/1280×720/1920×1080, 436 font checks and 420-second smoke passed. Four new Library screenshot items preserve the older contact sheet. See `docs/typography/QUIET_FANTASY.md` for exact IDs, evidence and limits. Native engine 4.7.2; no 4.6 packaged validation. Installed app, real saves, original checkout/import edits, Horse and Post Mortem untouched. No push, merge, deployment or paid API/art usage.
