@@ -960,6 +960,17 @@ warm dusk, cold moonlight around 4:00, a blood moon from about 9:00, turning
 redder while a boss is alive (`visual/atmosphere.gd`). Shake can be turned off
 with `shake_enabled` on `CameraRig`.
 
+## Light and grade
+
+Each realm has its own grade (`Realm._LOOKS`): cool moonlight with teal mist in the
+Graveyard, a blue-violet twilight with a faint aurora wash in the Frozen Wastes,
+and warm basalt-and-magma light in the Ember Rift. Tonemapper, exposure, glow and
+low height fog are set per realm, and a cheap full-screen pass
+(`shaders/grade.gdshader`, `scripts/visual/grade_pass.gd`, drawn below the HUD)
+adds cool-shadow/warm-highlight split-toning, a soft edge falloff in the realm's
+air colour and light film grain. `Atmosphere` drives it: it leans red with a boss
+and opens up warm at dawn, and the New Moon still dims the night.
+
 ## The look
 
 Almost everything you see is built in code: the hero, every enemy and boss,

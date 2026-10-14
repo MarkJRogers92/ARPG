@@ -27,12 +27,46 @@ var first_light := 0.0
 var light_scale := 1.0
 
 var _boss := 0.0
+var _grade: GradePass
+var _grade_base := {}
 var _sun_high: Basis
 var _sun_low: Basis
 var _sun_risen: Basis
 var _sun_ready := false
 var _dawn := 0.0
 var _dawn_target := 0.0
+
+
+func _ready() -> void:
+	# The post grade is a CanvasLayer below the HUD; it can live under this node.
+	_grade = GradePass.new()
+	add_child(_grade)
+	if not _grade_base.is_empty():
+		_grade.apply(_grade_base)
+
+
+## A realm's grade (see Realm._LOOKS): tonemap, exposure, glow, height fog and
+## the post pass's split-toning/edge/grain.
+func set_look(look: Dictionary) -> void:
+	var e: Dictionary = look["env"]
+	if environment_node != null:
+		var env := environment_node.environment
+		env.tonemap_mode = e["tonemap"]
+		env.tonemap_exposure = e["exposure"]
+		env.tonemap_white = e["white"]
+		env.adjustment_enabled = true
+		env.adjustment_contrast = e["contrast"]
+		env.adjustment_saturation = e["saturation"]
+		env.glow_enabled = true
+		env.glow_intensity = e["glow"]
+		env.glow_bloom = e["bloom"]
+		env.glow_hdr_threshold = e["threshold"]
+		env.fog_height = e["fog_height"]
+		env.fog_height_density = e["fog_height_density"]
+		env.fog_sky_affect = 0.0
+	_grade_base = look["grade"]
+	if _grade != null:
+		_grade.apply(_grade_base)
 
 
 ## Fades to sunrise (true) or back to the night (false) over a few seconds.
@@ -65,8 +99,19 @@ func tick(delta: float, game_time: float, boss_alive: bool) -> void:
 	env.ambient_light_color = (a["amb"] as Color).lerp(b["amb"], k).lerp(FIRST["amb"], first).lerp(BOSS["amb"], boss).lerp(DAWN["amb"], dawn_k)
 	env.ambient_light_energy = lerpf(lerpf(a["amb_e"], b["amb_e"], k) * light_scale, DAWN["amb_e"], dawn_k)
 	env.fog_light_color = (a["fog"] as Color).lerp(b["fog"], k).lerp(FIRST["fog"], first).lerp(BOSS["fog"], boss).lerp(DAWN["fog"], dawn_k)
+	_tune_grade(boss, dawn_k)
 	_tilt_sun(smoothstep(0.0, 1.0, first_light), dawn_k)
 	env.fog_density = lerpf(lerpf(a.get("fog_d", 0.008), b.get("fog_d", 0.008), k), DAWN["fog_d"], dawn_k)
+
+
+## The post grade leans red with the boss and goes warm and open at dawn.
+func _tune_grade(boss: float, dawn_k: float) -> void:
+	if _grade == null or _grade_base.is_empty():
+		return
+	var edge: Color = _grade_base["edge_color"]
+	_grade.set_param("edge_color", edge.lerp(Color(0.12, 0.01, 0.01), boss).lerp(Color(0.22, 0.12, 0.08), dawn_k))
+	_grade.set_param("split", float(_grade_base["split"]) * (1.0 - 0.35 * dawn_k))
+	_grade.set_param("edge", float(_grade_base["edge"]) * (1.0 - 0.3 * dawn_k))
 
 
 ## The sun's angle: as set in the scene, low on the horizon for First Light,
