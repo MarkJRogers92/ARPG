@@ -77,6 +77,7 @@ SUITES=(
   "tools/mission_rhythm_test.gd"
   "tools/vows_test.gd"
   "tools/reward_pools_test.gd"
+  "tools/hunger_test.gd"
   "tools/deferred_ui_test.gd"
   "tools/friendly_opacity_test.gd"
   "tools/report_improvements_ui_test.gd"

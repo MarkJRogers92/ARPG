@@ -21,6 +21,10 @@ var implicit: Array[Dictionary] = []
 var affixes: Array[Dictionary] = []
 ## A legendary power id (see ItemData.POWERS), or "" for none.
 var power := ""
+## Hungering (see Hunger): souls needed to awaken, and souls fed so far while
+## worn. 0 need means the item does not hunger (or has already awakened).
+var hunger_need := 0
+var hunger_fed := 0
 
 
 func _init() -> void:
@@ -73,11 +77,33 @@ func description_lines() -> Array[String]:
 	return lines
 
 
+func hungering() -> bool:
+	return hunger_need > 0
+
+
+## "Hungering — 312/800 souls", or "" for an item that does not hunger.
+func hunger_text() -> String:
+	return "Hungering — %d/%d souls" % [hunger_fed, hunger_need] if hunger_need > 0 else ""
+
+
+## A thin text progress bar for the hunger line.
+func hunger_bar(width := 16) -> String:
+	if hunger_need <= 0:
+		return ""
+	var filled := clampi(floori(float(width) * hunger_fed / hunger_need), 0, width)
+	return "■".repeat(filled) + "□".repeat(width - filled)
+
+
 func to_dict() -> Dictionary:
-	return {
+	var d := {
 		"slot": slot, "base_name": base_name, "name": name, "rarity": rarity, "campaign_id": campaign_id,
 		"ilvl": ilvl, "implicit": implicit, "affixes": affixes, "power": power,
 	}
+	# Optional keys: old saves and non-hungering items keep the legacy shape.
+	if hunger_need > 0:
+		d["hunger_need"] = hunger_need
+		d["hunger_fed"] = hunger_fed
+	return d
 
 
 static func from_dict(d: Dictionary) -> Item:
@@ -91,4 +117,6 @@ static func from_dict(d: Dictionary) -> Item:
 	item.implicit.assign(d["implicit"])
 	item.affixes.assign(d["affixes"])
 	item.power = d.get("power", "")
+	item.hunger_need = maxi(int(d.get("hunger_need", 0)), 0)
+	item.hunger_fed = clampi(int(d.get("hunger_fed", 0)), 0, maxi(item.hunger_need, 0)) if item.hunger_need > 0 else 0
 	return item

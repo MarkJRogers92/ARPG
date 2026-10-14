@@ -1175,6 +1175,15 @@ func _on_vow_kept(blessing: String) -> void:
 	_hud.toast("Vow kept  ·  +%d shards" % Vows.SHARDS, Vows.KEPT_COLOR)
 
 
+## Hungering gear eats every kill once (see Hunger); announces any awakening.
+func _feed_gear(amount: int) -> void:
+	for item: Item in Hunger.feed(_player.inventory, amount):
+		_hud.title_card("Your %s awakens" % item.name, "It has fed. A new power stirs.", Color(1.0, 0.85, 0.3), true)
+		Sound.play("legendary")
+		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.3), 36, 9.0, 0.6, 0.7)
+		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.85, 0.35), 28, 4.0, 0.5, 1.0, 8.0)
+
+
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if _expedition_terminal or (won and not _endless):
 		return
@@ -1186,6 +1195,7 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 				_expedition.observe_elite_death(swarm, swarm.ids[i])
 	_run_shards += 2
 	_vows.on_elite()
+	_feed_gear(Hunger.ELITE_WEIGHT - Hunger.KILL_WEIGHT)  # the kill itself already fed 1
 	_power_ups.on_kill(at, true)
 	Sound.play("elite_kill")
 	Juice.hitstop(0.04)
@@ -1209,6 +1219,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		return
 	kills += 1
 	_vows.on_kill()
+	_feed_gear(Hunger.BOSS_WEIGHT if swarm.boss else Hunger.KILL_WEIGHT)
 	_wisps.from_kill(at)
 	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1

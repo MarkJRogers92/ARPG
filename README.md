@@ -1013,6 +1013,19 @@ Floating combat text uses a capped priority budget to reduce overlap while
 preserving each displayed hit value. [Combat text checks and limits](docs/visuals/COMBAT_TEXT_READABILITY.md)
 cover Calm mode, damage telemetry and the crowded-game performance proxies.
 
+## Hungering gear
+
+About one Magic or Rare drop in eight is **Hungering**: its tooltip shows
+"Hungering — 312/800 souls" with a small progress bar, and ground drops of
+Rare items carry a "Hungering" tag. While it is worn, every kill by you or your
+army feeds it (elites count 10, bosses 50; carried items do not eat). Magic
+items need 400 souls and Rare items 800, scaled by 1 + item level / 40. When it
+has eaten enough it **awakens** once: one extra affix (rolled in the top half
+of its range), one rarity step up (a Rare becomes a Legendary without a
+power), the name prefix "Sated ", and a "YOUR ... AWAKENS" banner. Progress
+is saved with runs and Expedition campaign inventories. Rules and tuning
+constants live in `scripts/items/hunger.gd`; `tools/hunger_test.gd` covers it.
+
 ## Skill tree
 
 You earn a **skill point every 2 levels** (`Player.skill_point_every_levels`; 0 turns

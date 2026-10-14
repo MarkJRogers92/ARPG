@@ -68,7 +68,7 @@ func _ready() -> void:
 	if item.rarity >= ItemData.Rarity.RARE:
 		var label := Label3D.new()
 		label.font = UiStyle.EMPHASIS
-		label.text = item.name
+		label.text = item.name + ("\nHungering" if item.hungering() else "")
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.no_depth_test = true
 		label.pixel_size = 0.011
