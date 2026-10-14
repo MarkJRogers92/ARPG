@@ -41,9 +41,9 @@ const _GRAVEYARD_STAGES := [
 ]
 # Blue-violet twilight with an aurora wash drifting green -> violet. Never white.
 const _FROZEN_STAGES := [
-	{"t": 0.0, "sun": Color(0.66, 0.74, 1.0), "sun_e": 1.2, "amb": Color(0.3, 0.36, 0.66), "amb_e": 0.62, "fog": Color(0.07, 0.09, 0.22), "fog_d": 0.012},
-	{"t": 300.0, "sun": Color(0.5, 0.9, 0.9), "sun_e": 1.05, "amb": Color(0.2, 0.44, 0.56), "amb_e": 0.6, "fog": Color(0.04, 0.11, 0.2), "fog_d": 0.012},
-	{"t": 720.0, "sun": Color(0.74, 0.6, 1.0), "sun_e": 1.0, "amb": Color(0.36, 0.28, 0.62), "amb_e": 0.62, "fog": Color(0.12, 0.07, 0.24), "fog_d": 0.014},
+	{"t": 0.0, "sun": Color(0.86, 0.88, 0.98), "sun_e": 1.15, "amb": Color(0.46, 0.48, 0.58), "amb_e": 0.62, "fog": Color(0.10, 0.11, 0.16), "fog_d": 0.012},
+	{"t": 300.0, "sun": Color(0.74, 0.92, 0.9), "sun_e": 1.05, "amb": Color(0.38, 0.5, 0.54), "amb_e": 0.6, "fog": Color(0.07, 0.12, 0.15), "fog_d": 0.012},
+	{"t": 720.0, "sun": Color(0.84, 0.76, 0.98), "sun_e": 1.0, "amb": Color(0.46, 0.42, 0.6), "amb_e": 0.62, "fog": Color(0.12, 0.09, 0.18), "fog_d": 0.014},
 ]
 const _EMBER_STAGES := [
 	# Warm key light plus neutral ash-sky fill keeps coal silhouettes readable.
@@ -63,13 +63,13 @@ const _LOOKS := {
 			"edge_color": Color(0.02, 0.05, 0.07), "edge": 0.45, "grain": 0.025, "lift": 0.012},
 	},
 	"frozen": {
-		"env": {"tonemap": 2, "exposure": 0.85, "white": 4.0, "contrast": 1.2, "saturation": 1.1,
+		"env": {"tonemap": 2, "exposure": 0.9, "white": 4.0, "contrast": 1.12, "saturation": 0.78,
 			"glow": 0.75, "bloom": 0.05, "threshold": 0.95, "fog_height": 0.8, "fog_height_density": 0.04},
-		"grade": {"shadow_tint": Color(0.36, 0.3, 0.8), "highlight_tint": Color(0.9, 0.88, 1.0), "split": 0.6,
+		"grade": {"shadow_tint": Color(0.42, 0.42, 0.62), "highlight_tint": Color(0.98, 0.96, 1.0), "split": 0.45,
 			"edge_color": Color(0.04, 0.05, 0.16), "edge": 0.5, "grain": 0.03, "lift": 0.02},
 	},
 	"ember": {
-		"env": {"tonemap": 3, "exposure": 1.0, "white": 6.0, "contrast": 1.12, "saturation": 1.1,
+		"env": {"tonemap": 3, "exposure": 1.12, "white": 6.0, "contrast": 1.12, "saturation": 1.1,
 			"glow": 1.0, "bloom": 0.07, "threshold": 0.85, "fog_height": 0.6, "fog_height_density": 0.03},
 		"grade": {"shadow_tint": Color(0.5, 0.36, 0.42), "highlight_tint": Color(1.0, 0.82, 0.62), "split": 0.5,
 			"edge_color": Color(0.08, 0.02, 0.01), "edge": 0.5, "grain": 0.03, "lift": 0.01},
@@ -134,9 +134,9 @@ const REALMS := {
 		"difficulty": 1.2, "rate": 1.05, "soul_bonus": 0.0, "chill_scale": 2.0,
 		"accent": Color(0.6, 0.88, 1.0),
 		"background": Color(0.25, 0.3, 0.38),
-		"ground": {"grass_dark": Color(0.19, 0.21, 0.34), "grass_light": Color(0.38, 0.44, 0.57),
+		"ground": {"grass_dark": Color(0.24, 0.25, 0.31), "grass_light": Color(0.42, 0.45, 0.52),
 			"dirt": Color(0.38, 0.4, 0.46), "stone": Color(0.22, 0.23, 0.30), "grout": Color(0.22, 0.27, 0.34),
-			"snow_color": Color(0.27, 0.33, 0.46), "ice_color": Color(0.08, 0.18, 0.30),
+			"snow_color": Color(0.36, 0.38, 0.44), "ice_color": Color(0.10, 0.17, 0.24),
 			"sheen_color": Color(0.45, 0.68, 0.9), "snow": 1.0, "lava": 0.0},
 		"props": {"grass_frozen_a": 1.0, "grass_frozen_b": 1.0, "bush_frozen": 0.4, "cairn_frozen": 0.15, "rune_menhir_frozen": 0.05, "snowrock": 1.0, "pine": 0.5, "frozen_deadtree": 0.25, "ice": 0.5, "bone_pile_a": 0.15, "bone_pile_b": 0.15, "grave": 0.1,
 			"snow_boulder": 0.4, "frosted_pine": 0.23, "ice_stalagmites": 0.12, "supply_tripod": 0.05, "wind_chime": 0.05,
@@ -168,8 +168,8 @@ const REALMS := {
 		"difficulty": 1.25, "rate": 1.05, "soul_bonus": 0.0, "chill_scale": 1.0,
 		"accent": Color(1.0, 0.55, 0.2),
 		"background": Color(0.08, 0.02, 0.01),
-		"ground": {"grass_dark": Color(0.065, 0.058, 0.07), "grass_light": Color(0.13, 0.11, 0.12),
-			"dirt": Color(0.15, 0.13, 0.125), "stone": Color(0.23, 0.21, 0.24), "grout": Color(0.35, 0.1, 0.03),
+		"ground": {"grass_dark": Color(0.11, 0.09, 0.09), "grass_light": Color(0.2, 0.16, 0.15),
+			"dirt": Color(0.22, 0.18, 0.16), "stone": Color(0.27, 0.24, 0.26), "grout": Color(0.35, 0.1, 0.03),
 			"magma_color": Color(1.0, 0.33, 0.05), "magma_hot": Color(1.0, 0.8, 0.22),
 			"snow": 0.0, "lava": 1.0},
 		"props": {"obsidian": 1.0, "brimstone": 0.4, "ashtree": 0.3, "bone_pile_a": 0.2, "bone_pile_b": 0.2, "magma_rock": 0.4,
