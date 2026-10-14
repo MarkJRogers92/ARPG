@@ -122,6 +122,7 @@ const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
 ## Whispered Vows (see Vows); off in the campaign.
 var _vows: Vows
+var _epitaphs: Epitaphs # graves of past Classic deaths (never in campaign)
 var _rival: RivalDirector
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
@@ -267,6 +268,11 @@ func _ready() -> void:
 	_vows.faded.connect(func(text: String) -> void: _hud.toast(text, UiStyle.MUTED))
 	_vows.kept.connect(_on_vow_kept)
 	_player.dashed.connect(_vows.on_dash)
+	_epitaphs = Epitaphs.new()
+	add_child(_epitaphs)
+	_epitaphs.setup(_player, _army)
+	_epitaphs.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_epitaphs.tale.connect(func(title: String, sub: String, color: Color) -> void: _hud.title_card(title, sub, color))
 	_rival = RivalDirector.new()
 	add_child(_rival)
 	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
@@ -378,6 +384,9 @@ func _ready() -> void:
 			_begin_night()
 			if not _resume.is_empty():
 				_restore(_resume)
+			# Epitaphs: this realm's graves stand again (a resumed night doesn't use one up).
+			if Epitaphs.allowed(_campaign, Realm.daily):
+				_epitaphs.spawn(Epitaphs.begin_night(Realm.current) if _resume.is_empty() else Epitaphs.in_realm(Realm.current))
 	if _in_title:
 		_hud.hide()
 		_title.open()
@@ -624,6 +633,7 @@ func _process(delta: float) -> void:
 		_landmarks.tick(delta, not objective_interaction)
 		if not _campaign:
 			_ferryman.tick(delta)
+			_epitaphs.tick(delta, _landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 			_rift.tick(delta)
 			_rival.tick(delta)
 	if not _campaign and (not won or _endless):
@@ -695,6 +705,9 @@ func _process(delta: float) -> void:
 	if prompt == "" and (not _campaign or (not _expedition_terminal and not _player.dead)):
 		prompt = _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 		prompt_color = RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+		if prompt == "" and not _campaign and _epitaphs.prompt != "":
+			prompt = _epitaphs.prompt
+			prompt_color = Epitaphs.COLOR
 	if prompt == "" and not _player.dead and not _expedition_terminal:
 		prompt = _events.discovery_prompt
 		prompt_color = _events.discovery_color
@@ -1077,7 +1090,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers() + _rival.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _epitaphs.markers() + _rift.markers() + _rival.markers()
 	if _campaign and _expedition:
 		out.append_array(_expedition.markers())
 	for swarm in _swarms:
@@ -1500,6 +1513,10 @@ func _on_player_died() -> void:
 	_game_over = true
 	_sound.stop_music(0.8)
 	Sound.play("defeat")
+	# Epitaphs: remember where and how the hero fell (Classic only).
+	if Epitaphs.allowed(_campaign, Realm.daily):
+		Epitaphs.record(Realm.current, _player.pos2, _hero_class, _player.stats.level, elapsed,
+				DeathRecap.clean_cause(_player.last_cause), _army.souls)
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
 	_rival.hero_fell()

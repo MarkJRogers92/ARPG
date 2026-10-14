@@ -525,6 +525,22 @@ penalty. The end screen reports "Vows kept: 1/2". Classic nights only.
 Daily Nights seed the choice, so everyone is whispered the same vows. A
 resumed night starts fresh and skips a window that has already passed.
 
+## Epitaphs
+
+Your past deaths haunt the realm (`scripts/epitaphs.gd`). When a Classic night
+ends in death, the grave is remembered in the profile: the realm, where the hero
+fell (pulled to within 55 m of the start so it can be found), the class, level,
+time survived, what dealt the last blow and the souls the hero held. For the
+next three Classic nights in that realm a weathered headstone with a pale blue
+candle stands there. Up to four graves are kept per realm, oldest dropped.
+
+Within 30 m an arrow points to it; close up, a ring and the usual E prompt
+appear. Paying respects shows a title card ("HERE FELL A BATTLEMAGE", "Level 34
+· 11:42 · slain by Plague Bloater"), returns up to 30 of the souls you died
+holding (so minions rise as normal) and grants Vengeance: +8% damage for the
+night, stacking per grave claimed. Each grave pays once. Expedition campaign
+runs and the Daily Night neither record nor show epitaphs.
+
 ## Rifts
 
 Tears in the night that lead somewhere else for a while (`scripts/rift_director.gd`).
