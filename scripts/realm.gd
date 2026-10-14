@@ -47,9 +47,9 @@ const _FROZEN_STAGES := [
 ]
 const _EMBER_STAGES := [
 	# Warm key light plus neutral ash-sky fill keeps coal silhouettes readable.
-	{"t": 0.0, "sun": Color(1.0, 0.72, 0.52), "sun_e": 1.45, "amb": Color(0.62, 0.58, 0.58), "amb_e": 1.0, "fog": Color(0.14, 0.06, 0.04), "fog_d": 0.009},
-	{"t": 300.0, "sun": Color(1.0, 0.62, 0.4), "sun_e": 1.4, "amb": Color(0.58, 0.54, 0.6), "amb_e": 0.98, "fog": Color(0.15, 0.06, 0.04), "fog_d": 0.010},
-	{"t": 720.0, "sun": Color(1.0, 0.5, 0.34), "sun_e": 1.3, "amb": Color(0.54, 0.5, 0.58), "amb_e": 0.95, "fog": Color(0.13, 0.04, 0.04), "fog_d": 0.011},
+	{"t": 0.0, "sun": Color(1.0, 0.72, 0.52), "sun_e": 1.45, "amb": Color(0.70, 0.68, 0.66), "amb_e": 1.15, "fog": Color(0.14, 0.06, 0.04), "fog_d": 0.009},
+	{"t": 300.0, "sun": Color(1.0, 0.62, 0.4), "sun_e": 1.4, "amb": Color(0.62, 0.64, 0.70), "amb_e": 1.1, "fog": Color(0.15, 0.06, 0.04), "fog_d": 0.010},
+	{"t": 720.0, "sun": Color(1.0, 0.5, 0.34), "sun_e": 1.3, "amb": Color(0.57, 0.59, 0.67), "amb_e": 1.05, "fog": Color(0.13, 0.04, 0.04), "fog_d": 0.011},
 ]
 
 ## Per-realm grade. "env": tonemapper, exposure, white point, adjustments, glow and
