@@ -127,7 +127,7 @@ func _arrive() -> bool:
 	model.mesh = authored if authored != null else Models.ferryman()
 	model.rotation.y = PI # face the camera
 	root.add_child(model)
-	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.55, 0.85, 1.0, 0.5), 0.9, 4.2)
+	HazardDirector.make_decal(root, Vector2.ZERO, Color(0.55, 0.85, 1.0, 0.5), 0.9, 4.2, Models.rune_material(Color(0.55, 0.85, 1.0, 0.55), 14.0))
 	var light := OmniLight3D.new()
 	light.light_color = COLOR
 	light.light_energy = 1.6

@@ -985,6 +985,17 @@ A part can glow (stored per vertex), and the shaders in `shaders/` do the rest.
 - **Effects:** kills, bolt hits (bigger and orange on crits), pickups and level-ups
   throw particles from `FxSwarm`, another array-simulated MultiMesh. Glow (bloom),
   fog and a vignette that reddens while you take damage finish the picture.
+- **Pickups and spell effects:** XP gems are faceted "soul-glass" shards (`gem.gdshader`):
+  pale teal at rest, drifting to violet and gold for bigger ones, calm on the
+  ground and brighter and larger as the magnet pulls them in. Souls are wispy
+  teardrop flames (`soul.gdshader`), so the two never read alike. Loot, power-ups,
+  shrines and health orbs sit on painted rune circles (`rune_ring.gdshader`);
+  loot and power-ups get a soft light column with drifting motes (`beam.gdshader`),
+  and legendary drops add gold rays and embers. The Frost Aura is a thin swirling
+  frost ring (`aura.gdshader`), the Arcane Nova a shockwave (`shock_ring.gdshader`),
+  the Reaping Scythe leaves a crescent wake (`swish.gdshader`), and bolts, bursts
+  and chain lightning have hot cores with soft falloff. Danger telegraphs and
+  hostile shots keep their own shaders and are untouched.
 - **UI:** a shared bronze-on-dark theme (`ui_style.gd`), illustrated level-up cards
   with rank pips, and themed inventory and skill tree screens.
 

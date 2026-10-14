@@ -89,7 +89,7 @@ func setup(decor: WorldDecor, player: Player, director: WaveDirector, loot: Loot
 	_spend = spend
 	_player.died.connect(_cancel_forge)
 	for k in 6:
-		var ring := HazardDirector.make_decal(self, Vector2.ZERO, Color(1.0, 0.82, 0.4, 0.55), 0.85, 1.0)
+		var ring := HazardDirector.make_decal(self, Vector2.ZERO, Color(1.0, 0.82, 0.4, 0.55), 0.85, 1.0, Models.rune_material(Color(1.0, 0.82, 0.4, 0.6)))
 		ring.visible = false
 		_rings.append(ring)
 	ensure_input()

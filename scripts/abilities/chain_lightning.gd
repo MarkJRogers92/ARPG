@@ -113,8 +113,8 @@ func _draw_arcs(delta: float) -> void:
 		var pts: PackedVector3Array = arc["points"]
 		for s in pts.size() - 1:
 			var jagged := _jag(pts[s], pts[s + 1])
-			_ribbon(jagged, eye, 0.45, Color(COLOR, 0.35 * fade))
-			_ribbon(jagged, eye, 0.1, Color(1, 1, 1, fade))
+			_ribbon(jagged, eye, 0.8, Color(COLOR, 0.5 * fade))
+			_ribbon(jagged, eye, 0.16, Color(1, 1, 1, fade))
 	_mesh.surface_end()
 	_arcs = _arcs.filter(func(a: Dictionary) -> bool: return a["life"] > 0.0)
 
@@ -134,14 +134,16 @@ func _jag(a: Vector3, b: Vector3) -> PackedVector3Array:
 
 
 func _ribbon(pts: PackedVector3Array, eye: Vector3, width: float, color: Color) -> void:
+	# Three rows across (clear edge, full center, clear edge) so the bolt has a
+	# soft glow falloff instead of a hard-edged strip.
+	var edge := Color(color, 0.0)
 	for k in pts.size() - 1:
 		var a := pts[k]
 		var b := pts[k + 1]
 		var side := (b - a).cross(eye - a).normalized() * width * 0.5
-		_mesh.surface_set_color(color)
-		_mesh.surface_add_vertex(a - side)
-		_mesh.surface_add_vertex(a + side)
-		_mesh.surface_add_vertex(b + side)
-		_mesh.surface_add_vertex(a - side)
-		_mesh.surface_add_vertex(b + side)
-		_mesh.surface_add_vertex(b - side)
+		var quad := [[a - side, edge], [a, color], [b, color], [b - side, edge]]
+		var quad2 := [[a, color], [a + side, edge], [b + side, edge], [b, color]]
+		for q in [quad, quad2]:
+			for idx in [0, 1, 2, 0, 2, 3]:
+				_mesh.surface_set_color(q[idx][1])
+				_mesh.surface_add_vertex(q[idx][0])
