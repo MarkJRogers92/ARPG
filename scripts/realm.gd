@@ -32,22 +32,49 @@ static func daily_pick(unlocked: Array, date := today()) -> Dictionary:
 
 const ORDER := ["graveyard", "frozen", "ember"]
 
+# Moonlight is a strong cool key with a cool fill; warm light stays with the
+# props' own lamps. Sun angle/shadows are set in the scene (see Atmosphere).
 const _GRAVEYARD_STAGES := [
-	{"t": 0.0, "sun": Color(1.0, 0.9, 0.76), "sun_e": 1.25, "amb": Color(0.42, 0.48, 0.7), "amb_e": 0.75, "fog": Color(0.07, 0.09, 0.13), "fog_d": 0.008},
-	{"t": 300.0, "sun": Color(0.62, 0.72, 1.0), "sun_e": 1.0, "amb": Color(0.3, 0.38, 0.68), "amb_e": 0.65, "fog": Color(0.04, 0.06, 0.13), "fog_d": 0.008},
-	{"t": 720.0, "sun": Color(1.0, 0.42, 0.32), "sun_e": 1.1, "amb": Color(0.55, 0.28, 0.32), "amb_e": 0.65, "fog": Color(0.16, 0.04, 0.05), "fog_d": 0.01},
+	{"t": 0.0, "sun": Color(1.0, 0.82, 0.66), "sun_e": 1.3, "amb": Color(0.36, 0.46, 0.64), "amb_e": 0.78, "fog": Color(0.05, 0.09, 0.11), "fog_d": 0.010},
+	{"t": 300.0, "sun": Color(0.58, 0.76, 1.0), "sun_e": 1.45, "amb": Color(0.2, 0.34, 0.52), "amb_e": 0.8, "fog": Color(0.03, 0.08, 0.11), "fog_d": 0.012},
+	{"t": 720.0, "sun": Color(1.0, 0.38, 0.3), "sun_e": 1.3, "amb": Color(0.5, 0.24, 0.3), "amb_e": 0.7, "fog": Color(0.15, 0.04, 0.05), "fog_d": 0.012},
 ]
+# Blue-violet twilight with an aurora wash drifting green -> violet. Never white.
 const _FROZEN_STAGES := [
-	{"t": 0.0, "sun": Color(0.88, 0.94, 1.0), "sun_e": 1.15, "amb": Color(0.55, 0.62, 0.8), "amb_e": 0.85, "fog": Color(0.32, 0.38, 0.48), "fog_d": 0.012},
-	{"t": 300.0, "sun": Color(0.45, 0.85, 0.85), "sun_e": 0.85, "amb": Color(0.28, 0.45, 0.62), "amb_e": 0.7, "fog": Color(0.1, 0.18, 0.26), "fog_d": 0.01},
-	{"t": 720.0, "sun": Color(0.7, 0.78, 0.95), "sun_e": 0.75, "amb": Color(0.5, 0.56, 0.72), "amb_e": 0.75, "fog": Color(0.45, 0.5, 0.6), "fog_d": 0.02},
+	{"t": 0.0, "sun": Color(0.66, 0.74, 1.0), "sun_e": 1.2, "amb": Color(0.3, 0.36, 0.66), "amb_e": 0.62, "fog": Color(0.07, 0.09, 0.22), "fog_d": 0.012},
+	{"t": 300.0, "sun": Color(0.5, 0.9, 0.9), "sun_e": 1.05, "amb": Color(0.2, 0.44, 0.56), "amb_e": 0.6, "fog": Color(0.04, 0.11, 0.2), "fog_d": 0.012},
+	{"t": 720.0, "sun": Color(0.74, 0.6, 1.0), "sun_e": 1.0, "amb": Color(0.36, 0.28, 0.62), "amb_e": 0.62, "fog": Color(0.12, 0.07, 0.24), "fog_d": 0.014},
 ]
 const _EMBER_STAGES := [
 	# Warm key light plus neutral ash-sky fill keeps coal silhouettes readable.
-	{"t": 0.0, "sun": Color(1.0, 0.78, 0.60), "sun_e": 1.5, "amb": Color(0.70, 0.68, 0.66), "amb_e": 1.15, "fog": Color(0.20, 0.14, 0.12), "fog_d": 0.007},
-	{"t": 300.0, "sun": Color(1.0, 0.67, 0.45), "sun_e": 1.4, "amb": Color(0.62, 0.64, 0.70), "amb_e": 1.1, "fog": Color(0.19, 0.11, 0.09), "fog_d": 0.008},
-	{"t": 720.0, "sun": Color(1.0, 0.56, 0.38), "sun_e": 1.3, "amb": Color(0.57, 0.59, 0.67), "amb_e": 1.05, "fog": Color(0.15, 0.09, 0.08), "fog_d": 0.009},
+	{"t": 0.0, "sun": Color(1.0, 0.72, 0.52), "sun_e": 1.45, "amb": Color(0.62, 0.58, 0.58), "amb_e": 1.0, "fog": Color(0.14, 0.06, 0.04), "fog_d": 0.009},
+	{"t": 300.0, "sun": Color(1.0, 0.62, 0.4), "sun_e": 1.4, "amb": Color(0.58, 0.54, 0.6), "amb_e": 0.98, "fog": Color(0.15, 0.06, 0.04), "fog_d": 0.010},
+	{"t": 720.0, "sun": Color(1.0, 0.5, 0.34), "sun_e": 1.3, "amb": Color(0.54, 0.5, 0.58), "amb_e": 0.95, "fog": Color(0.13, 0.04, 0.04), "fog_d": 0.011},
 ]
+
+## Per-realm grade. "env": tonemapper, exposure, white point, adjustments, glow and
+## height fog (the mist pooling low). "grade": shaders/grade.gdshader uniforms
+## (split-toning, edge falloff in the air colour, grain).
+const _LOOKS := {
+	"graveyard": {
+		"env": {"tonemap": 2, "exposure": 1.4, "white": 5.0, "contrast": 1.08, "saturation": 1.18,
+			"glow": 0.8, "bloom": 0.05, "threshold": 0.9, "fog_height": 1.2, "fog_height_density": 0.06},
+		"grade": {"shadow_tint": Color(0.3, 0.52, 0.6), "highlight_tint": Color(1.0, 0.88, 0.72), "split": 0.55,
+			"edge_color": Color(0.02, 0.05, 0.07), "edge": 0.45, "grain": 0.025, "lift": 0.012},
+	},
+	"frozen": {
+		"env": {"tonemap": 2, "exposure": 0.85, "white": 4.0, "contrast": 1.2, "saturation": 1.1,
+			"glow": 0.75, "bloom": 0.05, "threshold": 0.95, "fog_height": 0.8, "fog_height_density": 0.04},
+		"grade": {"shadow_tint": Color(0.36, 0.3, 0.8), "highlight_tint": Color(0.9, 0.88, 1.0), "split": 0.6,
+			"edge_color": Color(0.04, 0.05, 0.16), "edge": 0.5, "grain": 0.03, "lift": 0.02},
+	},
+	"ember": {
+		"env": {"tonemap": 3, "exposure": 1.0, "white": 6.0, "contrast": 1.12, "saturation": 1.1,
+			"glow": 1.0, "bloom": 0.07, "threshold": 0.85, "fog_height": 0.6, "fog_height_density": 0.03},
+		"grade": {"shadow_tint": Color(0.5, 0.36, 0.42), "highlight_tint": Color(1.0, 0.82, 0.62), "split": 0.5,
+			"edge_color": Color(0.08, 0.02, 0.01), "edge": 0.5, "grain": 0.03, "lift": 0.01},
+	},
+}
 
 ## ground: uniforms for shaders/ground.gdshader
 ## props:  WorldDecor densities (kinds not listed don't appear)
@@ -214,4 +241,5 @@ static func apply_look(main: Node, id := "") -> void:
 	atmosphere.stages = d["stages"]
 	var env := (main.get_node("WorldEnvironment") as WorldEnvironment).environment
 	env.background_color = d["background"]
+	atmosphere.set_look(_LOOKS[id if not id.is_empty() else current])
 	atmosphere.tick(10.0, 0.0, false)
