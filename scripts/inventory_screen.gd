@@ -189,7 +189,7 @@ func _refresh() -> void:
 	_nearby_list.clear()
 	for node: LootDrop in _nearby_drops:
 		var index := _nearby_list.add_item(node.item.name, _icons.icon(node.item))
-		_nearby_list.set_item_tooltip(index, node.item.subtitle())
+		_nearby_list.set_item_tooltip(index, node.item.subtitle() + ("\n" + node.item.hunger_text() if node.item.hungering() else ""))
 	_source_tabs.set_tab_title(1, "Nearby · %d" % _nearby_drops.size())
 	_nearby_hint.text = "Within pickup reach. " + ("New loot is kept on a successful return." if _campaign_combat else "Uncollected ground loot is not saved.")
 	if _nearby_drops.is_empty(): _nearby_hint.text = "No loot within pickup reach. Move closer, then reopen Equipment."
@@ -256,6 +256,8 @@ func _show_details() -> void:
 	_details.scroll_to_line(0)
 	var lines := "[font_size=24][color=#%s][b]%s[/b][/color][/font_size]\n" % [item.color().to_html(false), item.name]
 	lines += "[color=#%s]%s  ·  %s[/color]\n\n" % [CampaignMenuStyle.MUTED.to_html(false), item.subtitle(), ItemData.SLOT_NAMES[item.slot]]
+	if item.hungering():
+		lines += "[color=#e8c25a]%s[/color]\n[color=#e8c25a]%s[/color]\n\n" % [item.hunger_text(), item.hunger_bar()]
 	if item.power != "":
 		lines += "[color=#ffb46b]★ %s[/color]\n\n" % item.power_text()
 	for mod in item.implicit:
@@ -268,6 +270,8 @@ func _show_details() -> void:
 		lines += "[color=#%s]%s[/color]\n" % [CampaignMenuStyle.MUTED.to_html(false), worn.name if worn != null else "Empty slot"]
 		lines += _modifier_comparison_text(worn, item)
 		lines += _power_comparison_text(worn, item)
+		if worn != null and worn.hungering():
+			lines += "[color=#e8c25a]Worn: %s %s[/color]\n" % [worn.hunger_text(), worn.hunger_bar(10)]
 
 	if not _selected_worn:
 		lines += "\n"

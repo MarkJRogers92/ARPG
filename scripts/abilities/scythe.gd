@@ -55,6 +55,14 @@ func update(delta: float) -> void:
 	node.mesh = _mesh
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
+	# A soft crescent wake that turns with the blade.
+	var wake := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(2.2, 2.2)
+	wake.mesh = plane
+	wake.material_override = Models.material("swish", {"color": Color(COLOR, 0.8)}, "scythe")
+	wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(wake)
 	var spread := 0.0 if _blades.is_empty() else (0.35 * (1 if _blades.size() % 2 == 1 else -1))
 	var element := _player._bolt_element() if stats.powers.has("reaping") else Elements.NONE
 	_blades.append({"node": node, "pos": _player.pos2, "dir": dir.rotated(spread), "out": stats.scythe_range,

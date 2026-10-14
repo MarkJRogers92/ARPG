@@ -9,7 +9,7 @@ extends RefCounted
 ## The actions shown in the Controls panel, in order, with their labels.
 const ACTIONS := [
 	["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"],
-	["dash", "Dash"], ["interact", "Use"], ["army_stance", "Army stance"], ["inventory", "Inventory"],
+	["dash", "Dash"], ["interact", "Use"], ["army_stance", "Army stance"], ["danse_macabre", "Danse Macabre"], ["inventory", "Inventory"],
 	["skill_tree", "Skill tree"], ["reroll", "Reroll cards"], ["toggle_aim", "Mouse / auto aim"],
 ]
 

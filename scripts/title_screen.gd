@@ -308,6 +308,22 @@ func _build() -> void:
 	classic_hint.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	classic_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	classic_row.add_child(classic_hint)
+	# Tonight's real moon shares the Classic row (a row of its own pushes Back
+	# off short screens); the full effect is in the tooltip.
+	var moon := MoonPhase.phase_for(Time.get_unix_time_from_system())
+	var moon_glyph := MoonGlyph.new()
+	moon_glyph.age = MoonPhase.age_days(Time.get_unix_time_from_system())
+	moon_glyph.tint = MoonPhase.PHASES[moon]["color"]
+	moon_glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	moon_glyph.tooltip_text = MoonPhase.title(moon)
+	classic_row.add_child(moon_glyph)
+	var moon_label := _menu_label(15)
+	moon_label.text = MoonPhase.PHASES[moon]["name"]
+	moon_label.tooltip_text = MoonPhase.title(moon)
+	moon_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	moon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	moon_label.add_theme_color_override("font_color", MoonPhase.PHASES[moon]["color"])
+	classic_row.add_child(moon_label)
 	var row := HBoxContainer.new()
 	_realm_row = row
 	row.alignment = BoxContainer.ALIGNMENT_CENTER

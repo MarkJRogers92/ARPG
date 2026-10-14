@@ -67,8 +67,8 @@ static func heat(pacts: Array) -> int:
 
 
 ## The Soul Shard multiplier for a night with these pacts and omen.
-static func shard_mult(pacts: Array, omen: String, ascension := 0) -> float:
-	return (1.0 + HEAT_BONUS * heat(pacts)) * (1.5 if omen == "midas" else 1.0) * (1.0 + ASCENSION_SHARDS * ascension)
+static func shard_mult(pacts: Array, omen: String, ascension := 0, moon := "") -> float:
+	return (1.0 + HEAT_BONUS * heat(pacts)) * (1.5 if omen == "midas" else 1.0) * (1.0 + ASCENSION_SHARDS * ascension) * MoonPhase.shard_mult(moon)
 
 
 ## A random omen (or a set one, for the Daily Night: `pick` in 0..1).

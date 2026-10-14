@@ -12,6 +12,7 @@ extends SceneTree
 ##              relic=<id> carries that relic, weapon=<id> starts with that
 ##              weapon card (see Relics; default none)
 ##              ascension=<n> plays at that Ascension (see RunModifiers)
+##              moon=new|waxing|full|waning plays under that moon (default: none)
 ##              node.property=value, applied after the scene loads, e.g.
 ##                director.rate_growth=0.1  Grunts.max_hp=12  Brutes.loot_chance=0.2
 ##              base.<stat>=value changes a starting stat (see PlayerStats.BASE),
@@ -85,6 +86,8 @@ func _initialize() -> void:
 			MetaProgress.forced_weapon = o.substr(7)
 		elif o.begins_with("omen="):
 			RunModifiers.forced_omen = o.substr(5)
+		elif o.begins_with("moon="):
+			MoonPhase.override = o.substr(5)
 		elif o.begins_with("ascension="):
 			RunModifiers.forced_ascension = int(o.substr(10))
 	MetaProgress.disabled = true # saved upgrades mustn't change results

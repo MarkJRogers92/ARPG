@@ -469,7 +469,10 @@ func _reconcile_inventory(next: Dictionary, incoming: Variant, spec: Dictionary)
 		if not id is String or id == "" or ids.has(id): return "Missing or duplicate combat copy identity."
 		ids[id] = true
 		if banked.has(id):
-			if banked[id]["data"] != data: return "A banked item's exact roll changed during combat."
+			if banked[id]["data"] != data:
+				# Hungering gear legitimately feeds and awakens in combat (see Hunger).
+				if not Hunger.valid_progress(banked[id]["data"], data): return "A banked item's exact roll changed during combat."
+				banked[id]["data"] = data.duplicate(true)
 		else:
 			if not id.begins_with(spec["attempt_id"] + ":drop:") or data["ilvl"] < spec["loot_band"][0] or data["ilvl"] > spec["loot_band"][1]: return "Combat loot is outside this attempt's tier or identity."
 			banked[id] = _record(data, spec["biome_index"])

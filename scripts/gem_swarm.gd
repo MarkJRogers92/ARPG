@@ -6,9 +6,11 @@ extends MultiMeshInstance3D
 @export var capacity := 3000
 @export var height := 0.4
 ## Gem color by XP value: the first entry whose value is at least the gem's.
-@export var tiers: Array[Color] = [Color(0.3, 1.0, 0.55), Color(0.35, 0.7, 1.0), Color(0.85, 0.4, 1.0), Color(1.0, 0.8, 0.3)]
+@export var tiers: Array[Color] = [Color(0.45, 0.92, 0.86), Color(0.5, 0.78, 1.0), Color(0.72, 0.55, 1.0), Color(1.0, 0.82, 0.4)]
 ## ...where tier k holds values up to tier_values[k].
 @export var tier_values: Array[int] = [2, 8, 30, 1000000]
+## Souls are drawn as wispy flames instead of faceted shards.
+@export var soul_style := false
 @export var magnet_accel := 40.0
 @export var collect_radius := 0.7
 
@@ -30,7 +32,7 @@ func _ready() -> void:
 	_value.resize(capacity)
 	_pull.resize(capacity)
 
-	var mesh := Models.gem()
+	var mesh := Models.soul() if soul_style else Models.gem()
 	MultiMeshUtil.setup(self, mesh, capacity, mesh.surface_get_material(0))
 	_buffer = MultiMeshUtil.make_buffer(capacity, height)
 
@@ -47,7 +49,10 @@ func drop(at: Vector2, value: int) -> int:
 	var c := tiers[mini(tier, tiers.size() - 1)].srgb_to_linear()
 	for k in 4:
 		_buffer[o + MultiMeshUtil.OFFSET_COLOR + k] = c[k]
-	MultiMeshUtil.set_facing(_buffer, o, Vector2.UP, 1.5 + 0.3 * tier)
+	MultiMeshUtil.set_facing(_buffer, o, Vector2.UP, (1.5 if soul_style else 1.05) + 0.22 * tier)
+	# Custom x = pull (brightens the gem as the magnet takes it), y = twinkle phase.
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM] = 0.0
+	_buffer[o + MultiMeshUtil.OFFSET_CUSTOM + 1] = randf()
 	_buffer[o + MultiMeshUtil.OFFSET_X] = at.x
 	_buffer[o + MultiMeshUtil.OFFSET_Z] = at.y
 	_pos[count] = at
@@ -78,6 +83,7 @@ func step(delta: float, target: Vector2, pickup_radius: float) -> int:
 			_pull[i] += magnet_accel * delta
 			p += to / sqrt(d2) * _pull[i] * delta
 			_pos[i] = p
+			_buffer[i * MultiMeshUtil.FLOATS_PER_INSTANCE + MultiMeshUtil.OFFSET_CUSTOM] = minf(_pull[i] / 14.0, 1.0)
 		var o := i * MultiMeshUtil.FLOATS_PER_INSTANCE
 		_buffer[o + MultiMeshUtil.OFFSET_X] = p.x
 		_buffer[o + MultiMeshUtil.OFFSET_Z] = p.y

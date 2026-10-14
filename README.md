@@ -275,6 +275,14 @@ which the pause menu's sliders control.
   the start and under the army bar. The eight are Blood Moon, Soul Tide, Glass
   Cannon, Midas Night, Swift Night, Restless Dead, Ferryman's Favor and Quiet
   Night. Each has an upside and a cost.
+- **The real moon** (`scripts/moon_phase.gd`): the lunar phase on your
+  calendar date shapes every Classic night, shown on the title screen (with a
+  lit-moon glyph) and under the omen line. New Moon: a darker night, 25% more
+  elites, +20% Soul Shards. Waxing: +10% XP. Full: +30% soul chance, enemies
+  move 8% faster. Waning: +15% magic find. It stacks with omens, pacts and
+  Ascension; the Daily Night reads the Daily's date (00:00 UTC) so everyone
+  shares its moon; Expedition runs ignore it. Bots play with no moon
+  (`moon=full` on the balance bot opts in). A saved night keeps its moon.
 - **Pact of Night** (title screen, once you've conquered a realm): stack
   opt-in curses. Swarming Dark, Iron Hide, The Hunt and Elite Uprising add 1
   heat each; Bleak Night and Wrath of Dawn add 2. Each heat point adds +25% to
@@ -495,6 +503,44 @@ its kind and position, so walking away and back doesn't reset it.
 | Fishing hut | Rest: heal to full |
 | Forbidden tome | +1 skill point, -8% max HP for the night |
 
+## Whispered Vows
+
+Twice a night, at 0:45 and 7:30, the dead whisper one small optional
+challenge (`scripts/vows.gd`). It is accepted at once, has a time limit, and
+shows as one line under the clock, such as `VOW · Gather 20 souls — 14/20 ·
+1:12`. Only one is active at a time. Keep it for 4 run Soul Shards (banked as
+usual) and a random shrine blessing; miss it and "The whisper fades", with no
+penalty. The end screen reports "Vows kept: 1/2". Classic nights only.
+
+| Vow | Counts |
+|---|---|
+| Shatter / Melt / Overload N foes | That reaction firing (only offered to a hero with both sources) |
+| Slay N foes in 20 seconds | Kills; N grows with the hour of the night |
+| Raise 4 minions | Minions raised |
+| Slay an elite without dashing | One elite kill; any dash breaks it |
+| Stay above half health | Survive 90 s without dropping under 50% |
+| Walk the night: 250 m | Distance travelled |
+| Gather 20 souls | Souls picked up |
+
+Daily Nights seed the choice, so everyone is whispered the same vows. A
+resumed night starts fresh and skips a window that has already passed.
+
+## Epitaphs
+
+Your past deaths haunt the realm (`scripts/epitaphs.gd`). When a Classic night
+ends in death, the grave is remembered in the profile: the realm, where the hero
+fell (pulled to within 55 m of the start so it can be found), the class, level,
+time survived, what dealt the last blow and the souls the hero held. For the
+next three Classic nights in that realm a weathered headstone with a pale blue
+candle stands there. Up to four graves are kept per realm, oldest dropped.
+
+Within 30 m an arrow points to it; close up, a ring and the usual E prompt
+appear. Paying respects shows a title card ("HERE FELL A BATTLEMAGE", "Level 34
+· 11:42 · slain by Plague Bloater"), returns up to 30 of the souls you died
+holding (so minions rise as normal) and grants Vengeance: +8% damage for the
+night, stacking per grave claimed. Each grave pays once. Expedition campaign
+runs and the Daily Night neither record nor show epitaphs.
+
 ## Rifts
 
 Tears in the night that lead somewhere else for a while (`scripts/rift_director.gd`).
@@ -552,6 +598,12 @@ to the army count):
 | Guard | within 6 m, only up to 5.5 m from you; forms up tight | normal | half damage |
 | Swarm | within 18 m, up to 28 m from you; elites and bosses first | 25% faster | 25% more damage |
 
+## Danse Macabre
+
+Souls gathered while your army is already full no longer go to waste: each one fills the **Requiem** meter under the SOULS / ARMY readout (40 to fill; elite and boss souls that find no room count too). When it is full and at least 3 minions stand, it pulses and shows its key: press **R** (gamepad **Y**; rebindable in Controls) to call the Danse Macabre.
+
+For 8 seconds every minion leaves its AI and circles the hero in an evenly spaced ring, widening from 4.5 m to 7 m and spinning faster, from 1.5 to 4 rad/s. The dancers can't be hurt. Every enemy within 1.4 m of one takes a hit every quarter second (the minion's usual hit, veteran rank included, times 1.5) and is thrown outward; the run report credits it to "Danse Macabre". Then the army goes back to hunting and the meter starts again from empty. It can't be called while paused, in the Night Market or after the hero falls. It works in Expedition missions too, and a suspended night keeps the meter. Code: `scripts/danse_macabre.gd` (state and maths), with small hooks in `Army`.
+
 ## Veterans and the Crypt
 
 Minions count their kills (every enemy death during a minion's swing or slam
@@ -606,6 +658,10 @@ battle, it's gone for good, and listed among **the Fallen**
 Each explains itself with a message the first time it does its thing. The
 behavior is in `EnemySwarm` (the "Specialists" exports), what the hero sees
 and feels in `scripts/specialists.gd`.
+
+## Realm scenery models
+
+The everyday scatter is textured art rather than code-built shapes: dead trees, grave clusters, celtic crosses, mossy boulders, ruined pillars, soul crystals and ghost mushrooms in the Hollow Graveyard; snow pines, frozen dead trees, ice spikes and snow boulders in the Frozen Wastes; ash trees (with glowing cracks), obsidian spires, brimstone vents and magma rocks in the Ember Rift. Small Blender pieces (per-realm grass and bushes, bone piles, candle clusters, grave markers, a runed menhir that glows in each realm's color, a frozen cairn, iron stakes) fill in around them. Each kind is still one MultiMesh, lit by the moon and shadows, and anything standing between the camera and your hero dithers away. Glowing parts pulse gently and feed the bloom. Meshy models live in `assets/environment/realm_props/`, filler in `.../filler/`; `scripts/visual/realm_props.gd` fits them to size and `shaders/realm_prop.gdshader` draws them. Turn `RealmProps.enabled` off to see the old code-built shapes.
 
 ## Imported scenery
 
@@ -904,6 +960,17 @@ warm dusk, cold moonlight around 4:00, a blood moon from about 9:00, turning
 redder while a boss is alive (`visual/atmosphere.gd`). Shake can be turned off
 with `shake_enabled` on `CameraRig`.
 
+## Light and grade
+
+Each realm has its own grade (`Realm._LOOKS`): cool moonlight with teal mist in the
+Graveyard, a blue-violet twilight with a faint aurora wash in the Frozen Wastes,
+and warm basalt-and-magma light in the Ember Rift. Tonemapper, exposure, glow and
+low height fog are set per realm, and a cheap full-screen pass
+(`shaders/grade.gdshader`, `scripts/visual/grade_pass.gd`, drawn below the HUD)
+adds cool-shadow/warm-highlight split-toning, a soft edge falloff in the realm's
+air colour and light film grain. `Atmosphere` drives it: it leans red with a boss
+and opens up warm at dawn, and the New Moon still dims the night.
+
 ## The look
 
 Almost everything you see is built in code: the hero, every enemy and boss,
@@ -933,6 +1000,17 @@ A part can glow (stored per vertex), and the shaders in `shaders/` do the rest.
 - **Effects:** kills, bolt hits (bigger and orange on crits), pickups and level-ups
   throw particles from `FxSwarm`, another array-simulated MultiMesh. Glow (bloom),
   fog and a vignette that reddens while you take damage finish the picture.
+- **Pickups and spell effects:** XP gems are faceted "soul-glass" shards (`gem.gdshader`):
+  pale teal at rest, drifting to violet and gold for bigger ones, calm on the
+  ground and brighter and larger as the magnet pulls them in. Souls are wispy
+  teardrop flames (`soul.gdshader`), so the two never read alike. Loot, power-ups,
+  shrines and health orbs sit on painted rune circles (`rune_ring.gdshader`);
+  loot and power-ups get a soft light column with drifting motes (`beam.gdshader`),
+  and legendary drops add gold rays and embers. The Frost Aura is a thin swirling
+  frost ring (`aura.gdshader`), the Arcane Nova a shockwave (`shock_ring.gdshader`),
+  the Reaping Scythe leaves a crescent wake (`swish.gdshader`), and bolts, bursts
+  and chain lightning have hot cores with soft falloff. Danger telegraphs and
+  hostile shots keep their own shaders and are untouched.
 - **UI:** a shared bronze-on-dark theme (`ui_style.gd`), illustrated level-up cards
   with rank pips, and themed inventory and skill tree screens.
 
@@ -982,6 +1060,19 @@ interface with concise rules and keyboard focus. See [run UI polish and checks](
 Floating combat text uses a capped priority budget to reduce overlap while
 preserving each displayed hit value. [Combat text checks and limits](docs/visuals/COMBAT_TEXT_READABILITY.md)
 cover Calm mode, damage telemetry and the crowded-game performance proxies.
+
+## Hungering gear
+
+About one Magic or Rare drop in eight is **Hungering**: its tooltip shows
+"Hungering — 312/800 souls" with a small progress bar, and ground drops of
+Rare items carry a "Hungering" tag. While it is worn, every kill by you or your
+army feeds it (elites count 10, bosses 50; carried items do not eat). Magic
+items need 400 souls and Rare items 800, scaled by 1 + item level / 40. When it
+has eaten enough it **awakens** once: one extra affix (rolled in the top half
+of its range), one rarity step up (a Rare becomes a Legendary without a
+power), the name prefix "Sated ", and a "YOUR ... AWAKENS" banner. Progress
+is saved with runs and Expedition campaign inventories. Rules and tuning
+constants live in `scripts/items/hunger.gd`; `tools/hunger_test.gd` covers it.
 
 ## Skill tree
 

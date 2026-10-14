@@ -52,9 +52,11 @@ var _blessing_label: Label
 var _power_label: Label
 var _prompt_label: Label
 var _bet_label: Label
+var _vow_label: Label
 var _upgrade_title: Label
 var _frenzy_label: Label
 var _omen_label: Label
+var _moon_label: Label
 var _report: Label
 var _recap_label: Label
 var _recap_chart: DeathRecap
@@ -80,6 +82,8 @@ var _night: _NightArc
 var _clock_color := Color(0.95, 0.93, 0.88)
 var _soul_bar: ProgressBar
 var _soul_label: Label
+var _requiem_bar: ProgressBar
+var _requiem_label: Label
 var _expedition_label: Label
 var _campaign_guidance_label: Label
 var _banish_row: HBoxContainer
@@ -289,6 +293,17 @@ func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 	_omen_label.add_theme_color_override("font_color", RunUi.MUTED)
 
 
+## The real moon, under the omen line ("" hides it).
+func set_moon(phase: String) -> void:
+	var p: Dictionary = MoonPhase.PHASES.get(phase, {})
+	_moon_label.visible = not p.is_empty()
+	if p.is_empty():
+		return
+	_moon_label.text = "MOON: %s" % String(p["name"]).to_upper()
+	_moon_label.tooltip_text = p["desc"]
+	_moon_label.add_theme_color_override("font_color", RunUi.MUTED)
+
+
 ## The run report on the end screen: damage by source, best first.
 ## "Why I died": the causes line and the health / pressure chart.
 func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -> void:
@@ -302,7 +317,7 @@ func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -
 
 ## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
 ## button to copy it.
-func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}) -> void:
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}, moon := "", vows := "") -> void:
 	var total := 0.0
 	for k: String in damage_by:
 		total += damage_by[k]
@@ -316,8 +331,13 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, dail
 	var extras := []
 	if omen != "":
 		extras.append("Omen: %s" % RunModifiers.OMENS[omen]["name"])
+	if moon != "":
+		var shard_bonus := roundi(100.0 * (MoonPhase.shard_mult(moon) - 1.0))
+		extras.append("Moon: %s%s" % [MoonPhase.PHASES[moon]["name"], (" (+%d%% shards)" % shard_bonus) if shard_bonus > 0 else ""])
 	if heat > 0:
 		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
+	if vows != "":
+		extras.append(vows)
 	if daily_code != "":
 		extras.append("Daily code: " + daily_code)
 	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
@@ -339,6 +359,12 @@ func set_night(progress: float, glow: float, on := true) -> void:
 		_night.progress = progress
 		_night.glow = glow
 		_night.queue_redraw()
+
+
+## The active Whispered Vow line ("" hides it).
+func set_vow(text: String) -> void:
+	_vow_label.text = text
+	_vow_label.visible = text != ""
 
 
 ## The Ferryman's side bet countdown ("" hides it).
@@ -455,6 +481,25 @@ func refresh_army(souls: int, cost: int, minions: int, max_minions: int, stance 
 	_soul_bar.value = souls
 	_soul_label.text = "SOULS %d/%d   ARMY %d/%d%s" % [mini(souls, cost), cost, minions, max_minions,
 			("   %s %s" % [stance, Controls.tag("army_stance")]) if stance != "" else ""]
+
+
+## The Requiem meter: souls the full army couldn't use. Full, it pulses and
+## names the key; while the dance runs it counts down.
+func refresh_requiem(dance: DanseMacabre, minions: int) -> void:
+	if _requiem_bar == null:
+		return
+	var ready := dance.can_start(minions)
+	if dance.active:
+		_requiem_bar.value = DanseMacabre.MAX * (1.0 - dance.progress())
+		_requiem_label.text = "DANSE MACABRE  %.1fs" % (DanseMacabre.DURATION - dance.time)
+	else:
+		_requiem_bar.value = dance.meter
+		_requiem_label.text = DanseMacabre.label(dance.meter, Controls.tag("danse_macabre")) \
+				+ ("" if dance.meter < DanseMacabre.MAX or ready else "  (needs %d minions)" % DanseMacabre.MIN_MINIONS)
+	var glow := ready or dance.active
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.008) if glow else 1.0
+	_requiem_bar.modulate = Color(pulse, pulse, pulse * 1.1) if glow else Color.WHITE
+	_requiem_label.add_theme_color_override("font_color", Color(0.85, 0.7, 1.0) if glow else RunUi.MUTED)
 
 
 ## `rerolls` > 0 shows a button (and the R key) to roll new cards.
@@ -755,6 +800,22 @@ func _build() -> void:
 	_soul_label.add_theme_color_override("font_color", RunUi.MUTED)
 	soul_row.add_child(_soul_label)
 
+	# Requiem meter (Danse Macabre): overflow souls, under the SOULS / ARMY row.
+	var requiem_row := HBoxContainer.new()
+	requiem_row.add_theme_constant_override("separation", 8)
+	requiem_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_column.add_child(requiem_row)
+	hp_column.move_child(requiem_row, 3)
+	_requiem_bar = UiStyle.bar(Color(0.75, 0.55, 1.0), 6)
+	_requiem_bar.max_value = DanseMacabre.MAX
+	_requiem_bar.custom_minimum_size.x = 110
+	_requiem_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_requiem_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	requiem_row.add_child(_requiem_bar)
+	_requiem_label = RunUi.world_label(12)
+	_requiem_label.add_theme_color_override("font_color", RunUi.MUTED)
+	requiem_row.add_child(_requiem_label)
+
 	# Top center, under the timer: the boss health bar.
 	var boss_column := VBoxContainer.new()
 	boss_column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -796,6 +857,11 @@ func _build() -> void:
 	_omen_label.position = Vector2(28, 136)
 	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(_omen_label)
+	_moon_label = RunUi.world_label(14)
+	_moon_label.position = Vector2(28, 156)
+	_moon_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_moon_label.hide()
+	root.add_child(_moon_label)
 
 	# A boss's name, big, when it arrives.
 	_title_card = VBoxContainer.new()
@@ -844,6 +910,18 @@ func _build() -> void:
 	_bet_label.hide()
 	_bet_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_bet_label)
+	# And beneath that, the Whispered Vow in force (quiet, one line).
+	_vow_label = RunUi.world_label(14)
+	_vow_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_vow_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_vow_label.offset_top = 206
+	_vow_label.offset_left = -275
+	_vow_label.offset_right = 275
+	_vow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_vow_label.add_theme_color_override("font_color", Vows.COLOR)
+	_vow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vow_label.hide()
+	root.add_child(_vow_label)
 
 	# Bottom center: what the nearby landmark does (see Landmarks).
 	_prompt_label = RunUi.world_label(15)

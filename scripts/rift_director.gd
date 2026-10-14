@@ -172,7 +172,7 @@ func _open_portal(kind: String) -> void:
 	var root := Node3D.new()
 	root.position = Vector3(at.x, 0.0, at.y)
 	add_child(root)
-	HazardDirector.make_decal(root, Vector2.ZERO, Color(color, 0.7), 1.0, 3.6)
+	HazardDirector.make_decal(root, Vector2.ZERO, Color(color, 0.7), 1.0, 3.6, Models.rune_material(Color(color, 0.8)))
 	var kit := MeshKit.new()
 	kit.cylinder(0.9, 0.9, 0.12, MeshKit.at(Vector3(0, 1.4, 0), Vector3(90, 0, 0)), color, 2.5, 16, false, false)
 	kit.cylinder(0.75, 0.75, 0.14, MeshKit.at(Vector3(0, 1.4, 0), Vector3(90, 0, 0)), Color(0.05, 0.03, 0.1), 0.0, 16)
@@ -279,7 +279,7 @@ func _build_market() -> void:
 	exit.mesh = kit.commit(Models.kit_material())
 	exit.position = Vector3(0, 0, 5.0)
 	_market_node.add_child(exit)
-	HazardDirector.make_decal(_market_node, Vector2(0, 5.0), Color(MARKET_COLOR, 0.7), 1.0, 3.6)
+	HazardDirector.make_decal(_market_node, Vector2(0, 5.0), Color(MARKET_COLOR, 0.7), 1.0, 3.6, Models.rune_material(Color(MARKET_COLOR, 0.8)))
 
 
 ## While in the market, instead of the realm's frame (main.gd).

@@ -28,7 +28,8 @@ extends Node3D
 	"tree": 0.35, "grave": 0.35, "pillar": 0.12, "crystal": 0.14,
 }
 ## Kinds big enough to cast real shadows.
-const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush", "pine", "ice", "snowrock", "obsidian", "ashtree"]
+const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush", "pine", "ice", "snowrock", "obsidian", "ashtree",
+		"celtic_cross", "frozen_deadtree", "magma_rock"]
 ## Explicit dependency also works before a newly added global class is scanned.
 const COMPOSITION_LAYOUTS := preload("res://scripts/visual/decor_compositions.gd")
 
@@ -71,7 +72,7 @@ func _ready() -> void:
 		mm.use_colors = true
 		mm.mesh = null
 		mmi.multimesh = mm
-		var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
+		var shadowed := _casts_shadow(kind)
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
@@ -102,7 +103,7 @@ func _make_layer(kind: String) -> void:
 	mm.use_colors = true
 	mm.mesh = null
 	mmi.multimesh = mm
-	var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
+	var shadowed := _casts_shadow(kind)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
 			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
@@ -124,6 +125,14 @@ func _ensure_layers() -> void:
 				_load_kind(kind)
 
 
+func _casts_shadow(kind: String) -> bool:
+	if AssetProps.has(kind):
+		return AssetProps.data(kind)["shadow"]
+	if RealmProps.enabled and RealmProps.has(kind):
+		return RealmProps.casts_shadow(kind)
+	return kind in SHADOWED
+
+
 func _mesh_ready(kind: String) -> bool:
 	return _layers.has(kind) and (_layers[kind] as MultiMeshInstance3D).multimesh.mesh != null
 
@@ -137,6 +146,7 @@ func _load_kind(kind: String) -> void:
 ## Call every frame with the hero's ground position; rebuilds when needed.
 func follow(hero: Vector2) -> void:
 	AssetProps.set_hero(Vector3(hero.x, 0.0, hero.y))
+	RealmProps.set_hero(Vector3(hero.x, 0.0, hero.y))
 	var c := Vector2i(floori(hero.x / chunk_size), floori(hero.y / chunk_size))
 	if c != _center:
 		_center = c
@@ -297,11 +307,13 @@ func _compute_chunk(chunk: Vector2i, fixed_landmarks: Array) -> Array:
 		var n := _poisson(rng, density.get(kind, 0.0))
 		for k in n:
 			var p := origin + Vector2(rng.randf(), rng.randf()) * chunk_size
-			if p.length_squared() < 36.0 and kind != "grass":
+			if p.length_squared() < 36.0 and not kind.begins_with("grass"):
 				continue
 			var s := rng.randf_range(0.7, 1.3)
 			if kind == "tree" or kind == "pillar":
 				s = rng.randf_range(0.9, 1.4)
+			if RealmProps.enabled and RealmProps.has(kind):
+				s = rng.randf_range(0.85, 1.15) # the models are already sized per kind
 			var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s)
 			var shade := rng.randf_range(0.8, 1.15)
 			# Keep every original draw and suppression decision in the original order.
