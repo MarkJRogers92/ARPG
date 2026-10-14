@@ -503,6 +503,28 @@ its kind and position, so walking away and back doesn't reset it.
 | Fishing hut | Rest: heal to full |
 | Forbidden tome | +1 skill point, -8% max HP for the night |
 
+## Whispered Vows
+
+Twice a night, at 0:45 and 7:30, the dead whisper one small optional
+challenge (`scripts/vows.gd`). It is accepted at once, has a time limit, and
+shows as one line under the clock, such as `VOW · Gather 20 souls — 14/20 ·
+1:12`. Only one is active at a time. Keep it for 4 run Soul Shards (banked as
+usual) and a random shrine blessing; miss it and "The whisper fades", with no
+penalty. The end screen reports "Vows kept: 1/2". Classic nights only.
+
+| Vow | Counts |
+|---|---|
+| Shatter / Melt / Overload N foes | That reaction firing (only offered to a hero with both sources) |
+| Slay N foes in 20 seconds | Kills; N grows with the hour of the night |
+| Raise 4 minions | Minions raised |
+| Slay an elite without dashing | One elite kill; any dash breaks it |
+| Stay above half health | Survive 90 s without dropping under 50% |
+| Walk the night: 250 m | Distance travelled |
+| Gather 20 souls | Souls picked up |
+
+Daily Nights seed the choice, so everyone is whispered the same vows. A
+resumed night starts fresh and skips a window that has already passed.
+
 ## Rifts
 
 Tears in the night that lead somewhere else for a while (`scripts/rift_director.gd`).

@@ -120,6 +120,8 @@ var frenzy := 0.0
 var frenzy_tier := 0
 const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
+## Whispered Vows (see Vows); off in the campaign.
+var _vows: Vows
 var _rival: RivalDirector
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
@@ -212,6 +214,7 @@ func _ready() -> void:
 		if crypt >= 0 and not _campaign:
 			MetaProgress.crypt_fell(crypt))
 	_army.raised.connect(func(kind: String) -> void:
+		if _vows: _vows.on_raise()
 		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
 	for swarm in _swarms:
 		swarm.shots = _shots
@@ -254,6 +257,16 @@ func _ready() -> void:
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
 		if not _campaign:
 			_ferryman.start_bet(boss_name))
+	# Whispered Vows hooks: signals below, plus kill/elite/soul/raise/dash feeds and tick.
+	_vows = Vows.new()
+	add_child(_vows)
+	_vows.enabled = not _campaign
+	_vows.setup(_player.stats)
+	_vows.whispered.connect(func(title: String, subtitle: String) -> void:
+		_hud.title_card(title, subtitle, Vows.COLOR, true))
+	_vows.faded.connect(func(text: String) -> void: _hud.toast(text, UiStyle.MUTED))
+	_vows.kept.connect(_on_vow_kept)
+	_player.dashed.connect(_vows.on_dash)
 	_rival = RivalDirector.new()
 	add_child(_rival)
 	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
@@ -613,7 +626,10 @@ func _process(delta: float) -> void:
 			_ferryman.tick(delta)
 			_rift.tick(delta)
 			_rival.tick(delta)
-	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
+	if not _campaign and (not won or _endless):
+		_vows.tick(delta, elapsed, _player.stats.hp / maxf(_player.stats.max_hp, 1.0), _player.pos2)
+	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards + _vows.shards
+	_vows.shards = 0
 	_events.shards = 0
 	_landmarks.shards = 0
 	_ferryman.shards = 0
@@ -629,6 +645,7 @@ func _process(delta: float) -> void:
 		else:
 			hint = _final_mech.hint if _final_mech.hint != "" else _mid_mech.hint
 	_hud.set_bet(hint)
+	_hud.set_vow(_vows.hud_text())
 	_update_frenzy(delta)
 	_sample_in -= delta
 	if _sample_in <= 0.0:
@@ -663,6 +680,7 @@ func _process(delta: float) -> void:
 	_souls.step(delta, origin, _player.stats.pickup_radius)
 	for value in _souls.collected:
 		_army.collect_soul(value)
+		_vows.on_soul()
 		Sound.play("soul")
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 	if _campaign:
@@ -784,6 +802,7 @@ func _market_frame(delta: float) -> void:
 
 ## Pacts and this night's Omen (and the Daily Night's fixed seed).
 func _begin_night() -> void:
+	_vows.rng.randomize()
 	pacts = MetaProgress.pacts.duplicate() if MetaProgress.any_won() and not Realm.daily else []
 	if not _resume.is_empty():
 		# A resumed night keeps the rules it began with.
@@ -801,6 +820,7 @@ func _begin_night() -> void:
 	if Realm.daily:
 		var pick := Realm.daily_pick([Realm.current])
 		seed(pick["seed"])
+		_vows.rng.seed = int(pick["seed"]) ^ 0x70175
 		omen = RunModifiers.roll_omen(pick["omen"])
 	elif MetaProgress.disabled:
 		omen = RunModifiers.forced_omen
@@ -849,7 +869,7 @@ func _settle_run(seconds: float) -> int:
 		MetaProgress.add_daily_run({"date": Realm.today(), "kills": kills, "seconds": roundi(elapsed), "won": won,
 				"class": hero, "code": code}, _daily_logged)
 		_daily_logged = true
-	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report(), moon)
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report(), moon, _vows.report_text())
 	# One authoritative write after every award, and before anything is promised:
 	# a toast must never bank progress the disk does not have. The earlier saves
 	# inside each mutator stay for their other callers.
@@ -944,6 +964,7 @@ func _restore(d: Dictionary) -> void:
 	_player.warding_charge_left = 0.0
 	var stats := _player.stats
 	elapsed = d["elapsed"]
+	_vows.resume_at(elapsed)
 	_director.elapsed = elapsed
 	_director.pressure = d.get("pressure", 1.0)
 	kills = d.get("kills", 0)
@@ -1144,6 +1165,16 @@ func _spawn_motes(delta: float, origin: Vector2) -> void:
 				_motes.burst(at, randf_range(0.2, 2.5), color, 1, 0.5, 0.13, 4.5, 0.4)
 
 
+## A vow kept: a blessing (the shrine kind) and a small gold flourish. The
+## run shards came through Vows.shards.
+func _on_vow_kept(blessing: String) -> void:
+	_events.bless_for(blessing, _events.blessing_time)
+	_fx.burst(_player.pos2, 1.2, Color(1.0, 0.85, 0.35), 24, 5.0, 0.6, 0.7, 4.0)
+	Juice.flash(_player.pos2, Color(1.0, 0.85, 0.4), 4.0, 8.0, 0.3)
+	Sound.play("shrine_done", 1.25)
+	_hud.toast("Vow kept  ·  +%d shards" % Vows.SHARDS, Vows.KEPT_COLOR)
+
+
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if _expedition_terminal or (won and not _endless):
 		return
@@ -1154,6 +1185,7 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 			if swarm.hp[i] <= 0.0 and _expedition.contract_id == "elite_hunt":
 				_expedition.observe_elite_death(swarm, swarm.ids[i])
 	_run_shards += 2
+	_vows.on_elite()
 	_power_ups.on_kill(at, true)
 	Sound.play("elite_kill")
 	Juice.hitstop(0.04)
@@ -1176,6 +1208,7 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	_vows.on_kill()
 	_wisps.from_kill(at)
 	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1

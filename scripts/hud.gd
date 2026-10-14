@@ -52,6 +52,7 @@ var _blessing_label: Label
 var _power_label: Label
 var _prompt_label: Label
 var _bet_label: Label
+var _vow_label: Label
 var _upgrade_title: Label
 var _frenzy_label: Label
 var _omen_label: Label
@@ -314,7 +315,7 @@ func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -
 
 ## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
 ## button to copy it.
-func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}, moon := "") -> void:
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}, moon := "", vows := "") -> void:
 	var total := 0.0
 	for k: String in damage_by:
 		total += damage_by[k]
@@ -333,6 +334,8 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, dail
 		extras.append("Moon: %s%s" % [MoonPhase.PHASES[moon]["name"], (" (+%d%% shards)" % shard_bonus) if shard_bonus > 0 else ""])
 	if heat > 0:
 		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
+	if vows != "":
+		extras.append(vows)
 	if daily_code != "":
 		extras.append("Daily code: " + daily_code)
 	_report.text = line + ("\n" + "   ·   ".join(extras) if not extras.is_empty() else "")
@@ -354,6 +357,12 @@ func set_night(progress: float, glow: float, on := true) -> void:
 		_night.progress = progress
 		_night.glow = glow
 		_night.queue_redraw()
+
+
+## The active Whispered Vow line ("" hides it).
+func set_vow(text: String) -> void:
+	_vow_label.text = text
+	_vow_label.visible = text != ""
 
 
 ## The Ferryman's side bet countdown ("" hides it).
@@ -864,6 +873,18 @@ func _build() -> void:
 	_bet_label.hide()
 	_bet_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_bet_label)
+	# And beneath that, the Whispered Vow in force (quiet, one line).
+	_vow_label = RunUi.world_label(14)
+	_vow_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_vow_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_vow_label.offset_top = 206
+	_vow_label.offset_left = -275
+	_vow_label.offset_right = 275
+	_vow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_vow_label.add_theme_color_override("font_color", Vows.COLOR)
+	_vow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vow_label.hide()
+	root.add_child(_vow_label)
 
 	# Bottom center: what the nearby landmark does (see Landmarks).
 	_prompt_label = RunUi.world_label(15)
