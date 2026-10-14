@@ -74,6 +74,7 @@ SUITES=(
   "tools/build_choices_test.gd"
   "tools/combat_ledger_test.gd"
   "tools/mission_rhythm_test.gd"
+  "tools/epitaphs_test.gd"
   "tools/reward_pools_test.gd"
   "tools/deferred_ui_test.gd"
   "tools/friendly_opacity_test.gd"

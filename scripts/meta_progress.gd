@@ -82,6 +82,9 @@ static var start_weapon := ""
 static var cards := {}
 static var fallen: Array = []
 static var crypt_chosen := -1
+## Epitaphs (see Epitaphs): graves of past Classic deaths that haunt their realm
+## for a few nights. Optional in saves.
+static var epitaphs: Array = []
 const CRYPT_SIZE := 3
 const FALLEN_KEPT := 12
 ## Kills of one kind that each earn a star; every star is +1% damage, for good.
@@ -114,6 +117,7 @@ static func load_save() -> void:
 	daily_runs = []
 	crypt = []
 	fallen = []
+	epitaphs = []
 	crypt_chosen = -1
 	ascension = 0
 	ascension_unlocked = 0
@@ -177,6 +181,12 @@ static func load_save() -> void:
 		var saved_fallen = data.get("fallen", [])
 		if saved_fallen is Array:
 			fallen = saved_fallen.filter(func(v) -> bool: return _valid_crypt_entry(v))
+		var saved_epitaphs = data.get("epitaphs", [])
+		if saved_epitaphs is Array:
+			for v in saved_epitaphs:
+				var grave := Epitaphs.clean(v)
+				if not grave.is_empty():
+					epitaphs.append(grave)
 		crypt_chosen = _int_or(data.get("crypt_chosen", -1), -1)
 		ascension_unlocked = clampi(_int_or(data.get("ascension_unlocked", 0), 0), 0, RunModifiers.ASCENSION_MAX)
 		ascension = clampi(_int_or(data.get("ascension", 0), 0), 0, ascension_unlocked)
@@ -295,7 +305,7 @@ static func _valid_snapshot(data: Variant) -> bool:
 			if not value is int or value < 0: return false
 	for id in data.get("campaign_receipts", {}):
 		if not id is String or data["campaign_receipts"][id] != true: return false
-	for key in ["crypt", "fallen", "daily_runs"]:
+	for key in ["crypt", "fallen", "daily_runs", "epitaphs"]:
 		if data.has(key) and not data[key] is Array: return false
 	return true
 
@@ -307,7 +317,7 @@ static func _snapshot() -> Dictionary:
 	data.merge({"version": SAVE_VERSION, "shards": shards, "ranks": ranks, "realms": realms,
 			"settings": settings, "classes": classes, "hero_class": hero_class,
 			"bestiary": bestiary, "pacts": pacts, "daily": daily, "daily_runs": daily_runs,
-			"crypt": crypt, "fallen": fallen, "crypt_chosen": crypt_chosen,
+			"crypt": crypt, "fallen": fallen, "epitaphs": epitaphs, "crypt_chosen": crypt_chosen,
 			"ascension": ascension, "ascension_unlocked": ascension_unlocked,
 			"nemesis": nemesis, "nemeses_slain": nemeses_slain,
 			"relics": relics, "relic": relic, "weapons": weapons, "start_weapon": start_weapon, "cards": cards,
