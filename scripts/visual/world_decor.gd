@@ -28,7 +28,8 @@ extends Node3D
 	"tree": 0.35, "grave": 0.35, "pillar": 0.12, "crystal": 0.14,
 }
 ## Kinds big enough to cast real shadows.
-const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush", "pine", "ice", "snowrock", "obsidian", "ashtree"]
+const SHADOWED := ["rock", "tree", "grave", "pillar", "crystal", "bush", "pine", "ice", "snowrock", "obsidian", "ashtree",
+		"celtic_cross", "frozen_deadtree", "magma_rock"]
 ## Explicit dependency also works before a newly added global class is scanned.
 const COMPOSITION_LAYOUTS := preload("res://scripts/visual/decor_compositions.gd")
 
@@ -137,6 +138,7 @@ func _load_kind(kind: String) -> void:
 ## Call every frame with the hero's ground position; rebuilds when needed.
 func follow(hero: Vector2) -> void:
 	AssetProps.set_hero(Vector3(hero.x, 0.0, hero.y))
+	RealmProps.set_hero(Vector3(hero.x, 0.0, hero.y))
 	var c := Vector2i(floori(hero.x / chunk_size), floori(hero.y / chunk_size))
 	if c != _center:
 		_center = c
@@ -302,6 +304,8 @@ func _compute_chunk(chunk: Vector2i, fixed_landmarks: Array) -> Array:
 			var s := rng.randf_range(0.7, 1.3)
 			if kind == "tree" or kind == "pillar":
 				s = rng.randf_range(0.9, 1.4)
+			if RealmProps.enabled and RealmProps.has(kind):
+				s = rng.randf_range(0.85, 1.15) # the models are already sized per kind
 			var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s)
 			var shade := rng.randf_range(0.8, 1.15)
 			# Keep every original draw and suppression decision in the original order.

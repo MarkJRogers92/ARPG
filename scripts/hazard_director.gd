@@ -59,7 +59,7 @@ func _start(at: Vector2, windup: float, radius: float, color: Color) -> void:
 	var falling: MeshInstance3D = null
 	if kind == "ice" or kind == "meteors":
 		falling = MeshInstance3D.new()
-		falling.mesh = Models.prop("ice") if kind == "ice" else Models.enemy_orb()
+		falling.mesh = Models.code_prop("ice") if kind == "ice" else Models.enemy_orb()
 		falling.scale = Vector3.ONE * (0.6 if kind == "ice" else 3.0)
 		falling.rotation_degrees = Vector3(180 if kind == "ice" else 90, 0, 0)
 		falling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
