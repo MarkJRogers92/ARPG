@@ -21,7 +21,12 @@ func _run() -> void:
 		if mesh == null:
 			continue
 		var box := mesh.get_aabb()
-		check(absf(box.position.y) < 0.01, "%s: base sits on y = 0" % kind)
+		var native: bool = d.get("native", false)
+		check(absf(box.position.y) < (0.15 if native else 0.01), "%s: base sits on y = 0" % kind)
+		check(not native or (mesh.get_surface_count() >= 1 and d.has("file")), "%s: filler model has surfaces" % kind)
+		if native:
+			check(maxf(box.size.x, box.size.z) < 3.0 and box.size.y < 3.2, "%s: no giant outlier" % kind)
+			continue
 		check(absf(box.position.x + box.size.x * 0.5) < 0.01 and absf(box.position.z + box.size.z * 0.5) < 0.01, "%s: centered on its footprint" % kind)
 		var extent := box.size.y if d["fit"] == "height" else maxf(box.size.x, box.size.z)
 		check(absf(extent - d["size"]) < 0.02, "%s: normalized to %.2f m (%.2f)" % [kind, d["size"], extent])

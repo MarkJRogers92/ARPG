@@ -72,7 +72,7 @@ func _ready() -> void:
 		mm.use_colors = true
 		mm.mesh = null
 		mmi.multimesh = mm
-		var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
+		var shadowed := _casts_shadow(kind)
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
@@ -103,7 +103,7 @@ func _make_layer(kind: String) -> void:
 	mm.use_colors = true
 	mm.mesh = null
 	mmi.multimesh = mm
-	var shadowed: bool = AssetProps.data(kind)["shadow"] if AssetProps.has(kind) else kind in SHADOWED
+	var shadowed := _casts_shadow(kind)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed \
 			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
@@ -123,6 +123,14 @@ func _ensure_layers() -> void:
 			var kind := str(f["kind"])
 			if kind != "" and Models.PROPS.has(kind) and not _mesh_ready(kind):
 				_load_kind(kind)
+
+
+func _casts_shadow(kind: String) -> bool:
+	if AssetProps.has(kind):
+		return AssetProps.data(kind)["shadow"]
+	if RealmProps.enabled and RealmProps.has(kind):
+		return RealmProps.casts_shadow(kind)
+	return kind in SHADOWED
 
 
 func _mesh_ready(kind: String) -> bool:
@@ -299,7 +307,7 @@ func _compute_chunk(chunk: Vector2i, fixed_landmarks: Array) -> Array:
 		var n := _poisson(rng, density.get(kind, 0.0))
 		for k in n:
 			var p := origin + Vector2(rng.randf(), rng.randf()) * chunk_size
-			if p.length_squared() < 36.0 and kind != "grass":
+			if p.length_squared() < 36.0 and not kind.begins_with("grass"):
 				continue
 			var s := rng.randf_range(0.7, 1.3)
 			if kind == "tree" or kind == "pillar":

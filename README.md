@@ -659,6 +659,10 @@ Each explains itself with a message the first time it does its thing. The
 behavior is in `EnemySwarm` (the "Specialists" exports), what the hero sees
 and feels in `scripts/specialists.gd`.
 
+## Realm scenery models
+
+The everyday scatter is textured art rather than code-built shapes: dead trees, grave clusters, celtic crosses, mossy boulders, ruined pillars, soul crystals and ghost mushrooms in the Hollow Graveyard; snow pines, frozen dead trees, ice spikes and snow boulders in the Frozen Wastes; ash trees (with glowing cracks), obsidian spires, brimstone vents and magma rocks in the Ember Rift. Small Blender pieces (per-realm grass and bushes, bone piles, candle clusters, grave markers, a runed menhir that glows in each realm's color, a frozen cairn, iron stakes) fill in around them. Each kind is still one MultiMesh, lit by the moon and shadows, and anything standing between the camera and your hero dithers away. Glowing parts pulse gently and feed the bloom. Meshy models live in `assets/environment/realm_props/`, filler in `.../filler/`; `scripts/visual/realm_props.gd` fits them to size and `shaders/realm_prop.gdshader` draws them. Turn `RealmProps.enabled` off to see the old code-built shapes.
+
 ## Imported scenery
 
 76 hand-made Blender props (`assets/environment/arpg_pack/`) share the world

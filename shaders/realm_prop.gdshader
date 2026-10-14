@@ -5,13 +5,16 @@ shader_type spatial;
 // mask derived from the albedo (magma veins, crystals, mushroom caps).
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_disable;
+// Vertex-colored models (the Blender filler props) have no atlas: COLOR is the albedo.
+uniform bool use_vcol = false;
 uniform vec3 tint : source_color = vec3(1.0);
 uniform float brightness = 1.0;
 uniform float roughness = 0.85;
 uniform float specular = 0.35;
 // Glow: 0 none, 1 warm-hued texels (even dark ones), 2 cool texels (blue/cyan over
 // red), 3 any bright texel, 4 procedural cracks in object space (for rock and
-// bark whose albedo has no glowing texels). The mask is smoothstep(emit_lo, emit_hi, key).
+// bark whose albedo has no glowing texels), 5 the whole surface (the filler props'
+// "glow" material: candle flames, rune lines, embers). The mask is smoothstep(emit_lo, emit_hi, key).
 uniform int emit_mode = 0;
 uniform vec3 emit_color : source_color = vec3(1.0, 0.45, 0.1);
 uniform float emit_strength = 0.0;
@@ -74,7 +77,7 @@ void fragment() {
 			}
 		}
 	}
-	vec3 tex = texture(albedo_tex, UV).rgb;
+	vec3 tex = use_vcol ? vec3(1.0) : texture(albedo_tex, UV).rgb;
 	// Slight warm/cool drift per instance, on top of the instance shade (COLOR).
 	vec3 jitter = vec3(1.0) + (v_rand - 0.5) * vec3(0.14, 0.0, -0.14);
 	ALBEDO = tex * tint * jitter * COLOR.rgb * brightness;
@@ -84,7 +87,9 @@ void fragment() {
 	vec3 glow = rim_color * rim * rim_strength;
 	if (emit_mode > 0 && emit_strength > 0.0) {
 		float key;
-		if (emit_mode == 4) {
+		if (emit_mode == 5) {
+			key = 1.0;
+		} else if (emit_mode == 4) {
 			vec3 p = v_local * crack_scale;
 			float n = vnoise(p);
 			float line = 1.0 - smoothstep(0.0, crack_width, abs(n - 0.5));
@@ -99,7 +104,7 @@ void fragment() {
 		} else {
 			key = max(max(tex.r, tex.g), tex.b);
 		}
-		float mask = smoothstep(emit_lo, emit_hi, key);
+		float mask = emit_mode == 5 ? 1.0 : smoothstep(emit_lo, emit_hi, key);
 		float breathe = 1.0 + pulse * sin(TIME * pulse_speed + v_rand * 6.2831);
 		glow += emit_color * mask * emit_strength * breathe;
 	}
