@@ -227,6 +227,7 @@ func _start_crossroads(at: Vector2) -> bool:
 		var choice := _make_shrine(choices_at[i], first if i == 0 else second)
 		(choice["node"] as Node3D).reparent(parent)
 		var label := Label3D.new()
+		label.font = UiStyle.EMPHASIS
 		label.text = "%s\n%s" % [String(choice["blessing"]).to_upper(), BLESSINGS[choice["blessing"]]["desc"]]
 		label.font_size = 32
 		label.outline_size = 5
@@ -471,6 +472,7 @@ func _choose_chest(action: String) -> void:
 		for key: String in ["seal_ring","seal_fill"]:
 			(e[key].material_override as ShaderMaterial).set_shader_parameter("pulse_speed",0.0)
 		var label := Label3D.new()
+		label.font = UiStyle.EMPHASIS
 		label.position = Vector3(0,2.0,0); label.font_size = 26; label.pixel_size = 0.010
 		label.outline_size = 4; label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.modulate = SEAL_COLOR; (e["node"] as Node3D).add_child(label); e["seal_label"] = label

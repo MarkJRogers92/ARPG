@@ -6,7 +6,7 @@ extends CanvasLayer
 
 signal chosen(action: String)
 
-var heading := "THE FERRYMAN"
+var heading := "The Ferryman"
 var flavor_text := "\"Every soul pays the toll. Will you pay it twice, for a richer crossing?\""
 
 var _root: Control
@@ -75,7 +75,7 @@ func show_state(state: Dictionary) -> void:
 			_cards.add_child(panel)
 			var column:=VBoxContainer.new();column.custom_minimum_size.x=290;column.add_theme_constant_override("separation",10);panel.add_child(column)
 			var eyebrow:=RunUi.label(12,RunUi.SOUL if id=="seal" else RunUi.MUTED);eyebrow.text=data.get("eyebrow","");column.add_child(eyebrow)
-			var title:=RunUi.label(24);title.text=data.get("title",a[1]);column.add_child(title)
+			var title:=RunUi.label(24);title.text=data.get("title",a[1]);title.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;column.add_child(title)
 			var reward:=RunUi.label(17,RunUi.GOLD);reward.text=data.get("reward","");reward.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;column.add_child(reward)
 			var detail:=RunUi.label(15,RunUi.MUTED);detail.text=data.get("challenge","");detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;detail.custom_minimum_size.y=78;column.add_child(detail)
 			b.size_flags_horizontal=Control.SIZE_EXPAND_FILL;column.add_child(b)
@@ -137,23 +137,25 @@ func _build() -> void:
 	box.custom_minimum_size.x = 740
 	box.add_theme_constant_override("separation", 12)
 	scroll.add_child(box)
-	_title = RunUi.label(30)
-	_title.text = heading
+	_title = RunUi.heading(30)
+	_title.text = heading.capitalize()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_title.add_theme_color_override("font_color", RunUi.TEXT)
 	box.add_child(_title)
 	var flavor := RunUi.label(15)
 	flavor.text = flavor_text
+	flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	flavor.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	flavor.add_theme_color_override("font_color",RunUi.MUTED)
 	box.add_child(flavor)
 	_prize = RunUi.label(17)
+	_prize.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_prize.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	box.add_child(_prize)
 	_detail = RunUi.label(15)
 	_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_detail.modulate = Color(1, 1, 1, 0.75)
+	_detail.add_theme_color_override("font_color", RunUi.MUTED)
 	box.add_child(_detail)
 	_odds = RunUi.label(14)
 	_odds.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -164,6 +166,7 @@ func _build() -> void:
 	box.add_child(_cards)
 	box.add_child(_odds)
 	_result = RunUi.label(13)
+	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_result.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	box.add_child(_result)
 	_buttons = HBoxContainer.new()

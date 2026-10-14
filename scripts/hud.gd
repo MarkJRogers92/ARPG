@@ -408,7 +408,7 @@ func set_markers(items: Array, camera: Camera3D, campaign_objectives := false) -
 
 
 func _draw_markers() -> void:
-	var font := ThemeDB.fallback_font
+	var font := UiStyle.EMPHASIS
 	var bob := 0.0 if bool(MetaProgress.setting("calm")) else sin(Time.get_ticks_msec() * 0.006) * 4.0
 	for m: Dictionary in _marker_items:
 		var color: Color = m["color"]
@@ -506,13 +506,13 @@ func set_clock(text: String, color := Color(0.95, 0.93, 0.88)) -> void:
 
 
 func show_game_over(elapsed: float, kills: int, level: int, shards := 0) -> void:
-	_show_end("YOU DIED", Color(0.85, 0.12, 0.1), "Survived %s     Level %d     Kills %d" % [_format_time(elapsed), level, kills],
+	_show_end("You died", RunUi.LOSS, "Survived %s     Level %d     Kills %d" % [_format_time(elapsed), level, kills],
 			shards, false)
 
 
 ## The night is won: the realm's final boss is dead.
 func show_victory(realm_name: String, elapsed: float, kills: int, level: int, shards: int) -> void:
-	_show_end("DAWN BREAKS", Color(1.0, 0.82, 0.4), "%s is conquered.\nLevel %d     Kills %d     %s" % [
+	_show_end("Dawn breaks", Color(1.0, 0.82, 0.4), "%s is conquered.\nLevel %d     Kills %d     %s" % [
 			realm_name, level, kills, _format_time(elapsed)], shards, true)
 
 
@@ -626,7 +626,7 @@ func _build() -> void:
 	badge.add_theme_stylebox_override("panel", badge_style)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitals.add_child(badge)
-	_level_label = RunUi.label(24)
+	_level_label = RunUi.world_label(24)
 	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_level_label.add_theme_color_override("font_color", UiStyle.GOLD)
@@ -641,25 +641,25 @@ func _build() -> void:
 	_hp_bar.custom_minimum_size.x = 250
 	_hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hp_column.add_child(_hp_bar)
-	_hp_text = RunUi.label(15)
+	_hp_text = RunUi.world_label(15)
 	_hp_text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_hp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_hp_bar.add_child(_hp_text)
-	_skill_label = RunUi.label(16)
+	_skill_label = RunUi.world_label(16)
 	_skill_label.add_theme_color_override("font_color", UiStyle.GOLD)
 	_skill_label.visible = false
 	hp_column.add_child(_skill_label)
 
 	# Top center: the run timer.
-	_time_label = RunUi.label(26)
+	_time_label = RunUi.world_label(26)
 	_time_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_time_label.offset_top = 26
 	_time_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
 	root.add_child(_time_label)
-	_expedition_label = RunUi.label(15)
+	_expedition_label = RunUi.world_label(15)
 	_expedition_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_expedition_label.offset_top = 58
 	_expedition_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -667,7 +667,7 @@ func _build() -> void:
 	_expedition_label.add_theme_color_override("font_color", Color(0.58, 0.88, 1.0))
 	_expedition_label.visible = false
 	root.add_child(_expedition_label)
-	_campaign_guidance_label = RunUi.label(14)
+	_campaign_guidance_label = RunUi.world_label(14)
 	_campaign_guidance_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_campaign_guidance_label.offset_top = 184
 	_campaign_guidance_label.offset_left = -560
@@ -675,7 +675,7 @@ func _build() -> void:
 	_campaign_guidance_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_campaign_guidance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_campaign_guidance_label.add_theme_color_override("font_color", Color(0.86, 0.84, 0.77))
-	_campaign_guidance_label.add_theme_constant_override("outline_size", 4)
+	_campaign_guidance_label.add_theme_constant_override("outline_size", 2)
 	_campaign_guidance_label.add_theme_color_override("font_outline_color", Color(0.08, 0.07, 0.06, 0.92))
 	_campaign_guidance_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_campaign_guidance_label.hide()
@@ -704,11 +704,11 @@ func _build() -> void:
 	skull.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	skull.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kills_row.add_child(skull)
-	_kills_label = RunUi.label(20)
+	_kills_label = RunUi.world_label(20)
 	kills_row.add_child(_kills_label)
-	_frenzy_label = RunUi.label(18)
+	_frenzy_label = RunUi.world_label(18)
 	_frenzy_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.25))
-	_frenzy_label.add_theme_constant_override("outline_size", 6)
+	_frenzy_label.add_theme_constant_override("outline_size", 2)
 	_frenzy_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kills_row.add_child(_frenzy_label)
 	var gem := _ShardIcon.new()
@@ -716,7 +716,7 @@ func _build() -> void:
 	gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kills_row.add_child(gem)
-	_shards_label = RunUi.label(20)
+	_shards_label = RunUi.world_label(20)
 	_shards_label.add_theme_color_override("font_color", RunUi.GOLD)
 	kills_row.move_child(gem, 0)
 	kills_row.add_child(_shards_label)
@@ -738,7 +738,7 @@ func _build() -> void:
 	_dash_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_dash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dash_row.add_child(_dash_bar)
-	_dash_label = RunUi.label(12)
+	_dash_label = RunUi.world_label(12)
 	dash_row.add_child(_dash_label)
 
 	var soul_row := HBoxContainer.new()
@@ -751,7 +751,7 @@ func _build() -> void:
 	_soul_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_soul_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	soul_row.add_child(_soul_bar)
-	_soul_label = RunUi.label(12)
+	_soul_label = RunUi.world_label(12)
 	_soul_label.add_theme_color_override("font_color", RunUi.MUTED)
 	soul_row.add_child(_soul_label)
 
@@ -767,7 +767,7 @@ func _build() -> void:
 	boss_column.visible = false
 	root.add_child(boss_column)
 	_boss_box = boss_column
-	_boss_label = RunUi.label(18)
+	_boss_label = RunUi.world_label(18)
 	_boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_label.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
 	boss_column.add_child(_boss_label)
@@ -777,7 +777,7 @@ func _build() -> void:
 	boss_column.add_child(_boss_bar)
 
 	# Under the boss bar: the shrine blessing in effect.
-	_blessing_label = RunUi.label(18)
+	_blessing_label = RunUi.world_label(18)
 	_blessing_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_blessing_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_blessing_label.offset_top = 126
@@ -792,7 +792,7 @@ func _build() -> void:
 	root.add_child(_power_label)
 
 	# Under the army bar: this night's omen (and pact heat).
-	_omen_label = RunUi.label(14)
+	_omen_label = RunUi.world_label(14)
 	_omen_label.position = Vector2(28, 136)
 	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(_omen_label)
@@ -813,14 +813,14 @@ func _build() -> void:
 	_reward_backdrop.hide()
 	root.add_child(_reward_backdrop)
 	root.add_child(_title_card)
-	_title_sub = RunUi.label(18)
+	_title_sub = RunUi.world_label(18)
 	_title_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_sub.modulate = Color(1, 1, 1, 0.75)
 	_title_card.add_child(_title_sub)
-	_title_main = RunUi.label(56)
+	_title_main = RunUi.heading(56)
 	_title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title_main.add_theme_constant_override("outline_size", 14)
+	_title_main.add_theme_constant_override("outline_size", 3)
 	_title_main.add_theme_color_override("font_outline_color", Color(0.1, 0.0, 0.0, 0.95))
 	_title_card.add_child(_title_main)
 	_dismiss_reward = Button.new()
@@ -832,7 +832,7 @@ func _build() -> void:
 	_title_card.add_child(_dismiss_reward)
 
 	# Under the blessing: the Ferryman's side bet.
-	_bet_label = RunUi.label(14)
+	_bet_label = RunUi.world_label(14)
 	_bet_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_bet_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_bet_label.offset_top = 178
@@ -846,7 +846,7 @@ func _build() -> void:
 	root.add_child(_bet_label)
 
 	# Bottom center: what the nearby landmark does (see Landmarks).
-	_prompt_label = RunUi.label(15)
+	_prompt_label = RunUi.world_label(15)
 	_prompt_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_prompt_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_prompt_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -867,7 +867,7 @@ func _build() -> void:
 	_marker_canvas.draw.connect(_draw_markers)
 	root.add_child(_marker_canvas)
 
-	_debug_label = RunUi.label(13)
+	_debug_label = RunUi.world_label(13)
 	_debug_label.add_theme_color_override("font_color",RunUi.MUTED)
 	_debug_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	_debug_label.position += Vector2(12, -26)
@@ -888,7 +888,7 @@ func _build() -> void:
 	# Level-up cards.
 	var upgrade_box := VBoxContainer.new()
 	upgrade_box.add_theme_constant_override("separation", 6)
-	var title := RunUi.label(32)
+	var title := RunUi.heading(32)
 	_upgrade_title = title
 	title.text = "Level up"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -929,32 +929,32 @@ func _build() -> void:
 	# Game over.
 	var over_box := VBoxContainer.new()
 	over_box.add_theme_constant_override("separation", 12)
-	_end_title = RunUi.label(38)
-	_end_title.text = "YOU DIED"
+	_end_title = RunUi.heading(38)
+	_end_title.text = "You died"
 	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_end_title.add_theme_color_override("font_color", Color(0.85, 0.12, 0.1))
+	_end_title.add_theme_color_override("font_color", RunUi.LOSS)
 	_end_title.add_theme_constant_override("outline_size", 0)
 	over_box.add_child(_end_title)
 	_game_over_label = RunUi.label(18)
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_box.add_child(_game_over_label)
-	_report = UiStyle.label(16)
+	_report = RunUi.label(16)
 	_report.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_report.custom_minimum_size.x = 820
 	_report.modulate = Color(1, 1, 1, 0.85)
-	_recap_label = UiStyle.label(16)
+	_recap_label = RunUi.label(16)
 	_recap_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_recap_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_recap_label.custom_minimum_size.x = 820
 	_recap_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.62))
 	over_box.add_child(_recap_label)
-	_takeaway_label = UiStyle.label(17)
+	_takeaway_label = RunUi.label(17)
 	_takeaway_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_takeaway_label.custom_minimum_size.x = 820
 	_takeaway_label.add_theme_color_override("font_color", UiStyle.GOLD)
 	over_box.add_child(_takeaway_label)
-	_recent_damage_label = UiStyle.label(16)
+	_recent_damage_label = RunUi.label(16)
 	_recent_damage_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_recent_damage_label.custom_minimum_size.x = 820
 	over_box.add_child(_recent_damage_label)
@@ -1061,7 +1061,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	top.add_child(spacer)
 	var tag := RunUi.label(14)
 	var level: int = choice.get("level", 0)
-	tag.text = "NEW" if level == 1 else ("" if level == 0 else "RANK %d" % level)
+	tag.text = "New" if level == 1 else ("" if level == 0 else "Rank %d" % level)
 	tag.add_theme_color_override("font_color", RunUi.GOLD if level == 1 else RunUi.MUTED)
 	if choice.has("tag"):
 		tag.text = choice["tag"]
@@ -1120,7 +1120,7 @@ func _make_card(index: int, choice: Dictionary) -> Button:
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	desc.add_theme_constant_override("outline_size", 2)
+	desc.add_theme_constant_override("outline_size", 0)
 	column.add_child(desc)
 	if not str(choice.get("affected", "")).is_empty():
 		var affected := RunUi.label(13)

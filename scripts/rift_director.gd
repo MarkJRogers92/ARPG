@@ -252,6 +252,7 @@ func _build_market() -> void:
 		light.position = Vector3(0, 2.5, 0.8)
 		stall.add_child(light)
 		var sign := Label3D.new()
+		sign.font = UiStyle.EMPHASIS
 		sign.text = "%s\n%s · %d ◆" % [STALLS[k]["name"], STALLS[k]["offer"], STALLS[k]["price"]]
 		sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		sign.font_size = 40

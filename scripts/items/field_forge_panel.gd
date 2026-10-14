@@ -15,7 +15,8 @@ func _build() -> void:
 	_comparison.bbcode_enabled = true
 	_comparison.custom_minimum_size.y = 220
 	_comparison.focus_mode = Control.FOCUS_ALL
-	_comparison.add_theme_font_size_override("normal_font_size", 14)
+	_comparison.add_theme_font_size_override("normal_font_size", 15)
+	_comparison.add_theme_font_size_override("bold_font_size", 15)
 	var box := _odds.get_parent()
 	_scroll = box.get_parent() as ScrollContainer
 	box.add_child(_comparison)
@@ -41,7 +42,7 @@ func compare_weapon(inventory: Inventory, before: PlayerStats, original: Item, r
 		"odds":"Taking the roll replaces your original weapon; it does not go into your backpack.",
 		"result":"Esc keeps the original. The fee and forge use are kept on Save & Quit.",
 		"actions":[["keep","Keep original",true],["take","Take new weapon",true]]})
-	_comparison.text = "[b]IF YOU TAKE THE ROLL[/b]\n" + GearImpact.text(before, inventory.preview_swap("weapon", rolled))
+	_comparison.text = "[b]If you take the roll[/b]\n" + GearImpact.text(before, inventory.preview_swap("weapon", rolled))
 	_comparison.show()
 	var keep := action_button("keep")
 	var take := action_button("take")

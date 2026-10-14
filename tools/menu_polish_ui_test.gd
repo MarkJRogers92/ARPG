@@ -304,7 +304,7 @@ func _behavior_title(height: int) -> void:
 	_check(hero_names == HeroClass.ORDER.size(), "every hero (%d) stays reachable on the title" % hero_names)
 	var realms := 0
 	for i in Realm.ORDER.size():
-		if _find_label_containing(title, "NIGHT %d" % (i + 1)) != null:
+		if _find_label_containing(title, "Night %d" % (i + 1)) != null:
 			realms += 1
 	_check(realms == Realm.ORDER.size(), "every Classic realm (%d) stays reachable on the title" % realms)
 	for entry: String in ["Altar of Souls", "Bestiary", "The Crypt", "Daily Night", "Pact of Night"]:

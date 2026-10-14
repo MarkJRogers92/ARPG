@@ -471,6 +471,7 @@ func _update_tag(k: int) -> void:
 	var tag: Label3D = _tag[k]
 	if tag == null:
 		tag = Label3D.new()
+		tag.font = UiStyle.EMPHASIS
 		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		tag.no_depth_test = true
 		tag.fixed_size = true

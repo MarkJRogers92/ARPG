@@ -10,7 +10,7 @@ signal chosen(realm_id: String)
 ## Resume the suspended night (RunSave's data).
 signal resume_requested(data: Dictionary)
 
-const GAME_TITLE := "SOULBOUND"
+const GAME_TITLE := "Soulbound"
 const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
 
 var _root: Control
@@ -99,12 +99,12 @@ func _build() -> void:
 	column.add_theme_constant_override("separation", 6)
 	_root.add_child(column)
 
-	var title := _menu_label(48)
+	var title := UiStyle.heading(48)
 	title.text = GAME_TITLE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	title.add_theme_color_override("font_outline_color", Color(0.025, 0.035, 0.045, 0.9))
-	title.add_theme_constant_override("outline_size", 4)
+	title.add_theme_constant_override("outline_size", 2)
 	column.add_child(title)
 	var tagline := _menu_label(16)
 	tagline.text = "Survive the night.   Bind the dead.   Greet the dawn."
@@ -425,8 +425,8 @@ func _refresh_campaign_state() -> void:
 
 
 func _menu_label(font_size: int) -> Label:
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", font_size)
+	var label := UiStyle.label(font_size)
+	label.add_theme_constant_override("outline_size", 0)
 	label.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
 	return label
 
@@ -436,7 +436,7 @@ func _menu_label(font_size: int) -> Label:
 func _fill_reliquary() -> void:
 	for child in _relic_box.get_children():
 		child.queue_free()
-	var title := _menu_label(30)
+	var title := UiStyle.heading(30)
 	title.text = "RELIQUARY   ·   %d ◆   ·   %d ★" % [MetaProgress.shards, MetaProgress.total_stars()]
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
@@ -567,8 +567,8 @@ func _refresh_pact_button() -> void:
 func _fill_pacts() -> void:
 	for child in _pact_box.get_children():
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "PACT OF NIGHT"
+	var title := UiStyle.heading(30)
+	title.text = "Pact of Night"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
 	_pact_box.add_child(title)
@@ -677,8 +677,8 @@ func _fill_bestiary() -> void:
 func _fill_daily() -> void:
 	for child in _daily_box.get_children():
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "DAILY NIGHT"
+	var title := UiStyle.heading(30)
+	title.text = "Daily Night"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	_daily_box.add_child(title)
@@ -859,10 +859,10 @@ func _realm_card(id: String) -> Button:
 	card.add_child(col)
 
 	var night := _menu_label(14)
-	night.text = "NIGHT %d   ·   %s" % [Realm.index(id) + 1, "◆".repeat(Realm.index(id) + 1) + "◇".repeat(2 - Realm.index(id))]
-	night.modulate = Color(1, 1, 1, 0.55)
+	night.text = "Night %d   ·   %s" % [Realm.index(id) + 1, "◆".repeat(Realm.index(id) + 1) + "◇".repeat(2 - Realm.index(id))]
+	night.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	col.add_child(night)
-	var name_label := _menu_label(25)
+	var name_label := UiStyle.heading(25)
 	name_label.text = d["name"]
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", accent.lightened(0.2) if unlocked else UiStyle.MUTED)
@@ -870,7 +870,7 @@ func _realm_card(id: String) -> Button:
 	var tag := _menu_label(15)
 	tag.text = d["tagline"]
 	tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tag.modulate = Color(1, 1, 1, 0.65)
+	tag.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	col.add_child(tag)
 	var rule := ColorRect.new()
 	rule.color = Color(accent, 0.3)
@@ -883,15 +883,17 @@ func _realm_card(id: String) -> Button:
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(desc)
 	var boss := _menu_label(15)
+	boss.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	boss.text = "At dawn:  %s" % d["enemies"]["FinalBoss"]["label"]
 	boss.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
 	col.add_child(boss)
-	var status := _menu_label(16)
+	var status := _menu_label(15)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if not unlocked:
 		var prev: String = Realm.ORDER[Realm.index(id) - 1]
 		status.text = "Locked · Conquer Night %d first" % Realm.index(id)
 		card.tooltip_text = "Conquer %s to unlock this realm." % Realm.data(prev)["name"]
-		status.modulate = Color(1, 1, 1, 0.5)
+		status.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	elif won:
 		var best := MetaProgress.endless_best(id)
 		status.text = "★ Conquered" + ("   ·   Endless +%d:%02d" % [int(best) / 60, int(best) % 60] if best > 0.0 else "")
@@ -906,8 +908,8 @@ func _realm_card(id: String) -> Button:
 func _fill_crypt() -> void:
 	for child in _crypt_box.get_children():
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "THE CRYPT"
+	var title := UiStyle.heading(30)
+	title.text = "The Crypt"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Army.VETERAN_COLOR)
 	_crypt_box.add_child(title)

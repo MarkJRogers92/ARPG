@@ -1,6 +1,6 @@
 class_name RunUi
 extends RefCounted
-## Run-facing presentation only. Existing Godot font and campaign palette.
+## Run-facing presentation only. Shared typography and campaign palette.
 const INK := Color("10161d")
 const SURFACE := Color("192129")
 const EDGE := Color("655c4d")
@@ -15,8 +15,14 @@ static func panel(pad:=16, accent: Color=EDGE) -> StyleBoxFlat:
 	b.content_margin_left=pad;b.content_margin_right=pad;b.content_margin_top=pad;b.content_margin_bottom=pad
 	return b
 static func label(size: int, color: Color=TEXT) -> Label:
-	var l:=Label.new();l.add_theme_font_size_override("font_size",size);l.add_theme_color_override("font_color",color)
-	l.add_theme_color_override("font_outline_color",Color(0.02,0.025,0.03,0.85));l.add_theme_constant_override("outline_size",2)
+	var l:=UiStyle.label(size);l.add_theme_color_override("font_color",color)
+	l.add_theme_color_override("font_outline_color",Color(0.02,0.025,0.03,0.85));l.add_theme_constant_override("outline_size",0)
+	return l
+static func world_label(size: int, color: Color=TEXT) -> Label:
+	var l:=label(size,color);l.add_theme_constant_override("outline_size",2)
+	return l
+static func heading(size: int, color: Color=TEXT) -> Label:
+	var l:=UiStyle.heading(size);l.add_theme_color_override("font_color",color)
 	return l
 static func theme() -> Theme:
 	var t:=preload("res://scripts/campaign/campaign_menu_style.gd").make_theme(UiStyle.theme())

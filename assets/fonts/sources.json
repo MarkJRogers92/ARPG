@@ -1,0 +1,82 @@
+{
+  "downloaded": "2026-10-13",
+  "files": [
+    {
+      "file": "SourceSans3-Regular.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-Regular.otf",
+      "sha256": "08df266400933d3178d081a45f94a08814c3e55b4b7dd2e0ff69cb1329f13ab6"
+    },
+    {
+      "file": "SourceSans3-Semibold.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-Semibold.otf",
+      "sha256": "36f1cd2c344aa3109e64429bce41a41e4b2b923beb2db19b8dbf9bb56f05a4f9"
+    },
+    {
+      "file": "SourceSans3-It.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-It.otf",
+      "sha256": "430b9f0eb1170be0981706d14b6cf87122efba9d86c373bbdf69daf276421462"
+    },
+    {
+      "file": "SourceSans3-SemiboldIt.otf",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/OTF/SourceSans3-SemiboldIt.otf",
+      "sha256": "81204ed282543df2d93db214c98b5ec1c9ce735c4c82e4323d5ae5ee69c6b8b7"
+    },
+    {
+      "file": "SourceSans3-OFL.md",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-sans/release/LICENSE.md",
+      "sha256": "56af9b9c6715597e458284a474dc118a50a4150e9d547c70f7b4a33c3e6a9328",
+      "vendored_sha256": "f9e57d28452ab6162c7fc0d248b5a5e81bf64676a6950d56b2e137c1253f79e8",
+      "normalization": "Trailing whitespace removed; license wording and copyright retained."
+    },
+    {
+      "file": "Marcellus-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/marcellus/Marcellus-Regular.ttf",
+      "sha256": "1cf0cd10b17d35e852729962cc1ffaffed94514895972458345e2df34abb2f81"
+    },
+    {
+      "file": "Marcellus-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/marcellus/OFL.txt",
+      "sha256": "715ba72697e14daa9b29a333545f69bde7c497b9f77d0a2a4c4a5a752d961801",
+      "vendored_sha256": "b6c7a12bf278193304c4d576daca8bafccff26e1a6392700a49b3f8816dcf7eb",
+      "normalization": "Trailing whitespace removed; license wording and copyright retained."
+    },
+    {
+      "file": "NotoSansSymbols2-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssymbols2/NotoSansSymbols2-Regular.ttf",
+      "sha256": "7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21"
+    },
+    {
+      "file": "NotoSansSymbols2-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssymbols2/OFL.txt",
+      "sha256": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0",
+      "vendored_sha256": "e87c2ed7ff174c637d55fa381939ebb96f43f0415ad94605a37589228f4cbf4f",
+      "normalization": "Trailing whitespace removed; license wording and copyright retained."
+    },
+    {
+      "file": "NotoSansSymbols.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssymbols/NotoSansSymbols%5Bwght%5D.ttf",
+      "sha256": "f7e7e04b4a24b6c78893d50cbfd2b2f6cae49617ab047bfef668d252adb128f7"
+    },
+    {
+      "file": "NotoSansSymbols-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssymbols/OFL.txt",
+      "sha256": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0",
+      "vendored_sha256": "e87c2ed7ff174c637d55fa381939ebb96f43f0415ad94605a37589228f4cbf4f",
+      "normalization": "Trailing whitespace removed; license wording and copyright retained."
+    }
+  ],
+  "derivatives": [
+    {
+      "file": "SoulboundUISigns.ttf",
+      "sha256": "ae55cbe8aa203f6334bc87ba60801b18d0c792cad4c995e2cd9f260deae720a4",
+      "changes": "Subset existing UI symbols, rename, match Source Sans line metrics; outlines unchanged.",
+      "build": "tools/build_ui_symbol_fonts.py"
+    },
+    {
+      "file": "SoulboundUISymbols.ttf",
+      "sha256": "d5b961b096cf58243ab041e3fe4c790f1d61c75a1807f7e14a14ada831c446fc",
+      "changes": "Subset existing UI symbols, rename, match Source Sans line metrics; outlines unchanged.",
+      "build": "tools/build_ui_symbol_fonts.py"
+    }
+  ]
+}
