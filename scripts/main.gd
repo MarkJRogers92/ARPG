@@ -113,6 +113,8 @@ var _resume := {}
 var pacts: Array = []
 var omen := ""
 var ascension := 0
+## The real moon's phase this night (see MoonPhase); "" in the campaign.
+var moon := ""
 var _kills_by := {}
 var frenzy := 0.0
 var frenzy_tier := 0
@@ -789,6 +791,9 @@ func _begin_night() -> void:
 		omen = _resume.get("omen", "")
 		ascension = int(_resume.get("ascension", 0))
 		RunModifiers.apply(self, pacts, omen, ascension)
+		moon = String(_resume.get("moon", ""))
+		MoonPhase.apply(self, moon)
+		_show_moon()
 		if omen != "":
 			var ro: Dictionary = RunModifiers.OMENS[omen]
 			_hud.set_omen("%s%s" % [("ASCENSION %d  ·  " % ascension) if ascension > 0 else "", ro["name"]], ro["desc"], ro["color"], RunModifiers.heat(pacts))
@@ -806,6 +811,9 @@ func _begin_night() -> void:
 	else:
 		ascension = MetaProgress.ascension if MetaProgress.any_won() and not Realm.daily and not MetaProgress.disabled else 0
 	RunModifiers.apply(self, pacts, omen, ascension)
+	moon = MoonPhase.night_phase(Realm.daily)
+	MoonPhase.apply(self, moon)
+	_show_moon()
 	if ascension > 0:
 		_hud.toast("Ascension %d: %s" % [ascension, " ".join(RunModifiers.ASCENSION.slice(0, ascension))], Color(1.0, 0.45, 0.4))
 	var vet := MetaProgress.chosen_veteran()
@@ -819,9 +827,16 @@ func _begin_night() -> void:
 	_hud.toast("Omen: %s. %s" % [o["name"], o["desc"]], o["color"])
 
 
+## The moon under the omen line, and in the opening toasts.
+func _show_moon() -> void:
+	_hud.set_moon(moon)
+	if moon != "" and _resume.is_empty():
+		_hud.toast(MoonPhase.title(moon), MoonPhase.PHASES[moon]["color"])
+
+
 ## Shards for the end screen, the Bestiary and the Daily record.
 func _settle_run(seconds: float) -> int:
-	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
+	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension, moon))
 	MetaProgress.add_shards(shards)
 	var starred := MetaProgress.record_kills(_kills_by)
 	var daily_best := false
@@ -834,7 +849,7 @@ func _settle_run(seconds: float) -> int:
 		MetaProgress.add_daily_run({"date": Realm.today(), "kills": kills, "seconds": roundi(elapsed), "won": won,
 				"class": hero, "code": code}, _daily_logged)
 		_daily_logged = true
-	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report())
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report(), moon)
 	# One authoritative write after every award, and before anything is promised:
 	# a toast must never bank progress the disk does not have. The earlier saves
 	# inside each mutator stay for their other callers.
@@ -904,7 +919,7 @@ func capture() -> Dictionary:
 		bag.append(item.to_dict())
 	return {
 		"realm": Realm.current, "daily": Realm.daily, "hero_class": _hero_class, "relic": _relic,
-		"pacts": pacts, "omen": omen, "ascension": ascension,
+		"pacts": pacts, "omen": omen, "ascension": ascension, "moon": moon,
 		"elapsed": elapsed, "kills": kills, "kills_by": _kills_by, "run_shards": _run_shards, "rerolls": _rerolls,
 		"spec_chosen": _spec_chosen, "pressure": _director.pressure,
 		"bosses_spawned": _bosses.spawned - (1 if _bosses.boss_alive() else 0),

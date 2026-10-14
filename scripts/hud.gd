@@ -55,6 +55,7 @@ var _bet_label: Label
 var _upgrade_title: Label
 var _frenzy_label: Label
 var _omen_label: Label
+var _moon_label: Label
 var _report: Label
 var _recap_label: Label
 var _recap_chart: DeathRecap
@@ -289,6 +290,17 @@ func set_omen(omen_name: String, desc: String, color: Color, heat: int) -> void:
 	_omen_label.add_theme_color_override("font_color", RunUi.MUTED)
 
 
+## The real moon, under the omen line ("" hides it).
+func set_moon(phase: String) -> void:
+	var p: Dictionary = MoonPhase.PHASES.get(phase, {})
+	_moon_label.visible = not p.is_empty()
+	if p.is_empty():
+		return
+	_moon_label.text = "MOON: %s" % String(p["name"]).to_upper()
+	_moon_label.tooltip_text = p["desc"]
+	_moon_label.add_theme_color_override("font_color", RunUi.MUTED)
+
+
 ## The run report on the end screen: damage by source, best first.
 ## "Why I died": the causes line and the health / pressure chart.
 func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -> void:
@@ -302,7 +314,7 @@ func set_recap(text: String, samples: Array[Vector3], recent: Dictionary = {}) -
 
 ## `daily_code` (a Daily Night's, see DailyCode) joins the omen line, with a
 ## button to copy it.
-func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}) -> void:
+func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, daily_code := "", metrics: Dictionary = {}, moon := "") -> void:
 	var total := 0.0
 	for k: String in damage_by:
 		total += damage_by[k]
@@ -316,6 +328,9 @@ func set_report(damage_by: Dictionary, kills: int, heat: int, omen: String, dail
 	var extras := []
 	if omen != "":
 		extras.append("Omen: %s" % RunModifiers.OMENS[omen]["name"])
+	if moon != "":
+		var shard_bonus := roundi(100.0 * (MoonPhase.shard_mult(moon) - 1.0))
+		extras.append("Moon: %s%s" % [MoonPhase.PHASES[moon]["name"], (" (+%d%% shards)" % shard_bonus) if shard_bonus > 0 else ""])
 	if heat > 0:
 		extras.append("Heat %d (+%d%% shards)" % [heat, roundi(100.0 * RunModifiers.HEAT_BONUS * heat)])
 	if daily_code != "":
@@ -796,6 +811,11 @@ func _build() -> void:
 	_omen_label.position = Vector2(28, 136)
 	_omen_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(_omen_label)
+	_moon_label = RunUi.world_label(14)
+	_moon_label.position = Vector2(28, 156)
+	_moon_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_moon_label.hide()
+	root.add_child(_moon_label)
 
 	# A boss's name, big, when it arrives.
 	_title_card = VBoxContainer.new()
