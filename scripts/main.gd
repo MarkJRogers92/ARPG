@@ -115,11 +115,16 @@ var _resume := {}
 var pacts: Array = []
 var omen := ""
 var ascension := 0
+## The real moon's phase this night (see MoonPhase); "" in the campaign.
+var moon := ""
 var _kills_by := {}
 var frenzy := 0.0
 var frenzy_tier := 0
 const FRENZY_TIERS := [20.0, 45.0, 80.0]
 var _ferryman: Ferryman
+## Whispered Vows (see Vows); off in the campaign.
+var _vows: Vows
+var _epitaphs: Epitaphs # graves of past Classic deaths (never in campaign)
 var _rival: RivalDirector
 var _wager_panel: WagerPanel
 ## XP gems picked up in quick succession chime higher and higher.
@@ -212,6 +217,7 @@ func _ready() -> void:
 		if crypt >= 0 and not _campaign:
 			MetaProgress.crypt_fell(crypt))
 	_army.raised.connect(func(kind: String) -> void:
+		if _vows: _vows.on_raise()
 		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
 	_army.soul_bound.connect(_on_soul_bound)
 	for swarm in _swarms:
@@ -255,6 +261,21 @@ func _ready() -> void:
 	_bosses.boss_spawned.connect(func(boss_name: String) -> void:
 		if not _campaign:
 			_ferryman.start_bet(boss_name))
+	# Whispered Vows hooks: signals below, plus kill/elite/soul/raise/dash feeds and tick.
+	_vows = Vows.new()
+	add_child(_vows)
+	_vows.enabled = not _campaign
+	_vows.setup(_player.stats)
+	_vows.whispered.connect(func(title: String, subtitle: String) -> void:
+		_hud.title_card(title, subtitle, Vows.COLOR, true))
+	_vows.faded.connect(func(text: String) -> void: _hud.toast(text, UiStyle.MUTED))
+	_vows.kept.connect(_on_vow_kept)
+	_player.dashed.connect(_vows.on_dash)
+	_epitaphs = Epitaphs.new()
+	add_child(_epitaphs)
+	_epitaphs.setup(_player, _army)
+	_epitaphs.announced.connect(func(text: String, color: Color) -> void: _hud.toast(text, color))
+	_epitaphs.tale.connect(func(title: String, sub: String, color: Color) -> void: _hud.title_card(title, sub, color))
 	_rival = RivalDirector.new()
 	add_child(_rival)
 	_rival.setup(self, $Rival, $Thralls, _player, _army, _souls, _loot, _director, _bosses)
@@ -308,11 +329,11 @@ func _ready() -> void:
 		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.4), 36, 9.0, 0.6, 0.7)
 		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.9, 0.6), 24, 3.0, 0.4, 1.0, 8.0))
 	_loot.item_picked.connect(_on_item_picked)
-	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full", Color(1.0, 0.45, 0.4)))
+	_loot.backpack_full.connect(func() -> void: _hud.toast("Backpack full · %s Gear → Nearby to compare loot" % Controls.tag("inventory"), RunUi.GOLD))
 	_player.leveled_up.connect(_try_level_up)
 	_player.died.connect(_on_player_died)
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
-	_inventory_screen.setup(_player, _campaign)
+	_inventory_screen.setup(_player, _campaign, _loot)
 	_inventory_screen.closed.connect(func() -> void: get_tree().paused = false)
 	_skill_screen.setup(_player)
 	_skill_screen.read_only = _campaign
@@ -367,6 +388,9 @@ func _ready() -> void:
 			_begin_night()
 			if not _resume.is_empty():
 				_restore(_resume)
+			# Epitaphs: this realm's graves stand again (a resumed night doesn't use one up).
+			if Epitaphs.allowed(_campaign, Realm.daily):
+				_epitaphs.spawn(Epitaphs.begin_night(Realm.current) if _resume.is_empty() else Epitaphs.in_realm(Realm.current))
 	if _in_title:
 		_hud.hide()
 		_title.open()
@@ -513,6 +537,7 @@ func _finish_expedition_frame() -> void:
 		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
 		"died": _player.dead, "last_cause": _player.last_cause,
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"objectives": _expedition_result.get("objectives", {}).duplicate(true)}
 	_expedition_result = _expedition_result.duplicate(true)
 	var outcome := str(_expedition_result.get("outcome", "failure"))
@@ -586,8 +611,10 @@ func _process(delta: float) -> void:
 		_market_frame(delta)
 		return
 	elapsed += delta
+	_player.combat_time = elapsed
 	var available := CombatLedger.available(_player.stats, _army.count, _player.challenge_id, _swarms)
 	if _player.warding_charge_left > 0.0: available.append("Warding Dash")
+	if _army.dance.active: available.append(DanseMacabre.SOURCE)
 	Elements.metrics.tick(delta, available)
 
 	_player.tick(delta)
@@ -627,13 +654,18 @@ func _process(delta: float) -> void:
 		_landmarks.tick(delta, not objective_interaction)
 		if not _campaign:
 			_ferryman.tick(delta)
+			_epitaphs.tick(delta, _landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 			_rift.tick(delta)
 			_rival.tick(delta)
-	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards
+	if not _campaign and (not won or _endless):
+		_vows.tick(delta, elapsed, _player.stats.hp / maxf(_player.stats.max_hp, 1.0), _player.pos2)
+	_run_shards += _events.shards + _landmarks.shards + _ferryman.shards + _vows.shards
+	_vows.shards = 0
 	_events.shards = 0
 	_landmarks.shards = 0
 	_ferryman.shards = 0
 	var hint := "" if _campaign else _ferryman.bet_text
+	if hint == "" and not _campaign: hint = _events.chest_hint
 	if hint == "" and _rift.glitch_left > 0.0:
 		hint = "GLITCH  ·  double XP and souls  ·  back to normal in %d s" % ceili(_rift.glitch_left)
 	if hint == "":
@@ -644,6 +676,7 @@ func _process(delta: float) -> void:
 		else:
 			hint = _final_mech.hint if _final_mech.hint != "" else _mid_mech.hint
 	_hud.set_bet(hint)
+	_hud.set_vow(_vows.hud_text())
 	_update_frenzy(delta)
 	_sample_in -= delta
 	if _sample_in <= 0.0:
@@ -678,6 +711,7 @@ func _process(delta: float) -> void:
 	_souls.step(delta, origin, _player.stats.pickup_radius)
 	for value in _souls.collected:
 		_army.collect_soul(value)
+		_vows.on_soul()
 		Sound.play("soul")
 	_loot.step(delta, origin, _player.stats.pickup_radius, _player.inventory)
 	if _campaign:
@@ -692,6 +726,12 @@ func _process(delta: float) -> void:
 	if prompt == "" and (not _campaign or (not _expedition_terminal and not _player.dead)):
 		prompt = _rift.prompt if _rift.prompt != "" else (_ferryman.prompt if _ferryman.prompt != "" else _landmarks.prompt)
 		prompt_color = RiftDirector.MARKET_COLOR if _rift.prompt != "" else (Ferryman.COLOR if _ferryman.prompt != "" else _landmarks.prompt_color)
+		if prompt == "" and not _campaign and _epitaphs.prompt != "":
+			prompt = _epitaphs.prompt
+			prompt_color = Epitaphs.COLOR
+	if prompt == "" and not _player.dead and not _expedition_terminal:
+		prompt = _events.discovery_prompt
+		prompt_color = _events.discovery_color
 	_hud.set_prompt(prompt if not won or _endless else "", prompt_color)
 
 	if not won or _endless:
@@ -722,9 +762,10 @@ func _process(delta: float) -> void:
 			snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
 
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, _enemy_count(), _player.skills.points)
 	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(),
-			_bosses.current_boss_name(), _bosses.boss_health())
+			_bosses.current_boss_name(), _bosses.boss_health(), _player.dash_cooldown_remaining())
 	_hud.set_dash_charge(_player.warding_charge_left)
 	_update_clock()
 	# Music: the drums swell with the size of the horde and the hour.
@@ -736,6 +777,7 @@ func _process(delta: float) -> void:
 			EventDirector.BLESSINGS[_events.blessing]["color"] if _events.blessing != "" else Color.WHITE)
 	_hud.set_markers(_markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
+	_hud.refresh_requiem(_army.dance, _army.count)
 	if _campaign:
 		_hud.set_expedition(_expedition.objective_text(), _expedition.clock_text(_director.elapsed))
 		var guidance := ""
@@ -751,6 +793,9 @@ func _process(delta: float) -> void:
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
 			_finish_expedition_frame()
+	if not _campaign and not _game_over and (not won or _endless):
+		if not _landmarks.offer_forge():
+			_events.offer_chest(_landmarks.prompt == "" and _ferryman.prompt == "" and _rift.prompt == "")
 
 func _on_mission_phase(phase: Dictionary) -> void:
 	if _game_over or won and not _endless: return
@@ -783,15 +828,20 @@ func _market_frame(delta: float) -> void:
 	_decor.follow(origin)
 	_ground.global_position = Vector3(snappedf(_player.global_position.x, GROUND_SNAP), 0.0,
 			snappedf(_player.global_position.z, GROUND_SNAP))
+	_hud.set_aim_status(_player.aim_mode, _player.mouse_aim_enabled)
 	_hud.refresh(_player.stats, elapsed, kills, 0, _player.skills.points)
-	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0)
+	_hud.set_hurt(false, delta)
+	_hud.refresh_extras(_run_shards, _player.dash_cooldown_fraction(), "", -1.0, _player.dash_cooldown_remaining())
+	_hud.set_dash_charge(_player.warding_charge_left)
 	_hud.set_prompt(_rift.prompt, RiftDirector.MARKET_COLOR)
 	_hud.set_markers(_rift.markers(), $CameraRig/Camera3D, _campaign)
 	_hud.refresh_army(_army.souls, _player.stats.soul_cost, _army.count, _player.stats.minion_max, Army.STANCES[_army.stance]["label"])
+	_hud.refresh_requiem(_army.dance, _army.count)
 
 
 ## Pacts and this night's Omen (and the Daily Night's fixed seed).
 func _begin_night() -> void:
+	_vows.rng.randomize()
 	pacts = MetaProgress.pacts.duplicate() if MetaProgress.any_won() and not Realm.daily else []
 	if not _resume.is_empty():
 		# A resumed night keeps the rules it began with.
@@ -799,6 +849,9 @@ func _begin_night() -> void:
 		omen = _resume.get("omen", "")
 		ascension = int(_resume.get("ascension", 0))
 		RunModifiers.apply(self, pacts, omen, ascension)
+		moon = String(_resume.get("moon", ""))
+		MoonPhase.apply(self, moon)
+		_show_moon()
 		if omen != "":
 			var ro: Dictionary = RunModifiers.OMENS[omen]
 			_hud.set_omen("%s%s" % [("ASCENSION %d  ·  " % ascension) if ascension > 0 else "", ro["name"]], ro["desc"], ro["color"], RunModifiers.heat(pacts))
@@ -806,6 +859,7 @@ func _begin_night() -> void:
 	if Realm.daily:
 		var pick := Realm.daily_pick([Realm.current])
 		seed(pick["seed"])
+		_vows.rng.seed = int(pick["seed"]) ^ 0x70175
 		omen = RunModifiers.roll_omen(pick["omen"])
 	elif MetaProgress.disabled:
 		omen = RunModifiers.forced_omen
@@ -816,6 +870,9 @@ func _begin_night() -> void:
 	else:
 		ascension = MetaProgress.ascension if MetaProgress.any_won() and not Realm.daily and not MetaProgress.disabled else 0
 	RunModifiers.apply(self, pacts, omen, ascension)
+	moon = MoonPhase.night_phase(Realm.daily)
+	MoonPhase.apply(self, moon)
+	_show_moon()
 	if ascension > 0:
 		_hud.toast("Ascension %d: %s" % [ascension, " ".join(RunModifiers.ASCENSION.slice(0, ascension))], Color(1.0, 0.45, 0.4))
 	var vet := MetaProgress.chosen_veteran()
@@ -829,9 +886,16 @@ func _begin_night() -> void:
 	_hud.toast("Omen: %s. %s" % [o["name"], o["desc"]], o["color"])
 
 
+## The moon under the omen line, and in the opening toasts.
+func _show_moon() -> void:
+	_hud.set_moon(moon)
+	if moon != "" and _resume.is_empty():
+		_hud.toast(MoonPhase.title(moon), MoonPhase.PHASES[moon]["color"])
+
+
 ## Shards for the end screen, the Bestiary and the Daily record.
 func _settle_run(seconds: float) -> int:
-	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension))
+	var shards := roundi((_run_shards * MetaProgress.BANKED_RUN_SHARDS + _win_shards + MetaProgress.run_bonus(seconds, kills)) * RunModifiers.shard_mult(pacts, omen, ascension, moon))
 	MetaProgress.add_shards(shards)
 	var starred := MetaProgress.record_kills(_kills_by)
 	var daily_best := false
@@ -844,7 +908,7 @@ func _settle_run(seconds: float) -> int:
 		MetaProgress.add_daily_run({"date": Realm.today(), "kills": kills, "seconds": roundi(elapsed), "won": won,
 				"class": hero, "code": code}, _daily_logged)
 		_daily_logged = true
-	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report())
+	_hud.set_report(Elements.damage_by, kills, RunModifiers.heat(pacts), omen, code, Elements.metrics.report(), moon, _vows.report_text())
 	# One authoritative write after every award, and before anything is promised:
 	# a toast must never bank progress the disk does not have. The earlier saves
 	# inside each mutator stay for their other callers.
@@ -856,7 +920,7 @@ func _settle_run(seconds: float) -> int:
 			_hud.toast("A new best for today's Daily Night!", UiStyle.GOLD)
 	_rest_veterans(banked)
 	if not banked:
-		_hud.toast("Progress could not be saved. Your rewards were not banked.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Progress could not be saved. Your rewards were not banked.", RunUi.LOSS, "", true)
 	return shards
 
 
@@ -914,7 +978,7 @@ func capture() -> Dictionary:
 		bag.append(item.to_dict())
 	return {
 		"realm": Realm.current, "daily": Realm.daily, "hero_class": _hero_class, "relic": _relic,
-		"pacts": pacts, "omen": omen, "ascension": ascension,
+		"pacts": pacts, "omen": omen, "ascension": ascension, "moon": moon,
 		"elapsed": elapsed, "kills": kills, "kills_by": _kills_by, "run_shards": _run_shards, "rerolls": _rerolls,
 		"spec_chosen": _spec_chosen, "pressure": _director.pressure,
 		"bosses_spawned": _bosses.spawned - (1 if _bosses.boss_alive() else 0),
@@ -923,11 +987,13 @@ func capture() -> Dictionary:
 		"hp_frac": stats.hp / stats.max_hp, "pending_levels": _player.pending_levels,
 		"upgrades": stats.upgrade_levels.duplicate(), "mods": RunSave.lasting_mods(stats),
 		"gear": gear, "backpack": bag, "skills": _player.skills.to_dict(),
-		"army": _army.snapshot(), "souls": _army.souls,
+		"army": _army.snapshot(), "souls": _army.souls, "requiem": _army.dance.meter,
 		"timeline": _timeline, "taken": _player.damage_taken_by, "last_cause": _player.last_cause,
+		"recent_damage": DeathRecap.recent_snapshot(_player.recent_damage, elapsed),
 		"damage_by": Elements.damage_by,
 		"combat_metrics": Elements.metrics.snapshot(), "banished": _banished.duplicate(), "banishes_left": _banishes_left,
 		"phase_reward_done": _phase_reward_done,
+		"used_field_forges": _landmarks.used_forges(),
 	}
 
 
@@ -937,11 +1003,13 @@ func _restore(d: Dictionary) -> void:
 	_player.warding_charge_left = 0.0
 	var stats := _player.stats
 	elapsed = d["elapsed"]
+	_vows.resume_at(elapsed)
 	_director.elapsed = elapsed
 	_director.pressure = d.get("pressure", 1.0)
 	kills = d.get("kills", 0)
 	_kills_by = d.get("kills_by", {})
 	_run_shards = d.get("run_shards", 0)
+	_landmarks.restore_used_forges(d.get("used_field_forges", []))
 	_rerolls = d.get("rerolls", _rerolls)
 	_spec_chosen = d.get("spec_chosen", false)
 	_bosses.spawned = d.get("bosses_spawned", 0)
@@ -964,9 +1032,12 @@ func _restore(d: Dictionary) -> void:
 	stats.hp = stats.max_hp * clampf(d.get("hp_frac", 1.0), 0.05, 1.0)
 	_army.restore(d.get("army", []))
 	_army.souls = d.get("souls", 0)
+	_army.dance.meter = clampi(int(d.get("requiem", 0)), 0, DanseMacabre.MAX) # optional: older saves have none
 	_timeline.assign(d.get("timeline", []))
 	_player.damage_taken_by = d.get("taken", {})
 	_player.last_cause = d.get("last_cause", "")
+	_player.combat_time = elapsed
+	_player.recent_damage = DeathRecap.recent_snapshot(d.get("recent_damage", []), elapsed)
 	Elements.damage_by = d.get("damage_by", {})
 	Elements.metrics.restore(d.get("combat_metrics", {}), Elements.damage_by)
 	_banished.clear()
@@ -994,13 +1065,14 @@ func _suspend() -> void:
 		get_tree().paused = false
 		get_tree().reload_current_scene()
 	else:
-		_hud.toast("Couldn't save the night.", Color(1.0, 0.45, 0.4))
+		_hud.toast("Save failed. Your run is still open. Try again before quitting.", RunUi.LOSS, "", true)
 
 
 ## The end screen's look back: what hurt, what killed, and the night's curve.
 func _show_recap(died: bool) -> void:
 	DeathRecap.add_sample(_timeline, elapsed, _player.stats.hp / _player.stats.max_hp, _director.pressure)
-	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline)
+	var recent := DeathRecap.recent_summary(_player.recent_damage, elapsed)
+	_hud.set_recap(DeathRecap.summary(_player.damage_taken_by, _player.last_cause, died), _timeline, recent if died else {})
 
 
 ## A Lancer's charge ran into the hero.
@@ -1045,7 +1117,7 @@ func _spend_shards(n: int) -> Variant:
 
 ## Edge arrows: the night's events, and any boss.
 func _markers() -> Array:
-	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _rift.markers() + _rival.markers()
+	var out := _events.markers() + _landmarks.markers() + _ferryman.markers() + _epitaphs.markers() + _rift.markers() + _rival.markers()
 	if _campaign and _expedition:
 		out.append_array(_expedition.markers())
 	for swarm in _swarms:
@@ -1094,6 +1166,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("army_stance"):
 		_army.cycle_stance()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("danse_macabre") and not get_tree().paused \
+			and not _player.dead and not _rift.in_market():
+		# Danse Macabre: the army's ultimate (full Requiem meter, 3+ minions).
+		if _army.start_dance():
+			get_viewport().set_input_as_handled()
 
 
 func _open_screen(screen: Node) -> void:
@@ -1133,6 +1210,25 @@ func _spawn_motes(delta: float, origin: Vector2) -> void:
 				_motes.burst(at, randf_range(0.2, 2.5), color, 1, 0.5, 0.13, 4.5, 0.4)
 
 
+## A vow kept: a blessing (the shrine kind) and a small gold flourish. The
+## run shards came through Vows.shards.
+func _on_vow_kept(blessing: String) -> void:
+	_events.bless_for(blessing, _events.blessing_time)
+	_fx.burst(_player.pos2, 1.2, Color(1.0, 0.85, 0.35), 24, 5.0, 0.6, 0.7, 4.0)
+	Juice.flash(_player.pos2, Color(1.0, 0.85, 0.4), 4.0, 8.0, 0.3)
+	Sound.play("shrine_done", 1.25)
+	_hud.toast("Vow kept  ·  +%d shards" % Vows.SHARDS, Vows.KEPT_COLOR)
+
+
+## Hungering gear eats every kill once (see Hunger); announces any awakening.
+func _feed_gear(amount: int) -> void:
+	for item: Item in Hunger.feed(_player.inventory, amount):
+		_hud.title_card("Your %s awakens" % item.name, "It has fed. A new power stirs.", Color(1.0, 0.85, 0.3), true)
+		Sound.play("legendary")
+		_fx.ring(_player.pos2, Color(1.0, 0.85, 0.3), 36, 9.0, 0.6, 0.7)
+		_fx.burst(_player.pos2, 1.0, Color(1.0, 0.85, 0.35), 28, 4.0, 0.5, 1.0, 8.0)
+
+
 func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 	if _expedition_terminal or (won and not _endless):
 		return
@@ -1143,6 +1239,8 @@ func _on_elite_died(at: Vector2, swarm: EnemySwarm) -> void:
 			if swarm.hp[i] <= 0.0 and _expedition.contract_id == "elite_hunt":
 				_expedition.observe_elite_death(swarm, swarm.ids[i])
 	_run_shards += 2
+	_vows.on_elite()
+	_feed_gear(Hunger.ELITE_WEIGHT - Hunger.KILL_WEIGHT)  # the kill itself already fed 1
 	_power_ups.on_kill(at, true)
 	Sound.play("elite_kill")
 	Juice.hitstop(0.04)
@@ -1165,6 +1263,8 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 		_fx.burst(at, 1.0, Color(1.0, 0.8, 0.5), 3, 2.0, 0.4, 0.8, 3.0)
 		return
 	kills += 1
+	_vows.on_kill()
+	_feed_gear(Hunger.BOSS_WEIGHT if swarm.boss else Hunger.KILL_WEIGHT)
 	_wisps.from_kill(at)
 	var kind := swarm.display_name if swarm.display_name != "" else String(swarm.name)
 	_kills_by[kind] = _kills_by.get(kind, 0) + 1
@@ -1351,9 +1451,8 @@ func _on_item_picked(item: Item, result: String) -> void:
 	Sound.play("pickup")
 	_fx.burst(_player.pos2, 1.2, item.color(), 10 + 4 * item.rarity, 2.5, 0.4, 0.6, 5.0)
 	var verb := "Equipped" if result == "equipped" else "Found"
-	_hud.toast("%s: %s" % [verb, item.name], item.color())
+	_hud.toast("%s: %s%s" % [verb,item.name,"\nLegendary power · inspect Gear" if item.power != "" else ""],item.color(),item.power_text() if item.power != "" else "")
 	if item.power != "":
-		_hud.toast("★ " + item.power_text(), item.color())
 		Juice.flash(_player.pos2, item.color(), 5.0, 10.0, 0.5)
 		_fx.ring(_player.pos2, item.color(), 40, 8.0, 0.6, 0.6)
 
@@ -1455,6 +1554,10 @@ func _on_player_died() -> void:
 	_game_over = true
 	_sound.stop_music(0.8)
 	Sound.play("defeat")
+	# Epitaphs: remember where and how the hero fell (Classic only).
+	if Epitaphs.allowed(_campaign, Realm.daily):
+		Epitaphs.record(Realm.current, _player.pos2, _hero_class, _player.stats.level, elapsed,
+				DeathRecap.clean_cause(_player.last_cause), _army.souls)
 	if _endless:
 		MetaProgress.record_endless(Realm.current, elapsed - _endless_start)
 	_rival.hero_fell()

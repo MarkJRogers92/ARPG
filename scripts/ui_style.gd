@@ -8,7 +8,15 @@ const GOLD := Color(0.95, 0.78, 0.42)
 const BRONZE := Color(0.55, 0.43, 0.26)
 const INK := Color(0.055, 0.058, 0.075, 0.97)
 const TEXT := Color(0.9, 0.88, 0.84)
-const MUTED := Color(0.58, 0.57, 0.6)
+const MUTED := Color("c1c8c4")
+
+## Bundled OFL fonts: Source Sans for all reading/numbers, Marcellus only for
+## display headings. Symbols have an explicit bundled face (no OS dependence).
+const BODY := preload("res://assets/fonts/body.tres")
+const EMPHASIS := preload("res://assets/fonts/emphasis.tres")
+const HEADING := preload("res://assets/fonts/heading.tres")
+const ITALIC := preload("res://assets/fonts/italic.tres")
+const BOLD_ITALIC := preload("res://assets/fonts/bold_italic.tres")
 
 static var _theme: Theme
 
@@ -38,17 +46,41 @@ static func box(fill: Color, border := Color.TRANSPARENT, width := 0, radius := 
 ## Outlined label text that stays readable over the game.
 static func label(font_size: int) -> Label:
 	var label := Label.new()
-	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_font_override("font", EMPHASIS if font_size >= 18 else BODY)
+	label.add_theme_font_size_override("font_size", maxi(14, font_size + 1) if font_size < 18 else font_size)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	label.add_theme_constant_override("outline_size", 5)
+	label.add_theme_constant_override("outline_size", 2)
+	label.add_theme_constant_override("line_spacing", 3)
 	return label
+
+
+## A display heading; never use this face for HUD counters or small labels.
+static func heading(font_size: int) -> Label:
+	var result := label(font_size)
+	result.add_theme_font_override("font", HEADING)
+	result.add_theme_constant_override("outline_size", 0)
+	return result
 
 
 static func theme() -> Theme:
 	if _theme:
 		return _theme
 	var t := Theme.new()
-	t.default_font_size = 16
+	t.default_font = BODY
+	t.default_font_size = 17
+	for type: String in ["Button", "OptionButton", "CheckButton", "CheckBox", "TabBar", "PopupMenu"]:
+		t.set_font("font", type, EMPHASIS)
+	t.set_font("normal_font", "RichTextLabel", BODY)
+	t.set_font("bold_font", "RichTextLabel", EMPHASIS)
+	t.set_font("italics_font", "RichTextLabel", ITALIC)
+	t.set_font("bold_italics_font", "RichTextLabel", BOLD_ITALIC)
+	t.set_font("mono_font", "RichTextLabel", BODY)
+	for role: String in ["normal", "bold", "italics", "bold_italics", "mono"]:
+		t.set_font_size(role + "_font_size", "RichTextLabel", 17)
+	t.set_constant("line_separation", "RichTextLabel", 4)
+	t.set_constant("line_spacing", "Label", 3)
+	t.set_font("font", "TooltipLabel", BODY)
+	t.set_font_size("font_size", "TooltipLabel", 15)
 
 	var normal := box(Color(0.12, 0.11, 0.12), BRONZE.darkened(0.2), 2, 5)
 	normal.set_content_margin_all(8)

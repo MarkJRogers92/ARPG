@@ -10,7 +10,7 @@ const BRONZE_SOFT := Color("554d42")
 const GOLD := Color("d8b56c")
 const SOUL := Color("88b8c1")
 const TEXT := Color("e1e3df")
-const MUTED := Color("a4adb2")
+const MUTED := Color("c1c8c4")
 const DISABLED := Color("737c81")
 ## Item-comparison deltas. "Good" and "bad" are read through the stat's own
 ## weight sign, so a lower dash cooldown still reads as an improvement.
@@ -98,8 +98,8 @@ static func comparison_color(stat: String, op: int, current: float, offered: flo
 
 
 static func label(font_size: int) -> Label:
-	var result := Label.new()
-	result.add_theme_font_size_override("font_size", font_size)
+	var result := UiStyle.label(font_size)
+	result.add_theme_constant_override("outline_size", 0)
 	return result
 
 

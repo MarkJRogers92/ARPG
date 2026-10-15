@@ -73,7 +73,23 @@ func drop(kind: String, at: Vector2) -> void:
 	node.position = Vector3(at.x, 1.0, at.y)
 	node.scale = Vector3.ONE * 1.6
 	add_child(node)
-	var ring := HazardDirector.make_decal(self, at, Color(color, 0.65), 1.0, 1.8)
+	# A painted rune circle with a soft light column, in the pickup's color.
+	var ring := HazardDirector.make_decal(self, at, Color(color, 0.8), 1.0, 2.8,
+			Models.material("rune_ring", {"color": Color(color, 0.8), "pulse_speed": 4.0, "glyphs": 8.0}, "pu_" + kind))
+	var beam := MeshInstance3D.new()
+	var column := CylinderMesh.new()
+	column.top_radius = 0.2
+	column.bottom_radius = 0.34
+	column.height = 5.0
+	column.radial_segments = 16
+	column.rings = 1
+	column.cap_top = false
+	column.cap_bottom = false
+	beam.mesh = column
+	beam.material_override = Models.material("beam", {"color": Color(color, 0.5), "height": 5.0}, "pu_" + kind)
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	beam.position.y = 2.5
+	ring.add_child(beam)
 	_drops.append({"kind": kind, "at": at, "node": node, "ring": ring, "age": 0.0})
 	Juice.ring(at, color, 18, 4.0, 0.4, 0.5)
 

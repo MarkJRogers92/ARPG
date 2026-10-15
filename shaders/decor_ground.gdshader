@@ -25,7 +25,7 @@ void fragment() {
 	float feather = smoothstep(0.0, 0.35, min(edge.x, edge.y) - wear * 0.12);
 	vec3 col = vec3(0.22, 0.21, 0.18);
 	if (biome == 1) {
-		col = vec3(0.55, 0.65, 0.74); // compressed, blue-grey snow
+		col = vec3(0.38, 0.45, 0.58); // compressed, blue-grey snow (a shade under the new snow)
 	} else if (biome == 2) {
 		col = vec3(0.16, 0.12, 0.11); // cooled ash around the workyard
 	} else if (stamp.z < 0.5) {

@@ -4,6 +4,10 @@ Current published checkpoint: `2669ff0` on `claude/focused-fermat-m7jhtk` — PR
 
 Earlier entries record their status and evidence at the time, not the current branch or installed build. Their historical test counts (including 23 before the composition suite and 24 afterward) are unchanged.
 
+## 2026-10-14 — New night systems and world visual overhaul (PR #57)
+
+Branch `claude/loving-clarke-tbvmop`. Added Epitaphs, Danse Macabre, real moon phases, Whispered Vows and Hungering gear (each with its own suite), then overhauled the world look: per-realm ground shader, lighting/grade pass (`shaders/grade.gdshader`, `Realm._LOOKS`), 15 Meshy realm props (225 credits) plus 18 Blender filler props in `assets/environment/realm_props/`, and pickup/hero FX. Hero and enemy models untouched. Evidence: 60/60 headless suites and the 420 s smoke bot pass on Linux Godot 4.6; Xvfb screenshots of all realms reviewed. Not measured: GPU frame times on real hardware; no human playtest yet. Ember ambient fill must stay at the `creature_variants_test` floor.
+
 ## Expedition campaign — 2026-10-08
 
 Current status: local Market and departure UI fixes are accepted at `c7ec967` on `fix/campaign-market-departure`, based on published PR #25 (`fb69741`). See the final entry below. Overnight automation remains PAUSED; historical schedule notes describe earlier checkpoints only.
@@ -430,3 +434,7 @@ untracked review file is unchanged. Final evidence: `delivery-verification.json`
 in `/Users/markrogers/Desktop/art/reviews/soulbound-delivery-cache-creatures-20261009/`.
 Only these final documentation-status notes are uncommitted; shipped runtime
 source and tests match the merged/released commit.
+
+## 2026-10-14 — Quiet Fantasy menu and typography, local review
+
+Local branch `codex/quiet-fantasy-menu` starts from typography candidate `51ac16a`, based on shipped PR #55 release `6ea0037`. Mark's selected B concept was materialized from Library and inspected before implementation. Quiet primary navigation, real saved-campaign card, separate hero/loadout/realm preparation, preserved progression facilities, title Settings, and menu-only 3D framing are complete. Final checks: 54/54 full suites, 161 menu flow checks, 36 native menu captures plus 45 typography layouts at 960×540/1280×720/1920×1080, 436 font checks and 420-second smoke passed. Four new Library screenshot items preserve the older contact sheet. See `docs/typography/QUIET_FANTASY.md` for exact IDs, evidence and limits. Native engine 4.7.2; no 4.6 packaged validation. Installed app, real saves, original checkout/import edits, Horse and Post Mortem untouched. No push, merge, deployment or paid API/art usage.

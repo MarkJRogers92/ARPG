@@ -8,9 +8,11 @@ extends RefCounted
 ## so upgrades, evolutions, the path and landmark gifts carry over), gear, the
 ## skill tree, the clock and the night's pressure, the boss schedule, the army
 ## (each minion's kind and rank; veterans' names are not kept), souls,
-## rerolls, the run's shards and kills, the omen, pacts and Ascension, and
+## rerolls, the run's shards and kills, the omen, moon, pacts and Ascension, and
 ## the end screen's records.
 ## Banish exclusions/remaining uses and measured combat stats also persist.
+## Spent field-forge identities persist so a paid roll cannot be reset by resume.
+## An interrupted field-forge choice keeps the still-equipped original weapon.
 ## Synergy cards persist as upgrade_levels; queued pulses and Warding shrine
 ## charges are transient, like the blessing itself.
 ## Not kept, on purpose: the horde itself (a crowd fit for the hour is raised
@@ -29,7 +31,7 @@ static var pending := {}
 
 ## Stat sources rebuilt at the start of every night, or that only last a
 ## moment: never saved.
-const REBUILT := ["meta", "class", "relic", "realm", "omen", "pact", "ascension", "frenzy", "shrine", "loan", "powerup"]
+const REBUILT := ["meta", "class", "relic", "realm", "omen", "moon", "pact", "ascension", "frenzy", "shrine", "loan", "powerup"]
 
 
 static func exists() -> bool:

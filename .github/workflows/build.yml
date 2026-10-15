@@ -10,13 +10,15 @@ name: Build
 on:
   push:
     branches: [claude/focused-fermat-m7jhtk, main]
+  pull_request:
+    branches: [claude/focused-fermat-m7jhtk, main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: build
+  group: build-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'release' }}
   cancel-in-progress: true
 
 env:
@@ -55,6 +57,7 @@ jobs:
   # Downloads the ~1 GB template archive once and caches just the three
   # templates the exports use; the export jobs restore that cache.
   templates:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -82,6 +85,7 @@ jobs:
           ls -la "$dir"
 
   export:
+    if: github.event_name != 'pull_request'
     needs: [test, templates]
     runs-on: ubuntu-latest
     timeout-minutes: 30

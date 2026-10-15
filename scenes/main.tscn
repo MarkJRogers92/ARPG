@@ -340,6 +340,7 @@ script = ExtResource("6_gems")
 script = ExtResource("6_gems")
 capacity = 600
 height = 0.55
+soul_style = true
 tiers = Array[Color]([Color(0.55, 0.85, 1, 1), Color(0.85, 0.95, 1, 1), Color(0.6, 0.55, 1, 1)])
 tier_values = Array[int]([99, 199, 1000000])
 

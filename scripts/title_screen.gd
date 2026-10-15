@@ -1,27 +1,60 @@
 class_name TitleScreen
 extends CanvasLayer
-## The title screen: pick a hero and a realm to spend the night in. The world behind it
-## is the real scene, so hovering a realm previews its ground, scenery and
-## light (main.gd listens to `previewed`). Realms open in order: winning one
-## unlocks the next. The Altar of Souls is reachable from here too.
+## Quiet opening navigation, with separate adventure preparation and progression
+## pages. The backdrop and campaign thumbnail render the real scene;
+## main.gd listens to `previewed`. Existing progression and save flows are reused.
 
 signal previewed(realm_id: String)
 signal chosen(realm_id: String)
 ## Resume the suspended night (RunSave's data).
 signal resume_requested(data: Dictionary)
 
-const GAME_TITLE := "SOULBOUND"
+const GAME_TITLE := "Soulbound"
 const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
 
 var _root: Control
+var _home: Control
+var _selection_page: Control
+var _progress_page: Control
+var _selection_mode := "classic"
+var _heroes: HBoxContainer
+var _realm_row: HBoxContainer
+var _classic_row: HBoxContainer
+var _campaign_panel: Control
+var _selection_back: Button
+var _home_buttons: Dictionary = {}
+var _home_new: Button
+var _home_classic: Button
+var _home_settings: Button
+var _home_wallet: Label
+var _home_detail: PanelContainer
+var _home_detail_title: Label
+var _home_detail_text: Label
+var _home_summary: Label
+var _modal_return: Control
+var _modal_page: Control
+var _page_return: Control
+var _transitioning := false
+var _new_confirmation: ConfirmationDialog
+var _title_camera: Camera3D
+var _title_dressing: Node3D
+var _title_hero: HeroModel
+var _player_was_visible := true
+var _title_realm := ""
+var _game_camera: Camera3D
+var _detail_viewport: SubViewport
+var _detail_camera: Camera3D
+var _home_selection := "continue"
+
 var _altar_overlay: Control
 var _altar: AltarPanel
 ## Focus priority: a suspended night, then a resumable campaign's Continue,
-## then New Campaign, then the first unlocked Classic realm.
+## then New Campaign preparation.
 var _resume_night: Button
 var _campaign_new: Button
 var _first_realm: Button
 var _class_desc: Label
+var _class_heading: Label
 var _pact_overlay: Control
 var _pact_box: VBoxContainer
 var _pact_button: Button
@@ -45,8 +78,11 @@ func _ready() -> void:
 
 
 func open() -> void:
+	_transitioning = false
 	_root.show()
+	_show_home(false)
 	_refresh_campaign_state()
+	_ensure_title_camera()
 	var target := _default_focus()
 	if target:
 		target.grab_focus.call_deferred()
@@ -58,13 +94,17 @@ func _default_focus() -> Button:
 		return _resume_night
 	if is_instance_valid(_campaign_continue) and CampaignSave.resumable():
 		return _campaign_continue
-	if is_instance_valid(_campaign_new):
-		return _campaign_new
-	return _first_realm
+	return _home_new
 
 
 func close() -> void:
 	_root.hide()
+	if is_instance_valid(_title_camera): _title_camera.current = false
+	if is_instance_valid(_game_camera): _game_camera.make_current()
+	if is_instance_valid(_title_dressing): _title_dressing.hide()
+	if is_instance_valid(_title_hero): _title_hero.hide()
+	var player: Player = get_parent().get_node_or_null("Player")
+	if player: player.visible = _player_was_visible
 
 
 func is_open() -> bool:
@@ -74,12 +114,15 @@ func is_open() -> bool:
 func _input(event: InputEvent) -> void:
 	if not is_open() or not event.is_action_pressed("ui_cancel"):
 		return
+	if is_instance_valid(_new_confirmation) and _new_confirmation.visible: return
 	for overlay in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay, _relic_overlay, _daily_overlay]:
 		if overlay and overlay.visible:
-			overlay.hide()
-			_refresh_pact_button()
+			_dismiss_overlay(overlay)
 			get_viewport().set_input_as_handled()
 			return
+	if _selection_page.visible or _progress_page.visible:
+		_show_home()
+		get_viewport().set_input_as_handled()
 
 
 func _build() -> void:
@@ -88,29 +131,50 @@ func _build() -> void:
 	_root.theme = CampaignMenuStyle.make_theme(UiStyle.theme())
 	add_child(_root)
 	var shade := ColorRect.new()
-	shade.color = Color(0.0, 0.0, 0.02, 0.45)
+	var shade_material := ShaderMaterial.new()
+	shade_material.shader = preload("res://shaders/quiet_menu_shade.gdshader")
+	shade.material = shade_material
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(shade)
 
+	_selection_page = Control.new()
+	_selection_page.name = "AdventureSelection"
+	_selection_page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_selection_page)
+	var selection_shade := ColorRect.new()
+	selection_shade.color = Color(0.035, 0.052, 0.07, 0.94)
+	selection_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_selection_page.add_child(selection_shade)
+	var content_margin := MarginContainer.new()
+	content_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content_margin.add_theme_constant_override("margin_left", 36)
+	content_margin.add_theme_constant_override("margin_right", 36)
+	content_margin.add_theme_constant_override("margin_top", 4)
+	content_margin.add_theme_constant_override("margin_bottom", 4)
+	_selection_page.add_child(content_margin)
 	var column := VBoxContainer.new()
-	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_theme_constant_override("separation", 6)
-	_root.add_child(column)
+	content_margin.add_child(column)
 
-	var title := _menu_label(48)
+	var brand := HBoxContainer.new()
+	brand.alignment = BoxContainer.ALIGNMENT_CENTER
+	brand.add_theme_constant_override("separation", 30)
+	column.add_child(brand)
+	var title := UiStyle.heading(64)
 	title.text = GAME_TITLE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	title.add_theme_color_override("font_outline_color", Color(0.025, 0.035, 0.045, 0.9))
-	title.add_theme_constant_override("outline_size", 4)
-	column.add_child(title)
-	var tagline := _menu_label(16)
-	tagline.text = "Survive the night.   Bind the dead.   Greet the dawn."
-	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tagline.modulate = Color(1, 1, 1, 0.75)
-	column.add_child(tagline)
+	title.add_theme_constant_override("outline_size", 2)
+	brand.add_child(title)
+	var tagline := _menu_label(18)
+	tagline.text = "Survive the night.\nBind the dead. Greet the dawn."
+	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tagline.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tagline.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
+	brand.add_child(tagline)
 	# A suspended night takes the tagline's place.
 	var saved := RunSave.read()
 	if not saved.is_empty():
@@ -123,57 +187,83 @@ func _build() -> void:
 		resume.add_theme_stylebox_override("normal", UiStyle.box(Color(0.1, 0.1, 0.12, 0.95), UiStyle.GOLD, 2, 8))
 		resume.tooltip_text = "Pick up where you left off. Starting a new night abandons it."
 		resume.pressed.connect(func() -> void:
-			Sound.play("ui_click")
-			resume_requested.emit(saved))
-		column.add_child(resume)
+			_resume_saved_night(saved))
+		brand.add_child(resume)
 		_resume_night = resume
-	var gap := Control.new()
-	gap.custom_minimum_size.y = 8
-	column.add_child(gap)
 
 	# Heroes: pick one, or buy one with Soul Shards.
 	var heroes := HBoxContainer.new()
+	_heroes = heroes
 	heroes.alignment = BoxContainer.ALIGNMENT_CENTER
 	heroes.add_theme_constant_override("separation", 12)
 	column.add_child(heroes)
 	for id: String in HeroClass.ORDER:
 		heroes.add_child(_class_button(id))
-	# The hero's description, and beside it the Reliquary (relic, starting
-	# weapon and lost lore for the next night).
-	var hero_row := HBoxContainer.new()
-	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	hero_row.add_theme_constant_override("separation", 18)
-	column.add_child(hero_row)
-	_class_desc = _menu_label(15)
-	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_class_desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_class_desc.custom_minimum_size = Vector2(640, 40)
+	# Preparation is one scan row: hero/loadout left, campaign actions right.
+	var preparation := HBoxContainer.new()
+	preparation.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preparation.add_theme_constant_override("separation", 16)
+	column.add_child(preparation)
+	var hero_panel := PanelContainer.new()
+	hero_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.card_box(Color("11191f"), Color("504b40"), 1, 5, 12))
+	preparation.add_child(hero_panel)
+	var hero_stack := VBoxContainer.new()
+	hero_stack.custom_minimum_size.x = 644
+	hero_stack.add_theme_constant_override("separation", 8)
+	hero_panel.add_child(hero_stack)
+	var hero_header := HBoxContainer.new()
+	hero_header.add_theme_constant_override("separation", 12)
+	hero_stack.add_child(hero_header)
+	_class_heading = UiStyle.heading(22)
+	_class_heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	hero_header.add_child(_class_heading)
+	var hero_spacer := Control.new()
+	hero_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero_header.add_child(hero_spacer)
+	var description_scroll := ScrollContainer.new()
+	description_scroll.name = "HeroDescriptionScroll"
+	description_scroll.custom_minimum_size = Vector2(644, 108)
+	description_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	description_scroll.follow_focus = true
+	description_scroll.focus_mode = Control.FOCUS_ALL
+	description_scroll.gui_input.connect(func(event: InputEvent) -> void:
+		if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+			description_scroll.scroll_vertical += 28 if event.is_action_pressed("ui_down") else -28
+			description_scroll.accept_event())
+	hero_stack.add_child(description_scroll)
+	_class_desc = _menu_label(16)
+	_class_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_class_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_class_desc.modulate = Color(1, 1, 1, 0.8)
-	_class_desc.text = HeroClass.data(MetaProgress.hero_class)["desc"] + "\n" + HeroClass.SIGNATURES[MetaProgress.hero_class]
-	hero_row.add_child(_class_desc)
+	_class_desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_class_desc.custom_minimum_size.x = 644
+	description_scroll.add_child(_class_desc)
+	_show_class_details(MetaProgress.hero_class)
 	_relic_button = Button.new()
-	_relic_button.custom_minimum_size = Vector2(360, 40)
-	_relic_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_relic_button.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
+	_relic_button.custom_minimum_size = Vector2(360, 42)
+	_relic_button.clip_text = true
+	_relic_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_relic_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_relic_button.add_theme_color_override("font_color", Color(0.89, 0.81, 1.0))
 	_relic_button.tooltip_text = "Relics, a starting weapon and lost lore, bought with Soul Shards and Bestiary stars."
 	_relic_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_reliquary()
-		_relic_overlay.show())
-	hero_row.add_child(_relic_button)
+		_open_overlay(_relic_overlay))
+	hero_header.add_child(_relic_button)
 	_refresh_relic_button()
-	var gap3 := Control.new()
-	gap3.custom_minimum_size.y = 2
-	column.add_child(gap3)
 
 	var campaign_panel := PanelContainer.new()
-	campaign_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.panel(Color("151f28"), Color("4b5558"), 1, 8))
-	campaign_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	column.add_child(campaign_panel)
+	_campaign_panel = campaign_panel
+	campaign_panel.add_theme_stylebox_override("panel", CampaignMenuStyle.card_box(Color("171a1d"), Color("75654b"), 1, 5, 12))
+	preparation.add_child(campaign_panel)
 	var campaign_stack := VBoxContainer.new()
-	campaign_stack.add_theme_constant_override("separation", 5)
+	campaign_stack.custom_minimum_size.x = 420
+	campaign_stack.add_theme_constant_override("separation", 6)
 	campaign_panel.add_child(campaign_stack)
+	var campaign_heading := UiStyle.heading(22)
+	campaign_heading.text = "The campaign"
+	campaign_heading.add_theme_color_override("font_color", UiStyle.GOLD)
+	campaign_stack.add_child(campaign_heading)
 	var campaigns := HBoxContainer.new()
 	campaigns.alignment = BoxContainer.ALIGNMENT_CENTER
 	campaigns.add_theme_constant_override("separation", 8)
@@ -181,14 +271,14 @@ func _build() -> void:
 	var campaign_new := Button.new()
 	_campaign_new = campaign_new
 	campaign_new.text = "New Campaign"
-	campaign_new.custom_minimum_size = Vector2(230, 46)
+	campaign_new.custom_minimum_size = Vector2(206, 42)
 	campaign_new.add_theme_stylebox_override("normal", CampaignMenuStyle.quiet_box())
 	campaign_new.tooltip_text = "A persistent adventurer across three realms. Short expeditions, town services, and biome bosses."
 	campaign_new.pressed.connect(_new_campaign)
 	campaigns.add_child(campaign_new)
 	_campaign_continue = Button.new()
 	_campaign_continue.text = "Continue Campaign"
-	_campaign_continue.custom_minimum_size = Vector2(300, 46)
+	_campaign_continue.custom_minimum_size = Vector2(206, 42)
 	_campaign_continue.disabled = not CampaignSave.resumable()
 	_campaign_continue.add_theme_stylebox_override("normal", CampaignMenuStyle.primary_box())
 	_campaign_continue.add_theme_stylebox_override("hover", CampaignMenuStyle.button_box(Color("715a30"), CampaignMenuStyle.SOUL, 1))
@@ -196,24 +286,48 @@ func _build() -> void:
 	_campaign_continue.tooltip_text = "Town and results are saved. An active expedition restarts from its departure checkpoint."
 	_campaign_continue.pressed.connect(func() -> void: _open_campaign(false))
 	campaigns.add_child(_campaign_continue)
-	_campaign_summary = _menu_label(13)
-	_campaign_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_campaign_summary = _menu_label(14)
+	_campaign_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_campaign_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_campaign_summary.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	campaign_stack.add_child(_campaign_summary)
 	_refresh_campaign_state()
-	var classic_label := _menu_label(15)
+	var classic_row := HBoxContainer.new()
+	_classic_row = classic_row
+	classic_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	classic_row.add_theme_constant_override("separation", 16)
+	column.add_child(classic_row)
+	var classic_label := UiStyle.heading(22)
 	classic_label.text = "Classic Night"
 	classic_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	classic_label.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
-	column.add_child(classic_label)
-	var classic_hint := _menu_label(12)
+	classic_row.add_child(classic_label)
+	var classic_hint := _menu_label(15)
 	classic_hint.text = "Choose a realm for a single night"
 	classic_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	classic_hint.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
-	column.add_child(classic_hint)
+	classic_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	classic_row.add_child(classic_hint)
+	# Tonight's real moon shares the Classic row (a row of its own pushes Back
+	# off short screens); the full effect is in the tooltip.
+	var moon := MoonPhase.phase_for(Time.get_unix_time_from_system())
+	var moon_glyph := MoonGlyph.new()
+	moon_glyph.age = MoonPhase.age_days(Time.get_unix_time_from_system())
+	moon_glyph.tint = MoonPhase.PHASES[moon]["color"]
+	moon_glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	moon_glyph.tooltip_text = MoonPhase.title(moon)
+	classic_row.add_child(moon_glyph)
+	var moon_label := _menu_label(15)
+	moon_label.text = MoonPhase.PHASES[moon]["name"]
+	moon_label.tooltip_text = MoonPhase.title(moon)
+	moon_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	moon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	moon_label.add_theme_color_override("font_color", MoonPhase.PHASES[moon]["color"])
+	classic_row.add_child(moon_label)
 	var row := HBoxContainer.new()
+	_realm_row = row
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 22)
+	row.add_theme_constant_override("separation", 16)
 	column.add_child(row)
 	for id: String in Realm.ORDER:
 		var card := _realm_card(id)
@@ -221,9 +335,6 @@ func _build() -> void:
 		if _first_realm == null and not card.disabled:
 			_first_realm = card
 
-	var gap2 := Control.new()
-	gap2.custom_minimum_size.y = 4
-	column.add_child(gap2)
 	var bottom := HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom.add_theme_constant_override("separation", 10)
@@ -234,7 +345,7 @@ func _build() -> void:
 	altar_button.add_theme_color_override("font_color", Color(0.78, 0.68, 1.0))
 	altar_button.pressed.connect(func() -> void:
 		_altar.refresh()
-		_altar_overlay.show())
+		_open_overlay(_altar_overlay))
 	bottom.add_child(altar_button)
 	_pact_button = Button.new()
 	_pact_button.custom_minimum_size = Vector2(235, 46)
@@ -242,7 +353,7 @@ func _build() -> void:
 	_pact_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_pacts()
-		_pact_overlay.show())
+		_open_overlay(_pact_overlay))
 	bottom.add_child(_pact_button)
 	var bestiary_button := Button.new()
 	bestiary_button.text = "Bestiary   ·   %d ★" % MetaProgress.total_stars()
@@ -250,7 +361,7 @@ func _build() -> void:
 	bestiary_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_bestiary()
-		_bestiary_overlay.show())
+		_open_overlay(_bestiary_overlay))
 	bottom.add_child(bestiary_button)
 	var crypt_button := Button.new()
 	crypt_button.text = "The Crypt   ·   %d" % MetaProgress.crypt.size()
@@ -260,7 +371,7 @@ func _build() -> void:
 	crypt_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_crypt()
-		_crypt_overlay.show())
+		_open_overlay(_crypt_overlay))
 	bottom.add_child(crypt_button)
 	var daily_button := Button.new()
 	daily_button.text = "Daily Night"
@@ -270,13 +381,49 @@ func _build() -> void:
 	daily_button.pressed.connect(func() -> void:
 		Sound.play("ui_click")
 		_fill_daily()
-		_daily_overlay.show())
+		_open_overlay(_daily_overlay))
 	bottom.add_child(daily_button)
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.custom_minimum_size = Vector2(100, 46)
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	bottom.add_child(quit)
+
+	_progress_page = Control.new()
+	_progress_page.name = "Sanctum"
+	_progress_page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_progress_page)
+	var progress_shade := ColorRect.new()
+	progress_shade.color = Color(0.035, 0.052, 0.07, 0.96)
+	progress_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_progress_page.add_child(progress_shade)
+	var progress_center := CenterContainer.new()
+	progress_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_progress_page.add_child(progress_center)
+	var progress_stack := VBoxContainer.new()
+	progress_stack.add_theme_constant_override("separation", 24)
+	progress_center.add_child(progress_stack)
+	var progress_title := UiStyle.heading(44)
+	progress_title.text = "The Sanctum"
+	progress_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	progress_stack.add_child(progress_title)
+	var progress_copy := _menu_label(18)
+	progress_copy.text = "Lasting gifts, the dead you remember, and challenges for the next night."
+	progress_copy.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	progress_stack.add_child(progress_copy)
+	bottom.reparent(progress_stack)
+	var progress_back := Button.new()
+	progress_back.text = "Back"
+	progress_back.custom_minimum_size = Vector2(180, 44)
+	progress_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	progress_back.pressed.connect(_show_home)
+	progress_stack.add_child(progress_back)
+	_selection_back = Button.new()
+	_selection_back.text = "Back"
+	_selection_back.custom_minimum_size = Vector2(180, 44)
+	_selection_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_selection_back.pressed.connect(_show_home)
+	column.add_child(_selection_back)
 
 	_pact_overlay = _overlay()
 	_pact_box = VBoxContainer.new()
@@ -336,9 +483,12 @@ func _build() -> void:
 	back.custom_minimum_size = Vector2(160, 44)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void:
-		_altar_overlay.hide()
+		_dismiss_overlay(_altar_overlay)
 		altar_button.text = "Altar of Souls   ·   %d ◆" % MetaProgress.shards)
 	altar_box.add_child(back)
+	_build_home()
+	_selection_page.hide()
+	_progress_page.hide()
 
 
 ## A dimmed full-screen overlay with a panel; its content box is meta "box".
@@ -366,8 +516,7 @@ func _overlay() -> Control:
 	back.custom_minimum_size = Vector2(160, 44)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void:
-		overlay.hide()
-		_refresh_pact_button())
+		_dismiss_overlay(overlay))
 	box.add_child(back)
 	box.move_child(back, 0)
 	overlay.set_meta("box", box)
@@ -386,6 +535,7 @@ func _refresh_relic_button() -> void:
 	if weapon != "":
 		parts.append("starts with " + weapon)
 	_relic_button.text = "   ·   ".join(parts)
+	_relic_button.tooltip_text = _relic_button.text + "\nRelics, a starting weapon and lost lore, bought with Soul Shards and Bestiary stars."
 
 
 func _refresh_campaign_summary() -> void:
@@ -422,11 +572,15 @@ func _refresh_campaign_state() -> void:
 	if is_instance_valid(_campaign_continue):
 		_campaign_continue.disabled = not CampaignSave.resumable()
 	_refresh_campaign_summary()
+	if is_instance_valid(_home_summary):
+		_home_summary.text = _campaign_summary.text
+		_update_home_detail(_home_selection)
+		_refresh_wallet()
 
 
 func _menu_label(font_size: int) -> Label:
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", font_size)
+	var label := UiStyle.label(font_size)
+	label.add_theme_constant_override("outline_size", 0)
 	label.add_theme_color_override("font_color", CampaignMenuStyle.TEXT)
 	return label
 
@@ -435,8 +589,9 @@ func _menu_label(font_size: int) -> Label:
 ## after every purchase or pick.
 func _fill_reliquary() -> void:
 	for child in _relic_box.get_children():
+		_relic_box.remove_child(child)
 		child.queue_free()
-	var title := _menu_label(30)
+	var title := UiStyle.heading(30)
 	title.text = "RELIQUARY   ·   %d ◆   ·   %d ★" % [MetaProgress.shards, MetaProgress.total_stars()]
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(0.85, 0.75, 1.0))
@@ -566,9 +721,10 @@ func _refresh_pact_button() -> void:
 
 func _fill_pacts() -> void:
 	for child in _pact_box.get_children():
+		_pact_box.remove_child(child)
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "PACT OF NIGHT"
+	var title := UiStyle.heading(30)
+	title.text = "Pact of Night"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
 	_pact_box.add_child(title)
@@ -676,9 +832,10 @@ func _fill_bestiary() -> void:
 ## nights with their codes, and a box to check a friend's code.
 func _fill_daily() -> void:
 	for child in _daily_box.get_children():
+		_daily_box.remove_child(child)
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "DAILY NIGHT"
+	var title := UiStyle.heading(30)
+	title.text = "Daily Night"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", UiStyle.GOLD)
 	_daily_box.add_child(title)
@@ -698,8 +855,7 @@ func _fill_daily() -> void:
 	play.add_theme_color_override("font_color", UiStyle.GOLD)
 	play.pressed.connect(func() -> void:
 		Sound.play("ui_click")
-		Realm.daily = true
-		chosen.emit(pick["realm"]))
+		_start_classic(pick["realm"], true))
 	_daily_box.add_child(play)
 	play.grab_focus.call_deferred()
 
@@ -792,7 +948,7 @@ func _class_button(id: String) -> Button:
 	var picked := MetaProgress.hero_class == id
 	var accent: Color = d["accent"]
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(200, 48)
+	b.custom_minimum_size = Vector2(217, 48)
 	if picked:
 		b.text = "✓ " + d["name"]
 	elif unlocked:
@@ -806,13 +962,24 @@ func _class_button(id: String) -> Button:
 	b.disabled = not unlocked and MetaProgress.shards < d["cost"]
 	b.pressed.connect(func() -> void:
 		Sound.play("ui_click")
+		if not _selection_page.visible or _transitioning: return
 		if MetaProgress.unlock_class(id):
 			MetaProgress.select_class(id)
-			get_tree().reload_current_scene())
+			_refresh_heroes()
+			_show_class_details(id)
+			_preview_hero(id)
+			_heroes.get_child(HeroClass.ORDER.find(id)).grab_focus.call_deferred())
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		b.connect(signal_name, func() -> void:
-			_class_desc.text = d["desc"] + "\n" + HeroClass.SIGNATURES[id] + ("" if unlocked else "   (unlock for %d Soul Shards)" % d["cost"]))
+			_show_class_details(id))
 	return b
+
+
+func _show_class_details(id: String) -> void:
+	var data := HeroClass.data(id)
+	_class_heading.text = data["name"]
+	(_class_desc.get_parent() as ScrollContainer).scroll_vertical = 0
+	_class_desc.text = data["desc"] + "\n" + HeroClass.SIGNATURES[id] + ("" if MetaProgress.class_unlocked(id) else "   (unlock for %d Soul Shards)" % data["cost"])
 
 
 func _realm_card(id: String) -> Button:
@@ -821,7 +988,7 @@ func _realm_card(id: String) -> Button:
 	var unlocked := MetaProgress.is_unlocked(id)
 	var won := MetaProgress.is_won(id)
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(330, 260)
+	card.custom_minimum_size = Vector2(368, 280)
 	card.disabled = not unlocked
 	card.pivot_offset = card.custom_minimum_size * 0.5
 	var normal := UiStyle.box(Color(0.06, 0.06, 0.08, 0.92), accent.darkened(0.5), 2, 12)
@@ -837,8 +1004,7 @@ func _realm_card(id: String) -> Button:
 	card.add_theme_stylebox_override("disabled", locked)
 	card.pressed.connect(func() -> void:
 		Sound.play("ui_click")
-		Realm.daily = false
-		chosen.emit(id))
+		_start_classic(id, false))
 	for signal_name in ["mouse_entered", "focus_entered"]:
 		card.connect(signal_name, func() -> void:
 			Sound.play("ui_hover")
@@ -859,10 +1025,10 @@ func _realm_card(id: String) -> Button:
 	card.add_child(col)
 
 	var night := _menu_label(14)
-	night.text = "NIGHT %d   ·   %s" % [Realm.index(id) + 1, "◆".repeat(Realm.index(id) + 1) + "◇".repeat(2 - Realm.index(id))]
-	night.modulate = Color(1, 1, 1, 0.55)
+	night.text = "Night %d   ·   %s" % [Realm.index(id) + 1, "◆".repeat(Realm.index(id) + 1) + "◇".repeat(2 - Realm.index(id))]
+	night.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	col.add_child(night)
-	var name_label := _menu_label(25)
+	var name_label := UiStyle.heading(26)
 	name_label.text = d["name"]
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", accent.lightened(0.2) if unlocked else UiStyle.MUTED)
@@ -870,28 +1036,30 @@ func _realm_card(id: String) -> Button:
 	var tag := _menu_label(15)
 	tag.text = d["tagline"]
 	tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tag.modulate = Color(1, 1, 1, 0.65)
+	tag.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	col.add_child(tag)
 	var rule := ColorRect.new()
 	rule.color = Color(accent, 0.3)
 	rule.custom_minimum_size.y = 1
 	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(rule)
-	var desc := _menu_label(15)
+	var desc := _menu_label(16)
 	desc.text = d["rule"]
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(desc)
 	var boss := _menu_label(15)
+	boss.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	boss.text = "At dawn:  %s" % d["enemies"]["FinalBoss"]["label"]
 	boss.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
 	col.add_child(boss)
-	var status := _menu_label(16)
+	var status := _menu_label(15)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if not unlocked:
 		var prev: String = Realm.ORDER[Realm.index(id) - 1]
 		status.text = "Locked · Conquer Night %d first" % Realm.index(id)
 		card.tooltip_text = "Conquer %s to unlock this realm." % Realm.data(prev)["name"]
-		status.modulate = Color(1, 1, 1, 0.5)
+		status.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
 	elif won:
 		var best := MetaProgress.endless_best(id)
 		status.text = "★ Conquered" + ("   ·   Endless +%d:%02d" % [int(best) / 60, int(best) % 60] if best > 0.0 else "")
@@ -905,9 +1073,10 @@ func _realm_card(id: String) -> Button:
 
 func _fill_crypt() -> void:
 	for child in _crypt_box.get_children():
+		_crypt_box.remove_child(child)
 		child.queue_free()
-	var title := _menu_label(30)
-	title.text = "THE CRYPT"
+	var title := UiStyle.heading(30)
+	title.text = "The Crypt"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Army.VETERAN_COLOR)
 	_crypt_box.add_child(title)
@@ -954,23 +1123,388 @@ func _fill_crypt() -> void:
 
 
 func _new_campaign() -> void:
+	if _transitioning or not _selection_page.visible or _selection_mode != "campaign": return
+	if is_instance_valid(_new_confirmation):
+		_new_confirmation.grab_focus()
+		return
 	if not CampaignSave.resumable():
 		_open_campaign(true)
 		return
 	var confirm := ConfirmationDialog.new()
+	_new_confirmation = confirm
 	confirm.title = "Replace expedition campaign?"
 	confirm.dialog_text = "Start a fresh campaign with the selected hero? Current campaign equipment, Gold, talents and route progress will be replaced. Earned account rewards are retained."
 	confirm.ok_button_text = "Start new campaign"
 	confirm.confirmed.connect(func() -> void:
 		confirm.queue_free()
 		_open_campaign(true))
-	confirm.canceled.connect(confirm.queue_free)
+	confirm.canceled.connect(func() -> void:
+		confirm.queue_free()
+		_new_confirmation = null
+		_campaign_new.grab_focus.call_deferred())
 	add_child(confirm)
 	confirm.popup_centered(Vector2i(580, 190))
 
 
 func _open_campaign(new_campaign: bool) -> void:
+	if _transitioning: return
+	if not new_campaign and not _home.visible: return
+	_transitioning = true
 	Sound.play("ui_click")
 	CampaignShell.new_requested = new_campaign
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/campaign.tscn")
+
+
+# Quiet Fantasy opening composition. Every label remains a real control.
+func _build_home() -> void:
+	_home = Control.new()
+	_home.name = "QuietFantasyHome"
+	_home.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_home)
+	var logo := UiStyle.heading(76)
+	logo.name = "SoulboundLogo"
+	logo.text = GAME_TITLE.to_upper()
+	logo.position = Vector2(76, 72)
+	logo.add_theme_color_override("font_color", Color("eee9dc"))
+	_home.add_child(logo)
+	var logo_line := ColorRect.new()
+	logo_line.color = Color("b9a883", 0.55)
+	logo_line.position = Vector2(80, 184)
+	logo_line.size = Vector2(450, 1)
+	_home.add_child(logo_line)
+	var nav := VBoxContainer.new()
+	nav.name = "HomeNavigation"
+	nav.position = Vector2(76, 226)
+	nav.custom_minimum_size.x = 390
+	nav.add_theme_constant_override("separation", 4)
+	_home.add_child(nav)
+	if is_instance_valid(_resume_night):
+		_resume_night.reparent(nav)
+		_resume_night.text = "Resume the night"
+		_home_buttons["resume"] = _resume_night
+		_style_nav(_resume_night)
+		_resume_night.focus_entered.connect(_update_home_detail.bind("resume"))
+		_resume_night.mouse_entered.connect(_update_home_detail.bind("resume"))
+	_campaign_continue.reparent(nav)
+	_home_buttons["continue"] = _campaign_continue
+	_style_nav(_campaign_continue)
+	_campaign_continue.focus_entered.connect(_update_home_detail.bind("continue"))
+	_campaign_continue.mouse_entered.connect(_update_home_detail.bind("continue"))
+	_home_new = _home_nav(nav, "new", "New Campaign", _show_selection.bind("campaign"))
+	_home_classic = _home_nav(nav, "classic", "Classic Night", _show_selection.bind("classic"))
+	_home_nav(nav, "crypt", "The Crypt", func() -> void:
+		_fill_crypt(); _open_overlay(_crypt_overlay))
+	_home_settings = _home_nav(nav, "settings", "Settings", _open_title_settings)
+	_home_nav(nav, "quit", "Quit", func() -> void: get_tree().quit())
+	var space := Control.new()
+	space.custom_minimum_size.y = 8
+	nav.add_child(space)
+	var secondary := HBoxContainer.new()
+	secondary.add_theme_constant_override("separation", 14)
+	nav.add_child(secondary)
+	var sanctum := Button.new()
+	sanctum.name = "OpenSanctum"
+	sanctum.text = "The Sanctum"
+	sanctum.tooltip_text = "Altar of Souls, Bestiary, Pact of Night, veterans and Daily Night."
+	sanctum.custom_minimum_size = Vector2(180, 38)
+	sanctum.pressed.connect(_show_progression)
+	secondary.add_child(sanctum)
+	_style_secondary(sanctum)
+	var daily := Button.new()
+	daily.name = "OpenDailyNight"
+	daily.text = "Daily Night"
+	daily.custom_minimum_size = Vector2(150, 38)
+	daily.pressed.connect(func() -> void: _fill_daily(); _open_overlay(_daily_overlay))
+	secondary.add_child(daily)
+	_style_secondary(daily)
+	var rule := ColorRect.new()
+	rule.color = Color("b9a883", 0.45)
+	rule.custom_minimum_size = Vector2(390, 1)
+	nav.add_child(rule)
+	_home_wallet = _menu_label(17)
+	_home_wallet.add_theme_color_override("font_color", Color("b9a883"))
+	nav.add_child(_home_wallet)
+	_home_detail = PanelContainer.new()
+	_home_detail.name = "CampaignDetail"
+	_home_detail.position = Vector2(492, 232)
+	_home_detail.custom_minimum_size = Vector2(326, 0)
+	_home_detail.add_theme_stylebox_override("panel", CampaignMenuStyle.card_box(Color(0.035, 0.055, 0.077, 0.94), Color("83765c"), 1, 0, 12))
+	_home.add_child(_home_detail)
+	var detail := VBoxContainer.new()
+	detail.custom_minimum_size.x = 300
+	detail.add_theme_constant_override("separation", 8)
+	_home_detail.add_child(detail)
+	_detail_viewport = SubViewport.new()
+	_detail_viewport.size = Vector2i(600, 240)
+	_detail_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	_detail_viewport.world_3d = get_viewport().world_3d
+	add_child(_detail_viewport)
+	_detail_camera = Camera3D.new()
+	_detail_camera.fov = 50
+	_detail_viewport.add_child(_detail_camera)
+	_detail_camera.make_current()
+	var scene_image := TextureRect.new()
+	scene_image.texture = _detail_viewport.get_texture()
+	scene_image.custom_minimum_size = Vector2(300, 120)
+	scene_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	scene_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	detail.add_child(scene_image)
+	_home_detail_title = UiStyle.heading(24)
+	_home_detail_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_home_detail_title.add_theme_color_override("font_color", Color("eee9dc"))
+	detail.add_child(_home_detail_title)
+	_home_detail_text = _menu_label(17)
+	_home_detail_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.add_child(_home_detail_text)
+	_home_summary = _menu_label(15)
+	_home_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_home_summary.add_theme_color_override("font_color", CampaignMenuStyle.MUTED)
+	detail.add_child(_home_summary)
+	_update_home_detail("continue" if not _campaign_continue.disabled else "new")
+	_refresh_wallet()
+
+
+func _home_nav(parent: Control, id: String, text: String, callback: Callable) -> Button:
+	var b := Button.new()
+	b.name = "Home_" + id
+	b.text = text
+	_style_nav(b)
+	parent.add_child(b)
+	_home_buttons[id] = b
+	b.set_meta("caption", text)
+	b.pressed.connect(func() -> void:
+		if _transitioning or not _home.visible: return
+		Sound.play("ui_click"); callback.call())
+	b.focus_entered.connect(_update_home_detail.bind(id))
+	b.mouse_entered.connect(_update_home_detail.bind(id))
+	return b
+
+
+func _style_nav(button: Button) -> void:
+	button.set_meta("caption", button.text)
+	button.custom_minimum_size = Vector2(390, 48)
+	button.size_flags_horizontal = Control.SIZE_FILL
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.add_theme_font_override("font", UiStyle.HEADING)
+	button.add_theme_font_size_override("font_size", 24)
+	button.icon = preload("res://assets/menu/diamond.svg")
+	button.add_theme_constant_override("h_separation", 16)
+	button.add_theme_color_override("font_color", Color("eee9dc"))
+	button.add_theme_color_override("font_disabled_color", Color("879398"))
+	button.add_theme_color_override("font_hover_color", Color("e4cf9d"))
+	button.add_theme_color_override("font_focus_color", Color("e4cf9d"))
+	var normal := CampaignMenuStyle.card_box(Color(0.03, 0.05, 0.07, 0.2), Color("b9a883", 0.22), 0, 0, 10)
+	normal.border_width_bottom = 1
+	var selected := CampaignMenuStyle.card_box(Color(0.1, 0.15, 0.19, 0.88), Color("b9a883"), 1, 0, 10)
+	for state: String in ["normal", "disabled"]: button.add_theme_stylebox_override(state, normal)
+	for state: String in ["hover", "pressed", "hover_pressed", "focus"]: button.add_theme_stylebox_override(state, selected)
+
+
+func _update_home_detail(id: String) -> void:
+	if not is_instance_valid(_home_detail_title): return
+	_home_selection = id
+	for key: String in _home_buttons:
+		var b: Button = _home_buttons[key]
+		b.text = str(b.get_meta("caption"))
+		b.icon = preload("res://assets/menu/diamond_selected.svg") if key == id else preload("res://assets/menu/diamond.svg")
+	var data := CampaignSave.read()
+	var biome := clampi(int(data.get("biome_index", 0)), 0, Realm.ORDER.size() - 1)
+	var realm_id: String = Realm.ORDER[biome]
+	if id == "continue" and not data.is_empty():
+		_home_detail_title.text = Realm.data(realm_id)["name"]
+		_home_detail_text.text = "Night %d · %s" % [biome + 1, HeroClass.data(str(data.get("hero_class", "battlemage")))["name"]]
+		_home_summary.text = _campaign_summary.text
+		previewed.emit(realm_id)
+		_dress_background(realm_id)
+		_preview_hero(str(data.get("hero_class", "battlemage")))
+	elif id == "resume":
+		var saved := RunSave.read()
+		_home_detail_title.text = "The unfinished night"
+		_home_detail_text.text = RunSave.describe(saved)
+		_home_summary.text = "Resume this night once, with your saved hero, gear and army."
+		previewed.emit(str(saved.get("realm", "graveyard")))
+		_dress_background(str(saved.get("realm", "graveyard")))
+		_preview_hero(str(saved.get("hero_class", "battlemage")))
+	else:
+		var copy := {
+			"continue": ["Campaign recovery", "Your saved campaign needs recovery.", "Continue to review the preserved save files."],
+			"new": ["Begin a journey", "Three realms. One persistent adventurer.", "Choose your hero and loadout before starting a campaign."],
+			"classic": ["Survive the night", "A single night, from dusk to dawn.", "Choose your hero, loadout and realm on the next screen."],
+			"crypt": ["The Crypt", "The dead you remember.", "Choose a veteran to rise beside you on the next Classic night."],
+			"settings": ["Make the night yours", "Sound, comfort and controls.", "Adjust volumes, effects, aiming and key bindings."],
+			"quit": ["Until the next night", "Your saved progress stays here.", "An unfinished expedition resumes from its saved checkpoint."],
+		}
+		var entry: Array = copy.get(id, copy["new"])
+		_home_detail_title.text = entry[0]; _home_detail_text.text = entry[1]; _home_summary.text = entry[2]
+	_refresh_wallet()
+
+
+func _refresh_wallet() -> void:
+	if not is_instance_valid(_home_wallet): return
+	var data := CampaignSave.read()
+	_home_wallet.text = "%d Gold · %d Soul Shards" % [int(data.get("gold", 0)), MetaProgress.shards]
+
+
+func _show_home(focus := true) -> void:
+	_selection_page.hide(); _progress_page.hide(); _home.show()
+	_refresh_campaign_state()
+	if focus:
+		if is_instance_valid(_page_return) and _page_return.is_visible_in_tree(): _page_return.grab_focus.call_deferred()
+		else: _default_focus().grab_focus.call_deferred()
+
+
+func _show_selection(mode: String) -> void:
+	if _transitioning: return
+	_page_return = _home_new if mode == "campaign" else _home_classic
+	_selection_mode = mode
+	_home.hide(); _progress_page.hide(); _selection_page.show()
+	_realm_row.visible = mode == "classic"
+	_classic_row.visible = mode == "classic"
+	_campaign_panel.visible = mode == "campaign"
+	_refresh_heroes()
+	_show_class_details(MetaProgress.hero_class)
+	_preview_hero(MetaProgress.hero_class)
+	if mode == "campaign": _campaign_new.grab_focus.call_deferred()
+	else: _heroes.get_child(0).grab_focus.call_deferred()
+
+
+func _show_progression() -> void:
+	if _transitioning: return
+	_page_return = _home.find_child("OpenSanctum", true, false)
+	_home.hide(); _selection_page.hide(); _progress_page.show()
+	_refresh_pact_button()
+	var buttons := _progress_page.find_children("*", "Button", true, false)
+	for b: Button in buttons:
+		if not b.disabled: b.grab_focus.call_deferred(); break
+
+
+func _refresh_heroes() -> void:
+	for child in _heroes.get_children():
+		_heroes.remove_child(child); child.queue_free()
+	for id: String in HeroClass.ORDER: _heroes.add_child(_class_button(id))
+
+
+func _open_overlay(overlay: Control) -> void:
+	if _transitioning: return
+	_modal_return = get_viewport().gui_get_focus_owner()
+	for page: Control in [_home, _selection_page, _progress_page]:
+		if page.visible: _modal_page = page
+		page.hide()
+	for view: Control in [_altar_overlay, _pact_overlay, _bestiary_overlay, _crypt_overlay, _relic_overlay, _daily_overlay]: view.hide()
+	overlay.show()
+	_root.move_child(overlay, _root.get_child_count() - 1)
+	var back := _find_back(overlay)
+	if back: back.grab_focus.call_deferred()
+
+
+func _find_back(node: Node) -> Button:
+	if node is Button and (node as Button).text == "Back": return node
+	for child in node.get_children():
+		var found := _find_back(child)
+		if found: return found
+	return null
+
+
+func _dismiss_overlay(overlay: Control) -> void:
+	overlay.hide(); _refresh_pact_button(); _refresh_wallet()
+	if is_instance_valid(_modal_page): _modal_page.show()
+	if is_instance_valid(_modal_return) and _modal_return.is_visible_in_tree(): _modal_return.grab_focus.call_deferred()
+
+
+func _open_title_settings() -> void:
+	var pause: PauseMenu = get_parent().get("_pause")
+	if pause == null or pause.is_open(): return
+	_root.hide()
+	get_tree().paused = true
+	if not pause.resumed.is_connected(_settings_closed): pause.resumed.connect(_settings_closed)
+	pause.open(true)
+
+
+func _settings_closed() -> void:
+	var pause: PauseMenu = get_parent().get("_pause")
+	if pause and pause.resumed.is_connected(_settings_closed): pause.resumed.disconnect(_settings_closed)
+	get_tree().paused = false
+	_root.show(); _show_home(false)
+	_home_settings.grab_focus.call_deferred()
+
+
+func _resume_saved_night(saved: Dictionary) -> void:
+	if _transitioning or not _home.visible: return
+	_transitioning = true
+	Sound.play("ui_click"); resume_requested.emit(saved)
+
+
+func _start_classic(id: String, daily: bool) -> void:
+	if _transitioning: return
+	if not daily and (not _selection_page.visible or _selection_mode != "classic"): return
+	if daily and not _daily_overlay.visible: return
+	_transitioning = true
+	Realm.daily = daily
+	Sound.play("ui_click"); chosen.emit(id)
+
+
+func _ensure_title_camera() -> void:
+	if not is_instance_valid(_title_camera):
+		_game_camera = get_parent().get_node_or_null("CameraRig/Camera3D")
+		_title_camera = Camera3D.new()
+		_title_camera.fov = 50
+		_title_camera.far = 150
+		add_child(_title_camera)
+	_title_camera.position = Vector3(5, 3.7, 8)
+	_title_camera.look_at_from_position(_title_camera.position, Vector3(-7, 1, -1))
+	_title_camera.make_current()
+	if not is_instance_valid(_title_hero): _preview_hero(MetaProgress.hero_class)
+	_dress_background(_title_realm if _title_realm != "" else Realm.current)
+	if _detail_camera:
+		_detail_camera.look_at_from_position(Vector3(9, 6, 12), Vector3(1, 1, -2))
+
+
+func _preview_hero(id: String) -> void:
+	var player: Player = get_parent().get_node_or_null("Player")
+	if player == null: return
+	if not is_instance_valid(_title_hero):
+		_player_was_visible = player.visible
+		_title_hero = HeroModel.new()
+		_title_hero.name = "TitleHeroPreview"
+		_title_hero.scale = Vector3.ONE * 1.2
+		add_child(_title_hero)
+	# A visual-only duplicate keeps combat markers and gameplay state out of
+	# the menu composition. The original player visibility returns on close.
+	player.hide()
+	_title_hero.show()
+	var data := HeroClass.data(id)
+	_title_hero.set_body(data["look"])
+	_title_hero.set_weapon(data["weapon"], data["accent"])
+
+
+func _style_secondary(button: Button) -> void:
+	button.add_theme_color_override("font_color", Color("c3c5bb"))
+	button.add_theme_stylebox_override("normal", CampaignMenuStyle.card_box(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 4))
+	button.add_theme_stylebox_override("focus", CampaignMenuStyle.card_box(Color(0.06,0.09,0.12,0.8), Color("b9a883"), 1, 0, 4))
+
+
+## Menu-only staging from already shipped meshes. No colliders or gameplay
+## records are created; the dressing hides with the title and dies with it.
+func _dress_background(realm_id: String) -> void:
+	if not Realm.in_title: return
+	if _title_realm == realm_id and is_instance_valid(_title_dressing):
+		_title_dressing.show(); return
+	_title_realm = realm_id
+	if is_instance_valid(_title_dressing): _title_dressing.free()
+	_title_dressing = Node3D.new()
+	_title_dressing.name = "TitleScenery"
+	add_child(_title_dressing)
+	var kinds: Array = {
+		"graveyard": ["broken_archway", "ruined_pillar", "soul_brazier"],
+		"frozen": ["watchtower", "frosted_pine", "ice_arch"],
+		"ember": ["basalt_columns", "ashen_tree", "brimstone_vent"],
+	}.get(realm_id, ["broken_archway", "ruined_pillar", "soul_brazier"])
+	var positions := [Vector3(5,0,-5), Vector3(-4,0,-6), Vector3(2,0,-3)]
+	for i in kinds.size():
+		var prop := MeshInstance3D.new()
+		prop.mesh = AssetProps.mesh(kinds[i])
+		prop.position = positions[i]
+		_title_dressing.add_child(prop)

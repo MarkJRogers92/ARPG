@@ -35,6 +35,7 @@ static func generate_with(ilvl: int, rarity: int, slot: String, rng: RandomNumbe
 		if not powers.is_empty():
 			item.power = _pick(powers, rng)
 	item.name = _make_name(item, rng)
+	Hunger.roll(item, rng)
 	return item
 
 
@@ -74,6 +75,24 @@ static func _roll_affixes(item: Item, count: int, luck: float, rng: RandomNumber
 			"value": snappedf(value, a["step"]),
 		})
 	return out
+
+
+## One extra affix rolled in the top half of its range (awakening). `rarity`
+## is the item's new rarity, so its affix table is the slot's at that tier.
+## Returns false if nothing legal was left to roll.
+static func add_affix(item: Item, rarity: int, rng: RandomNumberGenerator = null) -> bool:
+	var used := {}
+	for existing in item.affixes:
+		used["%s:%d" % [existing["stat"], existing["op"]]] = true
+	var pool := RewardPools.affix_candidates(item.slot, rarity, "", false, used)
+	if pool.is_empty():
+		return false
+	var a := _pick_weighted(pool, rng)
+	var value: float = lerpf(a["min"], a["max"], lerpf(0.5, 1.0, _float(rng)))
+	if a.get("scales", true):
+		value *= ItemData.ilvl_scale(item.ilvl, a["stat"], a["op"])
+	item.affixes.append({"id": a["id"], "stat": a["stat"], "op": a["op"], "value": snappedf(value, a["step"])})
+	return true
 
 
 static func _pick_weighted(pool: Array[Dictionary], rng: RandomNumberGenerator = null) -> Dictionary:

@@ -188,6 +188,7 @@ func _add_site(id: String, color: Color, label_text: String) -> void:
 	beam.material_override = _emissive(color, 0.34)
 	holder.add_child(beam)
 	var label := Label3D.new()
+	label.font = UiStyle.EMPHASIS
 	label.text = label_text
 	label.position.y = 3.1
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED

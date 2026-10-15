@@ -10,7 +10,7 @@ extends Node3D
 ##                                    them all for treasure and Soul Shards
 ##   Soul altar     sacrifice a minion: +12% damage for the rest of the night
 ##   Wishing well / frozen pond   toss in 5 shards for a random boon
-##   Forge          8 shards: reforge your weapon, same rarity, better rolls
+##   Forge          8 shards: roll once, then keep the original or new weapon
 ##   Cauldron       6 souls: brew a 45 s blessing
 ##   Fishing hut    rest: heal to full
 ##   Tome           read it: +1 skill point, -8% max HP for the night
@@ -27,7 +27,7 @@ const INFO := {
 	"bell": {"verb": "Ring the bell", "hint": "champions rise; slay them for treasure", "color": Color(1.0, 0.8, 0.35)},
 	"altar": {"verb": "Sacrifice a minion", "hint": "+12% damage for the night", "color": Color(0.55, 0.85, 1.0)},
 	"well": {"verb": "Toss in 5 Soul Shards", "hint": "the well grants... something", "color": Color(0.6, 0.9, 1.0)},
-	"forge": {"verb": "Reforge your weapon (8 shards)", "hint": "same rarity, fresh and stronger rolls", "color": Color(1.0, 0.55, 0.2)},
+	"forge": {"verb": "Inspect the forge", "hint": "one roll costs 8 shards; keep either weapon", "color": Color(1.0, 0.55, 0.2)},
 	"cauldron": {"verb": "Brew from 6 souls", "hint": "a 45 s blessing", "color": Color(0.6, 1.0, 0.5)},
 	"hut": {"verb": "Rest", "hint": "heal to full", "color": Color(0.8, 0.9, 1.0)},
 	"tome": {"verb": "Read the forbidden tome", "hint": "+1 skill point, -8% max HP for the night", "color": Color(0.8, 0.5, 1.0)},
@@ -58,6 +58,11 @@ var _used := {}
 var _near_key := ""
 var _near_use := ""
 var _near_at := Vector2.ZERO
+var _near_reach := 0.0
+var _forge_request: Dictionary = {}
+var _forge_offer: Dictionary = {}
+var _forge_panel: FieldForgePanel
+var _used_forges: Array[String] = []
 var _scan := 0.0
 ## Rung bells: [{"at", "guards": [[swarm, id]], "key"}].
 var _bells: Array[Dictionary] = []
@@ -82,8 +87,9 @@ func setup(decor: WorldDecor, player: Player, director: WaveDirector, loot: Loot
 	_events = events
 	_swarms = swarms
 	_spend = spend
+	_player.died.connect(_cancel_forge)
 	for k in 6:
-		var ring := HazardDirector.make_decal(self, Vector2.ZERO, Color(1.0, 0.82, 0.4, 0.55), 0.85, 1.0)
+		var ring := HazardDirector.make_decal(self, Vector2.ZERO, Color(1.0, 0.82, 0.4, 0.55), 0.85, 1.0, Models.rune_material(Color(1.0, 0.82, 0.4, 0.6)))
 		ring.visible = false
 		_rings.append(ring)
 	ensure_input()
@@ -163,6 +169,7 @@ func _rescan() -> void:
 	_near_key = key_of(kind, at)
 	_near_use = USES[kind]
 	_near_at = at
+	_near_reach = float(nearby[0][2]) + 1.8
 	var info: Dictionary = INFO[_near_use]
 	if campaign_mode and _near_use == "tome":
 		info = {"verb": "Read the forbidden tome", "hint": "gain a temporary blessing", "color": Color(0.8, 0.5, 1.0)}
@@ -183,8 +190,6 @@ func _unavailable(use: String) -> String:
 		"forge":
 			if campaign_mode:
 				return "town's forge handles campaign reforging"
-			if _shards_available() < 8:
-				return "you need 8 Soul Shards this run"
 			if _player.inventory.equipped.get("weapon") == null:
 				return "you have no weapon to reforge"
 		"cauldron":
@@ -212,12 +217,12 @@ func use_nearest() -> bool:
 		return false
 	var at := _near_at
 	var use := _near_use
+	if use == "forge": return _reforge(at)
 	var ok := false
 	match use:
 		"bell": ok = _ring_bell(at)
 		"altar": ok = _sacrifice(at)
 		"well": ok = _wish(at)
-		"forge": ok = _reforge(at)
 		"cauldron": ok = _brew(at)
 		"hut": ok = _rest(at)
 		"tome": ok = _read(at)
@@ -331,17 +336,91 @@ func _wish(at: Vector2) -> bool:
 
 
 func _reforge(at: Vector2) -> bool:
-	var old: Item = _player.inventory.equipped.get("weapon")
-	if old == null or not _spend.call(8):
-		return false
-	var ilvl := ItemData.ilvl_for_player_level(_player.stats.level) + 3
-	var item := ItemGenerator.generate_with(ilvl, old.rarity, "weapon")
-	_player.inventory.replace_worn(item)
-	Sound.play("slam", 1.4, -6.0)
-	Sound.play("legendary" if item.rarity == ItemData.Rarity.LEGENDARY else "loot")
-	Juice.burst(at, 1.2, Color(1.0, 0.55, 0.2), 40, 6.0, 0.5, 0.7, 5.0)
-	announced.emit("Reforged: %s" % item.name, item.color())
+	if campaign_mode or _player.dead or _near_key == "" or _used.has(_near_key) or not _forge_request.is_empty() or not _forge_offer.is_empty(): return false
+	var original: Item = _player.inventory.equipped.get("weapon")
+	if original == null: return false
+	_forge_request = {"key":_near_key,"at":at,"reach":_near_reach,"original":original,
+		"original_data":original.to_dict().duplicate(true),"phase":"inspect"}
 	return true
+
+
+## Main calls this after damage, death and other modal decisions for the frame.
+func offer_forge() -> bool:
+	if _forge_request.is_empty() or get_tree().paused: return false
+	var offer := _forge_request
+	_forge_request = {}
+	if not _valid_forge_offer(offer) or _used.has(offer["key"]) or _unavailable("forge") != "": return false
+	if _forge_panel == null:
+		_forge_panel = FieldForgePanel.new()
+		add_child(_forge_panel)
+		_forge_panel.chosen.connect(_choose_forge)
+	_forge_offer = offer
+	_forge_panel.inspect_weapon(offer["original"], ItemData.ilvl_for_player_level(_player.stats.level) + 3, _shards_available() >= 8)
+	get_tree().paused = true
+	return true
+
+
+func _valid_forge_offer(offer: Dictionary) -> bool:
+	if campaign_mode or _player == null or _player.dead or offer.is_empty(): return false
+	var current: Item = _player.inventory.equipped.get("weapon")
+	return current != null and current == offer.get("original") and current.to_dict() == offer.get("original_data") and _player.pos2.distance_to(offer["at"]) <= float(offer["reach"])
+
+
+func _choose_forge(action: String) -> void:
+	if _forge_offer.is_empty() or _forge_panel == null or not _forge_panel.is_open(): return
+	var offer := _forge_offer
+	# Invalidate the old controls before payment, RNG, inventory signals or FX.
+	_forge_offer = {}
+	_forge_panel.close()
+	if offer["phase"] == "inspect" and action == "roll":
+		if _valid_forge_offer(offer) and not _used.has(offer["key"]) and _spend.call(8):
+			var key: String = offer["key"]
+			_used[key] = true
+			_used_forges.append(key)
+			uses_made["forge"] = int(uses_made.get("forge", 0)) + 1
+			var original: Item = offer["original"]
+			offer["rolled"] = ItemGenerator.generate_with(ItemData.ilvl_for_player_level(_player.stats.level) + 3, original.rarity, "weapon")
+			offer["phase"] = "choose"
+			_forge_offer = offer
+			_forge_panel.compare_weapon(_player.inventory, _player.stats, original, offer["rolled"])
+			Sound.play("slam", 1.4, -6.0)
+			return
+		announced.emit("Forge unavailable. No shards spent.", UiStyle.MUTED)
+	elif offer["phase"] == "choose":
+		if action == "take" and _valid_forge_offer(offer):
+			var item: Item = offer["rolled"]
+			_player.inventory.replace_worn(item)
+			Sound.play("legendary" if item.rarity == ItemData.Rarity.LEGENDARY else "loot")
+			Juice.burst(offer["at"], 1.2, Color(1.0, 0.55, 0.2), 40, 6.0, 0.5, 0.7, 5.0)
+			announced.emit("Reforged: " + item.name, item.color())
+		else:
+			announced.emit("Kept your equipped weapon. This forge is spent.", UiStyle.MUTED)
+	_near_key = ""; prompt = ""; _scan = 0.0
+	if not _player.dead: get_tree().paused = false
+
+
+func _cancel_forge() -> void:
+	var owns_modal := _forge_panel != null and _forge_panel.is_open()
+	_forge_request = {}; _forge_offer = {}
+	if _forge_panel != null: _forge_panel.close()
+	# Release only our own modal pause so Main can play the death sequence.
+	if owns_modal and _player != null and _player.dead: get_tree().paused = false
+
+
+func used_forges() -> Array[String]:
+	return _used_forges.duplicate()
+
+
+## Optional v1 save field; old snapshots default to no spent field forges.
+func restore_used_forges(value: Variant) -> void:
+	for old_key: String in _used_forges: _used.erase(old_key)
+	_used_forges.clear()
+	if not value is Array: return
+	for key: Variant in value:
+		if not key is String or key.get_slice_count("|") != 3 or key.get_slice("|",0) != "forge": continue
+		if not key.get_slice("|",1).is_valid_int() or not key.get_slice("|",2).is_valid_int() or _used_forges.has(key): continue
+		_used_forges.append(key)
+		_used[key] = true
 
 
 func _brew(at: Vector2) -> bool:

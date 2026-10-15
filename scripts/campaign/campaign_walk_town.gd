@@ -204,6 +204,7 @@ func _present_facilities(state: Dictionary) -> void:
 			node.set_meta("facility_tier", rank)
 			_facility_dressing.add_child(node)
 			var label := Label3D.new()
+			label.font = UiStyle.EMPHASIS
 			label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			label.font_size = 48
 			label.outline_size = 8
@@ -499,6 +500,7 @@ func _build_returning_votives() -> void:
 
 func _build_ferryman_story() -> void:
 	_ferryman_story = Label3D.new()
+	_ferryman_story.font = UiStyle.EMPHASIS
 	_ferryman_story.name = "TheFerrymanRemembers"
 	_ferryman_story.position = Vector3(-3.5, 2.75, 6.75)
 	_ferryman_story.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -562,6 +564,7 @@ func _add_first_road_memorial() -> void:
 	var memorial := _progress_mesh("FirstRoadMemorial", kit)
 	memorial.position = Vector3.ZERO
 	var plaque := Label3D.new()
+	plaque.font = UiStyle.EMPHASIS
 	plaque.name = "FirstRoadInscription"
 	plaque.text = "FIRST RETURN"
 	plaque.position = center + Vector3(0, 1.72, 0)
@@ -917,6 +920,7 @@ func _build_station(station: Dictionary) -> void:
 	_rings[station["id"]] = ring
 	_light(at + Vector3(0, 2.2, 0), color, 2.2, 5.0)
 	var label := Label3D.new()
+	label.font = UiStyle.EMPHASIS
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.font_size = 48

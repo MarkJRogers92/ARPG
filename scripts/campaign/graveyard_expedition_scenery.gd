@@ -220,7 +220,9 @@ static func _place_mesh(parent: Node3D, node_name: String, kit: MeshKit) -> Mesh
 
 static func _near_tall_prop(point: Vector2, props: Dictionary, clearance: float) -> bool:
 	for kind: String in props:
-		if kind == "grass" or kind == "mushroom":
+		# Ground cover and low filler (per-realm grass variants, bone piles, candles) never block a pocket.
+		if kind == "grass" or kind == "mushroom" or kind.begins_with("grass_") or kind.begins_with("bone_pile") \
+				or kind.begins_with("candle_cluster"):
 			continue
 		var footprint := float(AssetProps.data(kind).get("footprint", 0.8)) if AssetProps.has(kind) else 0.8
 		var margin := clearance + footprint if AssetProps.has(kind) else clearance

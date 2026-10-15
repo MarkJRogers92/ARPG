@@ -43,38 +43,38 @@ func _initialize() -> void:
 
 
 func _finish() -> void:
-	_run(&"_test_elites_and_knockback", _test_elites_and_knockback())
-	_run(&"_test_enemy_shots", _test_enemy_shots())
-	_run(&"_test_elements", _test_elements())
-	_run(&"_test_army", _test_army())
-	_run(&"_test_heroes", _test_heroes())
-	_run(&"_test_reliquary", _test_reliquary())
-	_run(&"_test_accessibility", _test_accessibility())
-	_run(&"_test_death_recap", _test_death_recap())
-	_run(&"_test_events", _test_events())
-	_run(&"_test_obstacles", _test_obstacles())
-	_run(&"_test_fixes", _test_fixes())
-	_run(&"_test_landmarks", _test_landmarks())
-	_run(&"_test_minion_roles", _test_minion_roles())
-	_run(&"_test_specialists", _test_specialists())
-	_run(&"_test_specialist_enemies", _test_specialist_enemies())
-	_run(&"_test_new_powers", _test_new_powers())
-	_run(&"_test_ferryman", _test_ferryman())
-	_run(&"_test_new_tools", _test_new_tools())
-	_run(&"_test_final_mechanics", _test_final_mechanics())
-	_run(&"_test_mid_mechanics", _test_mid_mechanics())
-	_run(&"_test_replayability", _test_replayability())
-	_run(&"_test_rifts", _test_rifts())
-	_run(&"_test_dawn", _test_dawn())
-	_run(&"_test_veterans", _test_veterans())
-	_run(&"_test_evolutions", _test_evolutions())
-	_run(&"_test_rival", _test_rival())
-	_run(&"_test_ascension", _test_ascension())
-	_run(&"_test_stances", _test_stances())
-	_run(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
-	_run(&"_test_nemesis", _test_nemesis())
-	_run(&"_test_slow_motion_ends", _test_slow_motion_ends())
-	_run(&"_test_late_leveling", _test_late_leveling())
+	await _run_tree(&"_test_elites_and_knockback", _test_elites_and_knockback())
+	await _run_tree(&"_test_enemy_shots", _test_enemy_shots())
+	await _run_tree(&"_test_elements", _test_elements())
+	await _run_tree(&"_test_army", _test_army())
+	await _run_tree(&"_test_heroes", _test_heroes())
+	await _run_tree(&"_test_reliquary", _test_reliquary())
+	await _run_tree(&"_test_accessibility", _test_accessibility())
+	await _run_tree(&"_test_death_recap", _test_death_recap())
+	await _run_tree(&"_test_events", _test_events())
+	await _run_tree(&"_test_obstacles", _test_obstacles())
+	await _run_tree(&"_test_fixes", _test_fixes())
+	await _run_tree(&"_test_landmarks", _test_landmarks())
+	await _run_tree(&"_test_minion_roles", _test_minion_roles())
+	await _run_tree(&"_test_specialists", _test_specialists())
+	await _run_tree(&"_test_specialist_enemies", _test_specialist_enemies())
+	await _run_tree(&"_test_new_powers", _test_new_powers())
+	await _run_tree(&"_test_ferryman", _test_ferryman())
+	await _run_tree(&"_test_new_tools", _test_new_tools())
+	await _run_tree(&"_test_final_mechanics", _test_final_mechanics())
+	await _run_tree(&"_test_mid_mechanics", _test_mid_mechanics())
+	await _run_tree(&"_test_replayability", _test_replayability())
+	await _run_tree(&"_test_rifts", _test_rifts())
+	await _run_tree(&"_test_dawn", _test_dawn())
+	await _run_tree(&"_test_veterans", _test_veterans())
+	await _run_tree(&"_test_evolutions", _test_evolutions())
+	await _run_tree(&"_test_rival", _test_rival())
+	await _run_tree(&"_test_ascension", _test_ascension())
+	await _run_tree(&"_test_stances", _test_stances())
+	await _run_tree(&"_test_soul_trails_and_death", _test_soul_trails_and_death())
+	await _run_tree(&"_test_nemesis", _test_nemesis())
+	await _run_tree(&"_test_slow_motion_ends", _test_slow_motion_ends())
+	await _run_tree(&"_test_late_leveling", _test_late_leveling())
 
 	print("")
 	if _failures == 0:
@@ -82,6 +82,14 @@ func _finish() -> void:
 	else:
 		print("%d OF %d CHECKS FAILED" % [_failures, _checks])
 	quit(0 if _failures == 0 else 1)
+
+
+## Scene fixtures synchronously free their nodes. Drain their queued engine work
+## before another fixture allocates replacements, rather than batching every
+## fixture's deferred work into the final SceneTree shutdown.
+func _run_tree(test_name: StringName, finished) -> void:
+	_run(test_name, finished)
+	await process_frame
 
 
 ## A test that hits a script error stops early and returns null instead of
@@ -1912,7 +1920,10 @@ func _test_landmarks() -> bool:
 
 	var weapon := ItemGenerator.generate_with(5, ItemData.Rarity.MAGIC, "weapon")
 	player.inventory.pickup(weapon)
-	_check(go.call("forge") and bank[0] == 7, "the forge takes 8 shards")
+	_check(go.call("forge") and bank[0] == 15 and marks.offer_forge(), "forge inspection is free and opens a choice")
+	marks._choose_forge("roll")
+	_check(bank[0] == 7 and player.inventory.equipped.get("weapon") == weapon, "the roll takes 8 shards but keeps the original until acceptance")
+	marks._choose_forge("take")
 	var reforged: Item = player.inventory.equipped.get("weapon")
 	_check(reforged != weapon and reforged.rarity == ItemData.Rarity.MAGIC, "and reforges the weapon at the same rarity")
 
