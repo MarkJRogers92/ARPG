@@ -27,19 +27,24 @@ focused suites are `army_story_test.gd`, `army_first_integration_test.gd`, and
   were observed failing before their implementation.
 - A natural opening-combat check (no injected kills, souls or combat stats)
   bound its first ally at **8.42 seconds**, after one kill.
-- A fresh post-fix Graveyard Hunt completed and settled successfully at **300
-  seconds**: 601 kills, including 178 credited army kills and one promotion.
-  Its named standout earned 85 kills during that mission; settlement preserved
+- A fresh integrated Graveyard Hunt completed and settled successfully at **300
+  seconds**: 595 kills, including 132 credited army kills and one promotion.
+  Its named standout earned 92 kills during that mission; settlement preserved
   the report. This is one automated scenario, not a general balance result.
 - Classic smoke passed with the prescribed `-- 420` fixed-60Hz frame budget
-  (25,200 frames; game clock 388.9 seconds after pauses/slow motion), 12,041
-  kills and 35 upgrades. No script errors were observed.
+  (25,200 frames; game clock 382.4 seconds after pauses/slow motion), 10,315
+  kills and 36 upgrades after upstream integration. No script errors were observed.
 - Native Compatibility-renderer fixtures cover the real first-binding banner,
   all three guardian phases, and camp result at measured **1280x720**. Capture
   checks assert actual image dimensions and the banner's visible alpha.
 
-The pre-delivery post-fix run passed **43/43 suites**, preceded by four affected/core
-suites. Runtime and test source hashes were unchanged throughout the run.
+The post-fix checkpoint passed **43/43 suites**. After integrating PR #57, the
+final combined run passed **63/63 suites** with unchanged runtime/test hashes.
+All 60 upstream suites and the three army-first suites are retained. Eight
+affected/compatibility suites passed first; 39 new combined assertions cover
+Requiem overflow, source-specific binding, dance kill/promotion attribution,
+invulnerability and target reacquisition. Independent compatibility review
+accepted the exact combined runtime and test delta without blockers.
 Independent whole-change review found three missing producer paths (altar
 sacrifices, Soulfire kills and zero-kill surviving close calls); all three were
 fixed with failing regressions first, then independently re-reviewed:
@@ -51,12 +56,14 @@ total, not an unrelated surviving minion's lifetime deeds.
 The isolated worktree uses an **untracked, local-only** `override.cfg` with the
 `Soulbound_ArmyFirst_20261014` profile and windowed QA settings. Do not publish
 that file; opening a checkout without it uses the normal player profile.
-The original 406 non-log player-file fingerprints, complete file set and
-`project.godot` bytes were verified unchanged after final validation. Godot generated the new UIDs;
-unrelated asset-import sidecar churn was restored.
+The original 406 non-log player-file fingerprints and complete file set were
+verified unchanged after integrated validation. The feature adds no project,
+export, workflow or asset changes relative to PR #57; its menu/gamepad and dance
+bindings are preserved. Godot generated the new UIDs; unrelated asset-import
+sidecar churn was restored.
 
 Headless integration, Hunt and Classic smoke exits still report
-ObjectDB/resources-in-use diagnostics; 13 of the 43 final suite logs contain
+ObjectDB/resources-in-use diagnostics; 23 of the 63 integrated suite logs contain
 the resource diagnostic accepted by the existing runner. Native fixtures exited
 without those diagnostics. This pass does not claim a shutdown-leak fix.
 No full human campaign, subjective balance test or crowded-scene performance
@@ -66,11 +73,14 @@ benchmark was performed.
 
 After accepting the local implementation, the user authorized **push, merge and
 installation**. The default branch had advanced from the reviewed 9e17bdb source
-to 4cbeab7 (PR57), adding five night systems and a world/UI overhaul. Integrate
-those changes rather than replacing them, then revalidate the combined tree;
-the 43-suite and visual evidence above is the pre-integration checkpoint.
-Use the existing PR checks and release workflow, verify the release commit and
-Mac asset integrity, and preserve an app backup and every original player file.
+to 4cbeab7 (PR57), adding five night systems and a world/UI overhaul. Those
+changes were integrated and revalidated, including native 720p first-binding,
+guardian and camp captures using the newer world/UI. The only merge conflict
+combined the new soul-binding signal with existing Requiem overflow.
+Publication uses the existing PR checks and release workflow; release commit
+and Mac asset verification, app replacement and startup are delivery gates, not
+claims made by this pre-publication document. The existing signed app and saves
+were copied and byte-compared before replacement.
 
 ## Models
 

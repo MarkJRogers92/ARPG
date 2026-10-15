@@ -56,7 +56,7 @@ new gameplay systems or reward changes.
 - [x] Observe regression RED/GREEN, scoped independent re-review, and a stable final full-suite pass.
 
 ### User-authorized publication and installation
-- [ ] Commit only feature/source/test/documentation files; exclude override.cfg, .serena, .runtime and review scratch.
-- [ ] Integrate default 4cbeab7 (PR57) without dropping its world/UI or five-night-system features; inspect merged lifecycle and rerun combined tests/native presentation.
+- [x] Commit only feature/source/test/documentation files; exclude override.cfg, .serena, .runtime and review scratch.
+- [x] Integrate default 4cbeab7 (PR57) without dropping its world/UI or five-night-system features; inspect merged lifecycle and rerun combined tests/native presentation.
 - [ ] Push a feature branch, create a PR against claude/focused-fermat-m7jhtk, wait for required checks and merge without bypassing protections.
 - [ ] Wait for all release jobs, verify the Mac asset's commit/SHA-256/archive/signature, back up the current app, then install and verify the matching build while preserving original saves.
