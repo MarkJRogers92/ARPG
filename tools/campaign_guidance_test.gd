@@ -71,6 +71,7 @@ func _run() -> void:
 	_check(CampaignGuidance.guardian_intro("unknown") == "" and
 			CampaignGuidance.guardian_hint("unknown", "", 0) == "",
 			"unknown guardian data yields no invented advice")
+	_test_army_tactics()
 	await _test_title_card_positions()
 	await _test_objective_prompt_rendering()
 	var args := OS.get_cmdline_user_args()
@@ -78,6 +79,38 @@ func _run() -> void:
 		await _capture_guidance(int(args[1]), int(args[2]), args[3], args[4] if args.size() > 4 else "guardian")
 	print("CAMPAIGN GUIDANCE TESTS %s (%d checks)" % ["PASSED" if failures == 0 else "FAILED", checks])
 	quit(0 if failures == 0 else 1)
+
+
+func _test_army_tactics() -> void:
+	var guidance := CampaignGuidance.new()
+	_check(guidance.has_method("army_tactic"), "guardian guidance offers optional phase-specific army tactics")
+	if not guidance.has_method("army_tactic"):
+		return
+	Controls.apply()
+	var before := InputMap.action_get_events("army_stance").duplicate()
+	InputMap.action_erase_events("army_stance")
+	var event := InputEventKey.new()
+	event.physical_keycode = KEY_P
+	InputMap.action_add_event("army_stance", event)
+	Controls._tags.clear()
+	var ward_tip := str(guidance.call("army_tactic", "lich", "warded", "hunt"))
+	_check(ward_tip.contains("[P]") and ward_tip.contains("SWARM") and ward_tip.contains("phylacteries"),
+		"ward tactic describes reachable objective focus using the remapped stance key")
+	var active_tip := str(guidance.call("army_tactic", "lich", "warded", "swarm"))
+	_check(active_tip.contains("SWARM") and not active_tip.contains("[P]"), "active stance acknowledges the tactic without nagging to switch")
+	_check(str(guidance.call("army_tactic", "colossus", "fracture", "hunt")).contains("GUARD"),
+		"fracture opportunity suggests regrouping rather than pretending guard blocks the strike")
+	_check(str(guidance.call("army_tactic", "colossus", "exposed", "hunt")).contains("SWARM"),
+		"exposure opportunity suggests closing on the vulnerable guardian")
+	_check(str(guidance.call("army_tactic", "tyrant", "sealed", "hunt")).contains("GUARD") and
+		str(guidance.call("army_tactic", "tyrant", "open", "hunt")).contains("SWARM"),
+		"Tyrant tactic changes from regrouping during the lure to pressing after seal break")
+	_check(str(guidance.call("army_tactic", "lich", "", "hunt")) == "" and
+		str(guidance.call("army_tactic", "unknown", "warded", "hunt")) == "", "inactive or unknown phases invent no army instruction")
+	InputMap.action_erase_events("army_stance")
+	for old: InputEvent in before:
+		InputMap.action_add_event("army_stance", old)
+	Controls._tags.clear()
 
 
 func _test_title_card_positions() -> void:

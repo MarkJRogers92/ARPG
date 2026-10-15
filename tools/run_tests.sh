@@ -44,6 +44,7 @@ done
 # for headless contract checks (menu_polish).
 SUITES=(
   "tools/tests.gd"
+  "tools/army_story_test.gd"
   "tools/approved_collection_test.gd"
   "tools/decor_composition_test.gd"
   "tools/decor_cache_test.gd"
@@ -90,6 +91,8 @@ SUITES=(
   "tools/campaign_camp_life_test.gd"
   "tools/campaign_combat_tests.gd"
   "tools/campaign_first_expedition_test.gd"
+  "tools/army_first_integration_test.gd"
+  "tools/campaign_army_story_test.gd"
   "tools/campaign_guidance_test.gd"
   "tools/campaign_lifecycle_test.gd"
   "tools/campaign_loadout_test.gd"

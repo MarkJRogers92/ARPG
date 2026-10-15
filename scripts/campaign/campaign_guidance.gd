@@ -39,3 +39,21 @@ static func guardian_hint(kind: String, mechanic_hint: String, fracture_lines: i
 	if kind == "colossus" and fracture_lines > 0:
 		return "Fracture lines are forming. Step off them."
 	return ""
+
+
+static func army_tactic(kind: String, phase: String, stance: String) -> String:
+	var desired := ""
+	var opportunity := ""
+	match kind + ":" + phase:
+		"lich:warded":
+			desired = "swarm"
+			opportunity = "focuses reachable phylacteries instead of the warded Lich"
+		"colossus:fracture", "tyrant:sealed":
+			desired = "guard"
+			opportunity = "keeps allies close while you dodge" if kind == "colossus" else "keeps allies close while you lure meteors"
+		"colossus:exposed", "tyrant:open":
+			desired = "swarm"
+			opportunity = "ranges out to pressure the exposed guardian"
+		_: return ""
+	var tactic := "%s %s." % [desired.to_upper(), opportunity]
+	return tactic if stance == desired else "Optional: %s cycles stances · %s" % [Controls.tag("army_stance"), tactic]

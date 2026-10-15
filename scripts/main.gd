@@ -27,6 +27,8 @@ var _return_ritual_left := 0.0
 var _drop_serial := 0
 var _expedition_loot_rng := RandomNumberGenerator.new()
 var _deployed_veteran_id := ""
+var _opening_binding_pending := false
+var _first_soul_bound_seen := false
 var _campaign_cards: Dictionary = {}
 var _campaign_final_boss_dead := false
 
@@ -217,6 +219,7 @@ func _ready() -> void:
 	_army.raised.connect(func(kind: String) -> void:
 		if _vows: _vows.on_raise()
 		_hud.toast("A spectral %s rises to serve you" % kind, Color(0.55, 0.85, 1.0)))
+	_army.soul_bound.connect(_on_soul_bound)
 	for swarm in _swarms:
 		swarm.shots = _shots
 		swarm.enemy_died.connect(_on_enemy_died.bind(swarm))
@@ -286,6 +289,7 @@ func _ready() -> void:
 	_final_mech = FinalMechanics.new()
 	add_child(_final_mech)
 	_final_mech.setup(_final, get_node("Phylacteries") as EnemySwarm, _player, _director)
+	_final_mech.army = _army if _campaign else null
 	_mid_mech = MidMechanics.new()
 	add_child(_mid_mech)
 	_mid_mech.setup($Bosses, _player, _director, _bosses)
@@ -453,8 +457,23 @@ func _setup_expedition() -> void:
 	if recruits > 0:
 		var kind := _army.type_index(_grunts)
 		for i in recruits: _army._raise(kind, false, false)
+	_opening_binding_pending = int(expedition_spec.get("biome_index", -1)) == 0 \
+		and str(expedition_spec.get("node_id", "")).begins_with("0:1:") \
+		and _army.count == 0 and _player.stats.minion_max > 0 and TacticTrials.army_allowed(_player.challenge_id)
 	_hud.set_omen("EXPEDITION  ·  %s" % String(expedition_spec.get("profile_id", "ROUTE")).replace("_", " ").to_upper(),
 		String(expedition_spec.get("contract_id", "hunt")).replace("_", " ").to_upper(), UiStyle.GOLD, 0)
+
+
+func _on_soul_bound(kind: String) -> void:
+	if not _campaign or _first_soul_bound_seen or _expedition_terminal or _player.dead:
+		return
+	_first_soul_bound_seen = true
+	_opening_binding_pending = false
+	# Boss tells outrank the tutorial; the regular raise toast still names the ally.
+	if _bosses.final_alive() or _bosses.boss_alive():
+		return
+	_hud.title_card("A foe becomes an ally", "%s now fights for you.\n%s cycles HUNT · GUARD · SWARM." %
+		[kind, Controls.tag("army_stance")], Color(0.55, 0.85, 1.0), true)
 
 
 func _on_pause_save_and_quit() -> void:
@@ -514,6 +533,7 @@ func _finish_expedition_frame() -> void:
 	_expedition_result["veteran"] = candidate
 	_expedition_result["report"] = {"kills": kills, "level": _player.stats.level, "realm": Realm.current,
 		"combat_metrics": Elements.metrics.report(),
+		"army_story": _army.story_report(),
 		"contract_id": expedition_spec.get("contract_id", ""), "final_boss": bool(expedition_spec.get("final_boss", false)),
 		"died": _player.dead, "last_cause": _player.last_cause,
 		"damage_taken_by": _player.damage_taken_by.duplicate(true),
@@ -766,6 +786,9 @@ func _process(delta: float) -> void:
 				guidance = _expedition.guidance_text()
 			elif _bosses.final_alive():
 				guidance = CampaignGuidance.guardian_hint(_final_mech.kind(), _final_mech.hint, _final_mech._lines.size())
+				if _army.count > 0:
+					var tactic := CampaignGuidance.army_tactic(_final_mech.kind(), _final_mech.army_phase(), _army.stance)
+					if tactic != "": guidance += ("\n" if guidance != "" else "") + tactic
 		_hud.set_campaign_guidance(guidance)
 		var final_dead := _campaign_final_boss_dead or (_final.count > 0 and _final.alive_count() == 0)
 		if _expedition.arbitrate_frame(_director.elapsed, _player.dead, final_dead):
@@ -1258,9 +1281,18 @@ func _on_enemy_died(at: Vector2, xp: int, swarm: EnemySwarm) -> void:
 			return
 		_on_final_died(at)
 	if swarm.boss:
+		_opening_binding_pending = false
 		if not _campaign:
 			_on_boss_died(at, swarm)
 		_souls.drop(at + Vector2(0.0, 1.0), Army.soul_value(_army.type_index(swarm), false, true))
+	elif _opening_binding_pending and TacticTrials.army_allowed(_player.challenge_id):
+		_opening_binding_pending = false
+		# enemy_died precedes elite_died; an elite already supplies its own binding.
+		var elite := not swarm._dead.is_empty() and swarm._elite[swarm._dead[-1]] == 1
+		if not elite and _army.count == 0:
+			for _i in maxi(_player.stats.soul_cost - _army.souls, 0):
+				_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
+			_hud.toast("Gather the fallen %s's souls to bind your first ally." % kind, Color(0.55, 0.85, 1.0))
 	elif randf() < _player.stats.soul_chance * (2.0 if _rift.glitching() else 1.0):
 		_souls.drop(at + Vector2(0.0, 0.4), Army.soul_value(_army.type_index(swarm), false, false))
 	var big := swarm.body_height > 2.0

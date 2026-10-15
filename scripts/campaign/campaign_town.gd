@@ -16,6 +16,7 @@ const SERVICES := [
 	{"id": "ledger", "label": "THE LEDGER", "glyph": "⌖"},
 ]
 const CampaignMenuStyle = preload("res://scripts/campaign/campaign_menu_style.gd")
+const CampaignArmyStory = preload("res://scripts/campaign/campaign_army_story.gd")
 
 ## -1 auto (walkable town except headless test runs), 0 classic menu, 1 walkable.
 static var walk_mode := -1
@@ -2099,6 +2100,11 @@ func _render_result() -> void:
 		_add_copy("NEXT STOP · %s\n%s" % [str(waystop["name"]), str(waystop["arrival_line"])])
 	else:
 		_add_copy("BACK AT %s\nThe same shelter waits while you prepare for another attempt." % str(waystop["name"]))
+	var report_value: Variant = result.get("report", {})
+	var report: Dictionary = report_value if report_value is Dictionary else {}
+	var army_account := CampaignArmyStory.summary(report.get("army_story"), str(result.get("outcome", "failure")))
+	if not army_account.is_empty():
+		_add_copy(army_account)
 	_render_after_action_report(result)
 	if str(result.get("story_message", "")) != "":
 		_add_copy(str(result["story_message"]))
