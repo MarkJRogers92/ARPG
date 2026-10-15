@@ -548,7 +548,26 @@ afterwards with whatever it earned. If a veteran from the Crypt falls in
 battle, it's gone for good, and listed among **the Fallen**
 (`Army` veterans, `MetaProgress.entomb` / `crypt_fell`).
 
+## Army-first expedition moments
+
+On the opening Graveyard route, the first ordinary foe leaves enough normal
+souls to bind one ally when collected. Prepared armies and army-restricted trials
+skip this opening aid; elite souls retain their existing champion reward. The
+first actual soul binding gets a compact, non-pausing introduction with the
+current stance key—not a second introduction for deployed or recruited allies.
+
+The camp return report recognizes this expedition's army kills, promotions,
+named losses and an earned veteran highlight. Returning veterans' earlier kills
+are not counted again. Failure and withdrawal reports do not imply rewards or
+veterans were banked.
+
+Guardian stance tips are optional: regroup with Guard while dodging or luring,
+and use Swarm to pressure an exposed guardian. During campaign Lich wards, Swarm
+focuses reachable phylacteries rather than the invulnerable Lich. No stance is
+automatically selected, and guardian objectives remain playable without an army.
+
 ## Specialist enemies
+
 
 - **Lancers** (Bone Lancer, Rime Lancer, Hellspear) stop and show a red line
   along their path, which grows as the wind-up runs out. Then they charge

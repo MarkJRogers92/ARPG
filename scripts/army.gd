@@ -29,6 +29,7 @@ extends Node3D
 ## from the horde, and drift back to the hero when there's nothing to fight.
 
 signal raised(kind: String)
+signal soul_bound(kind: String)
 signal stance_changed(stance: String)
 ## A minion earned a name or a higher rank.
 signal promoted(text: String)
@@ -122,6 +123,14 @@ var _rank := PackedByteArray()
 var _vname: Array[String] = []
 var _crypt := PackedInt32Array()
 var _campaign_id: Array[String] = []
+var _mission_kills := PackedInt32Array()
+var _close_call := PackedByteArray()
+var _story_raised := 0
+var _story_kills := 0
+var _mission_promotions := 0
+var _fallen_veterans: Array[String] = []
+var _fallen_standout: Dictionary = {}
+var _priority_target: EnemySwarm
 ## Campaign-only ceiling for veteran promotion. -1 preserves Classic.
 var campaign_rank_cap := -1
 var _tag: Array = []
@@ -157,6 +166,8 @@ func setup(player: Player, swarms: Array[EnemySwarm]) -> void:
 	_vname.resize(CAPACITY)
 	_crypt.resize(CAPACITY)
 	_campaign_id.resize(CAPACITY)
+	_mission_kills.resize(CAPACITY)
+	_close_call.resize(CAPACITY)
 	_tag.resize(CAPACITY)
 	for s in swarms:
 		var t := {
@@ -233,9 +244,9 @@ static func soul_value(type: int, elite: bool, boss: bool) -> int:
 func collect_soul(value: int) -> void:
 	var type := (value % 100) - 1
 	if value >= 200:
-		_raise(type, true, true)
+		_raise(type, true, true, false, true)
 	elif value >= 100:
-		_raise(type, true, false)
+		_raise(type, true, false, false, true)
 	else:
 		souls += 1
 		_votes[type] = _votes.get(type, 0) + 1
@@ -252,7 +263,7 @@ func _try_raise() -> void:
 			best = t
 	souls = 0
 	_votes.clear()
-	_raise(best, false, false)
+	_raise(best, false, false, false, true)
 
 
 ## `beyond`: room or not, it joins (claimed from a rival), up to CAPACITY.
@@ -267,7 +278,9 @@ func snapshot() -> Array:
 ## Raises a saved army again, quietly.
 func restore(list: Array) -> void:
 	_quiet = true
-	for m: Array in list:
+	for m in list:
+		if not m is Array or m.size() < 2 or not m[0] is int or not m[1] is int:
+			continue
 		_raise(int(m[0]), int(m[1]) == 1, int(m[1]) == 2, true)
 	_quiet = false
 
@@ -275,7 +288,32 @@ func restore(list: Array) -> void:
 var _quiet := false
 
 
-func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
+func story_report() -> Dictionary:
+	var standout: Dictionary = _fallen_standout.duplicate()
+	for k in count:
+		if _rank[k] > 0 and _mission_kills[k] > 0 and (standout.is_empty() or _mission_kills[k] > standout["kills"]):
+			standout = _living_standout(k)
+	# A zero-kill close call only fills an otherwise empty spotlight.
+	if standout.is_empty():
+		for k in count:
+			if _rank[k] > 0 and _close_call[k] == 1:
+				standout = _living_standout(k)
+				break
+	return {"raised": _story_raised, "kills": _story_kills, "promotions": _mission_promotions,
+		"fallen_veterans": _fallen_veterans.duplicate(), "standout": standout}
+
+
+func _living_standout(k: int) -> Dictionary:
+	return {"name": _vname[k], "kills": _mission_kills[k], "rank": _rank[k], "returning": _crypt[k] >= 0 or _campaign_id[k] != "",
+		"survived": true, "close_call": _close_call[k] == 1}
+
+
+func set_priority_target(swarm: EnemySwarm) -> void:
+	_priority_target = swarm if swarm in _swarms else null
+	for k in count: _retarget[k] = 0.0
+
+
+func _raise(type: int, elite: bool, boss: bool, beyond := false, soul_funded := false) -> bool:
 	if not TacticTrials.army_allowed(_player.challenge_id): return false
 	if type < 0 or type >= _types.size():
 		return false
@@ -316,6 +354,8 @@ func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	_vname[k] = ""
 	_crypt[k] = -1
 	_campaign_id[k] = ""
+	_mission_kills[k] = 0
+	_close_call[k] = 0
 	_tag[k] = null
 	Juice.ring(_pos[k], Color(0.45, 0.8, 1.0), 24, 5.0, 0.45, 0.5)
 	Juice.burst(_pos[k], 0.3, Color(0.6, 0.9, 1.0), 18, 1.5, 0.45, 0.9, 6.0)
@@ -324,6 +364,9 @@ func _raise(type: int, elite: bool, boss: bool, beyond := false) -> bool:
 	_slam[k] = randf_range(0.5, 1.5)
 	if not _quiet:
 		raised.emit("%s %s" % [t["name"], "(%s)" % ROLES[t["role"]]["label"]])
+		_story_raised += 1
+		if soul_funded:
+			soul_bound.emit(String(t["name"]))
 	return true
 
 
@@ -420,11 +463,21 @@ func sacrifice() -> bool:
 	var victim := _expendable()
 	if victim < 0:
 		victim = count - 1
-	if _rank[victim] > 0:
-		veteran_fell.emit(_vname[victim], _crypt[victim])
+	_record_loss(victim)
 	Juice.burst(_pos[victim], 1.0, Color(0.55, 0.85, 1.0), 20, 3.0, 0.4, 0.8, 5.0)
 	_remove(victim, false, false)
 	return true
+
+
+## Share named losses without giving sacrifices death-only combat effects.
+func _record_loss(k: int) -> void:
+	if _rank[k] <= 0:
+		return
+	veteran_fell.emit(_vname[k], _crypt[k])
+	_fallen_veterans.append(_vname[k])
+	if _mission_kills[k] > 0 and _mission_kills[k] > int(_fallen_standout.get("kills", -1)):
+		_fallen_standout = {"name": _vname[k], "kills": _mission_kills[k], "rank": _rank[k],
+			"returning": _crypt[k] >= 0 or _campaign_id[k] != "", "survived": false, "close_call": _close_call[k] == 1}
 
 
 ## The minion to give up first: a common one, the least proven, the newest.
@@ -441,13 +494,17 @@ func _expendable() -> int:
 
 ## Credits minion `k` with `kills`, promoting it when it earns a rank.
 func credit(k: int, kills: int) -> void:
+	if k < 0 or k >= count or kills <= 0: return
 	_deeds[k] += kills
+	_mission_kills[k] += kills
+	_story_kills += kills
 	var rank_ceiling := RANKS.size() - 1 if campaign_rank_cap < 0 else mini(campaign_rank_cap, RANKS.size() - 1)
 	while _rank[k] < rank_ceiling and _deeds[k] >= RANKS[_rank[k] + 1]["kills"]:
 		_promote(k)
 
 
 func _promote(k: int) -> void:
+	_mission_promotions += 1
 	var before: float = RANKS[_rank[k]]["power"]
 	_rank[k] += 1
 	var rank: Dictionary = RANKS[_rank[k]]
@@ -641,6 +698,8 @@ func step(delta: float) -> void:
 			_hp[k] -= _contact_damage(p, t["radius"]) * 0.25 * float(STANCES[stance]["taken"])
 			if _hp[k] <= 0.0:
 				_remove(k, true)
+			elif _hp[k] <= _max_hp[k] * 0.25:
+				_close_call[k] = 1
 		k -= 1
 	_draw()
 
@@ -674,6 +733,7 @@ func _find_target(k: int, p: Vector2, hero: Vector2) -> void:
 	var leash: float = st["leash"]
 	var swarming := stance == "swarm"
 	var best := sight * sight
+	var best_is_priority := false
 	for s in _swarms.size():
 		var swarm := _swarms[s]
 		var n := swarm.grid.query(p, sight)
@@ -683,6 +743,16 @@ func _find_target(k: int, p: Vector2, hero: Vector2) -> void:
 			if swarm.hp[i] <= 0.0 or swarm.pos[i].distance_squared_to(hero) > leash * leash:
 				continue
 			var d2 := p.distance_squared_to(swarm.pos[i])
+			var priority := swarming and swarm == _priority_target
+			if priority:
+				if best_is_priority and d2 >= best: continue
+				best = d2
+				best_is_priority = true
+				_target_swarm[k] = s
+				_target_index[k] = i
+				_target_id[k] = swarm.ids[i]
+				continue
+			if best_is_priority: continue
 			if swarming and (swarm.boss or swarm._elite[i] == 1):
 				d2 *= SWARM_PREY
 			if d2 < best:
@@ -734,8 +804,7 @@ func _remove(k: int, died: bool, refill := true) -> void:
 	Juice.burst(p, 1.0, Color(0.5, 0.85, 1.0), 14, 4.0, 0.4, 0.6, 3.0)
 	if died:
 		Sound.play("minion_death")
-		if _rank[k] > 0:
-			veteran_fell.emit(_vname[k], _crypt[k])
+		_record_loss(k)
 	if _tag[k] != null:
 		(_tag[k] as Node).queue_free()
 		_tag[k] = null
@@ -760,6 +829,8 @@ func _remove(k: int, died: bool, refill := true) -> void:
 		_target_swarm[k] = _target_swarm[last]
 		_target_id[k] = _target_id[last]
 		_target_index[k] = _target_index[last]
+		_mission_kills[k] = _mission_kills[last]
+		_close_call[k] = _close_call[last]
 		_deeds[k] = _deeds[last]
 		_rank[k] = _rank[last]
 		_vname[k] = _vname[last]
@@ -780,7 +851,10 @@ func _queue_soulfire(at: Vector2) -> void:
 func flush() -> void:
 	Elements.source = "Soul Army"
 	for at in _soulfire:
+		var deaths_before := EnemySwarm.deaths
 		Elements.hit_area(at, 3.0, _player.stats.minion_damage * 4.0)
+		# shortcut: bursts count only toward the army total; queue identity if per-veteran credit is needed.
+		_story_kills += EnemySwarm.deaths - deaths_before
 		Juice.ring(at, Color(0.45, 0.8, 1.0), 24, 8.0, 0.5, 0.4)
 		Juice.flash(at, Color(0.45, 0.8, 1.0), 4.0, 8.0, 0.3)
 	_soulfire.clear()

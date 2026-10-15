@@ -26,6 +26,8 @@ const SEAL_RADIUS := 1.6
 
 ## What the HUD shows under the boss bar ("" for nothing).
 var hint := ""
+## Campaign-only link; Classic keeps its original targeting.
+var army: Army
 
 var _final: EnemySwarm
 var _wards: EnemySwarm
@@ -64,6 +66,16 @@ func refresh_warnings() -> void:
 
 func kind() -> String:
 	return _kind
+
+
+func army_phase() -> String:
+	if _boss_index() < 0 or _max_hp <= 0.0:
+		return ""
+	match _kind:
+		"lich": return "warded" if _warded else ""
+		"colossus": return "fracture" if not _lines.is_empty() else ("exposed" if _exposed > 0.0 else "")
+		"tyrant": return "sealed" if not _seals.is_empty() else "open"
+	return ""
 
 
 ## main.gd calls this every frame while the final boss lives.
@@ -105,6 +117,7 @@ func _lich(i: int) -> void:
 			if Obstacles.blocked(at, 1.0):
 				at = hero + Vector2.from_angle(TAU * k / 3.0) * 6.0
 			_wards.spawn(at, _director.hp_multiplier() * 1.5)
+		if is_instance_valid(army): army.set_priority_target(_wards)
 		Sound.play("boss_roar", 0.7)
 		Juice.ring(_final.pos[i], Color(0.6, 0.9, 1.0), 40, 10.0, 0.6, 0.6)
 	if _warded:
@@ -114,6 +127,7 @@ func _lich(i: int) -> void:
 		if _wards.alive_count() == 0:
 			_warded = false
 			_final.damage_taken = 1.0
+			if is_instance_valid(army): army.set_priority_target(null)
 			Sound.play("shatter", 0.6)
 			Juice.flash(_final.pos[i], Color(0.6, 0.9, 1.0), 6.0, 12.0, 0.5)
 	else:
@@ -152,6 +166,10 @@ func _colossus(i: int, delta: float) -> void:
 			_lines.remove_at(j)
 			if _lines.is_empty():
 				_exposed = EXPOSED_TIME
+				# Classic keeps its original next-tick exposure timing.
+				if is_instance_valid(army):
+					_final.damage_taken = 2.0
+					hint = "EXPOSED!  Double damage"
 				Juice.shake(0.5)
 		j -= 1
 
@@ -250,6 +268,7 @@ func seals_left() -> int:
 
 func _cleanup() -> void:
 	hint = ""
+	if is_instance_valid(army): army.set_priority_target(null)
 	for s in _seals:
 		(s["node"] as Node3D).queue_free()
 	_seals.clear()
@@ -262,3 +281,7 @@ func _cleanup() -> void:
 	_lines.clear()
 	if _wards:
 		_wards.despawn_all()
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(army): army.set_priority_target(null)
