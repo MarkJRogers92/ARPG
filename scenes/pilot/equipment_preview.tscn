@@ -1,9 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/main.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/pilot/equipment_preview.gd" id="2"]
 
 [ext_resource type="PackedScene" path="res://assets/equipment/prototypes/bronze_lantern.glb" id="3_lantern"]
+
+[ext_resource type="PackedScene" path="res://assets/environment/prototypes/treasure_chest.glb" id="4_chest"]
 
 [node name="Main" instance=ExtResource("1")]
 script = ExtResource("2")
@@ -11,3 +13,6 @@ script = ExtResource("2")
 [node name="PrototypeLantern" parent="." instance=ExtResource("3_lantern")]
 position = Vector3(3, 0, 2)
 scale = Vector3(0.8, 0.8, 0.8)
+
+[node name="PrototypeChest" parent="." instance=ExtResource("4_chest")]
+position = Vector3(-3, 0, 2)
