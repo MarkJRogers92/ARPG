@@ -1,0 +1,26 @@
+{
+  "asset": "closed treasure chest",
+  "triangles": 3954,
+  "height_m": 0.6,
+  "materials": 1,
+  "texture_dimensions": 2048,
+  "pivot": "bottom center",
+  "original_preserved": true,
+  "pipeline": [
+    "Higgsfield Soul 2.0",
+    "Meshy T2.5",
+    "Blender"
+  ],
+  "meshy_credits": 15,
+  "additional_budget_used": 15,
+  "additional_budget_remaining": 485,
+  "godot_import": "passed",
+  "sha256": "673fa0aedaf31e97574837d2589128391df9782f62d7a33c998506b4f03e26fa",
+  "rights": "unverified",
+  "production_ready": false,
+  "notes": [
+    "Single closed mesh; no separate lid, opening animation, collision or loot logic.",
+    "Provider normals retained; flat-normal diagnostic reduced apparent hardware depth.",
+    "Some rivets have small dark artifacts; visual polish remains."
+  ]
+}

@@ -438,3 +438,12 @@ source and tests match the merged/released commit.
 ## 2026-10-14 — Quiet Fantasy menu and typography, local review
 
 Local branch `codex/quiet-fantasy-menu` starts from typography candidate `51ac16a`, based on shipped PR #55 release `6ea0037`. Mark's selected B concept was materialized from Library and inspected before implementation. Quiet primary navigation, real saved-campaign card, separate hero/loadout/realm preparation, preserved progression facilities, title Settings, and menu-only 3D framing are complete. Final checks: 54/54 full suites, 161 menu flow checks, 36 native menu captures plus 45 typography layouts at 960×540/1280×720/1920×1080, 436 font checks and 420-second smoke passed. Four new Library screenshot items preserve the older contact sheet. See `docs/typography/QUIET_FANTASY.md` for exact IDs, evidence and limits. Native engine 4.7.2; no 4.6 packaged validation. Installed app, real saves, original checkout/import edits, Horse and Post Mortem untouched. No push, merge, deployment or paid API/art usage.
+
+## 2026-10-18 — Closed treasure chest prototype
+
+Add 3,954-triangle closed chest to the opt-in equipment preview scene, alongside
+existing sword/amulet/lantern prototypes. No production loot chest or save logic
+changed. Blender scale/pivot and standalone Godot import verified. Visual native
+in-game placement review pending. Provider release rights remain unverified.
+Focused verification: equipment preview and imported equipment suites both pass;
+new chest-presence check was confirmed failing before integration, then passing.

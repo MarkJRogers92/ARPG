@@ -39,6 +39,8 @@ func _run() -> void:
 	await process_frame
 	check(not main._in_title and not main.can_suspend(), "preview starts live and cannot overwrite a suspended night")
 	check(MetaProgress.disabled and RunSave.path != old_path, "preview isolates account progress and save path")
+	check(main.get_node_or_null("PrototypeChest") is Node3D, "prototype chest exists")
+	check(main.get_node_or_null("PrototypeShrine") is Node3D, "prototype shrine exists")
 	var lantern := main.get_node_or_null("PrototypeLantern") as Node3D
 	check(lantern != null, "preview includes prepared lantern prop")
 	var player: Player = main.get_node("Player")

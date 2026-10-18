@@ -1,0 +1,23 @@
+{
+  "asset": "basalt spiral shrine",
+  "source_triangles": 5177,
+  "prepared_triangles": 4988,
+  "height_m": 1.4,
+  "pivot": "bottom center",
+  "textures": "three embedded 2048px PBR maps",
+  "material_count": 1,
+  "source_preserved": true,
+  "repairs": [
+    "Closed two inspected missing-face boundary loops, with four and five edges",
+    "Recalculated face normals",
+    "Light decimation to below5000triangles"
+  ],
+  "godot_import": "passed mesh/material and triangle-count checks",
+  "watertightness_certified": false,
+  "production_ready": false,
+  "meshy_credits": 15,
+  "additional_budget_spent_total": 30,
+  "additional_budget_remaining": 470,
+  "commercial_rights": "unverified",
+  "sha256": "583e1d7a904234589e8308425e4b88a5bdfd78db9437fe5a37d03471feafd0a6"
+}
