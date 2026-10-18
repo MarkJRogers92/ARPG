@@ -71,6 +71,27 @@
       "license_status": "unverified",
       "release_rights_review_required": true,
       "production_ready": false
+    },
+    {
+      "name": "Bronze Lantern",
+      "file": "bronze_lantern.glb",
+      "slot": "preview_environment_prop",
+      "sha256": "7ba394d75e66998a610e770955a1d23300856c1ce0c4581fc9c027f0278a365c",
+      "bytes": 6582908,
+      "triangles": 4482,
+      "materials": 1,
+      "uv_sets": 1,
+      "source_pipeline": [
+        "Higgsfield Soul 2.0 image",
+        "Meshy T2.5 image-to-3D Smart Topology",
+        "Blender custom-normal removal and bottom-center origin"
+      ],
+      "source_generated_date": "2026-10-18",
+      "runtime_uniform_scale": 0.8,
+      "attachment_origin": "bottom center",
+      "license_status": "unverified",
+      "release_rights_review_required": true,
+      "production_ready": false
     }
   ]
 }

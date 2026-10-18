@@ -41,3 +41,18 @@ The sword grip attaches to all current hero hand mounts. It follows the existing
 one-handed cast pose and does **not** add melee damage, collision, or a two-handed
 swing. The accessory occupies the ordinary amulet inventory slot; the current
 game does not display worn amulets on the character's chest.
+
+## Bronze lantern preview prop
+
+The opt-in equipment preview also places a 4,482-triangle bronze lantern beside
+the player. This is a static decorative prop, not a new equippable item.
+Blender preparation removed malformed custom split normals that produced black
+triangles on the rear surface, retaining the normal map and original texture
+bytes. The prepared origin is at the bottom center. The source master is
+preserved in the cloud asset archive; this GLB is the corrected derivative.
+
+The material remains opaque and non-emissive. No light source, collision,
+interaction, or animation is asserted. Commercial release rights and visual
+fit in the running game still require review. The preview regression verifies
+the prop is present, and Godot imports its embedded textures without extracting
+duplicate JPEGs into the repository.
