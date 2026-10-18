@@ -577,6 +577,8 @@ const HERO_HAND := Vector3(0.44, 1.12, -0.45)
 # is the rarity color for loot.
 
 static func item(slot: String, base_name: String, accent: Color) -> ArrayMesh:
+	if ImportedEquipment.has_item(slot, base_name):
+		return ImportedEquipment.mesh(base_name)
 	return _cached("item|%s|%s|%s" % [slot, base_name, accent.to_html()], func() -> ArrayMesh:
 		var k := MeshKit.new()
 		_item_parts(k, base_name, accent)

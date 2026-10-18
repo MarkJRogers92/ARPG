@@ -183,6 +183,11 @@ func set_weapon(base_name: String, accent: Color) -> void:
 		_weapon.rotation = Vector3.ZERO
 		return
 	_weapon.mesh = Models.item("weapon", base_name, accent)
+	if ImportedEquipment.has_item("weapon", base_name):
+		# The prepared GLB origin is the grip midpoint; keep it in the hand.
+		_weapon.position = Vector3.ZERO
+		_weapon.rotation_degrees = Vector3(-12, 0, 0)
+		return
 	# Staffs (and the Reaper's scythe) are planted like a walking stick; wands
 	# and orbs are held up.
 	match base_name:
