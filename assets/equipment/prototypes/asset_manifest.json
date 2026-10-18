@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "status": "opt-in integration prototypes",
+  "assets": [
+    {
+      "name": "Rune Greatsword",
+      "file": "rune_greatsword.glb",
+      "slot": "weapon",
+      "sha256": "b2480bc80bf7b4f6c1b82e844491b98d0f6d589516a62d9175d6ac66d7cafa56",
+      "bytes": 7106804,
+      "triangles": 4951,
+      "materials": 1,
+      "uv_sets": 1,
+      "textures": {
+        "base_color": [
+          2048,
+          2048
+        ],
+        "metallic_roughness": [
+          2048,
+          2048
+        ],
+        "normal": [
+          2048,
+          2048
+        ]
+      },
+      "source_pipeline": [
+        "Higgsfield Soul 2.0 image",
+        "Meshy T2.5 image-to-3D Smart Topology",
+        "Blender attachment-origin preparation"
+      ],
+      "source_generated_date": "2026-10-18",
+      "runtime_uniform_scale": 1.6,
+      "attachment_origin": "grip midpoint; blade +Y",
+      "license_status": "unverified",
+      "release_rights_review_required": true,
+      "production_ready": false
+    },
+    {
+      "name": "Amber Amulet",
+      "file": "amber_amulet.glb",
+      "slot": "amulet",
+      "sha256": "e6cc1621201af92bc20d49f8adf1c8c2566dbeea621f8bec999adf541a6f85c4",
+      "bytes": 9057248,
+      "triangles": 5278,
+      "materials": 1,
+      "uv_sets": 1,
+      "textures": {
+        "base_color": [
+          2048,
+          2048
+        ],
+        "metallic_roughness": [
+          2048,
+          2048
+        ],
+        "normal": [
+          2048,
+          2048
+        ]
+      },
+      "source_pipeline": [
+        "Higgsfield Soul 2.0 image",
+        "Meshy T2.5 image-to-3D Smart Topology",
+        "Blender attachment-origin preparation"
+      ],
+      "source_generated_date": "2026-10-18",
+      "runtime_uniform_scale": 0.37,
+      "attachment_origin": "top-ring center; pendant hangs below origin",
+      "license_status": "unverified",
+      "release_rights_review_required": true,
+      "production_ready": false
+    }
+  ]
+}

@@ -55,6 +55,8 @@ func show_item(item: Item) -> void:
 		_preview_model.mesh = Models.item(item.slot, item.base_name, item.color())
 		_pose(_preview_model, item)
 		_preview_model.scale *= 1.15
+		if ImportedEquipment.has_item(item.slot, item.base_name):
+			_preview_model.position *= 1.15 # keep attachment-origin assets centered
 
 
 func _process(delta: float) -> void:
@@ -67,6 +69,12 @@ func _process(delta: float) -> void:
 func _pose(model: MeshInstance3D, item: Item) -> void:
 	model.rotation = Vector3.ZERO
 	model.scale = Vector3.ONE
+	if ImportedEquipment.has_item(item.slot, item.base_name):
+		model.rotation_degrees = Vector3(0, 0, -35) if item.slot == "weapon" else Vector3(-10, 20, 0)
+		var box := model.mesh.get_aabb()
+		model.scale = Vector3.ONE * (0.8 / maxf(box.size.length(), 0.001))
+		model.position = -(model.basis * box.get_center())
+		return
 	match item.slot:
 		"weapon":
 			model.rotation_degrees = Vector3(0, 0, -40)

@@ -68,6 +68,8 @@ SUITES=(
   "tools/quiet_menu_test.gd"
   "tools/guide_controls_test.gd"
   "tools/postmortem_test.gd"
+  "tools/imported_equipment_test.gd"
+  "tools/equipment_preview_test.gd"
   "tools/hero_visual_test.gd"
   "tools/aegis_visual_test.gd"
   "tools/hero_roster_test.gd"

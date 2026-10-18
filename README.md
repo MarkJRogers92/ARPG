@@ -16,6 +16,13 @@ Main combat and camera. Open `scenes/pilot/guardian_encounter.tscn` and press F6
 See [controls, combat contract and validation](docs/meshy_pilot/GUARDIAN_INTEGRATION.md).
 The default scene and existing enemies are unchanged.
 
+## Generated equipment preview (opt-in)
+
+The Rune Greatsword and Amber Amulet are integrated with the actual equipment
+visuals and inventory. Open `scenes/pilot/equipment_preview.tscn` and press F6.
+The sword is a casting-focus visual prototype using the existing attack system.
+See [preview controls, validation, and release limits](docs/equipment_prototypes/INTEGRATION.md).
+
 ## Run it
 
 **On a Mac, without Godot:** paste this into Terminal. It installs the latest
